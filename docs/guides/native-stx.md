@@ -232,9 +232,11 @@ PolyBLEP band-limited rather than wavetables, a biquad takes its coefficients
 once per quantum, the compressor has no look-ahead, and a 4-channel impulse
 response uses its first two channels. The session is `.ambient`, mixing with
 other audio and muted by the silent switch, as a web view's Web Audio is.
-`decodeAudioData` refuses: play a file with `craft.audio`. Android still mixes
-only oscillators and gains through `AudioTrack`. Both hosts tear the graph down
-with the screen.
+`decodeAudioData` refuses: play a file with `craft.audio`. Android renders the
+same native graph shape through `AudioTrack`, including buffer sources and the
+gain/filter/compressor/convolver chain used by `useAmbientSound`; its effects
+are intentionally conservative and file decoding remains outside the native
+runtime. Both hosts tear the graph down with the screen.
 
 `Svg` is DOM-free in native mode: the compiler emits geometry commands for
 shape nodes, `G` inherits fill/stroke paint, and `SvgText` draws text in the

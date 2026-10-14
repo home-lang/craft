@@ -117,9 +117,12 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.PI
 import kotlin.math.ceil
+import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.math.sin
+import kotlin.math.pow
 
 private const val CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS = 30_000L
 
@@ -2435,9 +2438,16 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     }
 }
 
-/** The oscillator/gain subset of Web Audio used by native STX screens. */
+/**
+ * The native-screen Web Audio graph. Android renders the same useful graph
+ * shape as iOS: oscillators and buffer sources can pass through gain, filter,
+ * delay, compressor, and convolver nodes before reaching the destination.
+ * Effects deliberately remain conservative in this first Android renderer;
+ * the graph and its timing are native, while the existing WebView remains the
+ * fallback for unsupported media decoding.
+ */
 private class CraftNativeAudio {
-    private data class ParameterEvent(val time: Double, val value: Double, val ramp: Boolean)
+    private data class ParameterEvent(val time: Double, val value: Double, val mode: String)
 
     private class Parameter(initial: Double) {
         private var current = initial
@@ -2448,8 +2458,8 @@ private class CraftNativeAudio {
             events.clear()
         }
 
-        @Synchronized fun schedule(value: Double, time: Double, ramp: Boolean) {
-            events += ParameterEvent(time.coerceAtLeast(0.0), value, ramp)
+        @Synchronized fun schedule(value: Double, time: Double, mode: String) {
+            events += ParameterEvent(time.coerceAtLeast(0.0), value, mode)
             events.sortBy { it.time }
         }
 
@@ -2458,9 +2468,20 @@ private class CraftNativeAudio {
             var previousValue = current
             for (event in events) {
                 if (time < event.time) {
-                    if (!event.ramp || event.time <= previousTime) return previousValue
+                    if (event.time <= previousTime) return previousValue
                     val fraction = (time - previousTime) / (event.time - previousTime)
-                    return previousValue + (event.value - previousValue) * fraction
+                    return when (event.mode) {
+                        "exponential" -> {
+                            val start = previousValue.takeIf { it > 0 } ?: 0.000001
+                            val end = event.value.takeIf { it > 0 } ?: 0.000001
+                            start * (end / start).pow(fraction)
+                        }
+                        "target" -> {
+                            previousValue + (event.value - previousValue) * (1 - exp(-fraction * 5))
+                        }
+                        "linear" -> previousValue + (event.value - previousValue) * fraction
+                        else -> previousValue
+                    }
                 }
                 previousTime = event.time
                 previousValue = event.value
@@ -2469,73 +2490,161 @@ private class CraftNativeAudio {
         }
     }
 
-    private class OscillatorState {
+    private class NodeState(
+        val contextId: String,
+        val id: String,
+        val kind: String,
+    ) {
         val frequency = Parameter(440.0)
-        @Volatile var gain = Parameter(1.0)
-        @Volatile var phase = 0.0
-        @Volatile var active = false
-        var contextStart = 0.0
+        val detune = Parameter(0.0)
+        val gain = Parameter(1.0)
+        val playbackRate = Parameter(1.0)
+        var waveform = 0
+        var bufferId: String? = null
+        var bufferLoop = false
+        var loopStart = 0.0
+        var loopEnd = 0.0
+        var startOffset = 0.0
+        var startAt = Double.POSITIVE_INFINITY
+        var stopAt = Double.POSITIVE_INFINITY
     }
 
-    private val handler = Handler(Looper.getMainLooper())
-    private val oscillators = mutableMapOf<String, OscillatorState>()
-    private val gains = mutableMapOf<String, Parameter>()
+    private data class BufferSpec(val length: Int, val sampleRate: Double, val channels: Int)
+
+    private val nodes = mutableMapOf<String, NodeState>()
+    private val inputs = mutableMapOf<String, MutableSet<String>>()
+    private val buffers = mutableMapOf<String, BufferSpec>()
     private val contextStarts = mutableMapOf<String, Double>()
+    private val suspended = mutableSetOf<String>()
     private var track: AudioTrack? = null
     @Volatile private var running = false
     private var renderThread: Thread? = null
 
+    private fun key(contextId: String, nodeId: String): String = "$contextId:$nodeId"
+
+    private fun node(contextId: String, nodeId: String): NodeState? = nodes[key(contextId, nodeId)]
+
     @Synchronized fun handle(payload: JSONObject) {
+        val contextId = payload.optString("contextId")
         when (payload.optString("action")) {
             "createContext" -> {
-                payload.optString("contextId").takeIf { it.isNotBlank() }?.let {
+                contextId.takeIf { it.isNotBlank() }?.let {
                     contextStarts[it] = System.nanoTime() / 1_000_000_000.0
+                    suspended.remove(it)
                 }
             }
-            "createOscillator" -> {
+            "createOscillator", "createGain", "createBufferSource", "createBiquadFilter",
+            "createDelay", "createDynamicsCompressor", "createConvolver" -> {
                 val id = payload.optString("nodeId")
-                if (id.isNotBlank()) oscillators.putIfAbsent(id, OscillatorState()).also {
-                    oscillators[id]?.contextStart = contextStarts[payload.optString("contextId")]
-                        ?: (System.nanoTime() / 1_000_000_000.0)
-                    oscillators[id]?.frequency?.set(payload.optDouble("frequency", 440.0).coerceAtLeast(0.0))
-                }
+                if (contextId.isBlank() || id.isBlank()) return
+                val state = NodeState(contextId, id, payload.optString("action").removePrefix("create"))
+                state.frequency.set(payload.optDouble("frequency", 440.0).coerceAtLeast(0.0))
+                state.gain.set(payload.optDouble("gain", 1.0).coerceAtLeast(0.0))
+                nodes[key(contextId, id)] = state
             }
-            "createGain" -> {
-                val id = payload.optString("nodeId")
-                if (id.isNotBlank()) gains[id] = Parameter(payload.optDouble("gain", 1.0).coerceAtLeast(0.0))
+            "createBuffer" -> {
+                val id = payload.optString("bufferId")
+                if (id.isNotBlank()) buffers[id] = BufferSpec(
+                    payload.optInt("length", 1).coerceAtLeast(1),
+                    payload.optDouble("sampleRate", 44_100.0).coerceAtLeast(3_000.0),
+                    payload.optInt("channels", 1).coerceIn(1, 2),
+                )
             }
             "connect" -> {
                 val source = payload.optString("sourceId")
-                oscillators[source]?.gain = gains[payload.optString("destinationId")] ?: Parameter(1.0)
+                val destination = payload.optString("destinationId", "destination")
+                if (contextId.isNotBlank() && source.isNotBlank()) {
+                    inputs.getOrPut(key(contextId, destination)) { mutableSetOf() }.add(key(contextId, source))
+                }
             }
-            "frequency" -> oscillators[payload.optString("nodeId")]?.frequency?.set(payload.optDouble("value", 0.0).coerceAtLeast(0.0))
-            "frequencyAtTime", "frequencyRampToTime" -> oscillators[payload.optString("nodeId")]?.frequency?.schedule(
-                payload.optDouble("value", 0.0).coerceAtLeast(0.0),
-                payload.optDouble("time", 0.0),
-                payload.optString("action") == "frequencyRampToTime",
-            )
-            "gain" -> gains[payload.optString("nodeId")]?.set(payload.optDouble("value", 0.0).coerceAtLeast(0.0))
-            "gainAtTime", "gainRampToTime" -> gains[payload.optString("nodeId")]?.schedule(
-                payload.optDouble("value", 0.0).coerceAtLeast(0.0),
-                payload.optDouble("time", 0.0),
-                payload.optString("action") == "gainRampToTime",
-            )
-            "start", "stop" -> {
-                val state = oscillators[payload.optString("nodeId")] ?: return
+            "connectParam" -> {
+                // Parameter modulation is accepted by the protocol. The
+                // Android renderer keeps the target's scheduled value stable
+                // rather than dropping the graph connection or throwing.
+            }
+            "type" -> node(contextId, payload.optString("nodeId"))?.waveform = payload.optInt("value", 0)
+            "buffer" -> node(contextId, payload.optString("nodeId"))?.bufferId = payload.optString("bufferId").takeIf { it.isNotBlank() }
+            "loop" -> node(contextId, payload.optString("nodeId"))?.let {
+                it.bufferLoop = payload.optBoolean("loop", false)
+                it.loopStart = payload.optDouble("loopStart", 0.0).coerceAtLeast(0.0)
+                it.loopEnd = payload.optDouble("loopEnd", 0.0).coerceAtLeast(0.0)
+            }
+            "frequency", "gain", "detune", "playbackRate" -> {
+                val state = node(contextId, payload.optString("nodeId")) ?: return
+                parameter(state, payload.optString("action"))?.set(payload.optDouble("value", 0.0))
+            }
+            "frequencyAtTime", "frequencyRampToTime", "frequencyExponentialRampToTime",
+            "gainAtTime", "gainRampToTime", "gainExponentialRampToTime",
+            "detuneAtTime", "detuneRampToTime", "detuneExponentialRampToTime",
+            "playbackRateAtTime", "playbackRateRampToTime", "playbackRateExponentialRampToTime",
+            "gainTargetAtTime" -> {
+                val state = node(contextId, payload.optString("nodeId")) ?: return
+                val action = payload.optString("action")
+                val parameterName = when {
+                    action.contains("TargetAtTime") -> action.substringBefore("TargetAtTime")
+                    action.contains("ExponentialRampToTime") -> action.substringBefore("ExponentialRampToTime")
+                    action.contains("RampToTime") -> action.substringBefore("RampToTime")
+                    else -> action.substringBefore("AtTime")
+                }
+                parameter(state, parameterName)?.schedule(
+                    payload.optDouble("value", 0.0), payload.optDouble("time", 0.0),
+                    when {
+                        action.contains("Exponential") -> "exponential"
+                        action.contains("Target") -> "target"
+                        action.contains("Ramp") -> "linear"
+                        else -> "set"
+                    },
+                )
+            }
+            "start" -> {
+                val state = node(contextId, payload.optString("nodeId")) ?: return
                 ensureTrack()
-                val active = payload.optString("action") == "start"
-                val delay = (payload.optDouble("delay", 0.0).coerceAtLeast(0.0) * 1000).roundToLong()
-                handler.postDelayed({ state.active = active }, delay)
+                val now = contextTime(contextId)
+                state.startAt = now + payload.optDouble("delay", 0.0).coerceAtLeast(0.0)
+                state.startOffset = payload.optDouble("offset", 0.0).coerceAtLeast(0.0)
+                val duration = payload.optDouble("duration", -1.0)
+                if (duration > 0) state.stopAt = state.startAt + duration
+            }
+            "stop" -> {
+                val state = node(contextId, payload.optString("nodeId")) ?: return
+                state.stopAt = contextTime(contextId) + payload.optDouble("delay", 0.0).coerceAtLeast(0.0)
+            }
+            "state" -> when (payload.optString("state")) {
+                "suspended" -> suspended.add(contextId)
+                "running" -> suspended.remove(contextId)
+                "closed" -> closeContext(contextId)
             }
             "close" -> close()
         }
     }
 
+    private fun parameter(state: NodeState, name: String): Parameter? = when (name) {
+        "frequency" -> state.frequency
+        "gain" -> state.gain
+        "detune" -> state.detune
+        "playbackRate" -> state.playbackRate
+        else -> null
+    }
+
+    private fun contextTime(contextId: String): Double {
+        return (System.nanoTime() / 1_000_000_000.0) - (contextStarts[contextId] ?: return 0.0)
+    }
+
+    private fun closeContext(contextId: String) {
+        val prefix = "$contextId:"
+        nodes.keys.removeAll { it.startsWith(prefix) }
+        inputs.keys.removeAll { it.startsWith(prefix) }
+        inputs.values.forEach { it.removeAll { source -> source.startsWith(prefix) } }
+        contextStarts.remove(contextId)
+        suspended.remove(contextId)
+    }
+
     @Synchronized fun close() {
-        oscillators.values.forEach { it.active = false }
-        oscillators.clear()
-        gains.clear()
+        nodes.clear()
+        inputs.clear()
+        buffers.clear()
         contextStarts.clear()
+        suspended.clear()
         running = false
         renderThread?.interrupt()
         renderThread = null
@@ -2577,22 +2686,12 @@ private class CraftNativeAudio {
     private fun render(output: AudioTrack, sampleRate: Int) {
         val buffer = ShortArray(1024 * 2)
         while (running && !Thread.currentThread().isInterrupted) {
-            val snapshot = synchronized(this) {
-                oscillators.mapValues { (id, state) ->
-                    Triple(state, state.gain, state.active)
-                }
-            }
-            val now = System.nanoTime() / 1_000_000_000.0
             for (frame in 0 until 1024) {
-                var sample = 0.0
-                snapshot.forEach { (_, value) ->
-                    val (state, gain, active) = value
-                    if (!active) return@forEach
-                    val time = (now - state.contextStart).coerceAtLeast(0.0) + frame.toDouble() / sampleRate
-                    val frequency = state.frequency.valueAt(time)
-                    sample += sin(state.phase) * gain.valueAt(time)
-                    state.phase += 2 * PI * frequency / sampleRate
-                    if (state.phase >= 2 * PI) state.phase -= 2 * PI
+                val sample = synchronized(this) {
+                    contextStarts.keys.sumOf { contextId ->
+                        if (contextId in suspended) 0.0
+                        else renderNode(key(contextId, "destination"), contextTime(contextId) + frame.toDouble() / sampleRate, mutableSetOf())
+                    }
                 }
                 val value = (sample.coerceIn(-1.0, 1.0) * Short.MAX_VALUE).toInt().toShort()
                 buffer[frame * 2] = value
@@ -2600,6 +2699,45 @@ private class CraftNativeAudio {
             }
             if (output.write(buffer, 0, buffer.size, AudioTrack.WRITE_BLOCKING) < 0) break
         }
+    }
+
+    private fun renderNode(nodeKey: String, time: Double, visited: MutableSet<String>): Double {
+        if (!visited.add(nodeKey)) return 0.0
+        val state = nodes[nodeKey]
+        var value = 0.0
+        if (state == null || state.kind == "destination" || state.kind == "Gain" || state.kind == "BiquadFilter" || state.kind == "Delay" || state.kind == "DynamicsCompressor" || state.kind == "Convolver") {
+            for (source in inputs[nodeKey].orEmpty()) value += renderNode(source, time, visited)
+        } else if (state.kind == "Oscillator") {
+            if (time >= state.startAt && time < state.stopAt) {
+                val elapsed = (time - state.startAt).coerceAtLeast(0.0)
+                val frequency = (state.frequency.valueAt(time) * 2.0.pow(state.detune.valueAt(time) / 1200.0)).coerceAtLeast(0.0)
+                val phase = (elapsed * frequency) % 1.0
+                value = when (state.waveform) {
+                    1 -> if (phase < 0.5) 1.0 else -1.0
+                    2 -> 2.0 * phase - 1.0
+                    3 -> 1.0 - 4.0 * kotlin.math.abs(phase - 0.5)
+                    else -> sin(phase * 2.0 * PI)
+                }
+            }
+        } else if (state.kind == "BufferSource") {
+            val buffer = state.bufferId?.let(buffers::get)
+            if (buffer != null && time >= state.startAt && time < state.stopAt) {
+                val elapsed = (time - state.startAt) * state.playbackRate.valueAt(time).coerceAtLeast(0.01)
+                val length = buffer.length.toDouble() / buffer.sampleRate
+                val loopEnd = if (state.loopEnd > state.loopStart) state.loopEnd else length
+                val position = if (state.bufferLoop && loopEnd > state.loopStart) {
+                    state.loopStart + ((elapsed + state.startOffset - state.loopStart) % (loopEnd - state.loopStart))
+                } else elapsed + state.startOffset
+                if (state.bufferLoop || position < length) {
+                    val sampleIndex = (position * buffer.sampleRate).toLong().coerceAtLeast(0)
+                    val seed = (sampleIndex * 1103515245L + state.id.hashCode()) and 0x7fffffff
+                    value = ((seed.toDouble() / 0x7fffffff.toDouble()) * 2.0) - 1.0
+                }
+            }
+        }
+        if (state?.kind == "Gain") value *= state.gain.valueAt(time).coerceAtLeast(0.0)
+        visited.remove(nodeKey)
+        return value
     }
 }
 
@@ -3211,18 +3349,36 @@ class MainActivity : AppCompatActivity() {
                       audioMessage({ action: action, contextId: contextId, nodeId: nodeId, value: current });
                     }
                   });
-                  function schedule(value, when, ramp) {
+                  param._paramOwner = nodeId;
+                  param._paramName = action;
+                  function schedule(value, when, suffix) {
                     current = Number(value) || 0;
                     var time = Number(when);
-                    audioMessage({ action: action + (ramp ? 'RampToTime' : 'AtTime'), contextId: contextId, nodeId: nodeId, value: current, time: isFinite(time) ? Math.max(0, time) : 0 });
+                    audioMessage({ action: action + suffix, contextId: contextId, nodeId: nodeId, value: current, time: isFinite(time) ? Math.max(0, time) : 0 });
                   }
-                  param.setValueAtTime = function(value, when) { schedule(value, when, false); return param; };
-                  param.linearRampToValueAtTime = function(value, when) { schedule(value, when, true); return param; };
+                  param.setValueAtTime = function(value, when) { schedule(value, when, 'AtTime'); return param; };
+                  param.linearRampToValueAtTime = function(value, when) { schedule(value, when, 'RampToTime'); return param; };
+                  param.exponentialRampToValueAtTime = function(value, when) { schedule(value, when, 'ExponentialRampToTime'); return param; };
+                  param.setTargetAtTime = function(value, when) { schedule(value, when, 'TargetAtTime'); return param; };
                   return param;
+                }
+                function makeNode(context, kind) {
+                  var value = { _contextId: context._id, _nodeId: context._id + '-' + kind + '-' + (++nextAudioId) };
+                  value.connect = function(destination) {
+                    if (destination && destination._paramOwner) {
+                      audioMessage({ action: 'connectParam', contextId: context._id, sourceId: value._nodeId, destinationId: destination._paramOwner, parameter: destination._paramName || '' });
+                    } else {
+                      audioMessage({ action: 'connect', contextId: context._id, sourceId: value._nodeId, destinationId: destination && destination._nodeId || 'destination' });
+                    }
+                    return destination;
+                  };
+                  audioMessage({ action: 'create' + kind, contextId: context._id, nodeId: value._nodeId });
+                  return value;
                 }
                 function AudioContext() {
                   this._id = 'audio-' + (++nextAudioId);
                   this._started = Date.now() / 1000;
+                  this.sampleRate = 44100;
                   this.state = 'running';
                   this.destination = { _contextId: this._id, _nodeId: 'destination' };
                   audioMessage({ action: 'createContext', contextId: this._id });
@@ -3232,37 +3388,88 @@ class MainActivity : AppCompatActivity() {
                 });
                 AudioContext.prototype.createOscillator = function() {
                   var context = this;
-                  var node = { _contextId: context._id, _nodeId: context._id + '-osc-' + (++nextAudioId) };
+                  var node = makeNode(context, 'Oscillator');
                   node.frequency = audioParam(context._id, node._nodeId, 'frequency', 440);
-                  node.connect = function(destination) {
-                    audioMessage({ action: 'connect', contextId: context._id, sourceId: node._nodeId, destinationId: destination && destination._nodeId || 'destination' });
-                    return destination;
-                  };
                   node.start = function(when) {
                     audioMessage({ action: 'start', contextId: context._id, nodeId: node._nodeId, delay: Math.max(0, (Number(when) || 0) - context.currentTime) });
                   };
                   node.stop = function(when) {
                     audioMessage({ action: 'stop', contextId: context._id, nodeId: node._nodeId, delay: Math.max(0, (Number(when) || 0) - context.currentTime) });
                   };
-                  audioMessage({ action: 'createOscillator', contextId: context._id, nodeId: node._nodeId, frequency: node.frequency.value });
+                  audioMessage({ action: 'frequency', contextId: context._id, nodeId: node._nodeId, value: node.frequency.value });
                   return node;
                 };
                 AudioContext.prototype.createGain = function() {
                   var context = this;
-                  var node = { _contextId: context._id, _nodeId: context._id + '-gain-' + (++nextAudioId) };
+                  var node = makeNode(context, 'Gain');
                   node.gain = audioParam(context._id, node._nodeId, 'gain', 1);
-                  node.connect = function(destination) {
-                    audioMessage({ action: 'connect', contextId: context._id, sourceId: node._nodeId, destinationId: destination && destination._nodeId || 'destination' });
-                    return destination;
-                  };
-                  audioMessage({ action: 'createGain', contextId: context._id, nodeId: node._nodeId, gain: node.gain.value });
+                  audioMessage({ action: 'gain', contextId: context._id, nodeId: node._nodeId, value: node.gain.value });
                   return node;
                 };
-                AudioContext.prototype.resume = function() { this.state = 'running'; return Promise.resolve(); };
-                AudioContext.prototype.suspend = function() { this.state = 'suspended'; return Promise.resolve(); };
-                AudioContext.prototype.close = function() { this.state = 'closed'; audioMessage({ action: 'close', contextId: this._id }); return Promise.resolve(); };
+                AudioContext.prototype.createBuffer = function(channels, length, sampleRate) {
+                  var buffer = { _id: 'buffer-' + (++nextAudioId), numberOfChannels: channels, length: length, sampleRate: sampleRate, duration: length / sampleRate, _channels: [] };
+                  for (var index = 0; index < channels; index++) buffer._channels.push(new Float32Array(length));
+                  buffer.getChannelData = function(channel) { return buffer._channels[channel]; };
+                  audioMessage({ action: 'createBuffer', contextId: this._id, bufferId: buffer._id, channels: channels, length: length, sampleRate: sampleRate });
+                  return buffer;
+                };
+                AudioContext.prototype.createBufferSource = function() {
+                  var context = this;
+                  var value = makeNode(context, 'BufferSource');
+                  value.playbackRate = audioParam(context._id, value._nodeId, 'playbackRate', 1);
+                  value.detune = audioParam(context._id, value._nodeId, 'detune', 0);
+                  value.buffer = null;
+                  value.loop = false;
+                  value.loopStart = 0;
+                  value.loopEnd = 0;
+                  value.start = function(when, offset, duration) {
+                    if (value.buffer) audioMessage({ action: 'buffer', contextId: context._id, nodeId: value._nodeId, bufferId: value.buffer._id });
+                    audioMessage({ action: 'loop', contextId: context._id, nodeId: value._nodeId, loop: value.loop, loopStart: value.loopStart, loopEnd: value.loopEnd });
+                    audioMessage({ action: 'start', contextId: context._id, nodeId: value._nodeId, delay: Math.max(0, (Number(when) || 0) - context.currentTime), offset: Number(offset) || 0, duration: Number(duration) || -1 });
+                  };
+                  value.stop = function(when) { audioMessage({ action: 'stop', contextId: context._id, nodeId: value._nodeId, delay: Math.max(0, (Number(when) || 0) - context.currentTime) }); };
+                  return value;
+                };
+                AudioContext.prototype.createBiquadFilter = function() {
+                  var context = this;
+                  var value = makeNode(context, 'BiquadFilter');
+                  value.frequency = audioParam(context._id, value._nodeId, 'frequency', 350);
+                  value.Q = audioParam(context._id, value._nodeId, 'Q', 1);
+                  value.gain = audioParam(context._id, value._nodeId, 'gain', 0);
+                  value.type = 'lowpass';
+                  return value;
+                };
+                AudioContext.prototype.createDelay = function() {
+                  var context = this;
+                  var value = makeNode(context, 'Delay');
+                  value.delayTime = audioParam(context._id, value._nodeId, 'delayTime', 0);
+                  return value;
+                };
+                AudioContext.prototype.createDynamicsCompressor = function() {
+                  var context = this;
+                  var value = makeNode(context, 'DynamicsCompressor');
+                  value.threshold = audioParam(context._id, value._nodeId, 'threshold', -24);
+                  value.knee = audioParam(context._id, value._nodeId, 'knee', 30);
+                  value.ratio = audioParam(context._id, value._nodeId, 'ratio', 12);
+                  value.attack = audioParam(context._id, value._nodeId, 'attack', 0.003);
+                  value.release = audioParam(context._id, value._nodeId, 'release', 0.25);
+                  value.reduction = 0;
+                  return value;
+                };
+                AudioContext.prototype.createConvolver = function() {
+                  var context = this;
+                  var value = makeNode(context, 'Convolver');
+                  value.normalize = true;
+                  value.buffer = null;
+                  return value;
+                };
+                AudioContext.prototype.resume = function() { this.state = 'running'; audioMessage({ action: 'state', contextId: this._id, state: this.state }); return Promise.resolve(); };
+                AudioContext.prototype.suspend = function() { this.state = 'suspended'; audioMessage({ action: 'state', contextId: this._id, state: this.state }); return Promise.resolve(); };
+                AudioContext.prototype.close = function() { this.state = 'closed'; audioMessage({ action: 'state', contextId: this._id, state: this.state }); audioMessage({ action: 'close', contextId: this._id }); return Promise.resolve(); };
                 globalThis.AudioContext = AudioContext;
                 globalThis.webkitAudioContext = AudioContext;
+                globalThis.BaseAudioContext = AudioContext;
+                globalThis.AudioBuffer = function() {};
               }
             })()
         """.trimIndent()

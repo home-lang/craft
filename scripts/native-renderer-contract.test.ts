@@ -17,6 +17,13 @@ const androidChrome = readFileSync(join(root, 'packages/android/templates/CraftN
 const androidCapabilities = readFileSync(join(root, 'packages/android/templates/CraftNativeCapabilities.kt.template'), 'utf8')
 const androidNative = readFileSync(join(root, 'packages/android/templates/CraftNative.kt.template'), 'utf8')
 const androidDispatch = readFileSync(join(root, 'packages/zig/src/android_dispatch.zig'), 'utf8')
+const androidAudioPrelude = (() => {
+  const opening = '        val audioPrelude = """\n'
+  const start = android.indexOf(opening)
+  const end = android.indexOf('\n        """.trimIndent()', start)
+  if (start < 0 || end < 0) throw new Error('Android audio prelude is missing')
+  return android.slice(start + opening.length, end).replace(/^ {12}/gm, '')
+})()
 const androidFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeFlatList.kt.template'), 'utf8')
 const androidRefreshableFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeRefreshableFlatList.kt.template'), 'utf8')
 const iosNotifCancel = readFileSync(join(root, 'packages/zig/src/bridge_mobile_notifcancel.zig'), 'utf8')
@@ -406,17 +413,25 @@ describe('native renderer component contract', () => {
     expect(iosWebAudio).toContain("BaseAudioContext.prototype.createConvolver = function()")
     expect(ios).toContain('audio.install(in: jsContext)')
     expect(ios).toContain('audio.close()')
-    // Android mixes oscillators and gains.
+    // Android accepts the same native graph shape; unsupported file decoding
+    // still remains an explicit WebView/craft.audio boundary.
     expect(android).toContain('private class CraftNativeAudio')
     expect(android).toContain('"frequencyAtTime", "frequencyRampToTime"')
     expect(android).toContain('"gainAtTime", "gainRampToTime"')
+    expect(android).toContain('"createBufferSource", "createBiquadFilter"')
+    expect(android).toContain('"createDelay", "createDynamicsCompressor", "createConvolver"')
+    expect(android).toContain('AudioContext.prototype.createBufferSource')
+    expect(android).toContain('AudioContext.prototype.createDynamicsCompressor')
+    expect(android).toContain('AudioContext.prototype.createConvolver')
     expect(android).toContain("param.linearRampToValueAtTime = function(value, when)")
+    expect(android).toContain("param.exponentialRampToValueAtTime = function(value, when)")
     expect(android).toContain('AudioTrack')
+    expect(() => new Function(androidAudioPrelude)).not.toThrow()
     expect(android).toContain('globalThis.AudioContext = AudioContext')
     expect(android).toContain('"AUDIO" -> screen.audio.handle(payload)')
     expect(android).toContain('audio.close()')
     expect(guide).toContain('Native screens have Web Audio')
-    expect(guide).toContain('Android still mixes\nonly oscillators and gains')
+    expect(guide).toContain('Android renders the\nsame native graph shape')
   })
 
   it('keeps the shared layout core explicit', () => {
@@ -683,6 +698,10 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="image-error-count"')
     expect(navigationHome).toContain('testID="native-audio-context"')
     expect(navigationHome).toContain('const context = new AudioContext()')
+    expect(navigationHome).toContain('context.createBufferSource()')
+    expect(navigationHome).toContain('context.createBiquadFilter()')
+    expect(navigationHome).toContain('context.createDynamicsCompressor()')
+    expect(navigationHome).toContain('context.createConvolver()')
     expect(navigationHome).toContain('oscillator.frequency.linearRampToValueAtTime')
     expect(navigationHome).toContain('gain.gain.setValueAtTime')
     expect(iosNavigationTest).toContain('app.buttons["native-audio-context"].tap()')

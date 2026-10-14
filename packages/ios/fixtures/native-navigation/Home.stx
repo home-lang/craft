@@ -92,12 +92,21 @@ function verifyAudioContext() {
     const context = new AudioContext()
     const oscillator = context.createOscillator()
     const gain = context.createGain()
+    const buffer = context.createBuffer(1, 32, context.sampleRate)
+    const source = context.createBufferSource()
+    const filter = context.createBiquadFilter()
+    const compressor = context.createDynamicsCompressor()
+    const convolver = context.createConvolver()
+    source.buffer = buffer
+    convolver.buffer = buffer
     oscillator.connect(gain)
-    gain.connect(context.destination)
+    source.connect(filter).connect(gain)
+    gain.connect(compressor).connect(convolver).connect(context.destination)
     oscillator.frequency.setValueAtTime(220, context.currentTime)
     oscillator.frequency.linearRampToValueAtTime(220, context.currentTime + 0.05)
     gain.gain.setValueAtTime(0, context.currentTime)
     gain.gain.linearRampToValueAtTime(0, context.currentTime + 0.05)
+    source.start(context.currentTime, 0, 0.01)
     context.close()
     audioContextStatus.set('AudioContext ready')
   } catch (error) {
