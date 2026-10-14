@@ -20,6 +20,7 @@ const androidDispatch = readFileSync(join(root, 'packages/zig/src/android_dispat
 const androidFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeFlatList.kt.template'), 'utf8')
 const androidRefreshableFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeRefreshableFlatList.kt.template'), 'utf8')
 const androidNavigationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeNavigationTest.kt'), 'utf8')
+const androidMutationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeMutationTest.kt'), 'utf8')
 const androidBuilderTest = readFileSync(join(root, 'packages/android/src/index.test.ts'), 'utf8')
 const androidFlatListTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeFlatListTest.kt'), 'utf8')
 const iosNavigationTest = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/NativeNavigationUITests.swift'), 'utf8')
@@ -28,6 +29,7 @@ const navigationDetails = readFileSync(join(root, 'packages/ios/fixtures/native-
 const iosNavigationScript = readFileSync(join(root, 'packages/ios/scripts/test-native-navigation.ts'), 'utf8')
 const androidNavigationScript = readFileSync(join(root, 'packages/android/scripts/test-native-navigation.ts'), 'utf8')
 const iosNativeUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeRenderUnitTests.swift'), 'utf8')
+const iosMutation = readFileSync(join(root, 'packages/ios/templates/CraftNativeMutation.swift'), 'utf8')
 const iosLayoutUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeLayoutUnitTests.swift'), 'utf8')
 const guide = readFileSync(join(root, 'docs/guides/native-stx.md'), 'utf8')
 const migrationGuide = readFileSync(join(root, 'docs/guides/migration/react-native.md'), 'utf8')
@@ -93,6 +95,10 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('guard let target = drawnTarget(id) else { return false }')
     expect(iosNativeUnitTests).toContain('func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace()')
     expect(iosNativeUnitTests).toContain('func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot()')
+    expect(iosNativeUnitTests).toContain('func testMapOverlayMutationStaysAddressableToItsMap()')
+    expect(androidMutationTest).toContain('fun keepsMapOverlayParentsAddressableForTargetedUpdates()')
+    expect(iosMutation).toContain('"Fragment", "Svg", "G", "Map"')
+    expect(androidMutation).toContain('"Fragment", "Svg", "G", "Map"')
   })
 
   it('exports the flat flex ABI for mobile hosts', () => {

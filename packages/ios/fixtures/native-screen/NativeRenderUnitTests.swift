@@ -451,6 +451,29 @@ final class NativeRenderUnitTests: XCTestCase {
         }
     }
 
+    func testMapOverlayMutationStaysAddressableToItsMap() throws {
+        let document = CraftNativeMutationDocument()
+        XCTAssertNoThrow(try document.apply(batch(1, [
+            ["op": "createNode", "id": "root", "root": true, "node": ["type": "View"]],
+            ["op": "createNode", "id": "map", "node": ["type": "Map"]],
+            ["op": "createNode", "id": "route", "node": [
+                "type": "MapPolyline", "props": ["geometry": [47.0, 11.0, 47.1, 11.2]],
+            ]],
+            ["op": "insertChild", "parentId": "root", "childId": "map", "index": 0],
+            ["op": "insertChild", "parentId": "map", "childId": "route", "index": 0],
+        ])))
+        XCTAssertEqual(document.parentId(of: "route"), "map")
+
+        let update = try document.apply(batch(2, [
+            ["op": "updateNode", "id": "route", "patch": [
+                "props": ["geometry": [47.0, 11.0, 47.2, 11.4]],
+            ]],
+        ]))
+        XCTAssertEqual(update.updatedNodeIds, ["route"])
+        XCTAssertEqual(update.affectedNodeIds, ["route"])
+        XCTAssertFalse(update.requiresFullRender)
+    }
+
     func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace() throws {
         // A chart behind an `:if` (stx): the drawing and its shapes arrive in
         // one batch after the first paint. The shapes were refused as

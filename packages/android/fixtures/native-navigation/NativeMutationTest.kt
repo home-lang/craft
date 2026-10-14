@@ -148,6 +148,13 @@ class NativeMutationTest {
         """.trimIndent()))
         assertEquals("map", document.parentId("route"))
         assertEquals("Map", document.node("map")?.getString("type"))
+
+        val update = document.apply(batch(2, """
+            [{"op":"updateNode","id":"route","patch":{"props":{"geometry":[47,11,47.2,11.4]}}}]
+        """.trimIndent()))
+        assertEquals(listOf("route"), update.updatedNodeIds)
+        assertEquals(listOf("route"), update.affectedNodeIds)
+        assertEquals(false, update.requiresFullRender)
     }
 
     private fun failure(
