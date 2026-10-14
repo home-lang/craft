@@ -56,9 +56,13 @@ final class CraftMacApplication: NSObject, NSApplicationDelegate, UNUserNotifica
     var testDirectory: URL?
     var testTimer: Timer?
     var processedActions = Set<String>()
+    var appearanceObservation: NSKeyValueObservation?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenus()
+        appearanceObservation = NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.appearanceChanged() }
+        }
         NSApp.activate(ignoringOtherApps: true)
         // The agent issues an HttpOnly cookie. It stays in URLSession, shared
         // by native windows, and is never handed to the JavaScript context.
@@ -86,6 +90,19 @@ final class CraftMacApplication: NSObject, NSApplicationDelegate, UNUserNotifica
         broadcast(id)
     }
     func broadcast(_ id: String) { for scene in scenes.values { scene.runtime.send("CRAFT_EVENT", ["event": "craftDesktopCommand", "detail": ["id": id]]) } }
+    func appearanceChanged() {
+        let scheme = CraftMacColor.isDark ? "dark" : "light"
+        for scene in scenes.values {
+            scene.runtime.context.evaluateScript("__stxNativeBridge.colorScheme = '\(scheme)';")
+            scene.window.effectiveAppearance.performAsCurrentDrawingAppearance {
+                for box in scene.renderer.boxes.values {
+                    box.layer?.backgroundColor = CraftMacColor.parse(box.style["backgroundColor"], fallback: .clear).cgColor
+                    box.layer?.borderColor = CraftMacColor.parse(box.style["borderColor"], fallback: .separatorColor).cgColor
+                }
+            }
+        }
+        broadcast("appearance")
+    }
 
     private func installMenus() {
         let bar = NSMenu()
@@ -242,6 +259,10 @@ final class CraftMacApplication: NSObject, NSApplicationDelegate, UNUserNotifica
         let kind = action["action"] as? String ?? ""
         if kind == "command", let id = action["id"] as? String { broadcast(id); return ["ok": true] }
         if kind == "quit" { DispatchQueue.main.async { NSApp.terminate(nil) }; return ["ok": true] }
+        if kind == "appearance" {
+            NSApp.appearance = NSAppearance(named: action["value"] as? String == "dark" ? .darkAqua : .aqua)
+            appearanceChanged(); return ["ok": true]
+        }
         let scene = scenes[action["window"] as? String ?? "main"]
         guard let scene else { return ["ok": false, "error": "Window not found"] }
         if kind == "close" { scene.window.performClose(nil); return ["ok": true] }
@@ -250,12 +271,14 @@ final class CraftMacApplication: NSObject, NSApplicationDelegate, UNUserNotifica
                   let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return ["ok": false, "error": "Window cannot be rendered"] }
             view.cacheDisplay(in: view.bounds, to: bitmap)
             guard let png = bitmap.representation(using: .png, properties: [:]) else { return ["ok": false, "error": "PNG encoding failed"] }
-            let destination = directory.appendingPathComponent("screenshot-\(scene.name).png")
+            let destination = directory.appendingPathComponent("screenshot-\(scene.name)-\(CraftMacColor.isDark ? "dark" : "light").png")
             do { try png.write(to: destination, options: .atomic); return ["ok": true, "path": destination.path] }
             catch { return ["ok": false, "error": error.localizedDescription] }
         }
         guard let identifier = action["target"] as? String,
               let box = scene.renderer.boxes.values.first(where: { ($0.props["testID"] as? String ?? $0.props["testId"] as? String ?? $0.id) == identifier }) else { return ["ok": false, "error": "Control not found"] }
+        guard box.window?.isVisible == true, !box.isHidden, box.frame.width > 0, box.frame.height > 0 else { return ["ok": false, "error": "Control is not visible"] }
+        if let control = box.control as? NSControl, !control.isEnabled { return ["ok": false, "error": "Control is disabled"] }
         switch kind {
         case "click": if let button = box.control as? NSButton { button.performClick(nil) } else { box.pressed() }
         case "fill":
@@ -277,7 +300,7 @@ final class CraftMacApplication: NSObject, NSApplicationDelegate, UNUserNotifica
         let windows: [[String: Any]] = scenes.values.map { scene in
             let nodes: [[String: Any]] = scene.renderer.boxes.values.map { box in
                 var node: [String: Any] = ["id": box.props["testID"] as? String ?? box.props["testId"] as? String ?? box.id, "type": box.kind,
-                    "nativeClass": box.control.map { String(describing: type(of: $0)) } ?? "NSView", "visible": !box.isHidden && box.window != nil,
+                    "nativeClass": box.control.map { String(describing: type(of: $0)) } ?? "NSView", "visible": !box.isHidden && box.window?.isVisible == true && box.frame.width > 0 && box.frame.height > 0,
                     "frame": [box.frame.minX, box.frame.minY, box.frame.width, box.frame.height]]
                 if let field = box.control as? NSTextField { node["value"] = field.stringValue }
                 if let text = (box.control as? NSScrollView)?.documentView as? NSTextView { node["value"] = text.string; node["editorClass"] = "NSTextView" }
@@ -290,7 +313,7 @@ final class CraftMacApplication: NSObject, NSApplicationDelegate, UNUserNotifica
             return ["name": scene.name, "title": scene.window.title, "route": scene.runtime.route, "contextClass": String(describing: type(of: scene.runtime.context)), "nodes": nodes, "viewClasses": classes(scene.renderer.root), "errors": scene.runtime.errors]
         }
         let webViews = windows.reduce(0) { count, window in count + ((window["viewClasses"] as? [String] ?? []).filter { $0.contains("WKWebView") || $0 == "WebView" }.count) }
-        return ["renderer": "appkit", "scriptEngine": "zig-js", "windows": windows, "webViews": webViews]
+        return ["renderer": "appkit", "scriptEngine": "zig-js", "appearance": CraftMacColor.isDark ? "dark" : "light", "windows": windows, "webViews": webViews]
     }
 }
 
