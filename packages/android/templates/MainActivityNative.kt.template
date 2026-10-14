@@ -4274,6 +4274,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyTextDecoration(view: TextView, style: JSONObject) {
         val line = style.optString("textDecorationLine")
+        if (view is EditText) {
+            // A field's own text, spanned in place: replacing it would move
+            // the caret to the start and tell the screen the text changed.
+            val editable = view.text ?: return
+            editable.getSpans(0, editable.length, CraftTextDecorationSpan::class.java).forEach(editable::removeSpan)
+            if (line.isBlank() || line == "none" || editable.isEmpty()) return
+            val fieldColor = style.optString("textDecorationColor").takeIf { it.isNotBlank() }?.let { color(it, Color.TRANSPARENT) }
+            editable.setSpan(
+                CraftTextDecorationSpan(line, style.optString("textDecorationStyle").ifBlank { "solid" }, fieldColor),
+                0,
+                editable.length,
+                Spannable.SPAN_INCLUSIVE_INCLUSIVE,
+            )
+            return
+        }
         val text = view.text?.toString() ?: return
         if (line.isBlank() || line == "none" || text.isEmpty()) {
             if (view.text is Spannable) view.text = text

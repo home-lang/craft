@@ -43,6 +43,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.abs
 
 @RunWith(AndroidJUnit4::class)
 class NativeNavigationTest {
@@ -258,7 +259,7 @@ class NativeNavigationTest {
             assertTrue("View did not render as LinearLayout", root is LinearLayout)
             val bubble = awaitView(activity, "max-content-bubble") as ViewGroup
             val bubbleText = awaitView(activity, "max-content-bubble-text") as TextView
-            assertEquals(1, bubbleText.lineCount, "text took min-content width and wrapped unexpectedly")
+            assertEquals("text took min-content width and wrapped unexpectedly", 1, bubbleText.lineCount)
             assertTrue("bubble did not retain its authored horizontal padding", bubble.width > bubbleText.width)
             assertTrue(name is EditText)
             val nameInput = name as EditText
@@ -283,8 +284,6 @@ class NativeNavigationTest {
             assertEquals("Draft", (notes as EditText).text.toString())
             assertEquals("Notes", notes.hint.toString())
             assertEquals(Color.rgb(0x22, 0xc5, 0x5e), notes.highlightColor)
-            val inputDecorations = (nameInput.text as? Spanned)?.getSpans(0, nameInput.text.length, ReplacementSpan::class.java).orEmpty()
-            assertTrue("TextInput decoration span was not applied", inputDecorations.isNotEmpty())
             val readonly = awaitView(activity, "readonly-input") as EditText
             assertTrue("editable=false should disable the native input", !readonly.isEnabled)
             assertEquals("Read only", readonly.text.toString())
@@ -310,9 +309,9 @@ class NativeNavigationTest {
             assertEquals((10 * density).toInt(), styled.paddingLeft)
             assertEquals((5 * density).toInt(), styled.paddingTop)
             assertEquals(0.75f, styled.alpha)
-            assertEquals((4 * density), styled.translationX, 1f, "transform translateX was not applied")
-            assertEquals(0.9f, styled.scaleX, 0.01f, "transform scaleX was not applied")
-            assertEquals(2f, styled.rotation, 0.1f, "transform rotate was not applied")
+            assertEquals("transform translateX was not applied", (4 * density), styled.translationX, 1f)
+            assertEquals("transform scaleX was not applied", 0.9f, styled.scaleX, 0.01f)
+            assertEquals("transform rotate was not applied", 2f, styled.rotation, 0.1f)
             assertTrue("styled row should have laid out before skew drawing", styled.width > 0 && styled.height > 0)
             assertEquals("FIRST", styledFirst.text.toString())
             assertEquals(Color.rgb(0xfe, 0xdc, 0xba), styledFirst.currentTextColor)
@@ -336,21 +335,23 @@ class NativeNavigationTest {
             assertEquals(fractionalFirst.width, fractionalSecond.width)
             assertTrue("fractional grid columns overlapped", fractionalSecond.left > fractionalFirst.right)
             assertTrue("fractional grid overflowed its container", fractionalThird.right <= fractionalGrid.right)
+            // A child's top and left are in its container's coordinates.
             val gridAlign = awaitView(activity, "grid-align-wrap")
             val gridAlignFirst = awaitView(activity, "grid-align-first")
             val gridAlignThird = awaitView(activity, "grid-align-third")
-            assertTrue("grid alignContent did not center its rows", gridAlignFirst.top - gridAlign.top > (20 * density).toInt())
+            assertTrue("grid alignContent did not center its rows", gridAlignFirst.top > (20 * density).toInt())
             val gridAspect = awaitView(activity, "grid-aspect-ratio-box")
             assertEquals((80 * density).toInt(), gridAspect.width)
             assertEquals((40 * density).toInt(), gridAspect.height)
             val gridEvenly = awaitView(activity, "grid-align-evenly-wrap")
             val gridEvenlyFirst = awaitView(activity, "grid-evenly-first")
             val gridEvenlyThird = awaitView(activity, "grid-evenly-third")
-            assertTrue("grid space-evenly missed the leading slot", gridEvenlyFirst.top - gridEvenly.top > (10 * density).toInt())
+            assertTrue("grid space-evenly missed the leading slot", gridEvenlyFirst.top > (10 * density).toInt())
             assertTrue("grid space-evenly missed the inter-row slot", gridEvenlyThird.top - gridEvenlyFirst.top > (35 * density).toInt())
             val aspectRatioBox = awaitView(activity, "aspect-ratio-box")
-            assertEquals((100 * density).toInt(), aspectRatioBox.width)
-            assertEquals((50 * density).toInt(), aspectRatioBox.height)
+            // 100 points is 262.5 pixels at 2.625: a pixel either way is rounding.
+            assertEquals("aspectRatio width", 100.0 * density, aspectRatioBox.width.toDouble(), 1.0)
+            assertEquals("aspectRatio height", 50.0 * density, aspectRatioBox.height.toDouble(), 1.0)
             val alignFirst = awaitView(activity, "align-content-first")
             val alignThird = awaitView(activity, "align-content-third")
             assertTrue("alignContent did not distribute wrapped lines", alignThird.top - alignFirst.top > (50 * density).toInt())
@@ -362,29 +363,29 @@ class NativeNavigationTest {
             val evenly = awaitView(activity, "align-content-evenly-wrap")
             val evenlyFirst = awaitView(activity, "align-evenly-first")
             val evenlyThird = awaitView(activity, "align-evenly-third")
-            assertTrue("alignContent space-evenly missed the leading slot", evenlyFirst.top - evenly.top > (10 * density).toInt())
+            assertTrue("alignContent space-evenly missed the leading slot", evenlyFirst.top > (10 * density).toInt())
             assertTrue("alignContent space-evenly missed the inter-line slot", evenlyThird.top - evenlyFirst.top > (35 * density).toInt())
             val growFirst = awaitView(activity, "flex-grow-first")
             val growSecond = awaitView(activity, "flex-grow-second")
             assertTrue("flexGrow did not consume remaining main-axis space", growFirst.width > growSecond.width)
             val capped = awaitView(activity, "flex-bound-first")
             val redistributed = awaitView(activity, "flex-bound-second")
-            assertEquals(64.0 * density, capped.width.toDouble(), 2.0 * density, "maxWidth did not freeze the capped flex item")
+            assertEquals("maxWidth did not freeze the capped flex item", 64.0 * density, capped.width.toDouble(), 2.0 * density)
             assertTrue("remaining flex space was not redistributed", redistributed.width > capped.width + (40 * density).toInt())
             val justifyCenter = awaitView(activity, "justify-center-wrap")
             val justifyCenterFirst = awaitView(activity, "justify-center-first")
             val justifyCenterSecond = awaitView(activity, "justify-center-second")
-            assertTrue("shared justify-center position was not applied", justifyCenterFirst.left > justifyCenter.left + (20 * density).toInt())
+            assertTrue("shared justify-center position was not applied", justifyCenterFirst.left > (20 * density).toInt())
             assertTrue("shared justify-center gap was not applied", justifyCenterSecond.left > justifyCenterFirst.right)
             val justifyBetween = awaitView(activity, "justify-between-wrap")
             val justifyBetweenFirst = awaitView(activity, "justify-between-first")
             val justifyBetweenSecond = awaitView(activity, "justify-between-second")
-            assertTrue("shared space-between leading position was not applied", justifyBetweenFirst.left <= justifyBetween.left + (20 * density).toInt())
-            assertTrue("shared space-between trailing position was not applied", justifyBetweenSecond.right >= justifyBetween.right - (20 * density).toInt())
+            assertTrue("shared space-between leading position was not applied", justifyBetweenFirst.left <= (20 * density).toInt())
+            assertTrue("shared space-between trailing position was not applied", justifyBetweenSecond.right >= justifyBetween.width - (20 * density).toInt())
             val crossAxis = awaitView(activity, "cross-axis-wrap")
             val crossCenter = awaitView(activity, "cross-axis-center")
             val crossEnd = awaitView(activity, "cross-axis-end")
-            assertTrue("alignItems center did not center the child", abs(crossCenter.top + crossCenter.height / 2 - (crossAxis.top + crossAxis.height / 2)) <= (3 * density).toInt())
+            assertTrue("alignItems center did not center the child", abs(crossCenter.top + crossCenter.height / 2 - crossAxis.height / 2) <= (3 * density).toInt())
             assertTrue("alignSelf flex-end did not move the child to the line end", crossEnd.top > crossCenter.top)
             val baseline = awaitView(activity, "baseline-wrap")
             val baselineLarge = awaitView(activity, "baseline-large")
@@ -637,7 +638,7 @@ class NativeNavigationTest {
             assertEquals("CraftNativeKeyboardAvoidingView", keyboardAvoiding.javaClass.simpleName)
             assertTrue("KeyboardAvoidingView child did not reconcile", awaitView(activity, "native-keyboard-avoiding-input") is EditText)
             assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)
-            assertEquals("Native vector", svg.contentDescription?.toString(), "SVG accessibility metadata did not survive native mounting")
+            assertEquals("SVG accessibility metadata did not survive native mounting", "Native vector", svg.contentDescription?.toString())
             assertEquals("CraftNativeIconView", icon.javaClass.simpleName)
             assertEquals("Native icon", icon.contentDescription?.toString())
             assertTrue("Icon fixture should expose a visible glyph", (icon as TextView).text.isNotBlank())
@@ -690,6 +691,9 @@ class NativeNavigationTest {
             val singleLineName = awaitView(activity, "name-input") as EditText
             assertTrue("single-line mode did not restore the input", singleLineName.isSingleLine)
             assertEquals("Ada", singleLineName.text.toString())
+            // The field's dashed underline, on what was typed (an empty field has nothing to underline).
+            val inputDecorations = (singleLineName.text as? Spanned)?.getSpans(0, singleLineName.text.length, ReplacementSpan::class.java).orEmpty()
+            assertTrue("TextInput decoration span was not applied", inputDecorations.isNotEmpty())
             assertEquals("single-line", (awaitView(activity, "name-mode") as TextView).text.toString())
             instrumentation.runOnMainSync { singleLineName.onEditorAction(EditorInfo.IME_ACTION_DONE) }
             awaitText(activity, "name-submits", "Submits: 1")
@@ -797,17 +801,17 @@ class NativeNavigationTest {
             val themeProbe = awaitView(activity, "theme-probe")
             val initialThemeColor = backgroundColor(themeProbe)
             assertTrue("theme probe did not receive a native background", initialThemeColor != null)
-            val changed = Configuration(activity.resources.configuration)
-            val currentNight = changed.uiMode and Configuration.UI_MODE_NIGHT_MASK
-            val nextNight = if (currentNight == Configuration.UI_MODE_NIGHT_YES) {
-                Configuration.UI_MODE_NIGHT_NO
-            } else {
-                Configuration.UI_MODE_NIGHT_YES
-            }
-            changed.uiMode = (changed.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or nextNight
+            // The way light and dark change for real: through AppCompat, which
+            // owns the activity's night mode (a configuration set by hand is
+            // put back by it). The manifest handles uiMode, so the activity
+            // hears onConfigurationChanged rather than being recreated.
+            val currentNight = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
             instrumentation.runOnMainSync {
-                activity.resources.updateConfiguration(changed, activity.resources.displayMetrics)
-                activity.onConfigurationChanged(changed)
+                activity.delegate.localNightMode = if (currentNight == Configuration.UI_MODE_NIGHT_YES) {
+                    androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+                } else {
+                    androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+                }
             }
             awaitBackgroundColor(themeProbe, initialThemeColor)
             assertTrue("theme probe label disappeared during trait refresh", awaitView(activity, "theme-probe-label") is TextView)

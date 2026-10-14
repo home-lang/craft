@@ -352,8 +352,14 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(chat.accessibilityValue, "3 unread")
         XCTAssertEqual(account.title(for: .normal), "CB")
         XCTAssertEqual(account.accessibilityLabel, "Me")
-        XCTAssertEqual(chat.layer.cornerRadius, 22)
-        XCTAssertEqual(account.layer.cornerRadius, 22)
+        // Each floats on its own round surface (glass on iOS 26, the thin
+        // material before it), under its symbol or initials and its badge.
+        for button in [chat, account] {
+            let surface = try XCTUnwrap(button.subviews.first { $0 is UIVisualEffectView })
+            XCTAssertEqual(surface.layer.cornerRadius, 22)
+            XCTAssertFalse(surface.isUserInteractionEnabled)
+            XCTAssertEqual(button.subviews.filter { $0 is UIVisualEffectView }.count, 1)
+        }
         XCTAssertTrue(items.allSatisfy { $0.customView is UIButton })
     }
 
