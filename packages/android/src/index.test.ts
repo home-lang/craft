@@ -281,11 +281,11 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('override fun onLowMemory()')
       expect(nativeActivity).toContain('mapViews().forEach { it.lowMemory() }')
       expect(nativeActivity).toContain('drawNodes(canvas, drawing.optJSONArray("children") ?: JSONArray(), SvgPaint().merge(drawing))')
-      expect(nativeActivity).toContain('val dashes: List<Float>')
+      expect(nativeActivity).toContain('val strokeDasharray: List<Float> = emptyList()')
       expect(nativeActivity).toContain('DashPathEffect(pattern, 0f)')
       // A chart stretched to its box keeps its strokes' width.
       expect(nativeActivity).toContain('optString("preserveAspectRatio")?.trim() == "none"')
-      expect(nativeActivity).toContain('props.optString("vectorEffect") == "non-scaling-stroke"')
+      expect(nativeActivity).toContain('style.vectorEffect == "non-scaling-stroke"')
       expect(nativeActivity).toContain('import android.graphics.Matrix')
       expect(nativeActivity).toContain('val pattern: FloatArray')
       expect(nativeActivity).toContain('control.onLayoutChanged = { if (screen.active) emitLayoutEvents(screen) }')

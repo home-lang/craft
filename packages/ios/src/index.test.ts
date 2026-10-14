@@ -136,7 +136,7 @@ describe('Craft iOS builder', () => {
     // A chart stretched to its box (preserveAspectRatio="none") keeps its
     // strokes' width (vector-effect="non-scaling-stroke").
     expect(nativeSwift).toContain('if preserveAspectRatio?.trimmingCharacters(in: .whitespaces) != "none" {')
-    expect(nativeSwift).toContain('["vectorEffect"] as? String == "non-scaling-stroke"')
+    expect(nativeSwift).toContain('let nonScaling = own.vectorEffect == "non-scaling-stroke"')
     expect(nativeSwift).toContain('line.lineCapStyle = own.linecap')
     expect(nativeSwift).toContain('line.lineJoinStyle = own.linejoin')
     expect(nativeSwift).toContain('line.setLineDash(dashes, count: dashes.count, phase: 0)')
