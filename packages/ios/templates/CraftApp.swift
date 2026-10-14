@@ -561,7 +561,13 @@ struct CraftApp: App {
                     .ignoresSafeArea(.keyboard, edges: .bottom)
                 } else if appState.config.renderer == "native" {
                     // One native screen and its stack: no paths, no tabs.
+                    // The screen keeps itself out of the keyboard's way (its
+                    // own bottom safe area, CraftNativeScreen.swift); SwiftUI
+                    // shrinking it as well took the keyboard's height twice,
+                    // and a screen's scroll views and text views were squeezed
+                    // to nothing whenever the keyboard came up.
                     CraftNativeScreen(config: appState.config)
+                        .ignoresSafeArea(.keyboard, edges: .bottom)
                 } else {
                     // The page's own chrome, drawn natively over it: the tab
                     // bar the page asks for, and the splash until it is ready.

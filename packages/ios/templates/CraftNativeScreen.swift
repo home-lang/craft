@@ -5398,6 +5398,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 view.accessibilityValue = [current, message].compactMap { $0 }.joined(separator: ", ")
             }
         }
+        // A multiline TextInput is a UITextView, which works out its traits
+        // as it goes: while it has the keyboard they say it is editing, and
+        // that is what UI tests and VoiceOver read focus from. Setting them
+        // froze them, so it read as static text that never had focus ("neither
+        // element nor any descendant has keyboard focus"); it keeps its own.
+        if view is UITextView { return }
         view.accessibilityTraits = traits
     }
 

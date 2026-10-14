@@ -4,6 +4,7 @@
 (function () {
   let count = 0
   let name = ''
+  let notes = ''
   let nextMessage = 0
   let revision = 0
 
@@ -51,6 +52,8 @@
             { id: 'increment', type: 'Button', props: { key: 'increment' }, events: { onPress: 'increment' }, children: ['Increment'] },
             { id: 'name-input', type: 'TextInput', props: { key: 'name-input', placeholder: 'Type your name' }, events: { onChange: 'changeName' } },
             { id: 'name', type: 'Text', props: { key: 'name' }, children: [`Hello ${name}`] },
+            { id: 'notes-input', type: 'TextInput', props: { key: 'notes-input', multiline: true, placeholder: 'Notes' }, style: { height: 80 }, events: { onChange: 'changeNotes' } },
+            { id: 'notes', type: 'Text', props: { key: 'notes' }, children: [`Notes: ${notes}`] },
           ],
         },
       },
@@ -63,6 +66,10 @@
     if (message.payload.handlerName === 'increment') {
       count += 1
       mutate([{ op: 'updateNode', id: 'count', patch: { children: [`Count: ${count}`] } }])
+    }
+    if (message.payload.handlerName === 'changeNotes') {
+      notes = message.payload.nativeEvent.text
+      mutate([{ op: 'updateNode', id: 'notes', patch: { children: [`Notes: ${notes}`] } }])
     }
     if (message.payload.handlerName === 'changeName') {
       name = message.payload.nativeEvent.text

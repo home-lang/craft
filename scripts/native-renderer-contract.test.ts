@@ -1158,7 +1158,11 @@ describe('native renderer component contract', () => {
 
   it('lets the keyboard cover the tab bar rather than carry it up', () => {
     const app = readFileSync(join(root, 'packages/ios/templates/CraftApp.swift'), 'utf8')
-    expect(app.split('.ignoresSafeArea(.keyboard, edges: .bottom)').length - 1).toBe(2)
+    expect(app.split('.ignoresSafeArea(.keyboard, edges: .bottom)').length - 1).toBe(3)
+    // The one-screen native host too: the screen avoids the keyboard itself
+    // (its bottom safe area), and SwiftUI shrinking it as well took the
+    // keyboard's height twice and squeezed its scroll and text views flat.
+    expect(app).toContain('CraftNativeScreen(config: appState.config)\n                        .ignoresSafeArea(.keyboard, edges: .bottom)')
   })
 
   it('ends the hybrid web view at the keyboard, so sticky headers stay on screen', () => {

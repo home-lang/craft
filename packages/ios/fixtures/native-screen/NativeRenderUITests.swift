@@ -28,4 +28,17 @@ final class NativeRenderUITests: XCTestCase {
             XCTAssertEqual(app.staticTexts["name"].label, "Hello Ada" + String(repeating: "x", count: count))
         }
     }
+
+    /// A multiline TextInput is a text view to UI tests and VoiceOver, and
+    /// takes the keyboard: its accessibility traits must keep UITextView's own.
+    func testMultilineTextInputTakesTyping() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let notes = app.textViews["notes-input"]
+        XCTAssertTrue(notes.waitForExistence(timeout: 15), "the multiline input is not exposed as a text view")
+        notes.tap()
+        XCTAssertTrue(keyboardIsVisible(app))
+        notes.typeText("Easy run")
+        XCTAssertEqual(app.staticTexts["notes"].label, "Notes: Easy run")
+    }
 }
