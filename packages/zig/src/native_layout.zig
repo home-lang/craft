@@ -1303,6 +1303,53 @@ test "exports the host-neutral tree layout contract" {
     try std.testing.expectEqual(@as(f32, 10), frames[1].height);
 }
 
+test "lays out nested flat trees with absolute descendant frames" {
+    var root_style = emptyLayoutStyleInput();
+    root_style.width = 200;
+    root_style.height = 100;
+    root_style.padding_left = 10;
+    root_style.padding_top = 5;
+    root_style.gap = 10;
+
+    var column_style = emptyLayoutStyleInput();
+    column_style.direction = 1;
+    column_style.width = 80;
+    column_style.height = 60;
+    column_style.padding_left = 4;
+    column_style.padding_top = 3;
+    column_style.gap = 2;
+
+    var first_style = emptyLayoutStyleInput();
+    first_style.intrinsic_width = 20;
+    first_style.intrinsic_height = 10;
+    var second_style = emptyLayoutStyleInput();
+    second_style.intrinsic_width = 30;
+    second_style.intrinsic_height = 15;
+
+    const nodes = [_]LayoutNodeInput{
+        .{ .style = root_style, .first_child = 1, .child_count = 1 },
+        .{ .style = column_style, .first_child = 2, .child_count = 2 },
+        .{ .style = first_style, .first_child = 0, .child_count = 0 },
+        .{ .style = second_style, .first_child = 0, .child_count = 0 },
+    };
+    var frames: [4]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_layout_tree(200, 100, &nodes, nodes.len, &frames, frames.len));
+    try std.testing.expectEqual(@as(f32, 200), frames[0].width);
+    try std.testing.expectEqual(@as(f32, 100), frames[0].height);
+    try std.testing.expectEqual(@as(f32, 10), frames[1].x);
+    try std.testing.expectEqual(@as(f32, 5), frames[1].y);
+    try std.testing.expectEqual(@as(f32, 80), frames[1].width);
+    try std.testing.expectEqual(@as(f32, 60), frames[1].height);
+    try std.testing.expectEqual(@as(f32, 14), frames[2].x);
+    try std.testing.expectEqual(@as(f32, 8), frames[2].y);
+    try std.testing.expectEqual(@as(f32, 20), frames[2].width);
+    try std.testing.expectEqual(@as(f32, 10), frames[2].height);
+    try std.testing.expectEqual(@as(f32, 14), frames[3].x);
+    try std.testing.expectEqual(@as(f32, 20), frames[3].y);
+    try std.testing.expectEqual(@as(f32, 30), frames[3].width);
+    try std.testing.expectEqual(@as(f32, 15), frames[3].height);
+}
+
 test "rejects malformed host-neutral layout trees without writing frames" {
     var style = emptyLayoutStyleInput();
     style.width = 20;

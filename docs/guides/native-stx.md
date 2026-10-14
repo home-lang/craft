@@ -73,7 +73,10 @@ flows, differing row/column gaps, missing runtimes, and any malformed ABI
 result stay on the local compatibility algorithms. The iOS root also keeps a
 definite viewport frame for a `flex: 1` screen root, so an absolute sibling of
 a `ScrollView` is anchored to the screen rather than to the scroll content.
-The fallback is intentional, so an SDK-only project never loses native layout.
+The Zig contract also exercises a nested preorder tree and checks absolute
+descendant frames, so hosts cannot silently flatten a nested container or lose
+its padding and gap offsets while applying the shared result. The fallback is
+intentional, so an SDK-only project never loses native layout.
 Replacing the remaining duplicated tree walks is the next step, not creating a
 second platform-specific layout implementation. Baseline alignment follows the same
 boundary: hosts provide the measured distance to a child's baseline, and Zig only

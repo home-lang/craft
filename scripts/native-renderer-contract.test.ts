@@ -1129,6 +1129,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('if (wrap && abs(rowGap - columnGap) > 0.0001f) return null')
     expect(android).toContain('putEnum(base, 18, if (root && wrap) 1 else 0)')
     expect(android).toContain('val sharedEntries = if (wrap) lines.flatMap { it.entries } else lines[0].entries')
+    expect(nativeLayout).toContain('test "lays out nested flat trees with absolute descendant frames"')
+    expect(nativeLayout).toContain('try std.testing.expectEqual(@as(f32, 14), frames[3].x)')
   })
 
   it('sanitizes keyboard avoidance offsets before applying host geometry', () => {
