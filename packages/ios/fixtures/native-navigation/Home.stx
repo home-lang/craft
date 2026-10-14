@@ -665,6 +665,11 @@ function captureSectionScroll() {
       <Text testID="percent-basis-first" style={{"flexBasis":"50%","height":20}}>basis one</Text>
       <Text testID="percent-basis-second" style={{"flexBasis":"50%","height":20}}>basis two</Text>
     </View>
+    <View testID="independent-gap-wrap" style={{"width":100,"height":80,"flexDirection":"row","flexWrap":"wrap","columnGap":5,"rowGap":12,"alignItems":"flex-start","alignContent":"flex-start","backgroundColor":"#503f2f"}}>
+      <Text testID="independent-gap-first" style={{"width":45,"height":10}}>gap first</Text>
+      <Text testID="independent-gap-second" style={{"width":45,"height":10}}>gap second</Text>
+      <Text testID="independent-gap-third" style={{"width":45,"height":10}}>gap third</Text>
+    </View>
     <Text testID="layout-status" :text="layoutWidth > 0 ? 'Layout width: ' + layoutWidth : 'layout pending'" />
     <View testID="hidden-layout-parent" style={{"display":"none"}}>
       <Text testID="hidden-layout-child" @layout="captureHiddenLayout()">Hidden child</Text>

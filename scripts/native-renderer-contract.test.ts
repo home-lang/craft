@@ -1156,6 +1156,9 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('test "lays out nested flat trees with absolute descendant frames"')
     expect(nativeLayout).toContain('try std.testing.expectEqual(@as(f32, 14), frames[3].x)')
     expect(nativeLayout).toContain('test "keeps independent row and column gaps in wrapped flex"')
+    expect(navigationHome).toContain('testID="independent-gap-wrap"')
+    expect(iosNavigationTest).toContain('column gap was not shared through the native layout ABI')
+    expect(androidNavigationTest).toContain('row gap was not shared through the native layout ABI')
   })
 
   it('sanitizes keyboard avoidance offsets before applying host geometry', () => {

@@ -574,6 +574,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(percentBasisSecond.waitForExistence(timeout: 5))
         XCTAssertEqual(percentBasisFirst.frame.width, 120, accuracy: 2, "percentage flex-basis was not resolved on the first child")
         XCTAssertEqual(percentBasisSecond.frame.width, 120, accuracy: 2, "percentage flex-basis was not resolved on the second child")
+        let independentGapFirst = app.staticTexts["independent-gap-first"]
+        let independentGapSecond = app.staticTexts["independent-gap-second"]
+        let independentGapThird = app.staticTexts["independent-gap-third"]
+        XCTAssertTrue(independentGapThird.waitForExistence(timeout: 5))
+        XCTAssertEqual(independentGapSecond.frame.minX - independentGapFirst.frame.minX, 50, accuracy: 2, "column gap was not shared through the native layout ABI")
+        XCTAssertEqual(independentGapThird.frame.minY - independentGapFirst.frame.minY, 22, accuracy: 2, "row gap was not shared through the native layout ABI")
         let absolute = app.otherElements["layout-absolute"]
         XCTAssertTrue(absolute.exists)
         XCTAssertLessThanOrEqual(absolute.frame.maxX, wrapped.frame.maxX - 8)

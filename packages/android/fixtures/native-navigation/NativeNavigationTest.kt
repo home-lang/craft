@@ -556,6 +556,11 @@ class NativeNavigationTest {
             val percentBasisSecond = awaitView(activity, "percent-basis-second")
             assertEquals((120 * density).toInt(), percentBasisFirst.width)
             assertEquals((120 * density).toInt(), percentBasisSecond.width)
+            val independentGapFirst = awaitView(activity, "independent-gap-first")
+            val independentGapSecond = awaitView(activity, "independent-gap-second")
+            val independentGapThird = awaitView(activity, "independent-gap-third")
+            assertEquals((50 * density).toInt(), independentGapSecond.left - independentGapFirst.left, "column gap was not shared through the native layout ABI")
+            assertEquals((22 * density).toInt(), independentGapThird.top - independentGapFirst.top, "row gap was not shared through the native layout ABI")
             val toggle = awaitView(activity, "native-switch")
             assertTrue("native switch should be an Android Switch", toggle is Switch)
             val nativeSwitch = toggle as Switch
