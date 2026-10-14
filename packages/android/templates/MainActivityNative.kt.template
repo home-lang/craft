@@ -12,6 +12,7 @@ import android.database.ContentObserver
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.MediaPlayer
 import android.media.AudioTrack
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -2200,8 +2201,10 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     private var shouldLoop = false
     private var shouldPlay = false
     private var muted = false
+    private var resizeMode = "contain"
+    private var preparedPlayer: MediaPlayer? = null
 
-    fun configure(source: Any?, autoplay: Boolean, paused: Boolean, loop: Boolean, muted: Boolean, controls: Boolean) {
+    fun configure(source: Any?, autoplay: Boolean, paused: Boolean, loop: Boolean, muted: Boolean, controls: Boolean, resizeMode: String?) {
         val uri = when (source) {
             is String -> source
             is JSONObject -> source.optString("uri")
@@ -2210,16 +2213,21 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         shouldLoop = loop
         shouldPlay = autoplay && !paused
         this.muted = muted
+        this.resizeMode = resizeMode?.lowercase()?.takeIf { it in setOf("cover", "contain", "stretch", "center") } ?: "contain"
+        applyScalingMode()
         setMediaController(if (controls) MediaController(context).also { it.setAnchorView(this) } else null)
         if (uri != sourceUri) {
             sourceUri = uri
             stopPlayback()
+            preparedPlayer = null
             if (uri.isBlank()) return
             // A copy kept on the phone (craft.media.keep) plays in place of
             // the address: offline in a gym with no signal.
             val kept = CraftNativeMedia.local(context, uri)
             setVideoURI(if (kept != null) Uri.fromFile(kept) else Uri.parse(uri))
             setOnPreparedListener { mediaPlayer ->
+                preparedPlayer = mediaPlayer
+                applyScalingMode()
                 mediaPlayer.isLooping = shouldLoop
                 val volume = if (this.muted) 0f else 1f
                 mediaPlayer.setVolume(volume, volume)
@@ -2237,6 +2245,14 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     fun stop() {
         stopPlayback()
         sourceUri = ""
+        preparedPlayer = null
+    }
+
+    private fun applyScalingMode() {
+        preparedPlayer?.setVideoScalingMode(
+            if (resizeMode == "cover") MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+            else MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT,
+        )
     }
 }
 
@@ -4071,6 +4087,7 @@ class MainActivity : AppCompatActivity() {
                     loop = props.optBoolean("loop", false),
                     muted = props.optBoolean("muted", false),
                     controls = props.optBoolean("controls", false),
+                    resizeMode = style.optString("resizeMode").ifBlank { props.optString("resizeMode") },
                 )
             }
             "Map" -> (previous as? CraftNativeMapView ?: CraftNativeMapView(this)).apply {

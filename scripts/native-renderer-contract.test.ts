@@ -363,6 +363,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('CraftNativeVideoView')
     expect(android).toContain('VideoView')
     expect(android).toContain('mediaPlayer.isLooping = shouldLoop')
+    expect(android).toContain('private var preparedPlayer: MediaPlayer? = null')
+    expect(android).toContain('this.resizeMode = resizeMode?.lowercase()?.takeIf { it in setOf("cover", "contain", "stretch", "center") } ?: "contain"')
+    expect(android).toContain('MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING')
+    expect(android).toContain('resizeMode = style.optString("resizeMode").ifBlank { props.optString("resizeMode") }')
     expect(guide).toContain('`Video` uses the platform player')
   })
 
