@@ -1,5 +1,24 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.176...v0.0.177)
+
+## 🚀 Features
+
+- **ios**: the simulator driver drags in from the screen's edge ([bca254f](https://github.com/craft-native/craft/commit/bca254f)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **ios**: native screens keep their presses, modals, layout reports and keyboard straight ([fdd566d](https://github.com/craft-native/craft/commit/fdd566d)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **native**: the navigation fixture asks what its screens now promise ([1e110ec](https://github.com/craft-native/craft/commit/1e110ec)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.175...v0.0.176)
 
 ## 🚀 Features
