@@ -156,6 +156,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('internal fun craftNativeFiniteFloat(style: JSONObject?, name: String, fallback: Float): Float')
       expect(nativeActivity).toContain('craftNativeFiniteFloat(style, "opacity", 1f)')
       expect(nativeActivity).toContain('screen.pressActiveOpacities[this] = craftNativeFiniteFloat(props, "activeOpacity", 0.5f)')
+      expect(nativeActivity).toContain('val authoredOffset = craftNativeFiniteDouble(props, "keyboardVerticalOffset", 0.0)')
+      expect(nativeActivity).toContain('val pixelOffset = (authoredOffset * density.toDouble()).takeIf { it.isFinite() } ?: 0.0')
       expect(nativeActivity).toContain('internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double')
       expect(nativeActivity).toContain('val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)')
       expect(nativeActivity).toContain('internal fun craftNativeFiniteDouble(style: JSONObject?, name: String, fallback: Double): Double')

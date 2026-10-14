@@ -1511,7 +1511,9 @@ private class CraftNativeKeyboardAvoidingView(context: Context) : FrameLayout(co
 
     fun configure(props: JSONObject, style: JSONObject, density: Float) {
         behavior = props.optString("behavior", "padding").takeIf { it in setOf("height", "position", "padding") } ?: "padding"
-        keyboardVerticalOffset = (props.optDouble("keyboardVerticalOffset", 0.0) * density).roundToInt()
+        val authoredOffset = craftNativeFiniteDouble(props, "keyboardVerticalOffset", 0.0)
+        val pixelOffset = (authoredOffset * density.toDouble()).takeIf { it.isFinite() } ?: 0.0
+        keyboardVerticalOffset = pixelOffset.roundToInt()
         content.configure(style, density)
         basePadding = intArrayOf(content.paddingLeft, content.paddingTop, content.paddingRight, content.paddingBottom)
         applyKeyboardInset()

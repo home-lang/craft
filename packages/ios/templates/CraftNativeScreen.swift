@@ -1867,7 +1867,7 @@ private final class CraftNativeKeyboardAvoidingView: CraftNativeFlowView {
     func configureKeyboard(props: [String: Any]) {
         let requestedBehavior = (props["behavior"] as? String) ?? "padding"
         keyboardBehavior = ["height", "position", "padding"].contains(requestedBehavior) ? requestedBehavior : "padding"
-        keyboardVerticalOffset = (props["keyboardVerticalOffset"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
+        keyboardVerticalOffset = number(props["keyboardVerticalOffset"]) ?? 0
         if keyboardBehavior != "height" { appliedHeightInset = 0 }
         authoredPadding = padding
         applyKeyboardAvoidance()

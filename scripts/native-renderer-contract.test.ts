@@ -928,6 +928,13 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<SafeAreaView testID="root" edges={[\'top\', \'bottom\']}')
   })
 
+  it('sanitizes keyboard avoidance offsets before applying host geometry', () => {
+    expect(ios).toContain('keyboardVerticalOffset = number(props["keyboardVerticalOffset"]) ?? 0')
+    expect(android).toContain('val authoredOffset = craftNativeFiniteDouble(props, "keyboardVerticalOffset", 0.0)')
+    expect(android).toContain('val pixelOffset = (authoredOffset * density.toDouble()).takeIf { it.isFinite() } ?: 0.0')
+    expect(android).toContain('keyboardVerticalOffset = pixelOffset.roundToInt()')
+  })
+
   it('keeps native iOS passkeys capability-gated and domain-bound', () => {
     expect(iosActions).toContain('case ("Passkeys", "isAvailable"):')
     expect(iosActions).toContain('case ("Passkeys", "create"), ("Passkeys", "get"):')
