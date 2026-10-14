@@ -366,7 +366,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private var preparedPlayer: MediaPlayer? = null')
     expect(android).toContain('this.resizeMode = resizeMode?.lowercase()?.takeIf { it in setOf("cover", "contain", "stretch", "center") } ?: "contain"')
     expect(android).toContain('MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING')
-    expect(android).toContain('resizeMode = style.optString("resizeMode").ifBlank { props.optString("resizeMode") }')
+    expect(android).toContain('private fun craftNativeResizeMode(style: JSONObject, props: JSONObject): String')
+    expect(android).toContain('?.takeUnless { it == "null" || it == "undefined" }')
+    expect(android).toContain('return authored(style.opt("resizeMode")) ?: authored(props.opt("resizeMode")).orEmpty()')
+    expect(android).toContain('resizeMode = craftNativeResizeMode(style, props)')
     expect(guide).toContain('`Video` uses the platform player')
   })
 
@@ -1462,7 +1465,8 @@ describe('native renderer component contract', () => {
   it('treats a null image style resize mode as unset', () => {
     expect(ios).toContain('let requestedResizeMode = style["resizeMode"] as? String ?? props["resizeMode"] as? String')
     expect(ios).toContain('image.contentMode = imageContentMode(requestedResizeMode)')
-    expect(android).toContain('style.optString("resizeMode").ifBlank { props.optString("resizeMode") }')
+    expect(android).toContain('scaleType = when (craftNativeResizeMode(style, props))')
+    expect(android).toContain('image.scaleType = when (craftNativeResizeMode(style, props))')
   })
 
   it('shows local Image defaultSource placeholders before async loads', () => {

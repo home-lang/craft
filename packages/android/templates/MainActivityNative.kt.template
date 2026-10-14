@@ -4043,7 +4043,7 @@ class MainActivity : AppCompatActivity() {
                 configureIcon(this, props, style)
             }
             "Image" -> (previous as? ImageView ?: ImageView(this)).apply {
-                scaleType = when (style.optString("resizeMode").ifBlank { props.optString("resizeMode") }) {
+                scaleType = when (craftNativeResizeMode(style, props)) {
                     "cover" -> ImageView.ScaleType.CENTER_CROP
                     "stretch" -> ImageView.ScaleType.FIT_XY
                     "center" -> ImageView.ScaleType.CENTER
@@ -4061,7 +4061,7 @@ class MainActivity : AppCompatActivity() {
                 updateImage(screen, this, props.opt("source"), props.opt("defaultSource"))
             }
             "ImageBackground" -> (previous as? CraftNativeImageBackgroundView ?: CraftNativeImageBackgroundView(this)).apply {
-                image.scaleType = when (style.optString("resizeMode").ifBlank { props.optString("resizeMode") }) {
+                image.scaleType = when (craftNativeResizeMode(style, props)) {
                     "cover" -> ImageView.ScaleType.CENTER_CROP
                     "stretch" -> ImageView.ScaleType.FIT_XY
                     "center" -> ImageView.ScaleType.CENTER
@@ -4087,7 +4087,7 @@ class MainActivity : AppCompatActivity() {
                     loop = props.optBoolean("loop", false),
                     muted = props.optBoolean("muted", false),
                     controls = props.optBoolean("controls", false),
-                    resizeMode = style.optString("resizeMode").ifBlank { props.optString("resizeMode") },
+                    resizeMode = craftNativeResizeMode(style, props),
                 )
             }
             "Map" -> (previous as? CraftNativeMapView ?: CraftNativeMapView(this)).apply {
@@ -4408,6 +4408,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun configureContainer(layout: CraftNativeFlexLayout, style: JSONObject) {
         layout.configure(style, resources.displayMetrics.density)
+    }
+
+    private fun craftNativeResizeMode(style: JSONObject, props: JSONObject): String {
+        fun authored(value: Any?): String? = value
+            ?.takeUnless { it == JSONObject.NULL }
+            ?.toString()
+            ?.takeUnless { it == "null" || it == "undefined" }
+            ?.takeIf { it.isNotBlank() }
+        return authored(style.opt("resizeMode")) ?: authored(props.opt("resizeMode")).orEmpty()
     }
 
     private fun flatListScrollEvent(list: CraftNativeFlatList): JSONObject = JSONObject()
