@@ -1,4 +1,5 @@
 /** Exercise the shipped Linux or Windows binary's page-to-native multi-window bridge. */
+import type { ChildProcess } from 'node:child_process'
 import { execFileSync, spawn } from 'node:child_process'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -459,6 +460,136 @@ const childPage = `<!doctype html><script>
 })()
 </script>`
 
+// Windows: the Win32 window probe is C# that PowerShell compiles with
+// Add-Type. Compiling it costs seconds on a cold runner (once it took longer
+// than the 15 s a per-request PowerShell was given, and failed the smoke on
+// infrastructure, not on Craft). One PowerShell compiles it before Craft
+// starts and then answers each request on stdin with one JSON line; the server
+// never blocks on it.
+const windowProbeScript = `
+$signature = @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class CraftWindowProbe {
+  public delegate bool EnumWindowsProc(IntPtr window, IntPtr state);
+  [DllImport("user32.dll")]
+  public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr state);
+  [DllImport("user32.dll")]
+  public static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  public static extern int GetWindowText(IntPtr window, StringBuilder title, int capacity);
+  [DllImport("user32.dll")]
+  [return: MarshalAs(UnmanagedType.Bool)]
+  public static extern bool IsWindowEnabled(IntPtr window);
+  [DllImport("user32.dll")]
+  public static extern IntPtr GetWindow(IntPtr window, uint command);
+}
+'@
+Add-Type -TypeDefinition $signature
+[Console]::Out.WriteLine('ready')
+[Console]::Out.Flush()
+while ($null -ne ($line = [Console]::In.ReadLine())) {
+  $script:probePid = [uint32]$line
+  $script:probeRows = [System.Collections.ArrayList]::new()
+  $callback = [CraftWindowProbe+EnumWindowsProc]{
+    param([IntPtr]$handle, [IntPtr]$state)
+    [uint32]$processId = 0
+    [void][CraftWindowProbe]::GetWindowThreadProcessId($handle, [ref]$processId)
+    if ($processId -eq $script:probePid) {
+      $title = [System.Text.StringBuilder]::new(512)
+      [void][CraftWindowProbe]::GetWindowText($handle, $title, $title.Capacity)
+      [void]$script:probeRows.Add([pscustomobject]@{
+        title = $title.ToString()
+        handle = $handle.ToInt64()
+        owner = [CraftWindowProbe]::GetWindow($handle, 4).ToInt64()
+        enabled = [CraftWindowProbe]::IsWindowEnabled($handle)
+      })
+    }
+    return $true
+  }
+  [void][CraftWindowProbe]::EnumWindows($callback, [IntPtr]::Zero)
+  function Enabled([string]$title) {
+    $matches = @($script:probeRows | Where-Object { $_.title -eq $title })
+    if ($matches.Count -eq 0) { return $null }
+    return $matches[0].enabled
+  }
+  function OwnedBy([string]$childTitle, [string]$parentTitle) {
+    $children = @($script:probeRows | Where-Object { $_.title -eq $childTitle })
+    $parents = @($script:probeRows | Where-Object { $_.title -eq $parentTitle })
+    if ($children.Count -eq 0 -or $parents.Count -eq 0) { return $false }
+    return $children[0].owner -eq $parents[0].handle
+  }
+  $state = @{
+    main = (Enabled 'Craft App')
+    parent = (Enabled 'Child 1')
+    modal = (Enabled 'Parent-scoped modal')
+    attached = (Enabled 'Attached desktop child')
+    modalOwnedByParent = (OwnedBy 'Parent-scoped modal' 'Child 1')
+    attachedOwnedByParent = (OwnedBy 'Attached desktop child' 'Child 1')
+    windows = @($script:probeRows.ToArray())
+  }
+  [Console]::Out.WriteLine(($state | ConvertTo-Json -Compress -Depth 4))
+  [Console]::Out.Flush()
+}
+`
+let windowProbe: ChildProcess | undefined
+let windowProbeOutput = ''
+const windowProbeLines: string[] = []
+const windowProbeWaiters: Array<{ resolve: (line: string) => void, reject: (error: Error) => void }> = []
+function nextProbeLine(timeoutMs: number, what: string): Promise<string> {
+  const queued = windowProbeLines.shift()
+  if (queued !== undefined) return Promise.resolve(queued)
+  return new Promise((resolve, reject) => {
+    const waiter = {
+      resolve: (line: string) => { clearTimeout(timer); resolve(line) },
+      reject: (error: Error) => { clearTimeout(timer); reject(error) },
+    }
+    const timer = setTimeout(() => {
+      windowProbeWaiters.splice(windowProbeWaiters.indexOf(waiter), 1)
+      reject(new Error(`${what} timed out after ${timeoutMs} ms: ${windowProbeOutput.slice(-2000)}`))
+    }, timeoutMs)
+    windowProbeWaiters.push(waiter)
+  })
+}
+async function startWindowProbe(): Promise<void> {
+  windowProbe = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', windowProbeScript], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+  let partial = ''
+  windowProbe.stdout!.on('data', (chunk) => {
+    partial += chunk.toString()
+    let newline = partial.indexOf('\n')
+    while (newline >= 0) {
+      const line = partial.slice(0, newline).trim()
+      partial = partial.slice(newline + 1)
+      if (line) {
+        const waiter = windowProbeWaiters.shift()
+        if (waiter) waiter.resolve(line)
+        else windowProbeLines.push(line)
+      }
+      newline = partial.indexOf('\n')
+    }
+  })
+  windowProbe.stderr!.on('data', (chunk) => { windowProbeOutput = (windowProbeOutput + chunk.toString()).slice(-8000) })
+  windowProbe.once('exit', (code) => {
+    const error = new Error(`window probe exited (${code}): ${windowProbeOutput.slice(-2000)}`)
+    for (const waiter of windowProbeWaiters.splice(0)) waiter.reject(error)
+  })
+  const ready = await nextProbeLine(120_000, 'compiling the window probe')
+  if (ready !== 'ready') throw new Error(`window probe did not start: ${ready}`)
+}
+let windowProbeQueue: Promise<unknown> = Promise.resolve()
+function probeWindows(): Promise<string> {
+  const request = windowProbeQueue.then(() => {
+    if (!windowProbe || windowProbe.exitCode !== null || !child.pid) throw new Error('window probe is not running')
+    windowProbe.stdin!.write(`${child.pid}\n`)
+    return nextProbeLine(15_000, 'probing Win32 windows')
+  })
+  windowProbeQueue = request.catch(() => {})
+  return request
+}
+
 const steps = new Set<string>()
 const requests: string[] = []
 let x11Display = ''
@@ -481,78 +612,13 @@ const server = createServer((request, response) => {
     response.end(JSON.stringify({ steps: [...steps] }))
   }
   else if (url.pathname === '/native-modal-state' && isWindows) {
-    try {
-      const command = `
-$signature = @'
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-public static class CraftWindowProbe {
-  public delegate bool EnumWindowsProc(IntPtr window, IntPtr state);
-  [DllImport("user32.dll")]
-  public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr state);
-  [DllImport("user32.dll")]
-  public static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-  public static extern int GetWindowText(IntPtr window, StringBuilder title, int capacity);
-  [DllImport("user32.dll")]
-  [return: MarshalAs(UnmanagedType.Bool)]
-  public static extern bool IsWindowEnabled(IntPtr window);
-  [DllImport("user32.dll")]
-  public static extern IntPtr GetWindow(IntPtr window, uint command);
-}
-'@
-Add-Type -TypeDefinition $signature
-$script:probePid = [uint32]${child.pid}
-$script:probeRows = [System.Collections.ArrayList]::new()
-$callback = [CraftWindowProbe+EnumWindowsProc]{
-  param([IntPtr]$handle, [IntPtr]$state)
-  [uint32]$processId = 0
-  [void][CraftWindowProbe]::GetWindowThreadProcessId($handle, [ref]$processId)
-  if ($processId -eq $script:probePid) {
-    $title = [System.Text.StringBuilder]::new(512)
-    [void][CraftWindowProbe]::GetWindowText($handle, $title, $title.Capacity)
-    [void]$script:probeRows.Add([pscustomobject]@{
-      title = $title.ToString()
-      handle = $handle.ToInt64()
-      owner = [CraftWindowProbe]::GetWindow($handle, 4).ToInt64()
-      enabled = [CraftWindowProbe]::IsWindowEnabled($handle)
-    })
-  }
-  return $true
-}
-[void][CraftWindowProbe]::EnumWindows($callback, [IntPtr]::Zero)
-function Enabled([string]$title) {
-  $matches = @($script:probeRows | Where-Object { $_.title -eq $title })
-  if ($matches.Count -eq 0) { return $null }
-  return $matches[0].enabled
-}
-function OwnedBy([string]$childTitle, [string]$parentTitle) {
-  $children = @($script:probeRows | Where-Object { $_.title -eq $childTitle })
-  $parents = @($script:probeRows | Where-Object { $_.title -eq $parentTitle })
-  if ($children.Count -eq 0 -or $parents.Count -eq 0) { return $false }
-  return $children[0].owner -eq $parents[0].handle
-}
-@{
-  main = (Enabled 'Craft App')
-  parent = (Enabled 'Child 1')
-  modal = (Enabled 'Parent-scoped modal')
-  attached = (Enabled 'Attached desktop child')
-  modalOwnedByParent = (OwnedBy 'Parent-scoped modal' 'Child 1')
-  attachedOwnedByParent = (OwnedBy 'Attached desktop child' 'Child 1')
-  windows = @($script:probeRows.ToArray())
-} | ConvertTo-Json -Compress -Depth 4
-`
-      const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
-        encoding: 'utf8', timeout: 15_000,
-      })
+    probeWindows().then((output) => {
       response.setHeader('content-type', 'application/json')
       response.end(output)
-    }
-    catch (error) {
+    }, (error) => {
       response.writeHead(500, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ error: String(error) }))
-    }
+    })
   }
   else if (url.pathname === '/native-linux-parent-state' && !isWindows) {
     try {
@@ -617,6 +683,7 @@ await new Promise<void>((resolve, reject) => {
   server.listen(0, '127.0.0.1', resolve)
 })
 const port = (server.address() as AddressInfo).port
+if (isWindows) await startWindowProbe()
 const startedAt = Date.now()
 const child = spawn(isWindows ? binary : 'timeout', isWindows
   ? ['--url', `http://127.0.0.1:${port}/main`]
@@ -656,5 +723,7 @@ finally {
     }
     catch { /* The process group may have already exited. */ }
   }
+  windowProbe?.stdin?.end()
+  windowProbe?.kill()
   await new Promise<void>(resolve => server.close(() => resolve()))
 }
