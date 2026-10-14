@@ -610,7 +610,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('pressable.pressBaseOpacity * activeOpacity')
     expect(android).toContain('screen.pressActiveOpacities[this] = props.optDouble("activeOpacity", 0.5).toFloat()')
     expect(android).toContain('view.alpha = base * active')
-    expect(android).toContain('if ((handler.isNotBlank() || (type in setOf("TouchableOpacity", "TouchableHighlight", "Pressable") && hasPressLifecycle)) && !disabled)')
+    expect(android).toContain('if ((handler.isNotBlank() || target != null || (type in setOf("TouchableOpacity", "TouchableHighlight", "Pressable") && hasPressLifecycle)) && !disabled)')
     expect(guide).toContain('`Pressable`')
   })
 
@@ -1260,7 +1260,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps generic pressable views interactive without disabling scroll containers', () => {
-    expect(ios).toContain('if !(view is UIScrollView) { view.isUserInteractionEnabled = handler != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }')
+    expect(ios).toContain('if !(view is UIScrollView) { view.isUserInteractionEnabled = actionable || longPressHandlers[id] != nil || view is CraftNativeFlowView }')
     expect(ios).toContain('if let handler, !handler.isEmpty { handlers[id] = handler }')
     expect(ios).toContain('let handler = handler?.isEmpty == false ? handler : nil')
     expect(ios).toContain('list.onMomentumScrollEnd = nonEmptyHandler(events["onMomentumScrollEnd"]).map')
@@ -1285,7 +1285,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('screen.longPressHandlers.keys.removeAll(released)')
     expect(guide).toContain('`onLongPress`')
     expect(ios).toContain('if !(view is UIScrollView) { view.isUserInteractionEnabled = true }')
-    expect(ios).toContain('view.isUserInteractionEnabled = handlers[id] != nil || view is CraftNativeFlowView')
+    expect(ios).toContain('view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || view is CraftNativeFlowView')
   })
 
   it('lets accessibility disabled state disable controls without re-enabling them', () => {

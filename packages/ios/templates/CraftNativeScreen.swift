@@ -4812,7 +4812,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if let pressOut, !pressOut.isEmpty { pressOutHandlers[id] = pressOut } else { pressOutHandlers.removeValue(forKey: id) }
         guard pressInHandlers[id] != nil || pressOutHandlers[id] != nil else {
             if let recognizer = pressFeedbackRecognizers.removeValue(forKey: id) { view.removeGestureRecognizer(recognizer) }
-            if !(view is UIScrollView) { view.isUserInteractionEnabled = handlers[id] != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }
+            if !(view is UIScrollView) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }
             return
         }
         if pressFeedbackRecognizers[id] == nil {
@@ -4841,7 +4841,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if let recognizer = longPressRecognizers.removeValue(forKey: id) {
                 view.removeGestureRecognizer(recognizer)
             }
-            if !(view is UIScrollView) { view.isUserInteractionEnabled = handlers[id] != nil || view is CraftNativeFlowView }
+            if !(view is UIScrollView) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || view is CraftNativeFlowView }
         }
     }
 
