@@ -90,6 +90,173 @@ private func craftNativeJustifyCode(_ value: String) -> UInt32 {
     }
 }
 
+/// Optional bridge to the host-neutral tree layout ABI. The host still owns
+/// intrinsic measurement and keeps its local implementation for unsupported
+/// trees or runtimes built before this symbol was exported.
+private enum CraftNativeTreeLayoutBridge {
+    private struct StyleInput {
+        var direction: UInt32 = 0
+        var width: Float = .nan
+        var height: Float = .nan
+        var intrinsicWidth: Float = .nan
+        var intrinsicHeight: Float = .nan
+        var baseline: Float = .nan
+        var aspectRatio: Float = .nan
+        var flexBasis: Float = .nan
+        var flexGrow: Float = 0
+        var flexShrink: Float = 0
+        var minWidth: Float = .nan
+        var maxWidth: Float = .nan
+        var minHeight: Float = .nan
+        var maxHeight: Float = .nan
+        var gap: Float = 0
+        var justifyContent: UInt32 = 0
+        var alignItems: UInt32 = 3
+        var alignSelf: UInt32 = 0
+        var flexWrap: UInt32 = 0
+        var alignContent: UInt32 = 6
+        var marginTop: Float = 0
+        var marginRight: Float = 0
+        var marginBottom: Float = 0
+        var marginLeft: Float = 0
+        var paddingTop: Float = 0
+        var paddingRight: Float = 0
+        var paddingBottom: Float = 0
+        var paddingLeft: Float = 0
+        var grid: UInt32 = 0
+        var gridColumns: UInt32 = 1
+        var rowGap: Float = 0
+        var columnGap: Float = 0
+    }
+
+    private struct NodeInput {
+        var style: StyleInput
+        var firstChild: UInt32
+        var childCount: UInt32
+    }
+
+    private struct Frame {
+        var x: Float
+        var y: Float
+        var width: Float
+        var height: Float
+    }
+
+    private typealias Function = @convention(c) (
+        Float, Float, UnsafeRawPointer, Int, UnsafeMutableRawPointer, Int
+    ) -> Int32
+
+    private static let function: Function? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_layout_tree") else { return nil }
+        return unsafeBitCast(symbol, to: Function.self)
+    }()
+
+    private static func finite(_ value: CGFloat?) -> Float {
+        guard let value, value.isFinite else { return .nan }
+        return Float(value)
+    }
+
+    private static func length(_ value: CraftNativeLength?) -> Float {
+        guard let value else { return .nan }
+        switch value {
+        case .points(let points): return finite(points)
+        case .percent: return .nan
+        }
+    }
+
+    private static func alignment(_ value: String?) -> UInt32 {
+        switch value {
+        case "center": return 1
+        case "flex-end": return 2
+        case "stretch": return 3
+        case "baseline": return 4
+        default: return 0
+        }
+    }
+
+    private static func alignSelf(_ value: String?) -> UInt32 {
+        switch value {
+        case "flex-start": return 1
+        case "center": return 2
+        case "flex-end": return 3
+        case "stretch": return 4
+        case "baseline": return 5
+        default: return 0
+        }
+    }
+
+    private static func justify(_ value: String) -> UInt32 {
+        craftNativeJustifyCode(value)
+    }
+
+    static func frames(
+        width: CGFloat,
+        height: CGFloat,
+        direction: NSLayoutConstraint.Axis,
+        gap: CGFloat,
+        rowGap: CGFloat?,
+        columnGap: CGFloat?,
+        justifyContent: String,
+        alignItems: String,
+        padding: UIEdgeInsets,
+        children: [(UIView, CraftNativeLayoutStyle, CGSize, CGFloat)]
+    ) -> [(UIView, CGRect)]? {
+        guard let function, width.isFinite, height.isFinite, width >= 0, height >= 0, !children.isEmpty else { return nil }
+        var root = StyleInput(
+            direction: direction == .horizontal ? 0 : 1,
+            width: Float(width), height: Float(height), gap: Float(max(0, direction == .horizontal ? (columnGap ?? gap) : (rowGap ?? gap))),
+            justifyContent: justify(justifyContent), alignItems: alignment(alignItems),
+            paddingTop: Float(max(0, padding.top)), paddingRight: Float(max(0, padding.right)),
+            paddingBottom: Float(max(0, padding.bottom)), paddingLeft: Float(max(0, padding.left))
+        )
+        root.rowGap = Float(max(0, rowGap ?? 0))
+        root.columnGap = Float(max(0, columnGap ?? 0))
+        var nodes = [NodeInput(style: root, firstChild: 1, childCount: UInt32(children.count))]
+        for (view, style, intrinsic, baseline) in children {
+            let shrink: CGFloat
+            if let authored = style.flexShrink {
+                shrink = authored
+            } else if view is UIScrollView {
+                shrink = 1
+            } else if view is UILabel, direction == .horizontal {
+                shrink = 1
+            } else {
+                shrink = 0
+            }
+            var input = StyleInput(
+                width: length(style.width), height: length(style.height),
+                intrinsicWidth: Float(max(0, intrinsic.width)), intrinsicHeight: Float(max(0, intrinsic.height)),
+                baseline: Float(max(0, baseline)), aspectRatio: finite(style.aspectRatio),
+                flexBasis: length(style.flexBasis), flexGrow: Float(max(0, style.flexGrow)), flexShrink: Float(max(0, shrink)),
+                minWidth: length(style.minWidth), maxWidth: length(style.maxWidth),
+                minHeight: length(style.minHeight), maxHeight: length(style.maxHeight),
+                alignSelf: alignSelf(style.alignSelf),
+                marginTop: Float(max(0, style.marginTop)), marginRight: Float(max(0, style.marginRight)),
+                marginBottom: Float(max(0, style.marginBottom)), marginLeft: Float(max(0, style.marginLeft))
+            )
+            input.direction = 0
+            nodes.append(NodeInput(style: input, firstChild: 0, childCount: 0))
+        }
+        var output = [Frame](repeating: Frame(x: 0, y: 0, width: 0, height: 0), count: nodes.count)
+        let status = nodes.withUnsafeBufferPointer { nodeBuffer in
+            output.withUnsafeMutableBufferPointer { frameBuffer in
+                function(
+                    Float(width), Float(height), UnsafeRawPointer(nodeBuffer.baseAddress!), nodes.count,
+                    UnsafeMutableRawPointer(frameBuffer.baseAddress!), output.count
+                )
+            }
+        }
+        guard status == 0 else { return nil }
+        return zip(children, output.dropFirst()).compactMap { child, frame in
+            guard frame.x.isFinite, frame.y.isFinite, frame.width.isFinite, frame.height.isFinite,
+                  frame.width >= 0, frame.height >= 0 else { return nil }
+            return (child.0, CGRect(x: CGFloat(frame.x), y: CGFloat(frame.y), width: CGFloat(frame.width), height: CGFloat(frame.height)))
+        }.count == children.count
+            ? zip(children, output.dropFirst()).map { ($0.0, CGRect(x: CGFloat($1.x), y: CGFloat($1.y), width: CGFloat($1.width), height: CGFloat($1.height))) }
+            : nil
+    }
+}
+
 private enum CraftNativeFlexLineBridge {
     private struct Item {
         var basis: Float
@@ -1257,6 +1424,37 @@ private class CraftNativeFlowView: UIStackView {
     /// outer size when its parent fixes it, nil when it sizes to its content
     /// within `maxWidth`/`maxHeight`. Returns its outer size and, when
     /// placing, every child's frame in its own coordinates.
+    private func sharedDirectFrames(_ children: [UIView], width: CGFloat?, height: CGFloat?) -> [(UIView, CGRect)]? {
+        guard let width, let height, !grid, !wrap, !reverse, !wrapReverse,
+              width.isFinite, height.isFinite, width >= 0, height >= 0,
+              children.allSatisfy({ child in
+                  let style = child.craftLayoutStyle
+                  guard style.position != "absolute", style.display != "none",
+                        style.width.map({ if case .percent = $0 { return false }; return true }) ?? true,
+                        style.height.map({ if case .percent = $0 { return false }; return true }) ?? true,
+                        style.minWidth.map({ if case .percent = $0 { return false }; return true }) ?? true,
+                        style.maxWidth.map({ if case .percent = $0 { return false }; return true }) ?? true,
+                        style.minHeight.map({ if case .percent = $0 { return false }; return true }) ?? true,
+                        style.maxHeight.map({ if case .percent = $0 { return false }; return true }) ?? true,
+                        style.flexBasis.map({ if case .percent = $0 { return false }; return true }) ?? true else { return false }
+                  return true
+              }) else { return nil }
+
+        let intrinsic = children.map { child in
+            CraftNativeFlexLayout.measure(child, width: nil, height: nil, maxWidth: width, maxHeight: height)
+        }
+        let baselines = children.enumerated().map { index, child in
+            CraftNativeFlowView.firstBaseline(child, cross: intrinsic[index].height)
+        }
+        let payload = zip(children, zip(intrinsic, baselines)).map { child, measured in
+            (child, child.craftLayoutStyle, measured.0, measured.1)
+        }
+        return CraftNativeTreeLayoutBridge.frames(
+            width: width, height: height, direction: axis, gap: gap, rowGap: rowGap, columnGap: columnGap,
+            justifyContent: justifyContent, alignItems: alignItems, padding: effectivePadding, children: payload
+        )
+    }
+
     private func layout(
         width: CGFloat?,
         height: CGFloat?,
@@ -1290,6 +1488,9 @@ private class CraftNativeFlowView: UIStackView {
                 place: place,
                 frames: &frames
             )
+        }
+        if place, flow.count == children.count, let shared = sharedDirectFrames(flow, width: width, height: height) {
+            frames = shared
         }
         let size = CGSize(width: width ?? contentSize.width + paddingWidth, height: height ?? contentSize.height + paddingHeight)
 
