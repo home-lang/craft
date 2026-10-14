@@ -529,7 +529,10 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         map.setOnMarkerClickListener { marker ->
             val id = markers.entries.firstOrNull { it.value == marker }?.key ?: return@setOnMarkerClickListener false
             onMarkerTap?.invoke(id)
-            false
+            // The native contract dispatches the marker event itself. Consume
+            // the click so Google Maps does not also show an unsolicited info
+            // window for the marker title.
+            true
         }
         applyPending()
     }

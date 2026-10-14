@@ -246,6 +246,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('view.addOnLayoutChangeListener(listener)')
       expect(nativeActivity).toContain('view.removeOnLayoutChangeListener(listener)')
       expect(nativeActivity).toContain('released.filterIsInstance<CraftNativeMapView>().forEach { it.destroy() }')
+      expect(nativeActivity).toContain('onMarkerTap?.invoke(id)\n            // The native contract dispatches the marker event itself.')
+      expect(nativeActivity).toContain('            true\n        }')
       expect(nativeActivity).toContain('private var lifecycleStarted = false')
       expect(nativeActivity).toContain('mapView.onDestroy()')
       expect(nativeActivity).toContain('if (destroyed) return\n        googleMap = map')
