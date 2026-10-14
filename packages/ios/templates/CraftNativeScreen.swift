@@ -5157,7 +5157,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func emitLayoutEvents(for node: RenderedNode) {
         let id = ObjectIdentifier(node.view)
-        if let handler = layoutHandlers[id], node.view.window != nil, !node.view.isHidden {
+        if let handler = layoutHandlers[id], isEffectivelyVisible(node.view) {
             let frame = node.view.frame
             if lastLayoutFrames[id] != frame {
                 lastLayoutFrames[id] = frame
@@ -5176,6 +5176,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if let list = node.view as? CraftNativeFlatList {
             flatListRows[ObjectIdentifier(list)]?.values.forEach { emitLayoutEvents(for: $0) }
         }
+    }
+
+    private func isEffectivelyVisible(_ view: UIView) -> Bool {
+        guard view.window != nil, !view.isHidden else { return false }
+        var ancestor = view.superview
+        while let current = ancestor {
+            if current.isHidden { return false }
+            ancestor = current.superview
+        }
+        return true
     }
 
     private func updateAuxiliaryHandler(

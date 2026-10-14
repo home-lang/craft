@@ -899,7 +899,8 @@ describe('native renderer component contract', () => {
   it('keeps responsive layout events aligned across hosts', () => {
     expect(ios).toContain('events["onLayout"]')
     expect(ios).toContain('lastLayoutFrames[id] != frame')
-    expect(ios).toContain('node.view.window != nil, !node.view.isHidden')
+    expect(ios).toContain('isEffectivelyVisible(node.view)')
+    expect(ios).toContain('if current.isHidden { return false }')
     expect(ios).toContain('for child in node["children"] as? [[String: Any]] ?? []')
     expect(android).toContain('private fun authoredKey(node: JSONObject, props: JSONObject): String?')
     expect(android).not.toContain('authoredKey(child, childProps)')
