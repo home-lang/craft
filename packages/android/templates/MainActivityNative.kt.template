@@ -1440,11 +1440,11 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 contentWidth.toFloat(), contentHeight.toFloat(), gridColumns, columnGap, rowGap,
                 flow.map { it.width.toFloat() }.toFloatArray(), flow.map { it.height.toFloat() }.toFloatArray(),
                 flow.map { it.style.width?.resolve(layout.cellWidth.roundToInt())?.toFloat() ?: Float.NaN }.toFloatArray(),
-                flow.map { it.style.height?.resolve(null)?.toFloat() ?: Float.NaN }.toFloatArray(),
+                flow.map { it.style.height?.resolve(contentHeight)?.toFloat() ?: Float.NaN }.toFloatArray(),
                 flow.map { it.style.minWidth?.resolve(layout.cellWidth.roundToInt())?.toFloat() ?: Float.NaN }.toFloatArray(),
                 flow.map { it.style.maxWidth?.resolve(layout.cellWidth.roundToInt())?.toFloat() ?: Float.NaN }.toFloatArray(),
-                flow.map { it.style.minHeight?.resolve(null)?.toFloat() ?: Float.NaN }.toFloatArray(),
-                flow.map { it.style.maxHeight?.resolve(null)?.toFloat() ?: Float.NaN }.toFloatArray(),
+                flow.map { it.style.minHeight?.resolve(contentHeight)?.toFloat() ?: Float.NaN }.toFloatArray(),
+                flow.map { it.style.maxHeight?.resolve(contentHeight)?.toFloat() ?: Float.NaN }.toFloatArray(),
                 flow.flatMap {
                     val lp = it.view.layoutParams as? MarginLayoutParams
                     listOf((lp?.leftMargin ?: 0).toFloat(), (lp?.rightMargin ?: 0).toFloat(), (lp?.topMargin ?: 0).toFloat(), (lp?.bottomMargin ?: 0).toFloat())

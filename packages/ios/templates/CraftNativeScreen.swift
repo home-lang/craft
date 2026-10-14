@@ -1942,7 +1942,7 @@ private class CraftNativeFlowView: UIStackView {
             let available = max(0, cellWidth - style.marginLeft - style.marginRight)
             let align = style.alignSelf ?? alignItems
             var fixedWidth = style.width?.resolve(cellWidth)
-            var fixedHeight = style.height?.resolve(nil)
+            var fixedHeight = style.height?.resolve(innerHeight)
             // A cell's item is as wide as its column unless it sets a width
             // (or an aspect ratio derives one from its height), whatever its
             // height: a fixed-height swatch with no content was drawn 0 wide.
@@ -1976,7 +1976,7 @@ private class CraftNativeFlowView: UIStackView {
                 let size = sizes[index]
                 let alignment: UInt32 = align == "center" ? 1 : align == "flex-end" ? 2 : 0
                 var explicitWidth = style.width?.resolve(cellWidth)
-                var explicitHeight = style.height?.resolve(nil)
+                var explicitHeight = style.height?.resolve(innerHeight)
                 if explicitWidth == nil && align == "stretch" && (explicitHeight == nil || style.aspectRatio == nil) {
                     explicitWidth = max(0, cellWidth - style.marginLeft - style.marginRight)
                 }
@@ -1985,7 +1985,7 @@ private class CraftNativeFlowView: UIStackView {
                     size.width, size.height,
                     explicitWidth, explicitHeight,
                     style.minWidth?.resolve(cellWidth), style.maxWidth?.resolve(cellWidth),
-                    style.minHeight?.resolve(nil), style.maxHeight?.resolve(nil),
+                    style.minHeight?.resolve(innerHeight), style.maxHeight?.resolve(innerHeight),
                     style.marginLeft, style.marginRight, style.marginTop, style.marginBottom,
                     align == "stretch", alignment
                 )

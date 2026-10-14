@@ -2058,6 +2058,13 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('fractional grid tracks diverged')
   })
 
+  it('resolves percentage grid heights against definite containers on both hosts', () => {
+    expect(ios).toContain('var fixedHeight = style.height?.resolve(innerHeight)')
+    expect(ios).toContain('style.minHeight?.resolve(innerHeight), style.maxHeight?.resolve(innerHeight)')
+    expect(android).toContain('it.style.height?.resolve(contentHeight)?.toFloat()')
+    expect(android).toContain('it.style.minHeight?.resolve(contentHeight)?.toFloat()')
+  })
+
   it('publishes dynamic color-scheme changes to the native runtime on both hosts', () => {
     expect(ios).toContain('send(type: "APPEARANCE", payload: CraftPageAppearance.snapshot(style: style))')
     expect(android).toContain('if (screen.active) send(screen, "APPEARANCE", appearance)')
