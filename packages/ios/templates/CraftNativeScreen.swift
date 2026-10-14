@@ -156,12 +156,9 @@ private enum CraftNativeTreeLayoutBridge {
         return Float(value)
     }
 
-    private static func length(_ value: CraftNativeLength?) -> Float {
+    private static func length(_ value: CraftNativeLength?, base: CGFloat?) -> Float {
         guard let value else { return .nan }
-        switch value {
-        case .points(let points): return finite(points)
-        case .percent: return .nan
-        }
+        return finite(value.resolve(base))
     }
 
     private static func alignment(_ value: String?) -> UInt32 {
@@ -215,6 +212,9 @@ private enum CraftNativeTreeLayoutBridge {
         )
         root.rowGap = Float(max(0, rowGap ?? 0))
         root.columnGap = Float(max(0, columnGap ?? 0))
+        let contentWidth = max(0, width - padding.left - padding.right)
+        let contentHeight = max(0, height - padding.top - padding.bottom)
+        let mainSize = direction == .horizontal ? contentWidth : contentHeight
         var nodes = [NodeInput(style: root, firstChild: 1, childCount: UInt32(children.count))]
         for (view, style, intrinsic, baseline) in children {
             let shrink: CGFloat
@@ -228,12 +228,12 @@ private enum CraftNativeTreeLayoutBridge {
                 shrink = 0
             }
             var input = StyleInput(
-                width: length(style.width), height: length(style.height),
+                width: length(style.width, base: contentWidth), height: length(style.height, base: contentHeight),
                 intrinsicWidth: Float(max(0, intrinsic.width)), intrinsicHeight: Float(max(0, intrinsic.height)),
                 baseline: Float(max(0, baseline)), aspectRatio: finite(style.aspectRatio),
-                flexBasis: length(style.flexBasis), flexGrow: Float(max(0, style.flexGrow)), flexShrink: Float(max(0, shrink)),
-                minWidth: length(style.minWidth), maxWidth: length(style.maxWidth),
-                minHeight: length(style.minHeight), maxHeight: length(style.maxHeight),
+                flexBasis: length(style.flexBasis, base: mainSize), flexGrow: Float(max(0, style.flexGrow)), flexShrink: Float(max(0, shrink)),
+                minWidth: length(style.minWidth, base: contentWidth), maxWidth: length(style.maxWidth, base: contentWidth),
+                minHeight: length(style.minHeight, base: contentHeight), maxHeight: length(style.maxHeight, base: contentHeight),
                 alignSelf: alignSelf(style.alignSelf),
                 marginTop: Float(max(0, style.marginTop)), marginRight: Float(max(0, style.marginRight)),
                 marginBottom: Float(max(0, style.marginBottom)), marginLeft: Float(max(0, style.marginLeft))
@@ -1454,15 +1454,7 @@ private class CraftNativeFlowView: UIStackView {
               !wrap || abs((axis == .horizontal ? (rowGap ?? gap) : (columnGap ?? gap)) - (axis == .horizontal ? (columnGap ?? gap) : (rowGap ?? gap))) <= 0.0001,
               children.allSatisfy({ child in
                   let style = child.craftLayoutStyle
-                  guard style.position != "absolute", style.display != "none",
-                        style.width.map({ if case .percent = $0 { return false }; return true }) ?? true,
-                        style.height.map({ if case .percent = $0 { return false }; return true }) ?? true,
-                        style.minWidth.map({ if case .percent = $0 { return false }; return true }) ?? true,
-                        style.maxWidth.map({ if case .percent = $0 { return false }; return true }) ?? true,
-                        style.minHeight.map({ if case .percent = $0 { return false }; return true }) ?? true,
-                        style.maxHeight.map({ if case .percent = $0 { return false }; return true }) ?? true,
-                        style.flexBasis.map({ if case .percent = $0 { return false }; return true }) ?? true else { return false }
-                  return true
+                  return style.position != "absolute" && style.display != "none"
               }) else { return nil }
 
         let intrinsic = children.map { child in

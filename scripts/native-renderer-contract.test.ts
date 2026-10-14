@@ -1136,7 +1136,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('!grid, !reverse, !wrapReverse')
     expect(ios).toContain('flexWrap: wrap ? 1 : 0')
     expect(ios).toContain('guard !wrap || abs(mainGap - crossGap) <= 0.0001')
-    expect(ios).toContain('style.width.map({ if case .percent = $0 { return false }')
+    expect(ios).toContain('width: length(style.width, base: contentWidth)')
     expect(ios).toContain('if place, flow.count == children.count, let shared = sharedDirectFrames(flow, width: width, height: height)')
     expect(ios).toContain('frames = shared')
     expect(ios).toContain('let frameCount = output.count')
@@ -1419,9 +1419,11 @@ describe('native renderer component contract', () => {
 
   it('resolves percentage lengths against the native parent on both hosts', () => {
     expect(navigationHome).toContain('style={{"width":"50%","height":20}}')
-    expect(ios).toContain('case .percent(let fraction): return base.map { max(0, $0 * fraction) }')
+    expect(ios).toContain('private static func length(_ value: CraftNativeLength?, base: CGFloat?) -> Float')
+    expect(ios).toContain('width: length(style.width, base: contentWidth)')
     expect(android).toContain('val fraction: Double? = null')
-    expect(android).toContain('style.width?.resolve(base)')
+    expect(android).toContain('private fun sharedLength(value: CraftNativeLength?, base: Int?): Float')
+    expect(android).toContain('sharedLength(style.width, contentWidth)')
   })
 
   it('treats null layout values as unset on both hosts', () => {
