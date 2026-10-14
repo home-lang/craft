@@ -337,7 +337,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('val nodePaths = mutableMapOf<String, String>()')
       expect(nativeActivity).toContain('val path = screen.nodePaths[target] ?: return false')
       expect(nativeActivity).toContain('makeView(screen, document, path, screen.controls)')
-      expect(nativeActivity).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)\n        // A full render can change a view\'s custom layout style')
+      expect(nativeActivity).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)\n        updateSafeAreaViews()')
       expect(nativeActivity).toContain('private fun applyViewStyle(view: View, style: JSONObject)')
       expect(nativeActivity).toContain('private fun gridIntrinsicSize(height: Int): Pair<Int, Int>')
       expect(nativeActivity).toContain('entry.height + (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)')

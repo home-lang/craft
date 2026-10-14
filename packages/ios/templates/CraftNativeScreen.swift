@@ -781,10 +781,27 @@ private class CraftNativeFlowView: UIStackView {
     var wrapReverse = false { didSet { if wrapReverse != oldValue { invalidateMeasurements() } } }
     var padding = UIEdgeInsets.zero {
         didSet {
-            layoutMargins = padding
+            layoutMargins = effectivePadding
             isLayoutMarginsRelativeArrangement = true
             if padding != oldValue { invalidateMeasurements() }
         }
+    }
+    /// Insets contributed by a native SafeAreaView root. Authored padding
+    /// remains separate so a reconciliation can remove either source without
+    /// leaving stale safe-area space behind.
+    var safeAreaPadding = UIEdgeInsets.zero {
+        didSet {
+            layoutMargins = effectivePadding
+            if safeAreaPadding != oldValue { invalidateMeasurements() }
+        }
+    }
+    var effectivePadding: UIEdgeInsets {
+        UIEdgeInsets(
+            top: padding.top + safeAreaPadding.top,
+            left: padding.left + safeAreaPadding.left,
+            bottom: padding.bottom + safeAreaPadding.bottom,
+            right: padding.right + safeAreaPadding.right
+        )
     }
     override var axis: NSLayoutConstraint.Axis {
         didSet { if axis != oldValue { invalidateMeasurements() } }
@@ -1020,8 +1037,9 @@ private class CraftNativeFlowView: UIStackView {
         let children = visibleChildren
         let flow = children.filter { $0.craftLayoutStyle.position != "absolute" }
         let horizontal = axis == .horizontal
-        let paddingWidth = padding.left + padding.right
-        let paddingHeight = padding.top + padding.bottom
+        let contentPadding = effectivePadding
+        let paddingWidth = contentPadding.left + contentPadding.right
+        let paddingHeight = contentPadding.top + contentPadding.bottom
         let innerWidth = width.map { max(0, $0 - paddingWidth) }
         let innerHeight = height.map { max(0, $0 - paddingHeight) }
         let roomWidth = max(0, (width ?? maxWidth) - paddingWidth)
@@ -1046,7 +1064,7 @@ private class CraftNativeFlowView: UIStackView {
         let size = CGSize(width: width ?? contentSize.width + paddingWidth, height: height ?? contentSize.height + paddingHeight)
 
         if place {
-            let content = CGRect(x: padding.left, y: padding.top, width: max(0, size.width - paddingWidth), height: max(0, size.height - paddingHeight))
+            let content = CGRect(x: contentPadding.left, y: contentPadding.top, width: max(0, size.width - paddingWidth), height: max(0, size.height - paddingHeight))
             for child in children where child.craftLayoutStyle.position == "absolute" {
                 let style = child.craftLayoutStyle
                 var fixedWidth = style.left != nil && style.right != nil
@@ -1432,8 +1450,8 @@ private class CraftNativeFlowView: UIStackView {
                         ? (sharedLine?[offset].position ?? (mainOffset + item.mainLeading))
                         : mainOffset + item.mainLeading
                     let frame = horizontal
-                        ? CGRect(x: padding.left + mainPosition, y: padding.top + physicalLineOffset + physicalCrossPosition, width: item.main, height: item.cross)
-                        : CGRect(x: padding.left + physicalLineOffset + physicalCrossPosition, y: padding.top + mainPosition, width: item.cross, height: item.main)
+                        ? CGRect(x: contentPadding.left + mainPosition, y: contentPadding.top + physicalLineOffset + physicalCrossPosition, width: item.main, height: item.cross)
+                        : CGRect(x: contentPadding.left + physicalLineOffset + physicalCrossPosition, y: contentPadding.top + mainPosition, width: item.cross, height: item.main)
                     frames.append((item.view, frame))
                     if !useSharedPositions { mainOffset += item.mainMargins + item.main + mainGap + between }
                 }
@@ -1529,7 +1547,7 @@ private class CraftNativeFlowView: UIStackView {
             if let sharedFrames {
                 for (index, child) in children.enumerated() {
                     let frame = sharedFrames[index]
-                    frames.append((child, CGRect(x: padding.left + frame.x, y: padding.top + frame.y, width: frame.width, height: frame.height)))
+                    frames.append((child, CGRect(x: contentPadding.left + frame.x, y: contentPadding.top + frame.y, width: frame.width, height: frame.height)))
                 }
                 return CGSize(width: width, height: innerHeight ?? height)
             }
@@ -1553,7 +1571,7 @@ private class CraftNativeFlowView: UIStackView {
             case "stretch": rowExtra = gridFree / CGFloat(max(1, rowHeights.count))
             default: break
             }
-            var rowTop = padding.top + rowLeading
+            var rowTop = contentPadding.top + rowLeading
             for (index, child) in children.enumerated() {
                 let style = child.craftLayoutStyle
                 let row = index / columns
@@ -1565,7 +1583,7 @@ private class CraftNativeFlowView: UIStackView {
                 let availableHeight = max(0, rowHeight - style.marginTop - style.marginBottom)
                 let childWidth = min(availableWidth, size.width)
                 let childHeight = align == "stretch" && style.height == nil && style.aspectRatio == nil ? availableHeight : min(availableHeight, size.height)
-                let x = padding.left + CGFloat(column) * (cellWidth + horizontalGap) + style.marginLeft
+                let x = contentPadding.left + CGFloat(column) * (cellWidth + horizontalGap) + style.marginLeft
                     + (align == "center" ? (availableWidth - childWidth) / 2 : align == "flex-end" ? availableWidth - childWidth : 0)
                 let y = rowTop + style.marginTop
                     + (align == "center" ? (availableHeight - childHeight) / 2 : align == "flex-end" ? availableHeight - childHeight : 0)
@@ -1574,6 +1592,41 @@ private class CraftNativeFlowView: UIStackView {
             }
         }
         return CGSize(width: width, height: innerHeight ?? height)
+    }
+}
+
+/// A container that applies only the requested system safe-area edges. The
+/// host keeps the root edge-to-edge when this node is the screen root so the
+/// node, rather than the controller's outer stack, owns the insets.
+private final class CraftNativeSafeAreaView: CraftNativeFlowView {
+    private var edges: Set<String> = ["top", "right", "bottom", "left"]
+
+    func setSafeAreaEdges(_ raw: Any?) {
+        guard let values = raw as? [Any] else {
+            edges = ["top", "right", "bottom", "left"]
+            updateSafeAreaPadding()
+            return
+        }
+        edges = Set(values.compactMap { value in
+            guard let edge = value as? String, ["top", "right", "bottom", "left"].contains(edge) else { return nil }
+            return edge
+        })
+        updateSafeAreaPadding()
+    }
+
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        updateSafeAreaPadding()
+    }
+
+    private func updateSafeAreaPadding() {
+        let insets = safeAreaInsets
+        safeAreaPadding = UIEdgeInsets(
+            top: edges.contains("top") ? insets.top : 0,
+            left: edges.contains("left") ? insets.left : 0,
+            bottom: edges.contains("bottom") ? insets.bottom : 0,
+            right: edges.contains("right") ? insets.right : 0
+        )
     }
 }
 
@@ -2617,11 +2670,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         view.addSubview(rootStack)
         rootTopToSafeArea = rootStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
         rootTopToView = rootStack.topAnchor.constraint(equalTo: view.topAnchor)
+        rootBottomToSafeArea = rootStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+        rootBottomToView = rootStack.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        rootLeadingToSafeArea = rootStack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor)
+        rootLeadingToView = rootStack.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+        rootTrailingToSafeArea = rootStack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor)
+        rootTrailingToView = rootStack.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         NSLayoutConstraint.activate([
             rootTopToSafeArea!,
-            rootStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-            rootStack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-            rootStack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor)
+            rootBottomToSafeArea!,
+            rootLeadingToSafeArea!,
+            rootTrailingToSafeArea!
         ])
         setupJavaScript()
         loadBundle()
@@ -3172,6 +3231,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var titleFromOptions = false
     private var rootTopToSafeArea: NSLayoutConstraint?
     private var rootTopToView: NSLayoutConstraint?
+    private var rootBottomToSafeArea: NSLayoutConstraint?
+    private var rootBottomToView: NSLayoutConstraint?
+    private var rootLeadingToSafeArea: NSLayoutConstraint?
+    private var rootLeadingToView: NSLayoutConstraint?
+    private var rootTrailingToSafeArea: NSLayoutConstraint?
+    private var rootTrailingToView: NSLayoutConstraint?
+    private var rootIsSafeAreaView = false
     private var navigationBarHidden: Bool?
     /// A native `<StatusBar>` node overrides the app default for this screen.
     private var statusBarStyleOverride: UIStatusBarStyle?
@@ -3479,10 +3545,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // effect, rather than over the bar's back button. Other screens stay
         // inside the safe area.
         let edgeToEdge = scroll != nil && (prefersLargeTitle == true || scroll === leading(renderedRoot))
-        if rootTopToView?.isActive != edgeToEdge {
-            rootTopToSafeArea?.isActive = !edgeToEdge
-            rootTopToView?.isActive = edgeToEdge
-        }
+        let fullEdgeToEdge = rootIsSafeAreaView
+        let topEdgeToEdge = fullEdgeToEdge || edgeToEdge
+        rootTopToSafeArea?.isActive = !topEdgeToEdge
+        rootTopToView?.isActive = topEdgeToEdge
+        rootBottomToSafeArea?.isActive = !fullEdgeToEdge
+        rootBottomToView?.isActive = fullEdgeToEdge
+        rootLeadingToSafeArea?.isActive = !fullEdgeToEdge
+        rootLeadingToView?.isActive = fullEdgeToEdge
+        rootTrailingToSafeArea?.isActive = !fullEdgeToEdge
+        rootTrailingToView?.isActive = fullEdgeToEdge
         scroll?.contentInsetAdjustmentBehavior = edgeToEdge ? .automatic : .never
         guard scroll !== trackedScrollView else { return }
         trackedScrollView = scroll
@@ -3984,6 +4056,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         rootStack.setLayoutStyle(rootStyle, for: next.view)
         rootStack.invalidateMeasurements()
         renderedRoot = next
+        rootIsSafeAreaView = next.type == "SafeAreaView"
         updateKeyboardAvoidingViews()
         syncGlobalKeyboardSafeArea()
         trackContentScrollView()
@@ -3994,6 +4067,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func clearRenderedTree() {
         if let root = renderedRoot { detach(root, from: rootStack) }
         renderedRoot = nil
+        rootIsSafeAreaView = false
+        rootTopToSafeArea?.isActive = true
+        rootTopToView?.isActive = false
+        rootBottomToSafeArea?.isActive = true
+        rootBottomToView?.isActive = false
+        rootLeadingToSafeArea?.isActive = true
+        rootLeadingToView?.isActive = false
+        rootTrailingToSafeArea?.isActive = true
+        rootTrailingToView?.isActive = false
         statusBarStyleOverride = nil
         statusBarHiddenOverride = nil
         setNeedsStatusBarAppearanceUpdate()
@@ -4045,6 +4127,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             result.setContentHuggingPriority(.required, for: .vertical)
         }
         applyViewStyle(style, to: result, node: current)
+        if type == "SafeAreaView", let safeArea = result as? CraftNativeSafeAreaView {
+            safeArea.setSafeAreaEdges(props["edges"])
+        }
         updateLayoutHandler(events["onLayout"], for: result)
         if type == "StatusBar" { applyStatusBar(props) }
 
@@ -4515,8 +4600,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return CraftNativeFlatList()
         case "Svg":
             return CraftNativeSvgView()
-        case "View", "SafeAreaView":
+        case "View":
             return CraftNativeFlowView()
+        case "SafeAreaView":
+            return CraftNativeSafeAreaView()
         case "TouchableOpacity", "TouchableHighlight", "Pressable":
             return CraftNativeFlowView()
         default:

@@ -267,6 +267,13 @@ children in `createNode` and `updateNode` may contain text only; node
 relationships use `insertChild`. Indexes are zero-based and may equal the
 current child count when inserting or moving to the end.
 
+`SafeAreaView` accepts an optional `edges` array containing any of `top`,
+`right`, `bottom`, and `left`. It applies only those system insets to its
+content; omitted `edges` means all four. The maintained iOS and Android hosts
+keep a SafeAreaView screen root edge-to-edge so the selected edges are applied
+by the node itself, while ordinary roots retain the host's full safe-area
+padding.
+
 The host validates the complete batch against a copy of its retained tree. It
 commits and advances the revision only if every operation succeeds, then sends:
 

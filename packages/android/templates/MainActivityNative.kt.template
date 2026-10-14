@@ -474,6 +474,46 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var gridAutoRows: CraftNativeLength? = null
     private var reverse = false
     private var wrapReverse = false
+    private var authoredPadding = intArrayOf(0, 0, 0, 0)
+    private var safeAreaPadding = intArrayOf(0, 0, 0, 0)
+    private var applyingPadding = false
+    private var safeAreaEdges = setOf("top", "right", "bottom", "left")
+
+    override fun setPadding(left: Int, top: Int, right: Int, bottom: Int) {
+        if (!applyingPadding) authoredPadding = intArrayOf(left, top, right, bottom)
+        applyingPadding = true
+        super.setPadding(
+            left + safeAreaPadding[0],
+            top + safeAreaPadding[1],
+            right + safeAreaPadding[2],
+            bottom + safeAreaPadding[3],
+        )
+        applyingPadding = false
+    }
+
+    fun setSafeAreaEdges(raw: JSONArray?) {
+        safeAreaEdges = if (raw == null) {
+            setOf("top", "right", "bottom", "left")
+        } else {
+            (0 until raw.length()).mapNotNull { raw.optString(it).takeIf { edge -> edge in setOf("top", "right", "bottom", "left") } }.toSet()
+        }
+        applySafeAreaPadding()
+    }
+
+    fun setWindowSafeInsets(left: Int, top: Int, right: Int, bottom: Int) {
+        val insets = intArrayOf(left, top, right, bottom)
+        safeAreaPadding = intArrayOf(
+            if ("left" in safeAreaEdges) insets[0] else 0,
+            if ("top" in safeAreaEdges) insets[1] else 0,
+            if ("right" in safeAreaEdges) insets[2] else 0,
+            if ("bottom" in safeAreaEdges) insets[3] else 0,
+        )
+        applySafeAreaPadding()
+    }
+
+    private fun applySafeAreaPadding() {
+        setPadding(authoredPadding[0], authoredPadding[1], authoredPadding[2], authoredPadding[3])
+    }
 
     /**
      * What a child measures at a pair of specs, remembered for the frame.
@@ -2324,6 +2364,7 @@ class MainActivity : AppCompatActivity() {
     private var initialDeepLink: Uri? = null
     private var initialDeepLinkClaimed = false
     private var defaultTextColor = Color.WHITE
+    private var windowSafeInsets = intArrayOf(0, 0, 0, 0)
     private var useMessagePorts = false
     private val imageExecutor = Executors.newFixedThreadPool(2)
     /** Lays out each isolate's prelude (the synchronous stores) off the main thread. */
@@ -2356,8 +2397,9 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val safe = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            windowSafeInsets = intArrayOf(safe.left, safe.top, safe.right, safe.bottom)
             keyboardInset = max(0, ime.bottom - safe.bottom)
-            view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+            updateSafeAreaViews()
             updateKeyboardAvoidingViews()
             view.requestLayout()
             view.post { screens.lastOrNull()?.takeIf { it.active }?.let(::emitLayoutEvents) }
@@ -2958,6 +3000,23 @@ class MainActivity : AppCompatActivity() {
                 else -> null
             }
         }.forEach { it.refreshThemeDefaults() }
+        updateSafeAreaViews()
+    }
+
+    private fun updateSafeAreaViews() {
+        if (!::root.isInitialized) return
+        val active = visibleScreen ?: screens.lastOrNull { it.active }
+        val rootNode = active?.mutations?.node("root")
+        val safeRoot = rootNode?.let { canonicalType(it.optString("type")) == "SafeAreaView" } == true
+        root.setPadding(
+            if (safeRoot) 0 else windowSafeInsets[0],
+            if (safeRoot) 0 else windowSafeInsets[1],
+            if (safeRoot) 0 else windowSafeInsets[2],
+            if (safeRoot) 0 else windowSafeInsets[3],
+        )
+        val tree = active?.view?.getChildAt(0) as? CraftNativeFlexLayout
+        if (safeRoot) tree?.setWindowSafeInsets(windowSafeInsets[0], windowSafeInsets[1], windowSafeInsets[2], windowSafeInsets[3])
+        else tree?.setWindowSafeInsets(0, 0, 0, 0)
     }
 
     private fun refreshThemeDefaults() {
@@ -3191,6 +3250,7 @@ class MainActivity : AppCompatActivity() {
         screen.controls.putAll(next)
         screen.handlers.keys.retainAll(retainedViews(screen))
         screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)
+        updateSafeAreaViews()
         // A full render can change a view's custom layout style without
         // changing the root bounds. Ensure native @layout observers still see
         // the settled child frame after the next traversal.
@@ -3822,6 +3882,7 @@ class MainActivity : AppCompatActivity() {
             }
             "View", "SafeAreaView" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 configureContainer(this, style)
+                if (type == "SafeAreaView") setSafeAreaEdges(props.optJSONArray("edges"))
                 reconcileChildren(screen, this, children, path, next, style, previousControls)
             }
             "KeyboardAvoidingView" -> (previous as? CraftNativeKeyboardAvoidingView ?: CraftNativeKeyboardAvoidingView(this)).apply {

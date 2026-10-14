@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 
 const root = join(import.meta.dir, '..')
 const ios = readFileSync(join(root, 'packages/ios/templates/CraftNativeScreen.swift'), 'utf8')
+const iosActions = readFileSync(join(root, 'packages/ios/templates/CraftNativeActions.swift'), 'utf8')
 const iosHealth = readFileSync(join(root, 'packages/ios/templates/CraftHealth.swift'), 'utf8')
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
@@ -38,7 +39,7 @@ const mobileE2EWorkflow = readFileSync(join(root, '.github/workflows/mobile-e2e.
 
 /** One host-neutral vocabulary, asserted against every generated renderer. */
 const COMPONENTS: Array<[string, string, string]> = [
-  ['SafeAreaView', 'case "View", "SafeAreaView":', '"View", "SafeAreaView" ->'],
+  ['SafeAreaView', 'case "SafeAreaView":', '"View", "SafeAreaView" ->'],
   ['KeyboardAvoidingView', 'case "KeyboardAvoidingView":', '"KeyboardAvoidingView" ->'],
   ['Text', 'case "Text":', '"Text" ->'],
   ['Button', 'case "Button", "Link":', '"Button" ->'],
@@ -798,7 +799,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('parent.setChildStyle(view, style, resources.displayMetrics.density)')
     expect(android).toContain('parent.requestLayout()')
     expect(android).toContain('(parent as? View)?.let')
-    expect(android).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)\n        // A full render can change a view\'s custom layout style')
+    expect(android).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)\n        updateSafeAreaViews()')
     expect(android).toContain('A reused View may still carry a')
     expect(android).toContain('val requestedChecked = props.opt("checked")')
     expect(android).toContain('requestedChecked is String -> requestedChecked.isBlank()')
@@ -812,12 +813,29 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('if rootStyle["flex"] == nil, rootStyle["height"] == nil { rootStyle["flex"] = 1 }')
     expect(android).toContain('setOnApplyWindowInsetsListener(root)')
     expect(android).toContain('WindowInsetsCompat.Type.systemBars()')
+    expect(ios).toContain('private final class CraftNativeSafeAreaView: CraftNativeFlowView')
+    expect(ios).toContain('safeArea.setSafeAreaEdges(props["edges"])')
+    expect(ios).toContain('rootBottomToView?.isActive = fullEdgeToEdge')
+    expect(android).toContain('fun setWindowSafeInsets(left: Int, top: Int, right: Int, bottom: Int)')
+    expect(android).toContain('updateSafeAreaViews()')
+    expect(android).toContain('if (safeRoot) 0 else windowSafeInsets[0]')
+    expect(android).toContain('if (type == "SafeAreaView") setSafeAreaEdges(props.optJSONArray("edges"))')
     expect(android).toContain('view.requestLayout()')
     expect(android).toContain('view.post { screens.lastOrNull()?.takeIf { it.active }?.let(::emitLayoutEvents) }')
     expect(ios).toContain('UIResponder.keyboardWillChangeFrameNotification')
     expect(ios).toContain('self.additionalSafeAreaInsets.bottom = globalInset')
     expect(iosLayoutUnitTests).toContain('testKeyboardFrameUpdatesAndRestoresTheAdditionalSafeArea')
     expect(iosReadme).toContain("Keyboard frame changes update the native controller's additional safe area")
+  })
+
+  it('keeps native iOS passkeys capability-gated and domain-bound', () => {
+    expect(iosActions).toContain('case ("Passkeys", "isAvailable"):')
+    expect(iosActions).toContain('case ("Passkeys", "create"), ("Passkeys", "get"):')
+    expect(iosActions).toContain('CraftNativePasskeys.domains(in: config)')
+    expect(iosActions).toContain('ASAuthorizationPlatformPublicKeyCredentialProvider')
+    expect(iosActions).toContain('guard let candidate, domains.contains(candidate)')
+    expect(guide).toContain('craft.passkeys.get({')
+    expect(iosReadme).toContain('enablePasskeys: true')
   })
 
   it('keeps reverse row scroll containers horizontal on both hosts', () => {
