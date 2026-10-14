@@ -561,6 +561,7 @@ describe('native renderer component contract', () => {
 
   it('keeps the iOS Zig/Swift validation conformance table keyed and evidenced', () => {
     expect(runtimeCompatibility).toMatch(/\[iOS Zig\/Swift validation\s+conformance table\]\(\.\/ios-validation-conformance\.md\)/)
+    expect(iosValidationConformance).toContain('| Platform exercise |')
     for (const action of [
       '`notifications.cancel`',
       '`background.schedule` / `background.cancel`',
@@ -575,7 +576,13 @@ describe('native renderer component contract', () => {
     expect(iosNotifCancel).toContain('current Swift')
     expect(iosNotifCancel).toContain('dispatcher rejects a missing or non-string `id`')
     expect(iosNotifCancel).toContain("Swift's length-aware `String` path accepts the value")
-    expect((iosValidationConformance.match(/^\| `[^|]+`/gm) ?? []).length).toBeGreaterThanOrEqual(6)
+    const rows = iosValidationConformance.split('\n').filter(line => /^\| `[^|]+`/.test(line))
+    expect(rows).toHaveLength(6)
+    expect(new Set(rows.map(row => row.split('|').slice(1, 3).map(cell => cell.trim()).join('|'))).size).toBe(rows.length)
+    for (const row of rows) {
+      expect(row.split('|')).toHaveLength(8)
+      expect(row).toMatch(/\| (?:No|Type validation is host-neutral)/)
+    }
   })
 
   it('documents the native keyboard fallback alongside the WebView path', () => {
