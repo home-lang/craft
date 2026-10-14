@@ -238,22 +238,24 @@ private enum CraftNativeTreeLayoutBridge {
             nodes.append(NodeInput(style: input, firstChild: 0, childCount: 0))
         }
         var output = [Frame](repeating: Frame(x: 0, y: 0, width: 0, height: 0), count: nodes.count)
+        let frameCount = output.count
         let status = nodes.withUnsafeBufferPointer { nodeBuffer in
             output.withUnsafeMutableBufferPointer { frameBuffer in
                 function(
                     Float(width), Float(height), UnsafeRawPointer(nodeBuffer.baseAddress!), nodes.count,
-                    UnsafeMutableRawPointer(frameBuffer.baseAddress!), output.count
+                    UnsafeMutableRawPointer(frameBuffer.baseAddress!), frameCount
                 )
             }
         }
         guard status == 0 else { return nil }
-        return zip(children, output.dropFirst()).compactMap { child, frame in
-            guard frame.x.isFinite, frame.y.isFinite, frame.width.isFinite, frame.height.isFinite,
-                  frame.width >= 0, frame.height >= 0 else { return nil }
-            return (child.0, CGRect(x: CGFloat(frame.x), y: CGFloat(frame.y), width: CGFloat(frame.width), height: CGFloat(frame.height)))
-        }.count == children.count
-            ? zip(children, output.dropFirst()).map { ($0.0, CGRect(x: CGFloat($1.x), y: CGFloat($1.y), width: CGFloat($1.width), height: CGFloat($1.height))) }
-            : nil
+        let childFrames = output.dropFirst()
+        guard childFrames.allSatisfy({ frame in
+            frame.x.isFinite && frame.y.isFinite && frame.width.isFinite && frame.height.isFinite &&
+                frame.width >= 0 && frame.height >= 0
+        }) else { return nil }
+        return zip(children, childFrames).map { child, frame in
+            (child.0, CGRect(x: CGFloat(frame.x), y: CGFloat(frame.y), width: CGFloat(frame.width), height: CGFloat(frame.height)))
+        }
     }
 }
 

@@ -1058,6 +1058,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('style.width.map({ if case .percent = $0 { return false }')
     expect(ios).toContain('if place, flow.count == children.count, let shared = sharedDirectFrames(flow, width: width, height: height)')
     expect(ios).toContain('frames = shared')
+    expect(ios).toContain('let frameCount = output.count')
+    expect(ios).toContain('childFrames.allSatisfy')
     // Older runtimes and unsupported styles must retain the host algorithm.
     expect(ios).toContain('guard let function')
     expect(ios).toContain('return nil')
