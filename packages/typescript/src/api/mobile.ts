@@ -1388,6 +1388,13 @@ export interface SpeechOptions {
   language?: string
   /** Stop whatever is being said first. Defaults to true; false queues behind it. */
   interrupt?: boolean
+  /** Voice pitch, 0.5 to 2. 1 is the voice's own; lower sounds calmer. */
+  pitch?: number
+  /**
+   * Seconds of quiet before the words (up to 5), after whatever was said
+   * before them: a pause between two queued cues.
+   */
+  preDelay?: number
 }
 
 interface WebSpeech {
@@ -1540,6 +1547,7 @@ export const speech = {
     return new Promise<boolean>((resolve) => {
       const utterance = new Utterance(text)
       utterance.rate = speechRate(options.rate)
+      utterance.pitch = speechRate(options.pitch)
       if (options.language) utterance.lang = options.language
       const settle = (spoken: boolean) => {
         speakingOnTheWeb.delete(utterance)

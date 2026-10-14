@@ -450,7 +450,17 @@ private func craftNativeAlignContentCode(_ value: String) -> UInt32 {
     }
 }
 
-private final class CraftNativeVideoView: UIView {
+/// A native screen's `<Video>`: AVPlayerViewController in place.
+///
+/// With sound, a video takes the audio session as a playing sound does
+/// (`CraftNativeSounds`): playback, mixed with the person's music, heard
+/// through the silent switch, and with speech ducking the music under a cue
+/// as it does for any other sound. With `pictureInPicture` it carries on in
+/// the system's floating player when the app goes to the background or
+/// another app opens (the app needs the `audio` background mode, which
+/// `enableBackgroundAudio` writes), and comes back into its place when the
+/// app does.
+private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate {
     private let playerController = AVPlayerViewController()
     private var player: AVPlayer?
     private var sourceURI = ""
@@ -460,6 +470,8 @@ private final class CraftNativeVideoView: UIView {
     private var timeObserver: Any?
     private var loops = false
     private var wasPlaying: Bool?
+    /// This video holds a claim on the audio session (`CraftNativeSounds`).
+    private var claimedSession = false
     /// The screen's handlers by event name (`onEnd`, `onPlay`, `onPause`,
     /// `onProgress`, `onLoad`, `onError`), and how an event reaches them.
     var handlers: [String: String] = [:]
@@ -477,6 +489,8 @@ private final class CraftNativeVideoView: UIView {
         // to UI tests and assistive technology.
         playerController.view.isAccessibilityElement = false
         playerController.view.accessibilityElementsHidden = true
+        playerController.delegate = self
+        playerController.allowsPictureInPicturePlayback = false
     }
 
     required init?(coder: NSCoder) {
@@ -515,9 +529,24 @@ private final class CraftNativeVideoView: UIView {
         wasPlaying = nil
         player?.pause()
         player = nil
+        releaseSession()
     }
 
-    func configure(source: Any?, autoplay: Bool, paused: Bool, loop: Bool, muted: Bool, controls: Bool, resizeMode: String?) {
+    /// Playback, mixed with the music, before the player first makes a sound:
+    /// an AVPlayer started under the app's default session stops the music.
+    private func claimSession() {
+        guard !claimedSession else { return }
+        claimedSession = true
+        CraftNativeSounds.claimSession(respectSilentSwitch: false)
+    }
+
+    private func releaseSession() {
+        guard claimedSession else { return }
+        claimedSession = false
+        CraftNativeSounds.releaseSession()
+    }
+
+    func configure(source: Any?, autoplay: Bool, paused: Bool, loop: Bool, muted: Bool, controls: Bool, resizeMode: String?, pictureInPicture: Bool = false) {
         let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String ?? ""
         if uri != sourceURI {
             detachPlayer()
@@ -545,12 +574,41 @@ private final class CraftNativeVideoView: UIView {
         }
         guard let player else { return }
         player.isMuted = muted
+        // A muted video makes no sound, so it leaves the session as it is.
+        if muted { releaseSession() } else { claimSession() }
         playerController.showsPlaybackControls = controls
         playerController.videoGravity = resizeMode == "cover" ? .resizeAspectFill
             : resizeMode == "stretch" ? .resize
             : .resizeAspect
+        // Picture in Picture needs the playback session, so a muted video has none.
+        let floating = pictureInPicture && !muted
+        playerController.allowsPictureInPicturePlayback = floating
+        if #available(iOS 14.2, *) {
+            playerController.canStartPictureInPictureAutomaticallyFromInline = floating
+        }
         loops = loop
         if paused || !autoplay { player.pause() } else { player.play() }
+    }
+
+    // MARK: AVPlayerViewControllerDelegate
+
+    /// The video stays in its place on the screen while it floats.
+    func playerViewControllerShouldAutomaticallyDismissAtPictureInPictureStart(_ playerViewController: AVPlayerViewController) -> Bool {
+        false
+    }
+
+    /// Back from the floating player (the app came back, or its button was
+    /// tapped): the video is still in its place, so there is nothing to put back.
+    func playerViewController(_ playerViewController: AVPlayerViewController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
+        completionHandler(player != nil)
+    }
+
+    func playerViewControllerWillStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
+        fire("onPictureInPictureStart")
+    }
+
+    func playerViewControllerDidStopPictureInPicture(_ playerViewController: AVPlayerViewController) {
+        fire("onPictureInPictureStop")
     }
 
     /// Load, play and pause, time, the end and failure, as the web's video
@@ -3132,6 +3190,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// The compiler can emit an anchor as `TouchableOpacity`, so this map is
     /// intentionally shared by Link and the generic pressable path.
     private var linkTargets: [ObjectIdentifier: String] = [:]
+    /// Views by their `transitionID`: one element across an animated change.
+    private var transitionIDs: [ObjectIdentifier: String] = [:]
+    /// `craft.animation.next`: the screen as it was, waiting for the change.
+    private var animationTransaction: CraftNativeAnimationTransaction?
+    /// The animation of the last change, still running.
+    private var runningAnimation: CraftNativeRunningAnimation?
     private var renderedRoot: RenderedNode?
     private weak var lastFocusedInput: UIView?
 
@@ -4415,6 +4479,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
         case "NAVIGATION_SET_OPTIONS":
             applyNavigationOptions(payload)
+        case "ANIMATE_NEXT":
+            // The next change the screen makes animates (craft.animation.next).
+            beginAnimatedChange(payload)
         case "NAVIGATE_OPEN":
             // A path rather than a screen: the hybrid shell opens it, natively
             // or in the web view.
@@ -4728,6 +4795,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             linkTargets.removeValue(forKey: ObjectIdentifier(result))
         }
         result.accessibilityIdentifier = accessibilityIdentifier(node, props: props) ?? path
+        if let transitionID = props["transitionID"] as? String, !transitionID.isEmpty {
+            transitionIDs[ObjectIdentifier(result)] = transitionID
+        } else {
+            transitionIDs.removeValue(forKey: ObjectIdentifier(result))
+        }
         if type != "View" && type != "SafeAreaView" && type != "KeyboardAvoidingView" && type != "ScrollView" && type != "SectionList" && type != "FlatList" && type != "Modal" {
             result.setContentHuggingPriority(.required, for: .vertical)
         }
@@ -5062,7 +5134,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 loop: (props["loop"] as? Bool) == true,
                 muted: (props["muted"] as? Bool) == true,
                 controls: (props["controls"] as? Bool) == true,
-                resizeMode: style["resizeMode"] as? String ?? props["resizeMode"] as? String
+                resizeMode: style["resizeMode"] as? String ?? props["resizeMode"] as? String,
+                pictureInPicture: (props["pictureInPicture"] as? Bool) == true
             )
         case "Map":
             let map = result as! CraftNativeMapView
@@ -5470,6 +5543,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         handlers.removeValue(forKey: id)
         linkTargets.removeValue(forKey: id)
+        transitionIDs.removeValue(forKey: id)
         pressInHandlers.removeValue(forKey: id)
         pressOutHandlers.removeValue(forKey: id)
         layoutHandlers.removeValue(forKey: id)
@@ -6784,6 +6858,317 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func color(_ value: Any?) -> UIColor? {
         guard let text = value as? String else { return nil }
         return UIColor(css: text) ?? UIColor(hex: text)
+    }
+}
+
+// MARK: - Animated changes
+
+/// What `craft.animation.next(options)` asked for. `duration` in seconds
+/// (0.1 to 1, 0.35 when left out); `curve` "spring" (the default, iOS's own
+/// smooth spring with no bounce unless `bounce` says), "easeInOut" or
+/// "linear".
+struct CraftNativeAnimationSpec {
+    let duration: TimeInterval
+    let curve: String
+    let bounce: CGFloat
+
+    init(_ payload: [String: Any]) {
+        let asked = (payload["duration"] as? NSNumber)?.doubleValue ?? 0.35
+        duration = min(max(asked.isFinite ? asked : 0.35, 0.1), 1)
+        let name = payload["curve"] as? String ?? "spring"
+        curve = ["spring", "easeInOut", "linear"].contains(name) ? name : "spring"
+        let springiness = (payload["bounce"] as? NSNumber)?.doubleValue ?? 0
+        bounce = CGFloat(min(max(springiness.isFinite ? springiness : 0, 0), 0.5))
+    }
+
+    var timing: UITimingCurveProvider {
+        switch curve {
+        case "linear": return UICubicTimingParameters(animationCurve: .linear)
+        case "easeInOut": return UICubicTimingParameters(animationCurve: .easeInOut)
+        default: return UISpringTimingParameters(dampingRatio: 1 - bounce)
+        }
+    }
+}
+
+/// How long a change animates while one runs on any screen, so what the
+/// app changes beside it (the status bar's style) moves in step.
+enum CraftNativeAnimationClock {
+    static var duration: TimeInterval?
+}
+
+/// A view as it was when the change was asked for.
+final class CraftNativeAnimationRecord {
+    let view: UIView
+    weak var superview: UIView?
+    /// In its parent's coordinates, and in the screen's.
+    let frame: CGRect
+    let frameOnScreen: CGRect
+    let alpha: CGFloat
+    let backgroundColor: UIColor?
+    let fontSize: CGFloat?
+    let textColor: UIColor?
+    let transitionID: String?
+
+    init(view: UIView, screen: UIView, transitionID: String?) {
+        self.view = view
+        superview = view.superview
+        frame = view.frame
+        frameOnScreen = view.superview?.convert(view.frame, to: screen) ?? view.frame
+        alpha = view.alpha
+        backgroundColor = view.backgroundColor
+        fontSize = (view as? UILabel)?.font.pointSize
+        textColor = (view as? UILabel)?.textColor
+        self.transitionID = transitionID
+    }
+}
+
+/// The screen between `craft.animation.next` and the change it animates.
+final class CraftNativeAnimationTransaction {
+    let spec: CraftNativeAnimationSpec
+    let reduceMotion: Bool
+    var records: [ObjectIdentifier: CraftNativeAnimationRecord] = [:]
+    var screenBackground: UIColor?
+    /// Reduce Motion: the screen as it was, crossfaded into the new one.
+    var picture: UIView?
+
+    init(spec: CraftNativeAnimationSpec, reduceMotion: Bool) {
+        self.spec = spec
+        self.reduceMotion = reduceMotion
+    }
+}
+
+/// An animation under way: finished at once if another change comes first.
+final class CraftNativeRunningAnimation {
+    var animators: [UIViewPropertyAnimator] = []
+    var cleanup: [() -> Void] = []
+    private var done = false
+
+    func finish() {
+        guard !done else { return }
+        done = true
+        for animator in animators where animator.state == .active {
+            animator.stopAnimation(false)
+            animator.finishAnimation(at: .end)
+        }
+        cleanup.forEach { $0() }
+        cleanup.removeAll()
+    }
+}
+
+extension CraftNativeScreenController {
+    /// `craft.animation.next(options)`: what the screen changes next (a
+    /// render, a patch, its own background and bar) animates instead of
+    /// cutting, as SwiftUI's `withAnimation` or React Native's
+    /// `LayoutAnimation`. Views that stay move and resize to their new
+    /// places; new views fade in and removed ones fade out where they were; a
+    /// view whose font size changed scales into it. Two views with the same
+    /// `transitionID`, one going and one coming, are one element: it moves and
+    /// scales from the old one's place to the new one's, crossfading the two.
+    /// With Reduce Motion on, the whole screen crossfades instead.
+    func beginAnimatedChange(_ payload: [String: Any]) {
+        guard !isAppScript, isViewLoaded else { return }
+        // The last change's animation lands where it was going first.
+        runningAnimation?.finish()
+        runningAnimation = nil
+        if animationTransaction != nil { return }
+        let transaction = CraftNativeAnimationTransaction(spec: CraftNativeAnimationSpec(payload), reduceMotion: UIAccessibility.isReduceMotionEnabled)
+        transaction.screenBackground = view.backgroundColor
+        if transaction.reduceMotion {
+            transaction.picture = view.window == nil ? nil : view.snapshotView(afterScreenUpdates: false)
+        } else {
+            view.layoutIfNeeded()
+            recordAnimationState(renderedRoot, into: transaction)
+        }
+        animationTransaction = transaction
+        CraftNativeAnimationClock.duration = transaction.spec.duration
+        // The change comes from the same turn of the script (the state it
+        // changed renders in a microtask); a slow one still animates.
+        DispatchQueue.main.async { [weak self] in self?.commitAnimatedChange() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.commitAnimatedChange() }
+    }
+
+    private func recordAnimationState(_ node: RenderedNode?, into transaction: CraftNativeAnimationTransaction) {
+        guard let node else { return }
+        let id = ObjectIdentifier(node.view)
+        transaction.records[id] = CraftNativeAnimationRecord(view: node.view, screen: view, transitionID: transitionIDs[id])
+        node.children.forEach { recordAnimationState($0, into: transaction) }
+    }
+
+    private func renderedViews(_ node: RenderedNode?, into views: inout [UIView]) {
+        guard let node else { return }
+        views.append(node.view)
+        node.children.forEach { renderedViews($0, into: &views) }
+    }
+
+    private func commitAnimatedChange() {
+        guard let transaction = animationTransaction else { return }
+        animationTransaction = nil
+        let spec = transaction.spec
+        let running = CraftNativeRunningAnimation()
+        runningAnimation = running
+        running.cleanup.append { CraftNativeAnimationClock.duration = nil }
+
+        if transaction.reduceMotion {
+            guard let picture = transaction.picture else { running.finish(); return }
+            picture.frame = view.bounds
+            picture.isUserInteractionEnabled = false
+            view.addSubview(picture)
+            let fade = UIViewPropertyAnimator(duration: 0.3, curve: .easeInOut) { picture.alpha = 0 }
+            fade.addCompletion { _ in running.finish() }
+            running.animators.append(fade)
+            running.cleanup.append { picture.removeFromSuperview() }
+            fade.startAnimation()
+            return
+        }
+
+        UIView.performWithoutAnimation { view.layoutIfNeeded() }
+        var after: [UIView] = []
+        renderedViews(renderedRoot, into: &after)
+        let present = Set(after.map(ObjectIdentifier.init))
+        let records = transaction.records
+
+        // Going: no longer drawn. Only the topmost of a removed subtree moves
+        // to the overlay; what is under it goes with it.
+        let removed = records.values.filter { !present.contains(ObjectIdentifier($0.view)) }
+        let removedIds = Set(removed.map { ObjectIdentifier($0.view) })
+        let removedRoots = removed.filter { record in
+            guard let parent = record.superview else { return true }
+            return !removedIds.contains(ObjectIdentifier(parent))
+        }
+        // Coming: not there before.
+        let inserted = after.filter { records[ObjectIdentifier($0)] == nil }
+        let insertedIds = Set(inserted.map(ObjectIdentifier.init))
+
+        // One element across the change: the old view going, the new one coming.
+        var oldShared: [String: CraftNativeAnimationRecord] = [:]
+        for record in removed { if let tag = record.transitionID { oldShared[tag] = record } }
+        var pairs: [(old: CraftNativeAnimationRecord, new: UIView)] = []
+        for candidate in inserted {
+            if let tag = transitionIDs[ObjectIdentifier(candidate)], let old = oldShared.removeValue(forKey: tag) {
+                pairs.append((old, candidate))
+            }
+        }
+        let pairedNew = Set(pairs.map { ObjectIdentifier($0.new) })
+
+        let overlay = UIView(frame: view.bounds)
+        overlay.isUserInteractionEnabled = false
+        overlay.backgroundColor = .clear
+        view.addSubview(overlay)
+        running.cleanup.append { overlay.removeFromSuperview() }
+
+        let main = UIViewPropertyAnimator(duration: spec.duration, timingParameters: spec.timing)
+        // Fades take the first part, so nothing is half there for long.
+        let fadeOut = UIViewPropertyAnimator(duration: spec.duration * 0.5, curve: .easeOut)
+        let fadeIn = UIViewPropertyAnimator(duration: spec.duration * 0.6, curve: .easeInOut)
+        running.animators = [main, fadeOut, fadeIn]
+
+        // Removed views fade where they were, over what replaced them.
+        for record in removedRoots {
+            let going = record.view
+            going.translatesAutoresizingMaskIntoConstraints = true
+            going.transform = .identity
+            going.frame = record.frameOnScreen
+            overlay.addSubview(going)
+            fadeOut.addAnimations { going.alpha = 0 }
+        }
+
+        // The background, the screen's own included, goes from the old colour.
+        if let before = transaction.screenBackground, let now = view.backgroundColor, !before.isEqual(now) {
+            view.backgroundColor = before
+            main.addAnimations { self.view.backgroundColor = now }
+        }
+
+        // Shared elements: the new view starts where the old one was, at its
+        // size, and the old one travels with it as it fades.
+        for (old, new) in pairs {
+            let target = new.superview?.convert(new.frame, to: view) ?? new.frame
+            let move = morph(from: old.frameOnScreen, to: target, uniform: true)
+            let finalAlpha = new.alpha
+            let base = new.transform
+            new.transform = base.concatenating(move)
+            new.alpha = 0
+            main.addAnimations { new.transform = base }
+            fadeIn.addAnimations { new.alpha = finalAlpha }
+            let going = old.view
+            going.translatesAutoresizingMaskIntoConstraints = true
+            going.transform = .identity
+            going.frame = old.frameOnScreen
+            going.alpha = old.alpha
+            overlay.addSubview(going)
+            main.addAnimations { going.transform = move.inverted() }
+            fadeOut.addAnimations { going.alpha = 0 }
+            running.cleanup.append { new.transform = base; new.alpha = finalAlpha }
+        }
+
+        // New views fade in. A new container holding a shared element keeps it
+        // in sight: only the rest of it fades, and its colour comes up.
+        for added in inserted where !(added.superview.map { insertedIds.contains(ObjectIdentifier($0)) } ?? false) {
+            fadeInInserted(added, pairedNew: pairedNew, animator: fadeIn, running: running)
+        }
+
+        // Views that stay go to their new places and sizes.
+        for record in records.values where present.contains(ObjectIdentifier(record.view)) {
+            let stays = record.view
+            if let label = stays as? UILabel, let before = record.fontSize, abs(before - label.font.pointSize) > 0.5 {
+                let base = label.transform
+                let target = label.superview?.convert(label.frame, to: view) ?? label.frame
+                label.transform = base.concatenating(morph(from: record.frameOnScreen, to: target, uniform: true))
+                main.addAnimations { label.transform = base }
+                running.cleanup.append { label.transform = base }
+            } else if record.superview === stays.superview, record.frame != stays.frame {
+                let final = stays.frame
+                stays.frame = record.frame
+                main.addAnimations { stays.frame = final }
+            }
+            if let before = record.backgroundColor, let now = stays.backgroundColor, !before.isEqual(now) {
+                stays.backgroundColor = before
+                main.addAnimations { stays.backgroundColor = now }
+            }
+            if let label = stays as? UILabel, let before = record.textColor, !before.isEqual(label.textColor) {
+                let now = label.textColor
+                label.textColor = before
+                UIView.transition(with: label, duration: spec.duration * 0.6, options: [.transitionCrossDissolve, .allowAnimatedContent]) { label.textColor = now }
+            }
+        }
+
+        main.addCompletion { _ in running.finish() }
+        fadeOut.startAnimation()
+        fadeIn.startAnimation()
+        main.startAnimation()
+    }
+
+    /// The transform that puts a view at `final` where `start` was: moved
+    /// centre to centre and scaled, by height alone when `uniform`, so text
+    /// keeps its shape.
+    private func morph(from start: CGRect, to final: CGRect, uniform: Bool) -> CGAffineTransform {
+        guard final.width > 0, final.height > 0, start.width > 0, start.height > 0 else { return .identity }
+        let sy = start.height / final.height
+        let sx = uniform ? sy : start.width / final.width
+        let dx = start.midX - final.midX
+        let dy = start.midY - final.midY
+        return CGAffineTransform(translationX: dx, y: dy).scaledBy(x: sx, y: sy)
+    }
+
+    private func fadeInInserted(_ view: UIView, pairedNew: Set<ObjectIdentifier>, animator: UIViewPropertyAnimator, running: CraftNativeRunningAnimation) {
+        if pairedNew.contains(ObjectIdentifier(view)) { return }
+        guard containsShared(view, pairedNew: pairedNew) else {
+            let finalAlpha = view.alpha
+            view.alpha = 0
+            animator.addAnimations { view.alpha = finalAlpha }
+            running.cleanup.append { view.alpha = finalAlpha }
+            return
+        }
+        if let colour = view.backgroundColor, colour != .clear {
+            view.backgroundColor = colour.withAlphaComponent(0)
+            animator.addAnimations { view.backgroundColor = colour }
+            running.cleanup.append { view.backgroundColor = colour }
+        }
+        for child in view.subviews { fadeInInserted(child, pairedNew: pairedNew, animator: animator, running: running) }
+    }
+
+    private func containsShared(_ view: UIView, pairedNew: Set<ObjectIdentifier>) -> Bool {
+        if pairedNew.contains(ObjectIdentifier(view)) { return true }
+        return view.subviews.contains { containsShared($0, pairedNew: pairedNew) }
     }
 }
 

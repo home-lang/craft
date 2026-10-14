@@ -6812,14 +6812,16 @@ struct CraftWebView: UIViewRepresentable {
                     self.speechSynthesizer = fresh
                 }
 
-                let utterance = AVSpeechUtterance(string: text)
-                utterance.rate = Self.utteranceRate(body["rate"] as? Double ?? 1)
-                // An unknown language finds no voice, and a nil voice is the
-                // device's own, which is the default anyway.
-                if let language = body["language"] as? String, !language.isEmpty,
-                   let voice = AVSpeechSynthesisVoice(language: language) {
-                    utterance.voice = voice
-                }
+                // Set up as a native screen's is (CraftNativeServices.swift):
+                // the rate, the pitch, the quiet before it, and the best voice
+                // installed for the language.
+                let utterance = CraftNativeSpeech.utterance(
+                    text,
+                    language: body["language"] as? String,
+                    rate: (body["rate"] as? NSNumber)?.doubleValue,
+                    pitch: (body["pitch"] as? NSNumber)?.doubleValue,
+                    preDelay: (body["preDelay"] as? NSNumber)?.doubleValue
+                )
 
                 self.pendingUtterances.append((utterance, callbackId))
                 self.claimAudioSessionForSpeech {
@@ -6857,21 +6859,6 @@ struct CraftWebView: UIViewRepresentable {
                 resolveCallback(entry.callbackId, result: false)
             }
             return wasSounding
-        }
-
-        /// The page's rate, where 1 is normal, on AVSpeechUtterance's scale.
-        ///
-        /// Apple's scale is not linear in speed: the default sits at 0.5 and
-        /// the maximum is far faster than twice that. So a slower rate scales
-        /// the default down in proportion, and a faster one climbs toward the
-        /// maximum at half the slope, which keeps 2 brisk but intelligible.
-        private static func utteranceRate(_ rate: Double) -> Float {
-            let requested = Float(min(max(rate.isFinite ? rate : 1, 0.5), 2))
-            let normal = AVSpeechUtteranceDefaultSpeechRate
-            let mapped = requested <= 1
-                ? normal * requested
-                : normal + (AVSpeechUtteranceMaximumSpeechRate - normal) * (requested - 1) / 2
-            return min(max(mapped, AVSpeechUtteranceMinimumSpeechRate), AVSpeechUtteranceMaximumSpeechRate)
         }
 
         /// Duck the music rather than stop it, and play through the silent

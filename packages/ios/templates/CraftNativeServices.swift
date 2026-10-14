@@ -48,18 +48,16 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
 
     /// Says `text`; `done` hears true once it was spoken, false when it was
     /// stopped or interrupted. With `interrupt` false it waits its turn behind
-    /// what is being said. Main thread.
-    func speak(_ text: String, language: String?, rate: Double?, interrupt: Bool, done: @escaping (Bool) -> Void) {
+    /// what is being said. `pitch` is 0.5 to 2 (1 is the voice's own), and
+    /// `preDelay` is seconds of quiet before the words, after whatever was
+    /// said before them. Main thread.
+    func speak(_ text: String, language: String?, rate: Double?, pitch: Double? = nil, preDelay: Double? = nil, interrupt: Bool, done: @escaping (Bool) -> Void) {
         pendingRelease?.cancel()
         pendingRelease = nil
         if interrupt, cancelPending() { retireSynthesizer() }
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.rate = Self.utteranceRate(rate ?? 1)
-        // An unknown language finds no voice, and a nil voice is the device's own.
-        if let language, !language.isEmpty, let voice = AVSpeechSynthesisVoice(language: language) {
-            utterance.voice = voice
-        }
+        let utterance = Self.utterance(text, language: language, rate: rate, pitch: pitch, preDelay: preDelay)
         pending.append((utterance, done))
+        holdsSession = true
         sessionQueue.async {
             self.claimSession()
             DispatchQueue.main.async {
@@ -68,6 +66,72 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
                 self.synthesizer.speak(utterance)
             }
         }
+    }
+
+    /// Whether speech has the audio session, or is about to: a sound or a
+    /// video starting meanwhile leaves the category to speech, which hands it
+    /// over when it lets go (`CraftNativeSounds.reclaimSessionIfPlaying`).
+    /// Main thread.
+    private(set) var holdsSession = false
+
+    /// One utterance, set up the same way for a native screen and the page
+    /// (CraftApp.swift): the rate on AVSpeechUtterance's scale, the pitch,
+    /// the quiet before it, and the best voice installed for the language.
+    static func utterance(_ text: String, language: String?, rate: Double?, pitch: Double?, preDelay: Double?) -> AVSpeechUtterance {
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.rate = utteranceRate(rate ?? 1)
+        let wantedPitch = pitch.flatMap { $0.isFinite ? $0 : nil } ?? 1
+        utterance.pitchMultiplier = Float(min(max(wantedPitch, 0.5), 2))
+        let quiet = preDelay.flatMap { $0.isFinite ? $0 : nil } ?? 0
+        utterance.preUtteranceDelay = min(max(quiet, 0), 5)
+        // An unknown language finds no voice, and a nil voice is the device's own.
+        if let voice = bestVoice(for: language) { utterance.voice = voice }
+        return utterance
+    }
+
+    private static var voices: [String: AVSpeechSynthesisVoice] = [:]
+    private static var voicesObserver: NSObjectProtocol?
+
+    /// The best voice on this phone for `language` (the device's own when
+    /// nil): a premium voice when one is installed, else an enhanced one,
+    /// else the compact voice iOS would pick. Among voices of one quality the
+    /// one sharing the default voice's name wins ("Anna (Enhanced)" over
+    /// another enhanced voice when Anna is the default), so a download in
+    /// Settings changes how a voice sounds, not who it is. Novelty voices and
+    /// the person's own Personal Voice are never picked. Remembered per
+    /// language until the installed voices change. Main thread.
+    static func bestVoice(for language: String?) -> AVSpeechSynthesisVoice? {
+        let wanted = (language?.isEmpty == false ? language! : AVSpeechSynthesisVoice.currentLanguageCode())
+        if let known = voices[wanted] { return known }
+        if voicesObserver == nil, #available(iOS 17.0, *) {
+            voicesObserver = NotificationCenter.default.addObserver(forName: AVSpeechSynthesizer.availableVoicesDidChangeNotification, object: nil, queue: .main) { _ in
+                voices.removeAll()
+            }
+        }
+        guard let standard = AVSpeechSynthesisVoice(language: wanted) else { return nil }
+        let name = Self.baseName(standard.name)
+        let candidates = AVSpeechSynthesisVoice.speechVoices().filter { voice in
+            guard voice.language == standard.language else { return false }
+            if #available(iOS 17.0, *) {
+                if voice.voiceTraits.contains(.isNoveltyVoice) || voice.voiceTraits.contains(.isPersonalVoice) { return false }
+            }
+            return true
+        }
+        let best = candidates.max { lhs, rhs in
+            let left = (lhs.quality.rawValue, Self.baseName(lhs.name) == name ? 1 : 0, lhs.identifier == standard.identifier ? 1 : 0)
+            let right = (rhs.quality.rawValue, Self.baseName(rhs.name) == name ? 1 : 0, rhs.identifier == standard.identifier ? 1 : 0)
+            if left != right { return left < right }
+            // Stable between launches: the same voice every time.
+            return lhs.identifier > rhs.identifier
+        } ?? standard
+        let chosen = best.quality.rawValue >= standard.quality.rawValue ? best : standard
+        voices[wanted] = chosen
+        return chosen
+    }
+
+    /// "Anna (Enhanced)" and "Anna (Premium)" are both Anna.
+    private static func baseName(_ name: String) -> String {
+        name.components(separatedBy: " (").first ?? name
     }
 
     func stop() {
@@ -95,8 +159,13 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer = fresh
     }
 
-    /// The page's rate, where 1 is normal, on AVSpeechUtterance's scale: the
-    /// same mapping as the page's speech, so a cue sounds alike in both.
+    /// The page's rate, where 1 is normal, on AVSpeechUtterance's scale, for
+    /// a native screen and the page alike.
+    ///
+    /// Apple's scale is not linear in speed: the default sits at 0.5 and the
+    /// maximum is far faster than twice that. So a slower rate scales the
+    /// default down in proportion, and a faster one climbs toward the maximum
+    /// at half the slope, which keeps 2 brisk but intelligible.
     static func utteranceRate(_ rate: Double) -> Float {
         let requested = Float(min(max(rate.isFinite ? rate : 1, 0.5), 2))
         let normal = AVSpeechUtteranceDefaultSpeechRate
@@ -129,11 +198,25 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
             guard let self else { return }
             self.pendingRelease = nil
             guard self.pending.isEmpty, !self.synthesizer.isSpeaking else { return }
+            let soundsPlaying = CraftNativeSounds.isPlaying
             self.sessionQueue.async {
-                guard let previous = self.sessionToRestore else { return }
+                guard let previous = self.sessionToRestore else {
+                    // The claim failed: there is nothing to hand back.
+                    DispatchQueue.main.async {
+                        guard self.pending.isEmpty else { return }
+                        self.holdsSession = false
+                        CraftNativeSounds.reclaimSessionIfPlaying(handedBack: nil)
+                    }
+                    return
+                }
                 let session = AVAudioSession.sharedInstance()
                 do {
-                    try session.setActive(false, options: .notifyOthersOnDeactivation)
+                    // Deactivating ends the ducking. A video or a sound still
+                    // playing keeps it busy; the category put back below
+                    // carries no ducking, so the music comes back up anyway.
+                    if !soundsPlaying {
+                        try session.setActive(false, options: .notifyOthersOnDeactivation)
+                    }
                 } catch {
                     // Busy: the last of the audio has not drained, or the app
                     // plays something of its own. Once more shortly covers the first.
@@ -144,7 +227,11 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
                 }
                 self.sessionToRestore = nil
                 try? session.setCategory(previous.0, mode: previous.1, options: previous.2)
-                DispatchQueue.main.async { CraftNativeSounds.reclaimSessionIfPlaying() }
+                DispatchQueue.main.async {
+                    // A cue that came in meanwhile claims the session again.
+                    if self.pending.isEmpty { self.holdsSession = false }
+                    CraftNativeSounds.reclaimSessionIfPlaying(handedBack: previous)
+                }
             }
         }
         pendingRelease = work
@@ -337,12 +424,26 @@ final class CraftNativeSounds {
         RunLoop.main.add(timer, forMode: .common)
     }
 
+    /// Whether a sound, a native screen's Web Audio or a video is playing.
+    static var isPlaying: Bool { playing > 0 }
+    /// A sound started while speech held the session: speech's category was
+    /// left alone (it plays too, ducking the music under the cue), and the
+    /// category to put back later is the one speech hands back.
+    private static var claimedUnderSpeech = false
+
     /// Takes the session for one more playing sound. Native screens' Web
-    /// Audio (CraftWebAudio.swift) counts here too, so speech hands the
-    /// session back to whichever of them still plays.
+    /// Audio (CraftWebAudio.swift) and videos (CraftNativeScreen.swift) count
+    /// here too, so speech hands the session back to whichever of them still
+    /// plays. Main thread.
     static func claimSession(respectSilentSwitch: Bool) {
         playing += 1
-        category = respectSilentSwitch ? .ambient : .playback
+        // Playback outranks ambient: a video heard through the silent switch
+        // is not muted by a breathing exercise's rain starting after it.
+        category = respectSilentSwitch && (playing == 1 || category == .ambient) ? .ambient : .playback
+        if CraftNativeSpeech.shared.holdsSession {
+            if sessionToRestore == nil { claimedUnderSpeech = true }
+            return
+        }
         let session = AVAudioSession.sharedInstance()
         if sessionToRestore == nil { sessionToRestore = (session.category, session.mode, session.categoryOptions) }
         do {
@@ -355,14 +456,28 @@ final class CraftNativeSounds {
 
     static func releaseSession() {
         playing = max(0, playing - 1)
-        guard playing == 0, let previous = sessionToRestore else { return }
+        guard playing == 0 else { return }
+        if claimedUnderSpeech {
+            // Speech still holds the session and puts its own back.
+            claimedUnderSpeech = false
+            return
+        }
+        guard let previous = sessionToRestore else { return }
         sessionToRestore = nil
+        if CraftNativeSpeech.shared.holdsSession { return }
         try? AVAudioSession.sharedInstance().setCategory(previous.0, mode: previous.1, options: previous.2)
     }
 
-    /// Speech handed the session back with the category it found, which may
-    /// predate a sound started while it spoke: take it again for the sound.
-    static func reclaimSessionIfPlaying() {
+    /// Speech handed the session back with the category it found
+    /// (`handedBack`, nil when it never took it), which may predate a sound
+    /// started while it spoke: take it again for the sound. Main thread.
+    static func reclaimSessionIfPlaying(handedBack: (AVAudioSession.Category, AVAudioSession.Mode, AVAudioSession.CategoryOptions)?) {
+        if claimedUnderSpeech {
+            claimedUnderSpeech = false
+            let session = AVAudioSession.sharedInstance()
+            sessionToRestore = handedBack ?? (session.category, session.mode, session.categoryOptions)
+            if playing > 0 { try? session.setActive(true) }
+        }
         guard playing > 0 else { return }
         try? AVAudioSession.sharedInstance().setCategory(category, mode: .default, options: [.mixWithOthers])
     }

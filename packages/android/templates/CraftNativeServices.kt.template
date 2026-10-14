@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
+import android.speech.tts.Voice
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.view.WindowManager
@@ -64,6 +65,8 @@ internal class CraftNativeServices(
 
     /** What this host adds to the capability names the screen sees. */
     fun names(): List<String> = buildList {
+        // `craft.animation.next`: the screen's next change animates (MainActivity).
+        add("animation")
         add("dialog")
         add("browser")
         add("linking")
@@ -524,11 +527,21 @@ internal class CraftNativeServices(
                 if (text.isBlank()) return done(failure("INVALID_ARGUMENT", "speech.speak needs some text to say"))
                 val options = args.optJSONObject(1) ?: JSONObject()
                 withSpeech { engine ->
-                    options.optString("language").takeIf { it.isNotBlank() }?.let { engine.language = Locale.forLanguageTag(it) }
-                    if (options.has("rate")) engine.setSpeechRate((options.optDouble("rate", 0.5) * 2).toFloat().coerceIn(0.1f, 4f))
+                    val language = options.optString("language").takeIf { it.isNotBlank() }?.let(Locale::forLanguageTag) ?: Locale.getDefault()
+                    bestVoice(engine, language)?.let { engine.voice = it } ?: run { engine.language = language }
+                    // The engine keeps its rate and pitch between calls: each
+                    // cue sets its own, 1 being the voice's normal (as on iOS).
+                    engine.setSpeechRate(speechNumber(options, "rate", 0.5, 2.0))
+                    engine.setPitch(speechNumber(options, "pitch", 0.5, 2.0))
                     val id = UUID.randomUUID().toString()
                     speeches[id] = done
-                    val queue = if (options.optBoolean("interrupt", false)) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+                    // Interrupting stops everything said or waiting, as on iOS (the default there too).
+                    var queue = if (options.optBoolean("interrupt", true)) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+                    val quietMs = (speechNumber(options, "preDelay", 0.0, 5.0) * 1000).toLong()
+                    if (quietMs > 0) {
+                        engine.playSilentUtterance(quietMs, queue, "$id-quiet")
+                        queue = TextToSpeech.QUEUE_ADD
+                    }
                     if (engine.speak(text, queue, null, id) != TextToSpeech.SUCCESS) speeches.remove(id)?.invoke(success(false))
                 }
             }
@@ -540,6 +553,30 @@ internal class CraftNativeServices(
             }
             else -> done(failure("UNKNOWN_ACTION", "Unsupported Speech method"))
         }
+    }
+
+    /** A speech option clamped to its range, 1 when it is not given. */
+    private fun speechNumber(options: JSONObject, name: String, low: Double, high: Double): Float {
+        val fallback = if (name == "preDelay") 0.0 else 1.0
+        val value = options.optDouble(name, fallback).takeIf { it.isFinite() } ?: fallback
+        return value.coerceIn(low, high).toFloat()
+    }
+
+    private val voices = mutableMapOf<String, Voice?>()
+
+    /**
+     * The best installed voice for `language`: on the phone (never one that
+     * needs the network mid-workout), of the highest quality, then the
+     * quickest to answer. Remembered per language.
+     */
+    private fun bestVoice(engine: TextToSpeech, language: Locale): Voice? = voices.getOrPut(language.toLanguageTag()) {
+        val installed = runCatching { engine.voices }.getOrNull().orEmpty().filter { voice ->
+            !voice.isNetworkConnectionRequired &&
+                TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in voice.features.orEmpty() &&
+                voice.locale.language == language.language
+        }
+        val sameCountry = installed.filter { language.country.isBlank() || it.locale.country == language.country }
+        (sameCountry.ifEmpty { installed }).maxWithOrNull(compareBy<Voice>({ it.quality }, { -it.latency }, { it.name }))
     }
 
     private fun withSpeech(use: (TextToSpeech) -> Unit) {

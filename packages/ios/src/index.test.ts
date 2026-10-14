@@ -271,7 +271,7 @@ describe('Craft iOS builder', () => {
     expect(actionsSwift).toContain('ASAuthorizationPlatformPublicKeyCredentialProvider')
     expect(actionsSwift).toContain('import Security')
     // fetch: a URLSession task per request token, cancelled with the request.
-    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge"]')
+    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation"]')
     expect(actionsSwift).toContain('case ("Network", "fetch"):')
     expect(actionsSwift).toContain('let craftNativeFetchTimeoutSeconds: TimeInterval = 30')
     expect(actionsSwift).toContain('fetchTasks[requestToken] = task')
@@ -1469,7 +1469,7 @@ describe('Craft iOS builder', () => {
     const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
 
-    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge"]')
+    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge", "animation"]')
     expect(actions).toContain('if config.enablePushNotifications { values.append("push") }')
     expect(actions).toContain('if config.enableShare { values.append("share") }')
     for (const call of ['case ("Speech", "speak"):', 'case ("Push", _):', 'case ("Linking", "openURL"), ("Linking", "canOpenURL"):', 'case ("Share", "share"):'])
@@ -1510,6 +1510,25 @@ describe('Craft iOS builder', () => {
     expect(services).toContain('static let releaseAfterSilence: TimeInterval = 1.5')
     expect(services).toContain('sessionQueue.async {\n            self.claimSession()')
     expect(services).toContain('DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)')
+    // Each cue's pitch and quiet before it, in the best voice installed for
+    // its language (premium, then enhanced), the page's speech included.
+    expect(services).toContain('utterance.pitchMultiplier = Float(min(max(wantedPitch, 0.5), 2))')
+    expect(services).toContain('utterance.preUtteranceDelay = min(max(quiet, 0), 5)')
+    expect(services).toContain('let left = (lhs.quality.rawValue, Self.baseName(lhs.name) == name ? 1 : 0, lhs.identifier == standard.identifier ? 1 : 0)')
+    expect(services).toContain('voice.voiceTraits.contains(.isNoveltyVoice)')
+    expect(app).toContain('let utterance = CraftNativeSpeech.utterance(')
+    // A sound or video starting while speech holds the session leaves it to
+    // speech, which hands it over when it lets go.
+    expect(services).toContain('if CraftNativeSpeech.shared.holdsSession {')
+    expect(services).toContain('CraftNativeSounds.reclaimSessionIfPlaying(handedBack: previous)')
+    // A video with sound mixes with the music, and may float in Picture in Picture.
+    expect(screen).toContain('CraftNativeSounds.claimSession(respectSilentSwitch: false)')
+    expect(screen).toContain('playerController.canStartPictureInPictureAutomaticallyFromInline = floating')
+    expect(screen).toContain('pictureInPicture: (props["pictureInPicture"] as? Bool) == true')
+    // craft.animation.next: the next change animates, shared elements by transitionID.
+    expect(screen).toContain('case "ANIMATE_NEXT":')
+    expect(screen).toContain('transitionIDs[ObjectIdentifier(result)] = transitionID')
+    expect(screen).toContain('UIAccessibility.isReduceMotionEnabled')
     expect(app).toContain('if body["interrupt"] as? Bool ?? true, self.cancelPendingSpeech() {')
     expect(app).toContain('private static let speechReleaseAfterSilence: TimeInterval = 1.5')
     expect(hybrid).toContain('!native.contentSwipeBack')
@@ -1592,7 +1611,7 @@ describe('Craft iOS builder', () => {
     // switch mutes it, and no background audio mode is added for it.
     expect(audio).toContain('CraftNativeSounds.claimSession(respectSilentSwitch: true)')
     expect(audio).toContain('CraftNativeSounds.releaseSession()')
-    expect(services).toContain('category = respectSilentSwitch ? .ambient : .playback')
+    expect(services).toContain('category = respectSilentSwitch && (playing == 1 || category == .ambient) ? .ambient : .playback')
     expect(services).toContain('try session.setCategory(category, mode: .default, options: [.mixWithOthers])')
     expect(plist).not.toContain('<string>audio</string>')
     // A route change or an interruption stops AVAudioEngine; it starts again.
@@ -1974,7 +1993,7 @@ describe('Craft iOS builder', () => {
     await init({ name: 'NativeBadge', bundleId: 'org.example.nativebadge', output, config: { renderer: 'native' } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const badge = actions.slice(actions.indexOf('private static func setBadgeCount('))
-    expect(actions).toContain('"linking", "badge"]')
+    expect(actions).toContain('"linking", "badge", "animation"]')
     expect(actions).toContain('case ("Badge", "set"):')
     expect(actions).toContain('case ("Badge", "clear"):')
     expect(badge).toContain('UNUserNotificationCenter.current().setBadgeCount(count)')

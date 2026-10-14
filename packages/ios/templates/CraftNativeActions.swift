@@ -41,7 +41,7 @@ enum CraftNativeActions {
     static func capabilities(config: CraftConfig) -> [String] {
         // `speech`, `audio` (background sound) and `eventStream` (a fetch read
         // as it arrives) need nothing the app has to declare.
-        var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge"]
+        var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation"]
         if config.enableBiometric { values.append("biometric") }
         if config.enableSecureStorage { values.append("secureStorage") }
         if config.enableLocalDatabase { values.append("database") }
@@ -474,6 +474,8 @@ enum CraftNativeActions {
                     text,
                     language: options["language"] as? String,
                     rate: (options["rate"] as? NSNumber)?.doubleValue,
+                    pitch: (options["pitch"] as? NSNumber)?.doubleValue,
+                    preDelay: (options["preDelay"] as? NSNumber)?.doubleValue,
                     interrupt: options["interrupt"] as? Bool ?? true
                 ) { spoken in complete(requestToken, .success(spoken), completion) }
             }

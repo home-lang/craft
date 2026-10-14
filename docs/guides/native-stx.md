@@ -220,6 +220,22 @@ string or `{ uri }`, while `autoplay`/`autoPlay`, `paused`, `loop`, `muted`,
 `controls`, and `resizeMode` configure playback without creating a DOM video
 element. The native player is stopped when its node is removed or replaced;
 unsupported or empty sources remain inert instead of falling back to a WebView.
+`@play`, `@pause`, `@ended`, `@load` and `@error` reach the screen on both
+platforms, from the system controls as well as from props. A video with sound
+plays mixed with the person's music (iOS: the playback session, shared with
+speech and sounds; Android: no audio focus). With `pictureInPicture` it carries
+on in a floating window when the person leaves the app while it plays, and
+comes back into its place with the app; iOS needs `enableBackgroundAudio`.
+
+A screen's next change can animate instead of cutting:
+`craft.animation.next({ duration: 0.35, curve: 'spring' })`, then change the
+state. Views that stay move and resize to their new places, new views fade in,
+removed ones fade out where they were, and a label whose font size changed
+scales into it. Two views with the same `transitionID` prop, one leaving and
+one arriving, are one element that moves and scales between the two places.
+The screen's `backgroundColor` and the bar's hiding animate with it, and the
+status bar's style changes in step. With Reduce Motion the screen crossfades.
+Android uses its framework transitions, matched by `transitionID`.
 
 Native screens have Web Audio: the standard `AudioContext` API, so code
 written for a page (synthesised music, breath tones, filtered noise) runs

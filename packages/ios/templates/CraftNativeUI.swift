@@ -522,7 +522,8 @@ enum CraftStatusBar {
         }
         guard let root = CraftPresenter.keyWindow()?.rootViewController else { return false }
         teach(root)
-        UIView.animate(withDuration: 0.2) { root.setNeedsStatusBarAppearanceUpdate() }
+        // In step with a screen's animated change (craft.animation.next) when one runs.
+        UIView.animate(withDuration: CraftNativeAnimationClock.duration ?? 0.2) { root.setNeedsStatusBarAppearanceUpdate() }
         return true
     }
 

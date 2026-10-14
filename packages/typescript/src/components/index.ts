@@ -526,12 +526,22 @@ export interface VideoProps extends BaseProps {
   muted?: boolean
   paused?: boolean
   resizeMode?: 'contain' | 'cover' | 'stretch'
+  /**
+   * Carries on in a floating window (Picture in Picture) when the app goes to
+   * the background or another app opens while it plays, and comes back into
+   * its place with the app. iOS needs `enableBackgroundAudio`. A video with
+   * sound plays mixed with the person's music either way.
+   */
+  pictureInPicture?: boolean
   onLoad?: (event: { duration: number }) => void
   onPlay?: () => void
   onPause?: () => void
   onEnd?: () => void
   onProgress?: (event: { currentTime: number; duration: number }) => void
   onError?: (event: { message: string }) => void
+  /** It went into the floating window, and came back out (iOS). */
+  onPictureInPictureStart?: () => void
+  onPictureInPictureStop?: () => void
 }
 
 export interface MapRegion {

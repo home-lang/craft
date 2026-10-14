@@ -495,6 +495,36 @@ describe('Craft Android builder', () => {
     expect(native).not.toContain('WebView(')
   })
 
+  it('floats a playing video, speaks in the best installed voice and animates a screen\'s next change', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-android-native-media-'))
+    await init({ name: 'NativeMedia', packageName: 'org.example.nativemedia', output, runtimeDir: null, config: { renderer: 'native' } })
+    const root = join(output, 'app/src/main/java/org/example/nativemedia')
+    const native = readFileSync(join(root, 'MainActivity.kt'), 'utf8')
+    const services = readFileSync(join(root, 'CraftNativeServices.kt'), 'utf8')
+    const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
+    // Picture in Picture: the activity may float, the playing video asks,
+    // and its frames move to a surface of the floating window's own.
+    expect(manifest).toContain('android:supportsPictureInPicture="true"')
+    expect(manifest).toContain('smallestScreenSize')
+    expect(native).toContain('pictureInPicture = props.optBoolean("pictureInPicture", false)')
+    expect(native).toContain('if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) params.setAutoEnterEnabled(video != null)')
+    expect(native).toContain('override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration)')
+    expect(native).toContain('player.setDisplay(holder ?: this.holder)')
+    // The video mixes with the music and tells the screen it plays and pauses.
+    expect(native).toContain('setAudioFocusRequest(AudioManager.AUDIOFOCUS_NONE)')
+    expect(native).toContain('fire(if (value) "onPlay" else "onPause")')
+    // Speech: rate and pitch per cue around 1, quiet before it, an installed voice.
+    expect(services).toContain('engine.setSpeechRate(speechNumber(options, "rate", 0.5, 2.0))')
+    expect(services).toContain('engine.setPitch(speechNumber(options, "pitch", 0.5, 2.0))')
+    expect(services).toContain('engine.playSilentUtterance(quietMs, queue, "$id-quiet")')
+    expect(services).toContain('!voice.isNetworkConnectionRequired')
+    expect(services).toContain('add("animation")')
+    // craft.animation.next: framework transitions, matched by transitionID.
+    expect(native).toContain('"ANIMATE_NEXT" -> if (screen !== appScreen && visibleScreen === screen) animateNextChange(screen, payload)')
+    expect(native).toContain('part.setMatchOrder(Transition.MATCH_NAME, Transition.MATCH_INSTANCE)')
+    expect(native).toContain('control.transitionName = craftNativeOptionalString(props.opt("transitionID"))?.takeIf { it.isNotBlank() }')
+  })
+
   it('generates a DayNight background resource for native screens', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-android-dark-background-'))
     await init({

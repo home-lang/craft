@@ -1259,6 +1259,10 @@ export interface CraftSpeechOptions {
   language?: string;
   /** Stop whatever is being said first. Defaults to true; false queues behind it. */
   interrupt?: boolean;
+  /** Voice pitch, 0.5 to 2. 1 is the voice's own; lower sounds calmer. */
+  pitch?: number;
+  /** Seconds of quiet before the words (up to 5), after whatever was said before them. */
+  preDelay?: number;
 }
 
 /** Whether the person has let the app see their music. `unavailable` off a phone. */

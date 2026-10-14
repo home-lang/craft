@@ -10,7 +10,9 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.database.ContentObserver
 import android.content.Intent
+import android.app.PictureInPictureParams
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.AudioFormat
 import android.media.MediaPlayer
 import android.media.AudioTrack
@@ -46,6 +48,13 @@ import android.text.SpannableString
 import android.text.style.ReplacementSpan
 import android.util.Log
 import android.util.Base64
+import android.transition.ChangeBounds
+import android.transition.ChangeTransform
+import android.transition.Fade
+import android.transition.Transition
+import android.transition.TransitionManager
+import android.transition.TransitionSet
+import android.util.Rational
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
@@ -58,6 +67,10 @@ import android.view.ViewGroup
 import android.view.ViewOutlineProvider
 import android.view.ViewParent
 import android.view.ViewTreeObserver
+import android.view.animation.LinearInterpolator
+import android.view.animation.PathInterpolator
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -2390,6 +2403,17 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
     }
 }
 
+/**
+ * A native screen's `<Video>`: the platform's VideoView.
+ *
+ * It plays without taking audio focus, so the person's music carries on
+ * under it, as on iOS. `onLoad`, `onPlay`, `onPause`, `onEnd` and `onError`
+ * reach the screen in the web's names, from the controls as well as from
+ * props. With `pictureInPicture` the activity takes it into a floating
+ * window when the person leaves the app while it plays (MainActivity
+ * `updatePictureInPicture`), drawn there on a surface of the activity's own
+ * while this view keeps its place.
+ */
 private class CraftNativeVideoView(context: Context) : VideoView(context) {
     private var sourceUri = ""
     private var shouldLoop = false
@@ -2397,8 +2421,24 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     private var muted = false
     private var resizeMode = "contain"
     private var preparedPlayer: MediaPlayer? = null
+    /** The screen's handlers by event name, and how an event reaches them. */
+    var handlers: JSONObject = JSONObject()
+    var emit: ((handler: String, nativeEvent: JSONObject) -> Unit)? = null
+    /** May float in Picture in Picture while it plays. */
+    var pictureInPicture = false
+        private set
+    /** Playing now, by the controls or by props. */
+    var playing = false
+        private set
+    /** Playback started or stopped, or the choice changed: the activity's PiP params follow. */
+    var onPictureInPictureChanged: (() -> Unit)? = null
 
-    fun configure(source: Any?, autoplay: Boolean, paused: Boolean, loop: Boolean, muted: Boolean, controls: Boolean, resizeMode: String?) {
+    init {
+        // Mixed with the music rather than pausing it.
+        setAudioFocusRequest(AudioManager.AUDIOFOCUS_NONE)
+    }
+
+    fun configure(source: Any?, autoplay: Boolean, paused: Boolean, loop: Boolean, muted: Boolean, controls: Boolean, resizeMode: String?, pictureInPicture: Boolean = false) {
         val uri = when (source) {
             is String -> source
             is JSONObject -> craftNativeOptionalString(source.opt("uri")).orEmpty()
@@ -2407,12 +2447,18 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         shouldLoop = loop
         shouldPlay = autoplay && !paused
         this.muted = muted
+        val floating = pictureInPicture && !muted
+        if (floating != this.pictureInPicture) {
+            this.pictureInPicture = floating
+            onPictureInPictureChanged?.invoke()
+        }
         this.resizeMode = resizeMode?.lowercase()?.takeIf { it in setOf("cover", "contain", "stretch", "center") } ?: "contain"
         applyScalingMode()
         setMediaController(if (controls) MediaController(context).also { it.setAnchorView(this) } else null)
         if (uri != sourceUri) {
             sourceUri = uri
             stopPlayback()
+            setPlaying(false)
             preparedPlayer = null
             if (uri.isBlank()) return
             // A copy kept on the phone (craft.media.keep) plays in place of
@@ -2425,9 +2471,19 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
                 mediaPlayer.isLooping = shouldLoop
                 val volume = if (this.muted) 0f else 1f
                 mediaPlayer.setVolume(volume, volume)
+                fire("onLoad", JSONObject().put("duration", duration / 1000.0))
                 if (shouldPlay) start()
             }
-            setOnCompletionListener { if (shouldLoop && !isPlaying) start() }
+            setOnCompletionListener {
+                if (shouldLoop && !isPlaying) start()
+                else setPlaying(false)
+                fire("onEnd")
+            }
+            setOnErrorListener { _, what, extra ->
+                setPlaying(false)
+                fire("onError", JSONObject().put("message", "The video could not be played ($what, $extra)"))
+                true
+            }
         }
         if (uri.isBlank()) return
         runCatching {
@@ -2436,10 +2492,55 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         }
     }
 
+    override fun start() {
+        super.start()
+        setPlaying(true)
+    }
+
+    override fun pause() {
+        super.pause()
+        setPlaying(false)
+    }
+
+    private fun setPlaying(value: Boolean) {
+        if (playing == value) return
+        playing = value
+        fire(if (value) "onPlay" else "onPause")
+        onPictureInPictureChanged?.invoke()
+    }
+
+    private fun fire(event: String, nativeEvent: JSONObject = JSONObject()) {
+        val handler = craftNativeEventName(handlers, event)
+        if (handler.isNotBlank()) emit?.invoke(handler, nativeEvent)
+    }
+
+    /** Its width over height once known, inside what Picture in Picture allows. */
+    fun aspectRatio(): Rational? {
+        val player = preparedPlayer ?: return null
+        val width = runCatching { player.videoWidth }.getOrDefault(0)
+        val height = runCatching { player.videoHeight }.getOrDefault(0)
+        if (width <= 0 || height <= 0) return null
+        val ratio = (width.toDouble() / height).coerceIn(1 / 2.39, 2.39)
+        return Rational((ratio * 1000).roundToInt(), 1000)
+    }
+
+    /** Draws on `holder` (the floating window's surface), or back on its own with null. */
+    fun showOn(holder: SurfaceHolder?): Boolean {
+        val player = preparedPlayer ?: return false
+        return runCatching { player.setDisplay(holder ?: this.holder) }.isSuccess
+    }
+
     fun stop() {
+        // Released with its screen: nothing more is told to it.
+        emit = null
         stopPlayback()
+        setPlaying(false)
         sourceUri = ""
         preparedPlayer = null
+        if (pictureInPicture) {
+            pictureInPicture = false
+            onPictureInPictureChanged?.invoke()
+        }
     }
 
     private fun applyScalingMode() {
@@ -3845,6 +3946,7 @@ class MainActivity : AppCompatActivity() {
                     if (visibleScreen === screen) applyChrome(screen)
                 }
             }
+            "ANIMATE_NEXT" -> if (screen !== appScreen && visibleScreen === screen) animateNextChange(screen, payload)
             "SYNC_WRITE" -> syncWrite(screen, payload)
             "TIMER" -> {
                 val id = payload.optInt("id")
@@ -4541,14 +4643,20 @@ class MainActivity : AppCompatActivity() {
                 reconcileChildren(screen, content, children, path, next, style, previousControls)
             }
             "Video" -> (previous as? CraftNativeVideoView ?: CraftNativeVideoView(this)).apply {
+                handlers = events
+                emit = { handler, nativeEvent ->
+                    send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", nativeEvent))
+                }
+                onPictureInPictureChanged = { updatePictureInPicture() }
                 configure(
-                    source = props.opt("source"),
+                    source = props.opt("source") ?: props.opt("src"),
                     autoplay = props.optBoolean("autoplay", props.optBoolean("autoPlay", false)),
                     paused = props.optBoolean("paused", false),
                     loop = props.optBoolean("loop", false),
                     muted = props.optBoolean("muted", false),
                     controls = props.optBoolean("controls", false),
                     resizeMode = craftNativeResizeMode(style, props),
+                    pictureInPicture = props.optBoolean("pictureInPicture", false),
                 )
             }
             "Map" -> (previous as? CraftNativeMapView ?: CraftNativeMapView(this)).apply {
@@ -4767,6 +4875,8 @@ class MainActivity : AppCompatActivity() {
             control.isLongClickable = false
         }
         applyAccessibility(control, props, type, explicitKey ?: protocolId ?: path)
+        // One element across an animated change (craft.animation.next).
+        control.transitionName = craftNativeOptionalString(props.opt("transitionID"))?.takeIf { it.isNotBlank() }
         val layoutHandler = craftNativeEventName(events, "onLayout")
         if (layoutHandler.isNotBlank()) {
             if (screen.layoutHandlers[control] != layoutHandler) screen.lastLayoutBounds.remove(control)
@@ -5913,6 +6023,113 @@ class MainActivity : AppCompatActivity() {
         .flatMap { retainedViews(it) }
         .filterIsInstance<CraftNativeMapView>()
         .toSet()
+
+    // MARK: Animated changes
+
+    /**
+     * `craft.animation.next(options)`: the screen's next change animates,
+     * views that stay moving to their new places, new ones fading in and
+     * removed ones fading out, and two with the same `transitionID` moving as
+     * one. Android's own transitions, which follow the person's animation
+     * scale: with animations off it is a cut, as the system's own are.
+     */
+    private fun animateNextChange(screen: Screen, payload: JSONObject) {
+        val seconds = payload.optDouble("duration", 0.35).takeIf { it.isFinite() } ?: 0.35
+        val curve = payload.optString("curve", "spring")
+        val transition = TransitionSet().apply {
+            ordering = TransitionSet.ORDERING_TOGETHER
+            listOf(ChangeBounds(), ChangeTransform(), Fade()).forEach { part ->
+                part.setMatchOrder(Transition.MATCH_NAME, Transition.MATCH_INSTANCE)
+                addTransition(part)
+            }
+            duration = (seconds.coerceIn(0.1, 1.0) * 1000).toLong()
+            interpolator = when (curve) {
+                "linear" -> LinearInterpolator()
+                "easeInOut" -> PathInterpolator(0.42f, 0f, 0.58f, 1f)
+                // A spring with no bounce reads as a decelerating curve.
+                else -> PathInterpolator(0.2f, 0f, 0f, 1f)
+            }
+        }
+        TransitionManager.beginDelayedTransition(screen.view, transition)
+    }
+
+    // MARK: Picture in Picture
+
+    /** The floating window's own surface, over everything while it shows. */
+    private var pictureInPictureLayer: FrameLayout? = null
+    private var pictureInPictureVideo: CraftNativeVideoView? = null
+
+    /** A video that asked for Picture in Picture and is playing on a screen in view. */
+    private fun floatingVideo(): CraftNativeVideoView? = allScreens()
+        .filter { !it.headless }
+        .flatMap { retainedViews(it) }
+        .filterIsInstance<CraftNativeVideoView>()
+        .firstOrNull { it.pictureInPicture && it.playing && it.isShown }
+
+    private fun pictureInPictureAllowed(): Boolean =
+        packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+
+    /**
+     * Picture in Picture follows the playing video: on Android 12 and later
+     * the system floats it by itself as the person leaves the app (gesture
+     * navigation included); before that `onUserLeaveHint` asks.
+     */
+    private fun updatePictureInPicture() {
+        if (!pictureInPictureAllowed() || isInPictureInPictureMode) return
+        val video = floatingVideo()
+        val params = PictureInPictureParams.Builder()
+        video?.aspectRatio()?.let { params.setAspectRatio(it) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) params.setAutoEnterEnabled(video != null)
+        runCatching { setPictureInPictureParams(params.build()) }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S || !pictureInPictureAllowed()) return
+        val video = floatingVideo() ?: return
+        val params = PictureInPictureParams.Builder()
+        video.aspectRatio()?.let { params.setAspectRatio(it) }
+        runCatching { enterPictureInPictureMode(params.build()) }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) showVideoAlone() else putVideoBack()
+    }
+
+    /**
+     * The floating window shows the whole activity, so the video is drawn
+     * alone on a surface over it, black around it. The video keeps playing
+     * through the change: only where its frames go moves.
+     */
+    private fun showVideoAlone() {
+        val video = floatingVideo() ?: return
+        val host = window.decorView as? ViewGroup ?: return
+        val surface = SurfaceView(this).apply {
+            setZOrderMediaOverlay(true)
+            holder.addCallback(object : SurfaceHolder.Callback {
+                override fun surfaceCreated(holder: SurfaceHolder) { video.showOn(holder) }
+                override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
+                override fun surfaceDestroyed(holder: SurfaceHolder) { video.showOn(null) }
+            })
+        }
+        val layer = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            addView(surface, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
+        }
+        host.addView(layer, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        pictureInPictureLayer = layer
+        pictureInPictureVideo = video
+    }
+
+    /** Back in the app: the video draws in its place again. */
+    private fun putVideoBack() {
+        pictureInPictureVideo?.showOn(null)
+        pictureInPictureVideo = null
+        pictureInPictureLayer?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        pictureInPictureLayer = null
+        updatePictureInPicture()
+    }
 
     private fun releaseFlatList(
         screen: Screen,
