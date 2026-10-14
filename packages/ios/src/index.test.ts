@@ -1338,6 +1338,16 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('field.borderStyle = style["borderWidth"] != nil || style["backgroundColor"] != nil ? .none : .roundedRect')
   })
 
+  it('stacks a flex view\'s children in tree order, so a later sibling takes the touch it draws over', () => {
+    // A child inserted before its siblings was appended above them all: a
+    // ScrollView re-created under a floating button took the button's taps.
+    const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    const insert = swift.slice(swift.indexOf('override func insertArrangedSubview(_ view: UIView, at stackIndex: Int)'))
+    const body = insert.slice(0, insert.indexOf('invalidateMeasurements()'))
+    expect(body).toContain('if let next = flowChildren[(index + 1)...].first(where: { $0.superview === self })')
+    expect(body).toContain('insertSubview(view, belowSubview: next)')
+  })
+
   it('floats a native bar\'s round buttons, as the tab bar floats: glass, else the thin material', () => {
     const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
     const button = swift.slice(swift.indexOf('private func accountNavigationButton'))
@@ -1352,6 +1362,12 @@ describe('Craft iOS builder', () => {
     const surface = swift.slice(swift.indexOf('private static func floatingSurface'))
     expect(surface).toContain('if #available(iOS 26.0, *) { effect = UIGlassEffect() } else { effect = UIBlurEffect(style: .systemUltraThinMaterial) }')
     expect(surface).toContain('surface.isUserInteractionEnabled = false')
+    // Pinned to its 44-point button, never resized with it: a button that
+    // starts at zero size grew a flexible 44-point surface to 88 points.
+    expect(surface).toContain('surface.translatesAutoresizingMaskIntoConstraints = false')
+    expect(surface.slice(0, surface.indexOf('return surface'))).not.toContain('.autoresizingMask')
+    expect(button).toContain('surface.leadingAnchor.constraint(equalTo: button.leadingAnchor)')
+    expect(button).toContain('surface.bottomAnchor.constraint(equalTo: button.bottomAnchor)')
   })
 
   it('signs in with Apple natively: the entitlement, a page nonce, and the code for the server', () => {

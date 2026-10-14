@@ -1306,10 +1306,19 @@ private class CraftNativeFlowView: UIStackView {
 
     override func insertArrangedSubview(_ view: UIView, at stackIndex: Int) {
         flowChildren.removeAll { $0 === view }
-        flowChildren.insert(view, at: min(max(0, stackIndex), flowChildren.count))
+        let index = min(max(0, stackIndex), flowChildren.count)
+        flowChildren.insert(view, at: index)
         if view.superview !== self {
             view.removeFromSuperview()
             addSubview(view)
+        }
+        // Stacking follows the tree, as on the web: a later sibling draws and
+        // takes touches above an earlier one. Appending a child inserted
+        // before its siblings put it on top of all of them, so a ScrollView
+        // re-created under a floating button (absolute, after it) took the
+        // button's taps for whatever lay beneath while the button still drew.
+        if let next = flowChildren[(index + 1)...].first(where: { $0.superview === self }) {
+            insertSubview(view, belowSubview: next)
         }
         view.translatesAutoresizingMaskIntoConstraints = true
         invalidateMeasurements()
@@ -3963,6 +3972,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // it follows light, dark and Increase Contrast by itself.
         let surface = Self.floatingSurface(diameter: 44)
         button.addSubview(surface)
+        // Pinned to the button rather than resized with it: the button starts
+        // at zero size, so a 44-point surface that grew with its superview
+        // came out 88 points, a rounded card twice the button's size that
+        // spilled off the bar's edge and covered its neighbour.
+        NSLayoutConstraint.activate([
+            surface.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+            surface.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+            surface.topAnchor.constraint(equalTo: button.topAnchor),
+            surface.bottomAnchor.constraint(equalTo: button.bottomAnchor),
+        ])
         // Glass lifts itself off the content; the material needs the tab
         // bar's shadow to.
         if surface.effect is UIBlurEffect {
@@ -4043,8 +4062,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         effect = UIBlurEffect(style: .systemUltraThinMaterial)
         #endif
         let surface = UIVisualEffectView(effect: effect)
-        surface.frame = CGRect(x: 0, y: 0, width: diameter, height: diameter)
-        surface.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        // The caller pins it to its button; it is exactly `diameter` across.
+        surface.translatesAutoresizingMaskIntoConstraints = false
         surface.isUserInteractionEnabled = false
         surface.layer.cornerRadius = diameter / 2
         surface.layer.cornerCurve = .circular
