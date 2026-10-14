@@ -4729,11 +4729,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
         view.letterSpacing = style.optDouble("letterSpacing", Double.NaN)
-            .takeUnless { it.isNaN() }
+            .takeIf { it.isFinite() }
             ?.let { if (view.textSize > 0) dp(it).toFloat() / view.textSize else 0f }
             ?: 0f
         view.setLineSpacing(
-            style.optDouble("lineHeight", Double.NaN).takeUnless { it.isNaN() }?.let { dp(it) - view.textSize } ?: 0f,
+            style.optDouble("lineHeight", Double.NaN).takeIf { it.isFinite() }?.let { dp(it) - view.textSize } ?: 0f,
             1f
         )
         val shadowColor = style.optString("textShadowColor").takeIf { it.isNotBlank() }
@@ -4742,9 +4742,9 @@ class MainActivity : AppCompatActivity() {
         } else {
             val offset = style.optJSONObject("textShadowOffset")
             view.setShadowLayer(
-                dp(style.optDouble("textShadowRadius", 0.0)).toFloat().coerceAtLeast(0f),
-                dp(offset?.optDouble("width", 0.0) ?: 0.0).toFloat(),
-                dp(offset?.optDouble("height", 0.0) ?: 0.0).toFloat(),
+                dp(craftNativeFiniteDouble(style, "textShadowRadius", 0.0)).toFloat().coerceAtLeast(0f),
+                dp(craftNativeFiniteDouble(offset, "width", 0.0)).toFloat(),
+                dp(craftNativeFiniteDouble(offset, "height", 0.0)).toFloat(),
                 color(shadowColor, Color.TRANSPARENT),
             )
         }
