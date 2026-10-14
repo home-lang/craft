@@ -4596,11 +4596,11 @@ class MainActivity : AppCompatActivity() {
             val transform = transforms.optJSONObject(index) ?: continue
             val key = transform.keys().asSequence().firstOrNull() ?: continue
             when (key) {
-                "translateX" -> view.translationX += dp(transform.optDouble(key, 0.0)).toFloat()
-                "translateY" -> view.translationY += dp(transform.optDouble(key, 0.0)).toFloat()
-                "scale" -> transform.optDouble(key, 1.0).toFloat().let { view.scaleX *= it; view.scaleY *= it }
-                "scaleX" -> view.scaleX *= transform.optDouble(key, 1.0).toFloat()
-                "scaleY" -> view.scaleY *= transform.optDouble(key, 1.0).toFloat()
+                "translateX" -> view.translationX += dp(craftNativeFiniteDouble(transform, key, 0.0)).toFloat()
+                "translateY" -> view.translationY += dp(craftNativeFiniteDouble(transform, key, 0.0)).toFloat()
+                "scale" -> craftNativeFiniteDouble(transform, key, 1.0).toFloat().let { view.scaleX *= it; view.scaleY *= it }
+                "scaleX" -> view.scaleX *= craftNativeFiniteDouble(transform, key, 1.0).toFloat()
+                "scaleY" -> view.scaleY *= craftNativeFiniteDouble(transform, key, 1.0).toFloat()
                 "rotate", "rotateZ" -> view.rotation += angleDegrees(transform.opt(key))
                 "rotateX" -> view.rotationX += angleDegrees(transform.opt(key))
                 "rotateY" -> view.rotationY += angleDegrees(transform.opt(key))
@@ -4612,15 +4612,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun skewFactor(value: Any?): Float =
-        kotlin.math.tan(angleDegrees(value).toDouble() * PI / 180.0).toFloat()
+        kotlin.math.tan(angleDegrees(value).toDouble() * PI / 180.0).toFloat().takeIf { it.isFinite() } ?: 0f
 
     private fun angleDegrees(value: Any?): Float {
         val text = value?.toString()?.trim() ?: return 0f
-        return when {
+        val result = when {
             text.endsWith("rad") -> Math.toDegrees(text.dropLast(3).toDoubleOrNull() ?: 0.0).toFloat()
             text.endsWith("deg") -> text.dropLast(3).toFloatOrNull() ?: 0f
             else -> text.toFloatOrNull() ?: 0f
         }
+        return result.takeIf { it.isFinite() } ?: 0f
     }
 
     private fun ensureLayoutListener(screen: Screen, view: View) {
@@ -4966,7 +4967,10 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun dp(value: Double) = (value * resources.displayMetrics.density).toInt()
+    private fun dp(value: Double): Int {
+        val pixels = value * resources.displayMetrics.density
+        return if (pixels.isFinite()) pixels.toInt() else 0
+    }
     private fun color(raw: String, fallback: Int) = runCatching { craftNativeColor(raw) }.getOrDefault(fallback)
 
     private fun inputTypeFor(props: JSONObject): Int {
