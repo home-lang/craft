@@ -151,6 +151,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('flex?.coerceAtLeast(0.0) ?: 0.0')
       expect(nativeActivity).toContain('View.MeasureSpec.UNSPECIFIED')
       expect(nativeActivity).toContain('fun spacing(name: String, fallback: Float): Float')
+      expect(nativeActivity).toContain('pixels.isFinite() && narrowed.isFinite()')
       expect(nativeActivity).toContain('rowGap = spacing("rowGap", gap)')
       expect(nativeActivity).toContain('"Image" -> (previous as? ImageView')
       expect(nativeActivity).toContain('isAllCaps = false')

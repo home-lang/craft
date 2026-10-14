@@ -772,7 +772,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         justifyContent = style.optString("justifyContent", "flex-start")
         fun spacing(name: String, fallback: Float): Float {
             val value = style.optDouble(name, Double.NaN)
-            return if (value.isFinite() && value >= 0) (value * density).toFloat() else fallback
+            val pixels = value * density
+            val narrowed = pixels.toFloat()
+            return if (value.isFinite() && value >= 0 && pixels.isFinite() && narrowed.isFinite()) narrowed else fallback
         }
         val gap = spacing("gap", 0f)
         rowGap = spacing("rowGap", gap)

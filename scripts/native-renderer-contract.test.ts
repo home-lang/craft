@@ -956,7 +956,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('stack.columnGap = max(0, number(style["columnGap"]) ?? gap)')
     expect(android).toContain('private var rowGap = 0f')
     expect(android).toContain('fun spacing(name: String, fallback: Float): Float')
-    expect(android).toContain('value.isFinite() && value >= 0')
+    expect(android).toContain('value.isFinite() && value >= 0 && pixels.isFinite() && narrowed.isFinite()')
     expect(android).toContain('rowGap = spacing("rowGap", gap)')
     expect(android).toContain('val crossGap = if (orientation == HORIZONTAL) rowGap else columnGap')
     expect(android).toContain('val crossFree = max(0f, availableCross.toFloat() - totalCross)')
