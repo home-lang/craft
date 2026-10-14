@@ -605,7 +605,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
               let longitudeDelta = (span["longitudeDelta"] as? NSNumber)?.doubleValue ?? (span["longitude_delta"] as? NSNumber)?.doubleValue,
               latitude.isFinite, longitude.isFinite, latitudeDelta.isFinite, longitudeDelta.isFinite,
               (-90...90).contains(latitude), (-180...180).contains(longitude),
-              latitudeDelta > 0, longitudeDelta > 0 else { return nil }
+              latitudeDelta > 0, latitudeDelta <= 180, longitudeDelta > 0, longitudeDelta <= 360,
+              latitude - latitudeDelta / 2 >= -90, latitude + latitudeDelta / 2 <= 90 else { return nil }
         return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta))
     }
 

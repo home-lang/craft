@@ -657,7 +657,9 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         val longitudeDelta = span.optDouble("longitudeDelta", span.optDouble("longitude_delta", Double.NaN))
         if (!latitude.isFinite() || !longitude.isFinite() || !latitudeDelta.isFinite() || !longitudeDelta.isFinite() ||
             latitude < -90.0 || latitude > 90.0 || longitude < -180.0 || longitude > 180.0 ||
-            latitudeDelta <= 0.0 || longitudeDelta <= 0.0
+            latitudeDelta <= 0.0 || latitudeDelta > 180.0 ||
+            longitudeDelta <= 0.0 || longitudeDelta > 360.0 ||
+            latitude - latitudeDelta / 2.0 < -90.0 || latitude + latitudeDelta / 2.0 > 90.0
         ) return null
         return LatLngBounds(LatLng(latitude - latitudeDelta / 2, longitude - longitudeDelta / 2), LatLng(latitude + latitudeDelta / 2, longitude + longitudeDelta / 2))
     }
