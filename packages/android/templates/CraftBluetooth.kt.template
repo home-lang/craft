@@ -1,0 +1,211 @@
+package {{PACKAGE_NAME}}
+
+import android.Manifest
+import android.app.Activity
+import android.bluetooth.*
+import android.bluetooth.le.*
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.ParcelUuid
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
+
+/** A selected GATT channel; one request/notification exchange at a time. */
+@Suppress("MissingPermission", "DEPRECATION")
+internal class CraftBluetooth(private val context: Context) {
+    private val handler = Handler(Looper.getMainLooper())
+    private val adapter get() = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+    private val devices = linkedMapOf<String, BluetoothDevice>()
+    private val rows = linkedMapOf<String, JSONObject>()
+    private var scanDone: ((CraftNativeCapabilityResult) -> Unit)? = null
+    private var permissionScan: JSONObject? = null
+    private var prefix = ""
+    private var gatt: BluetoothGatt? = null
+    private var writer: BluetoothGattCharacteristic? = null
+    private var notifier: BluetoothGattCharacteristic? = null
+    private var serviceId: UUID? = null
+    private var writeId: UUID? = null
+    private var notifyId: UUID? = null
+    private var connected = false
+    private var mtu = 23
+    private var connectDone: ((CraftNativeCapabilityResult) -> Unit)? = null
+    private var exchangeDone: ((CraftNativeCapabilityResult) -> Unit)? = null
+    private var responsePrefix = byteArrayOf()
+    private var scanTimer: Runnable? = null
+    private var connectTimer: Runnable? = null
+    private var exchangeTimer: Runnable? = null
+    private fun failure(code: String, message: String) = CraftNativeCapabilityResult(code = code, message = message)
+    private fun timer(ms: Long, action: () -> Unit) = Runnable(action).also { handler.postDelayed(it, ms) }
+    private fun permitted() = permissions().all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+    private fun permissions() = if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT) else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    fun perform(method: String, args: JSONArray, done: (CraftNativeCapabilityResult) -> Unit) {
+        handler.post {
+            val options = args.optJSONObject(0) ?: JSONObject()
+            try {
+                when (method) {
+                    "getState" -> done(CraftNativeCapabilityResult(JSONObject().put("available", adapter != null).put("connected", connected).put("scanning", scanDone != null)))
+                    "scan" -> scan(options, done)
+                    "stopScan" -> { stopScan(failure("CANCELLED", "Bluetooth scan cancelled")); done(CraftNativeCapabilityResult(true)) }
+                    "connect" -> connect(options, done)
+                    "exchange" -> exchange(options, done)
+                    "disconnect" -> { disconnect(); done(CraftNativeCapabilityResult(true)) }
+                    else -> done(failure("UNKNOWN_ACTION", "Unsupported Bluetooth method"))
+                }
+            } catch (_: SecurityException) { disconnect(); done(failure("NOT_AUTHORIZED", "Bluetooth permission is required")) }
+              catch (_: IllegalArgumentException) { done(failure("INVALID_ARGUMENT", "Invalid Bluetooth channel options")) }
+        }
+    }
+
+    private fun scan(options: JSONObject, done: (CraftNativeCapabilityResult) -> Unit) {
+        if (scanDone != null || connectDone != null || exchangeDone != null) { done(failure("BUSY", "A Bluetooth operation is running")); return }
+        val services = options.optJSONArray("services") ?: throw IllegalArgumentException()
+        require(services.length() in 1..8)
+        (0 until services.length()).forEach { UUID.fromString(services.getString(it)) }
+        scanDone = done
+        if (!permitted()) {
+            val activity = context as? Activity
+            if (activity == null) { stopScan(failure("NEEDS_ACTIVITY", "Bluetooth setup needs a screen")); return }
+            permissionScan = options
+            ActivityCompat.requestPermissions(activity, permissions(), 4317)
+            return
+        }
+        startScan(options)
+    }
+
+    fun onPermissions(requestCode: Int) {
+        if (requestCode != 4317) return
+        val options = permissionScan ?: return
+        permissionScan = null
+        if (!permitted()) stopScan(failure("NOT_AUTHORIZED", "Allow Nearby devices to find your bottle"))
+        else try { startScan(options) } catch (_: Exception) { stopScan(failure("SCAN_FAILED", "Bluetooth scan could not start")) }
+    }
+
+    private fun startScan(options: JSONObject) {
+        val radio = adapter
+        if (radio == null || !radio.isEnabled) { stopScan(failure("BLUETOOTH_OFF", "Turn on Bluetooth")); return }
+        devices.clear(); rows.clear()
+        prefix = options.optString("namePrefix")
+        val services = options.getJSONArray("services")
+        val filters = (0 until services.length()).map { ScanFilter.Builder().setServiceUuid(ParcelUuid(UUID.fromString(services.getString(it)))).build() }
+        radio.bluetoothLeScanner.startScan(filters, ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scanner)
+        scanTimer = timer(options.optLong("timeoutMs", 10000).coerceIn(1000, 20000)) {
+            stopScan(CraftNativeCapabilityResult(JSONArray(rows.values.toList())))
+        }
+    }
+    private val scanner = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult) {
+            handler.post {
+                if (scanDone == null || rows.size >= 64) return@post
+                val name = result.scanRecord?.deviceName ?: ""
+                if (!name.startsWith(prefix, ignoreCase = true)) return@post
+                val id = result.device.address
+                devices[id] = result.device
+                rows[id] = JSONObject().put("id", id).put("name", name).put("rssi", result.rssi)
+            }
+        }
+        override fun onScanFailed(errorCode: Int) { handler.post { stopScan(failure("SCAN_FAILED", "Bluetooth scan failed ($errorCode)")) } }
+    }
+    private fun stopScan(result: CraftNativeCapabilityResult) {
+        if (permitted()) runCatching { adapter?.bluetoothLeScanner?.stopScan(scanner) }
+        scanTimer?.let(handler::removeCallbacks); scanTimer = null; permissionScan = null
+        val done = scanDone; scanDone = null; done?.invoke(result)
+    }
+
+    private fun connect(options: JSONObject, done: (CraftNativeCapabilityResult) -> Unit) {
+        if (scanDone != null || connectDone != null || exchangeDone != null) { done(failure("BUSY", "A Bluetooth operation is running")); return }
+        if (!permitted()) { done(failure("NOT_AUTHORIZED", "Bluetooth permission is required")); return }
+        val device = devices[options.optString("id")] ?: throw IllegalArgumentException()
+        disconnect()
+        serviceId = UUID.fromString(options.getString("service")); writeId = UUID.fromString(options.getString("write")); notifyId = UUID.fromString(options.getString("notify"))
+        connectDone = done
+        gatt = device.connectGatt(context, false, callbacks, BluetoothDevice.TRANSPORT_LE)
+        connectTimer = timer(15000) { failConnection("TIMEOUT", "Device did not connect; wake it and try again") }
+    }
+    private fun finishConnect(result: CraftNativeCapabilityResult) {
+        connectTimer?.let(handler::removeCallbacks); connectTimer = null
+        val done = connectDone; connectDone = null; done?.invoke(result)
+    }
+    private fun failConnection(code: String, message: String) { finishConnect(failure(code, message)); disconnect() }
+    private val callbacks = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(peer: BluetoothGatt, status: Int, newState: Int) { handler.post {
+            if (peer !== gatt) return@post
+            if (status != BluetoothGatt.GATT_SUCCESS || newState == BluetoothProfile.STATE_DISCONNECTED) { failConnection("DISCONNECTED", "Bluetooth device disconnected"); return@post }
+            if (newState == BluetoothProfile.STATE_CONNECTED && !peer.requestMtu(247)) failConnection("MTU_TOO_SMALL", "Could not negotiate Bluetooth MTU")
+        } }
+        override fun onMtuChanged(peer: BluetoothGatt, value: Int, status: Int) { handler.post {
+            if (peer !== gatt) return@post
+            if (status != BluetoothGatt.GATT_SUCCESS || value < 185) { failConnection("MTU_TOO_SMALL", "Bluetooth MTU is too small for sensor history"); return@post }
+            mtu = value
+            if (!peer.discoverServices()) failConnection("CONNECT_FAILED", "Could not discover Bluetooth services")
+        } }
+        override fun onServicesDiscovered(peer: BluetoothGatt, status: Int) { handler.post {
+            if (peer !== gatt) return@post
+            val service = serviceId?.let(peer::getService)
+            writer = writeId?.let { service?.getCharacteristic(it) }; notifier = notifyId?.let { service?.getCharacteristic(it) }
+            val write = writer; val notify = notifier
+            if (status != BluetoothGatt.GATT_SUCCESS || write == null || notify == null || write.properties and (BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) == 0 || notify.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY == 0) { failConnection("UNSUPPORTED_DEVICE", "The selected GATT channel is missing"); return@post }
+            val descriptor = notify.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+            if (descriptor == null || !peer.setCharacteristicNotification(notify, true)) { failConnection("CONNECT_FAILED", "Could not subscribe to the device"); return@post }
+            descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            if (!peer.writeDescriptor(descriptor)) failConnection("CONNECT_FAILED", "Could not enable notifications")
+        } }
+        override fun onDescriptorWrite(peer: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) { handler.post {
+            if (peer !== gatt || descriptor.characteristic !== notifier) return@post
+            if (status != BluetoothGatt.GATT_SUCCESS) { failConnection("CONNECT_FAILED", "Could not enable notifications"); return@post }
+            connected = true
+            finishConnect(CraftNativeCapabilityResult(JSONObject().put("id", peer.device.address)))
+        } }
+        override fun onCharacteristicWrite(peer: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) { handler.post {
+            if (peer === gatt && characteristic === writer && status != BluetoothGatt.GATT_SUCCESS) finishExchange(failure("WRITE_FAILED", "Bluetooth write failed"))
+        } }
+        override fun onCharacteristicChanged(peer: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+            val bytes = characteristic.value?.copyOf() ?: return
+            handler.post {
+                if (peer !== gatt || characteristic !== notifier || exchangeDone == null) return@post
+                if (bytes.size < responsePrefix.size || !bytes.take(responsePrefix.size).toByteArray().contentEquals(responsePrefix)) return@post
+                if (bytes.size > 4096) finishExchange(failure("INVALID_RESPONSE", "Bluetooth response is too large"))
+                else finishExchange(CraftNativeCapabilityResult(JSONArray(bytes.map { it.toInt() and 255 })))
+            }
+        }
+    }
+    private fun byteArray(options: JSONObject, name: String, max: Int): ByteArray {
+        val values = options.getJSONArray(name)
+        require(values.length() in 1..max)
+        return ByteArray(values.length()) { index ->
+            val value = values.get(index)
+            require(value is Number && value.toDouble() == value.toInt().toDouble() && value.toInt() in 0..255)
+            value.toInt().toByte()
+        }
+    }
+    private fun exchange(options: JSONObject, done: (CraftNativeCapabilityResult) -> Unit) {
+        if (exchangeDone != null) { done(failure("BUSY", "A Bluetooth request is running")); return }
+        val peer = gatt; val write = writer
+        if (!connected || peer == null || write == null) { done(failure("DISCONNECTED", "Bluetooth device is disconnected")); return }
+        val bytes = byteArray(options, "bytes", 182)
+        require(bytes.size <= mtu - 3)
+        responsePrefix = byteArray(options, "responsePrefix", 16)
+        exchangeDone = done
+        exchangeTimer = timer(options.optLong("timeoutMs", 10000).coerceIn(1000, 20000)) { finishExchange(failure("TIMEOUT", "Bluetooth device did not answer")) }
+        write.writeType = if (write.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0) BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT else BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+        write.value = bytes
+        if (!peer.writeCharacteristic(write)) finishExchange(failure("WRITE_FAILED", "Bluetooth write queue is busy"))
+    }
+    private fun finishExchange(result: CraftNativeCapabilityResult) {
+        exchangeTimer?.let(handler::removeCallbacks); exchangeTimer = null; responsePrefix = byteArrayOf()
+        val done = exchangeDone; exchangeDone = null; done?.invoke(result)
+    }
+    fun disconnect() {
+        stopScan(failure("CANCELLED", "Bluetooth scan cancelled"))
+        finishConnect(failure("CANCELLED", "Bluetooth connection cancelled"))
+        finishExchange(failure("DISCONNECTED", "Bluetooth device disconnected"))
+        val old = gatt; gatt = null; connected = false; writer = null; notifier = null; mtu = 23
+        runCatching { old?.disconnect(); old?.close() }
+    }
+}

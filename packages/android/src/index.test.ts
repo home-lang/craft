@@ -2082,3 +2082,19 @@ describe('crash reporting (CraftCrashReporter.kt)', () => {
   })
 })
 
+
+it('emits native Bluetooth GATT support and versioned permissions only when enabled', async () => {
+  const output = mkdtempSync(join(tmpdir(), 'craft-android-bluetooth-'))
+  try {
+    await init({ name: 'Bluetooth', output, packageName: 'dev.craft.bluetooth', config: { renderer: 'native', enableBluetooth: true } })
+    const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
+    expect(manifest).toContain('android.permission.BLUETOOTH_SCAN')
+    expect(manifest).toContain('android:usesPermissionFlags="neverForLocation"')
+    expect(manifest).toContain('android.permission.BLUETOOTH_CONNECT')
+    const kotlin = readFileSync(join(output, 'app/src/main/java/dev/craft/bluetooth/CraftBluetooth.kt'), 'utf8')
+    expect(kotlin).toContain('requestMtu(247)')
+    expect(kotlin).toContain('responsePrefix')
+    expect(renderAndroidPermissions({ appName: 'Off', packageName: 'dev.craft.off' })).not.toContain('BLUETOOTH')
+  }
+  finally { rmSync(output, { recursive: true, force: true }) }
+})

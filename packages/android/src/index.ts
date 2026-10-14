@@ -89,6 +89,7 @@ export interface CraftAndroidConfig {
   enableSecureStorage?: boolean
   enableGeolocation?: boolean
   enableBackgroundLocation?: boolean
+  enableBluetooth?: boolean
   enableHealthConnect?: boolean
   /**
    * The Health Connect data the app reads and writes, by the shared type
@@ -271,6 +272,7 @@ const DEFAULT_CONFIG: Omit<CraftAndroidConfig, 'appName' | 'packageName'> = {
   enableSecureStorage: false,
   enableGeolocation: false,
   enableBackgroundLocation: false,
+  enableBluetooth: false,
   enableHealthConnect: false,
   enableKeepAwake: false,
   enableDeepLinks: false,
@@ -495,7 +497,14 @@ export function renderAndroidPermissions(config: CraftAndroidConfig): string {
   if (config.enableHealthConnect) healthConnectPermissions(config).forEach(permission => permissions.add(permission))
   // A background refresh (WorkManager) after a restart.
   if (config.renderer === 'native' && config.backgroundRefresh?.enabled) permissions.add('android.permission.RECEIVE_BOOT_COMPLETED')
-  return [...permissions].map(permission => `    <uses-permission android:name="${permission}" />`).join('\n')
+  const bluetooth = config.enableBluetooth ? [
+    '    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />',
+    '    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />',
+    '    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />',
+    '    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />',
+    ...(config.enableGeolocation ? [] : ['    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />']),
+  ].join('\n') : ''
+  return [bluetooth, ...[...permissions].map(permission => `    <uses-permission android:name="${permission}" />`)].filter(Boolean).join('\n')
 }
 
 /**
@@ -509,6 +518,7 @@ function writeNativeShellSources(output: string, packagePath: string, packageNam
     const source = readFileSync(join(TEMPLATES_DIR, template), 'utf-8').replace(/\{\{PACKAGE_NAME\}\}/g, packageName)
     writeFileSync(join(javaDir, file), replace(source))
   }
+  write('CraftBluetooth.kt.template', 'CraftBluetooth.kt')
   write('CraftNativeShell.kt.template', 'CraftNativeShell.kt')
   write('CraftNativeBackground.kt.template', 'CraftNativeBackground.kt')
   write(config.enableHealthConnect ? 'CraftNativeHealth.kt.template' : 'CraftNativeHealthStub.kt.template', 'CraftNativeHealth.kt')

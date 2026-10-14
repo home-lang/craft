@@ -63,6 +63,8 @@ internal class CraftNativeCapabilities(
 ) {
     /** The screen's activity; null in a background refresh, where nothing can be shown. */
     private val activity: MainActivity? get() = context as? MainActivity
+    private val bluetooth by lazy { CraftBluetooth(context) }
+    fun onBluetoothPermissions(requestCode: Int) { if (config.optBoolean("enableBluetooth")) bluetooth.onPermissions(requestCode) }
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val storage = context.getSharedPreferences("craft-native-storage", Context.MODE_PRIVATE)
     // The typed native renderer has no CraftNative Zig holder. Keep its
@@ -111,6 +113,7 @@ internal class CraftNativeCapabilities(
 
     fun names(): JSONArray = JSONArray().apply {
         listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files").forEach(::put)
+        if (config.optBoolean("enableBluetooth")) put("bluetooth")
         if (config.optBoolean("enableBiometric")) put("biometric")
         if (config.optBoolean("enableSecureStorage")) put("secureStorage")
         if (config.optBoolean("enableLocalDatabase")) put("database")
@@ -132,6 +135,10 @@ internal class CraftNativeCapabilities(
             return
         }
         when (module) {
+            "Bluetooth" -> {
+                if (!config.optBoolean("enableBluetooth")) complete(requestToken, failure("CAPABILITY_DISABLED", "Bluetooth is disabled"), completion)
+                else bluetooth.perform(method, args) { complete(requestToken, it, completion) }
+            }
             "Storage" -> complete(requestToken, storage(method, args), completion)
             "SecureStorage" -> {
                 if (!config.optBoolean("enableSecureStorage")) complete(requestToken, failure("CAPABILITY_DISABLED", "Secure storage is disabled"), completion)
@@ -177,6 +184,7 @@ internal class CraftNativeCapabilities(
     }
 
     fun close() {
+        if (config.optBoolean("enableBluetooth")) bluetooth.disconnect()
         databaseExecutor.shutdownNow()
         networkExecutor.shutdownNow()
         fetchConnections.values.forEach(HttpURLConnection::disconnect)
