@@ -56,6 +56,7 @@ import android.text.Layout
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
+import android.view.ViewParent
 import android.view.ViewTreeObserver
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -838,6 +839,18 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         requestLayout()
     }
 
+    private fun invalidateMeasurementAncestors(start: ViewParent?) {
+        var ancestor = start
+        while (ancestor != null) {
+            when (ancestor) {
+                is CraftNativeFlexLayout -> ancestor.invalidateMeasurements()
+                is CraftNativeKeyboardAvoidingView -> ancestor.content.invalidateMeasurements()
+                is CraftNativeScrollView -> ancestor.invalidateContentLayout()
+            }
+            ancestor = (ancestor as? View)?.parent
+        }
+    }
+
     /**
      * Lays a child out at its final frame, measuring it again at exactly
      * that size first when the measure pass left it another size (a
@@ -904,12 +917,21 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     fun setChildStyle(view: View, style: JSONObject, density: Float) {
         styles[view] = CraftNativeLayoutStyle.from(style, density)
         invalidateMeasurements()
+        invalidateMeasurementAncestors(parent)
     }
 
     override fun onViewRemoved(child: View) {
+        val parentBeforeRemoval = parent
         styles.remove(child)
         super.onViewRemoved(child)
         invalidateMeasurements()
+        invalidateMeasurementAncestors(parentBeforeRemoval)
+    }
+
+    override fun onViewAdded(child: View) {
+        super.onViewAdded(child)
+        invalidateMeasurements()
+        invalidateMeasurementAncestors(parent)
     }
 
     private data class Entry(val view: View, val style: CraftNativeLayoutStyle, val width: Int, val height: Int)
