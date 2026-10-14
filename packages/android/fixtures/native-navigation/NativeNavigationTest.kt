@@ -550,6 +550,10 @@ class NativeNavigationTest {
             awaitWidthDecrease(nullWidthText, explicitTextWidth, 20, density)
             val percentWidth = awaitView(activity, "percent-width")
             assertEquals((120 * density).toInt(), percentWidth.width)
+            val percentBasisFirst = awaitView(activity, "percent-basis-first")
+            val percentBasisSecond = awaitView(activity, "percent-basis-second")
+            assertEquals((120 * density).toInt(), percentBasisFirst.width)
+            assertEquals((120 * density).toInt(), percentBasisSecond.width)
             val toggle = awaitView(activity, "native-switch")
             assertTrue("native switch should be an Android Switch", toggle is Switch)
             val nativeSwitch = toggle as Switch

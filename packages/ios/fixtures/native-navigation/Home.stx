@@ -630,6 +630,10 @@ function captureSectionScroll() {
     <View testID="percent-wrap" style={{"width":240,"height":28,"backgroundColor":"#2f4050"}}>
       <Text testID="percent-width" style={{"width":"50%","height":20}}>half width</Text>
     </View>
+    <View testID="percent-basis-wrap" style={{"width":240,"height":28,"flexDirection":"row","backgroundColor":"#40502f"}}>
+      <Text testID="percent-basis-first" style={{"flexBasis":"50%","height":20}}>basis one</Text>
+      <Text testID="percent-basis-second" style={{"flexBasis":"50%","height":20}}>basis two</Text>
+    </View>
     <Text testID="layout-status" :text="layoutWidth > 0 ? 'Layout width: ' + layoutWidth : 'layout pending'" />
     <View testID="hidden-layout-parent" style={{"display":"none"}}>
       <Text testID="hidden-layout-child" @layout="captureHiddenLayout()">Hidden child</Text>

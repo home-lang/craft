@@ -1419,6 +1419,9 @@ describe('native renderer component contract', () => {
 
   it('resolves percentage lengths against the native parent on both hosts', () => {
     expect(navigationHome).toContain('style={{"width":"50%","height":20}}')
+    expect(navigationHome).toContain('testID="percent-basis-first"')
+    expect(iosNavigationTest).toContain('percentage flex-basis was not resolved on the first child')
+    expect(androidNavigationTest).toContain('percentBasisFirst.width')
     expect(ios).toContain('private static func length(_ value: CraftNativeLength?, base: CGFloat?) -> Float')
     expect(ios).toContain('width: length(style.width, base: contentWidth)')
     expect(android).toContain('val fraction: Double? = null')

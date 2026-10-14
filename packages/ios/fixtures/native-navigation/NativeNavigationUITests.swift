@@ -559,6 +559,12 @@ final class NativeNavigationUITests: XCTestCase {
         let percentWidth = app.staticTexts["percent-width"]
         XCTAssertTrue(percentWidth.waitForExistence(timeout: 5))
         XCTAssertEqual(percentWidth.frame.width, 120, accuracy: 2, "percentage width was not resolved against the parent")
+        let percentBasisFirst = app.staticTexts["percent-basis-first"]
+        let percentBasisSecond = app.staticTexts["percent-basis-second"]
+        XCTAssertTrue(percentBasisFirst.waitForExistence(timeout: 5))
+        XCTAssertTrue(percentBasisSecond.waitForExistence(timeout: 5))
+        XCTAssertEqual(percentBasisFirst.frame.width, 120, accuracy: 2, "percentage flex-basis was not resolved on the first child")
+        XCTAssertEqual(percentBasisSecond.frame.width, 120, accuracy: 2, "percentage flex-basis was not resolved on the second child")
         let absolute = app.otherElements["layout-absolute"]
         XCTAssertTrue(absolute.exists)
         XCTAssertLessThanOrEqual(absolute.frame.maxX, wrapped.frame.maxX - 8)
