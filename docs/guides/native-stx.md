@@ -68,10 +68,10 @@ geometry, allowing a host to keep its compatibility fallback while an older
 runtime is in use. Both iOS and Android hosts now opt eligible definite-size,
 non-grid containers into this complete-tree boundary for
 direct-child placement. Wrapped flows use the same boundary when both axes use
-the same gap; percentage sizes resolve against the parent content box before
-entering the shared ABI. Absolute children, reverse or wrap-reverse flows,
-differing row/column gaps, missing runtimes, and any malformed ABI
-result stay on the local compatibility algorithms. The iOS root also keeps a
+independent row/column gaps; percentage sizes resolve against the parent
+content box before entering the shared ABI. Absolute children, reverse or
+wrap-reverse flows, missing runtimes, and any malformed ABI result stay on the
+local compatibility algorithms. The iOS root also keeps a
 definite viewport frame for a `flex: 1` screen root, so an absolute sibling of
 a `ScrollView` is anchored to the screen rather than to the scroll content.
 The Zig contract also exercises a nested preorder tree and checks absolute

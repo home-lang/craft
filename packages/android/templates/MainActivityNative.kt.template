@@ -1223,14 +1223,13 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
 
     /**
      * Use the host-neutral tree ABI when platform measurements are complete:
-     * definite, non-grid direct-child containers, including wrapped flows when
-     * both axes use the same gap. Reverse flows, absolute children, missing
-     * runtimes, and malformed results deliberately fall through to the
-     * established Kotlin layout below.
+     * definite, non-grid direct-child containers, including wrapped flows with
+     * independent row and column gaps. Reverse flows, absolute children,
+     * missing runtimes, and malformed results deliberately fall through to
+     * the established Kotlin layout below.
      */
     private fun sharedDirectFrames(entries: List<Entry>, width: Int, height: Int): FloatArray? {
         if (entries.isEmpty() || width < 0 || height < 0 || grid || reverse || wrapReverse) return null
-        if (wrap && abs(rowGap - columnGap) > 0.0001f) return null
         val count = entries.size + 1
         val fields = 32
         val nodeData = FloatArray(count * fields) { Float.NaN }

@@ -748,9 +748,9 @@ fn layoutNode(
     if (node.style.grid) return layoutGrid(node, content_width, content_height, content_x, content_y, frame_index, frames);
 
     const main_size = if (node.style.direction == .row) content_width else content_height;
-    const gap = finiteNonNegative(node.style.gap);
+    const main_gap = flexAxisGap(node.style, node.style.direction);
     const gap_count = if (node.children.len > 1) node.children.len - 1 else 0;
-    const gap_total = gap * @as(f32, @floatFromInt(gap_count));
+    const gap_total = main_gap * @as(f32, @floatFromInt(gap_count));
     if (node.style.flex_wrap) return layoutWrapped(node, content_width, content_height, content_x, content_y, frame_index, frames);
     const flex = resolveFlex(node.children, node.style.direction, main_size, gap_total);
     const line_baseline = baselineForChildren(node.children, node.style.direction, content_width, content_height, content_height, node.style.align_items);
@@ -760,7 +760,7 @@ fn layoutNode(
     }
     const free_main = @max(0, main_size - used_main);
     var leading_space: f32 = 0;
-    var between_space: f32 = gap;
+    var between_space: f32 = main_gap;
     switch (node.style.justify_content) {
         .center => leading_space = free_main / 2,
         .flex_end => leading_space = free_main,
@@ -817,21 +817,22 @@ fn layoutWrapped(
     const direction = node.style.direction;
     const main_size = if (direction == .row) width else height;
     const cross_size = if (direction == .row) height else width;
-    const gap = finiteNonNegative(node.style.gap);
+    const main_gap = flexAxisGap(node.style, direction);
+    const cross_gap = crossAxisGap(node.style, direction);
     var line_count: usize = 0;
     var cross_total: f32 = 0;
     var start: usize = 0;
     while (start < node.children.len) {
-        const end = wrappedLineEnd(node.children, start, direction, main_size, gap);
+        const end = wrappedLineEnd(node.children, start, direction, main_size, main_gap);
         cross_total += wrappedLineCross(node.children[start..end], direction);
-        if (line_count > 0) cross_total += gap;
+        if (line_count > 0) cross_total += cross_gap;
         line_count += 1;
         start = end;
     }
     const free_cross = @max(0, cross_size - cross_total);
     var line_extra: f32 = 0;
     var cross_offset: f32 = 0;
-    var cross_between = gap;
+    var cross_between = cross_gap;
     switch (node.style.align_content) {
         .center => cross_offset = free_cross / 2,
         .flex_end => cross_offset = free_cross,
@@ -852,15 +853,15 @@ fn layoutWrapped(
     var next_index = frame_index + 1;
     start = 0;
     while (start < node.children.len) {
-        const end = wrappedLineEnd(node.children, start, direction, main_size, gap);
+        const end = wrappedLineEnd(node.children, start, direction, main_size, main_gap);
         const children = node.children[start..end];
         const line_cross = wrappedLineCross(children, direction) + line_extra;
-        const flex = resolveFlex(children, direction, main_size, gap * @as(f32, @floatFromInt(if (children.len > 1) children.len - 1 else 0)));
-        var used_main: f32 = gap * @as(f32, @floatFromInt(if (children.len > 1) children.len - 1 else 0));
+        const flex = resolveFlex(children, direction, main_size, main_gap * @as(f32, @floatFromInt(if (children.len > 1) children.len - 1 else 0)));
+        var used_main: f32 = main_gap * @as(f32, @floatFromInt(if (children.len > 1) children.len - 1 else 0));
         for (children) |child| used_main += flex.size(child, childMainBasis(child, direction)) + mainMargins(child, direction);
         const free_main = @max(0, main_size - used_main);
         var leading_space: f32 = 0;
-        var between_space: f32 = gap;
+        var between_space: f32 = main_gap;
         distributeJustify(node.style.justify_content, free_main, children.len, &leading_space, &between_space);
         const line_baseline = baselineForChildren(children, direction, width, height, line_cross, node.style.align_items);
         var main_offset = leading_space;
@@ -1017,8 +1018,8 @@ fn layoutGrid(
 ) LayoutError!usize {
     const columns = @max(@as(u32, 1), node.style.grid_columns);
     const column_count: usize = @intCast(columns);
-    const column_gap = finiteNonNegative(node.style.column_gap);
-    const row_gap = finiteNonNegative(node.style.row_gap);
+    const column_gap = axisGap(node.style.column_gap, node.style.gap);
+    const row_gap = axisGap(node.style.row_gap, node.style.gap);
     const available_width = @max(0, width - column_gap * @as(f32, @floatFromInt(column_count - 1)));
     const cell_width = available_width / @as(f32, @floatFromInt(column_count));
     var next_index = frame_index + 1;
@@ -1221,6 +1222,28 @@ fn clamp(value: f32, lower: ?f32, upper: ?f32) f32 {
 
 fn finiteNonNegative(value: f32) f32 {
     return if (!std.math.isFinite(value) or value < 0) 0 else value;
+}
+
+/// `gap` is the shorthand fallback for an axis-specific gap. The flat ABI
+/// uses zero for an omitted row/column value, so a positive axis value wins
+/// while an unset value continues to inherit the shorthand.
+fn axisGap(explicit: f32, shorthand: f32) f32 {
+    const value = finiteNonNegative(explicit);
+    return if (value > 0) value else finiteNonNegative(shorthand);
+}
+
+fn flexAxisGap(style: Style, direction: Axis) f32 {
+    return if (direction == .row)
+        axisGap(style.column_gap, style.gap)
+    else
+        axisGap(style.row_gap, style.gap);
+}
+
+fn crossAxisGap(style: Style, direction: Axis) f32 {
+    return if (direction == .row)
+        axisGap(style.row_gap, style.gap)
+    else
+        axisGap(style.column_gap, style.gap);
 }
 
 fn emptyLayoutStyleInput() LayoutStyleInput {
@@ -1491,6 +1514,32 @@ test "aligns wrapped children using align self" {
     _ = try layout(root, .{ .width = 100, .height = 80 }, &frames);
     try std.testing.expectApproxEqAbs(@as(f32, 14), frames[2].y, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 24), frames[3].y, 0.001);
+}
+
+test "keeps independent row and column gaps in wrapped flex" {
+    const children = [_]Node{
+        .{ .style = .{ .width = 45, .height = 10 } },
+        .{ .style = .{ .width = 45, .height = 10 } },
+        .{ .style = .{ .width = 45, .height = 10 } },
+    };
+    const root = Node{
+        .style = .{
+            .direction = .row,
+            .width = 100,
+            .height = 80,
+            .flex_wrap = true,
+            .column_gap = 5,
+            .row_gap = 12,
+            .align_items = .flex_start,
+            .align_content = .flex_start,
+        },
+        .children = &children,
+    };
+    var frames: [4]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 100, .height = 80 }, &frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 50), frames[2].x, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 22), frames[3].y, 0.001);
 }
 
 test "uses viewport size when the root is intrinsic" {

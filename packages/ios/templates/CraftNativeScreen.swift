@@ -202,7 +202,6 @@ private enum CraftNativeTreeLayoutBridge {
         guard let function, width.isFinite, height.isFinite, width >= 0, height >= 0, !children.isEmpty else { return nil }
         let mainGap = direction == .horizontal ? (columnGap ?? gap) : (rowGap ?? gap)
         let crossGap = direction == .horizontal ? (rowGap ?? gap) : (columnGap ?? gap)
-        guard !wrap || abs(mainGap - crossGap) <= 0.0001 else { return nil }
         var root = StyleInput(
             direction: direction == .horizontal ? 0 : 1,
             width: Float(width), height: Float(height), gap: Float(max(0, mainGap)), flexWrap: wrap ? 1 : 0,
@@ -1451,7 +1450,6 @@ private class CraftNativeFlowView: UIStackView {
     private func sharedDirectFrames(_ children: [UIView], width: CGFloat?, height: CGFloat?) -> [(UIView, CGRect)]? {
         guard let width, let height, !grid, !reverse, !wrapReverse,
               width.isFinite, height.isFinite, width >= 0, height >= 0,
-              !wrap || abs((axis == .horizontal ? (rowGap ?? gap) : (columnGap ?? gap)) - (axis == .horizontal ? (columnGap ?? gap) : (rowGap ?? gap))) <= 0.0001,
               children.allSatisfy({ child in
                   let style = child.craftLayoutStyle
                   return style.position != "absolute" && style.display != "none"
