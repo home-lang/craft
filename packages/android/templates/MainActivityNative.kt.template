@@ -641,7 +641,10 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         return (0 until geometry.length() - 1 step 2).mapNotNull { index ->
             val latitude = geometry.optDouble(index, Double.NaN)
             val longitude = geometry.optDouble(index + 1, Double.NaN)
-            if (latitude.isFinite() && longitude.isFinite()) LatLng(latitude, longitude) else null
+            if (latitude.isFinite() && longitude.isFinite() &&
+                latitude >= -90.0 && latitude <= 90.0 &&
+                longitude >= -180.0 && longitude <= 180.0
+            ) LatLng(latitude, longitude) else null
         }
     }
 
@@ -652,7 +655,10 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         val longitude = center.optDouble("longitude", Double.NaN)
         val latitudeDelta = span.optDouble("latitudeDelta", span.optDouble("latitude_delta", Double.NaN))
         val longitudeDelta = span.optDouble("longitudeDelta", span.optDouble("longitude_delta", Double.NaN))
-        if (!latitude.isFinite() || !longitude.isFinite() || !latitudeDelta.isFinite() || !longitudeDelta.isFinite()) return null
+        if (!latitude.isFinite() || !longitude.isFinite() || !latitudeDelta.isFinite() || !longitudeDelta.isFinite() ||
+            latitude < -90.0 || latitude > 90.0 || longitude < -180.0 || longitude > 180.0 ||
+            latitudeDelta <= 0.0 || longitudeDelta <= 0.0
+        ) return null
         return LatLngBounds(LatLng(latitude - latitudeDelta / 2, longitude - longitudeDelta / 2), LatLng(latitude + latitudeDelta / 2, longitude + longitudeDelta / 2))
     }
 

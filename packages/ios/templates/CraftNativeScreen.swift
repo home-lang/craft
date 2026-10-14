@@ -582,7 +582,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         return stride(from: 0, to: numbers.count - 1, by: 2).compactMap {
             let latitude = numbers[$0]
             let longitude = numbers[$0 + 1]
-            guard latitude.isFinite, longitude.isFinite else { return nil }
+            guard latitude.isFinite, longitude.isFinite,
+                  (-90...90).contains(latitude), (-180...180).contains(longitude) else { return nil }
             return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         }
     }
@@ -601,7 +602,10 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
               let latitude = (center["latitude"] as? NSNumber)?.doubleValue,
               let longitude = (center["longitude"] as? NSNumber)?.doubleValue,
               let latitudeDelta = (span["latitudeDelta"] as? NSNumber)?.doubleValue ?? (span["latitude_delta"] as? NSNumber)?.doubleValue,
-              let longitudeDelta = (span["longitudeDelta"] as? NSNumber)?.doubleValue ?? (span["longitude_delta"] as? NSNumber)?.doubleValue else { return nil }
+              let longitudeDelta = (span["longitudeDelta"] as? NSNumber)?.doubleValue ?? (span["longitude_delta"] as? NSNumber)?.doubleValue,
+              latitude.isFinite, longitude.isFinite, latitudeDelta.isFinite, longitudeDelta.isFinite,
+              (-90...90).contains(latitude), (-180...180).contains(longitude),
+              latitudeDelta > 0, longitudeDelta > 0 else { return nil }
         return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta))
     }
 
