@@ -528,7 +528,8 @@ internal class CraftNativeServices(
                 val options = args.optJSONObject(1) ?: JSONObject()
                 withSpeech { engine ->
                     val language = options.optString("language").takeIf { it.isNotBlank() }?.let(Locale::forLanguageTag) ?: Locale.getDefault()
-                    bestVoice(engine, language)?.let { engine.voice = it } ?: run { engine.language = language }
+                    val voice = bestVoice(engine, language)
+                    if (voice != null) engine.setVoice(voice) else engine.setLanguage(language)
                     // The engine keeps its rate and pitch between calls: each
                     // cue sets its own, 1 being the voice's normal (as on iOS).
                     engine.setSpeechRate(speechNumber(options, "rate", 0.5, 2.0))

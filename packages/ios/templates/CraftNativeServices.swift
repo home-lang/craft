@@ -103,9 +103,11 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
     static func bestVoice(for language: String?) -> AVSpeechSynthesisVoice? {
         let wanted = (language?.isEmpty == false ? language! : AVSpeechSynthesisVoice.currentLanguageCode())
         if let known = voices[wanted] { return known }
-        if voicesObserver == nil, #available(iOS 17.0, *) {
-            voicesObserver = NotificationCenter.default.addObserver(forName: AVSpeechSynthesizer.availableVoicesDidChangeNotification, object: nil, queue: .main) { _ in
-                voices.removeAll()
+        if voicesObserver == nil {
+            if #available(iOS 17.0, *) {
+                voicesObserver = NotificationCenter.default.addObserver(forName: AVSpeechSynthesizer.availableVoicesDidChangeNotification, object: nil, queue: .main) { _ in
+                    CraftNativeSpeech.voices.removeAll()
+                }
             }
         }
         guard let standard = AVSpeechSynthesisVoice(language: wanted) else { return nil }

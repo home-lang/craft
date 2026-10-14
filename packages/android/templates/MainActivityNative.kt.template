@@ -6036,20 +6036,21 @@ class MainActivity : AppCompatActivity() {
     private fun animateNextChange(screen: Screen, payload: JSONObject) {
         val seconds = payload.optDouble("duration", 0.35).takeIf { it.isFinite() } ?: 0.35
         val curve = payload.optString("curve", "spring")
-        val transition = TransitionSet().apply {
-            ordering = TransitionSet.ORDERING_TOGETHER
-            listOf(ChangeBounds(), ChangeTransform(), Fade()).forEach { part ->
-                part.setMatchOrder(Transition.MATCH_NAME, Transition.MATCH_INSTANCE)
-                addTransition(part)
-            }
-            duration = (seconds.coerceIn(0.1, 1.0) * 1000).toLong()
-            interpolator = when (curve) {
+        val transition = TransitionSet()
+        transition.setOrdering(TransitionSet.ORDERING_TOGETHER)
+        listOf(ChangeBounds(), ChangeTransform(), Fade()).forEach { part ->
+            part.setMatchOrder(Transition.MATCH_NAME, Transition.MATCH_INSTANCE)
+            transition.addTransition(part)
+        }
+        transition.setDuration((seconds.coerceIn(0.1, 1.0) * 1000).toLong())
+        transition.setInterpolator(
+            when (curve) {
                 "linear" -> LinearInterpolator()
                 "easeInOut" -> PathInterpolator(0.42f, 0f, 0.58f, 1f)
                 // A spring with no bounce reads as a decelerating curve.
                 else -> PathInterpolator(0.2f, 0f, 0f, 1f)
-            }
-        }
+            },
+        )
         TransitionManager.beginDelayedTransition(screen.view, transition)
     }
 
