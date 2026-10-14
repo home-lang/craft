@@ -189,7 +189,7 @@ private func craftCollectFrames(_ context: UnsafeMutableRawPointer?) -> Int {
         let returnAddress = craftStrip(record.1)
         // In a leaf function the caller is only in the link register: the
         // first saved return address then belongs to the caller's caller.
-        if first, lr != 0, craftStrip(lr) != returnAddress, count < craftCrashMaxFrames {
+        if first, lr != 0, craftStrip(lr) != returnAddress, craftStrip(lr) != frames[0], count < craftCrashMaxFrames {
             frames[count] = craftStrip(lr); count += 1
         }
         first = false
@@ -478,7 +478,13 @@ final class CraftCrashReporter: NSObject, MXMetricManagerSubscriber {
         let frames = addresses.map { frame(for: $0, in: images) }
         let signalName = Self.signalName(signal)
         let type = exceptionName ?? signalName
-        var message = messages.first(where: { $0.contains("Fatal error") || $0.contains("fatal error") }) ?? messages.first ?? ""
+        // A runtime's own words when it trapped on purpose (Swift's "Fatal
+        // error: …", an assertion); an abort's first annotation otherwise.
+        // Never the simulator's device banner, which some image's
+        // __crash_info carries on every simulator process.
+        let deliberate = messages.first(where: { $0.localizedCaseInsensitiveContains("fatal error") || $0.contains("Assertion failed") || $0.contains("Precondition failed") })
+        let annotation = signal == SIGABRT ? messages.first(where: { !$0.hasPrefix("CoreSimulator") }) : nil
+        var message: String = deliberate ?? annotation ?? ""
         if message.isEmpty {
             message = Self.signalDescription(signal, code: code, address: faultAddress)
         }
@@ -497,7 +503,8 @@ final class CraftCrashReporter: NSObject, MXMetricManagerSubscriber {
         event["timestamp"] = Self.iso(crashedAt)
         event["exception"] = exception
         event["breadcrumbs"] = Array(previousCrumbs.suffix(50))
-        event["tags"] = ["mechanism": exception["mechanism"] as? String ?? "signal"]
+        let mechanism: String = exception["mechanism"] as? String ?? "signal"
+        event["tags"] = ["mechanism": mechanism]
         if let version = previousSession["version"] as? String, let build = previousSession["build"] as? String {
             var contexts = event["contexts"] as? [String: Any] ?? [:]
             var app = contexts["app"] as? [String: Any] ?? [:]
@@ -645,7 +652,8 @@ final class CraftCrashReporter: NSObject, MXMetricManagerSubscriber {
             if let last = self.lastJavaScriptError, last.key == key, Date().timeIntervalSince(last.at) < 5 { return }
             self.lastJavaScriptError = (key, Date())
             var event = self.baseEvent(release: self.release, sessionId: self.sessionId, sessionStart: Self.iso(self.sessionStart))
-            event["type"] = (name?.isEmpty == false ? name : nil) ?? "Error"
+            let type: String = name.flatMap { $0.isEmpty ? nil : $0 } ?? "Error"
+            event["type"] = type
             event["message"] = message
             if !stack.isEmpty, stack != "undefined" { event["stack"] = stack }
             event["level"] = "error"
@@ -757,6 +765,11 @@ final class CraftCrashReporter: NSObject, MXMetricManagerSubscriber {
 
     private func baseEvent(release: String, sessionId: String?, sessionStart: String?) -> [String: Any] {
         let device = UIDevice.current
+        let info = Bundle.main.infoDictionary
+        let appName: String = info?["CFBundleDisplayName"] as? String ?? info?["CFBundleName"] as? String ?? ""
+        // Typed, not inline: against `Any`, `Locale.current.identifier` picks
+        // iOS 16's `identifier(_:)` method and stores a function.
+        let locale: String = Locale.current.identifier
         var event: [String: Any] = [
             "platform": "ios",
             "release": release,
@@ -768,7 +781,7 @@ final class CraftCrashReporter: NSObject, MXMetricManagerSubscriber {
             "contexts": [
                 "app": [
                     "id": Bundle.main.bundleIdentifier ?? "",
-                    "name": Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String ?? (Bundle.main.infoDictionary?["CFBundleName"] as? String ?? ""),
+                    "name": appName,
                     "version": appVersion,
                     "build": appBuild,
                 ],
@@ -776,7 +789,7 @@ final class CraftCrashReporter: NSObject, MXMetricManagerSubscriber {
                     "model": Self.deviceModel(),
                     "family": device.model,
                     "simulator": Self.isSimulator,
-                    "locale": Locale.current.identifier,
+                    "locale": locale,
                 ],
                 "os": ["name": "iOS", "version": device.systemVersion],
             ],
@@ -789,8 +802,16 @@ final class CraftCrashReporter: NSObject, MXMetricManagerSubscriber {
     private var craftVersion: String { "{{CRAFT_VERSION}}" }
 
     private func enqueue(_ endpoint: String, _ body: [String: Any]) {
-        guard let outbox, JSONSerialization.isValidJSONObject(["endpoint": endpoint, "body": body]),
-              let data = try? JSONSerialization.data(withJSONObject: ["endpoint": endpoint, "body": body]) else { return }
+        // Through jsonSafe first: a `[String: Any]` built in Swift can hold an
+        // Optional (a `??` inferred against `Any`), and a page's event can hold
+        // anything at all. Either made the whole event invalid JSON, and it was
+        // dropped without a word.
+        let item: [String: Any] = ["endpoint": endpoint, "body": Self.jsonSafe(body)]
+        guard let outbox, JSONSerialization.isValidJSONObject(item),
+              let data = try? JSONSerialization.data(withJSONObject: item) else {
+            CraftNativeConsole.write("error", category: "crash-reporter", message: "dropped an \(endpoint) event that is not JSON")
+            return
+        }
         let name = String(format: "%013.0f-%@.json", Date().timeIntervalSince1970 * 1000, UUID().uuidString)
         try? data.write(to: outbox.appendingPathComponent(name), options: .atomic)
         flush()
@@ -892,6 +913,49 @@ final class CraftCrashReporter: NSObject, MXMetricManagerSubscriber {
     }
 
     // MARK: Helpers
+
+    /// `value` as something JSONSerialization accepts: Optionals unwrapped
+    /// (nil is null), integers of every width as numbers, dates as ISO
+    /// strings, and anything else as its description.
+    static func jsonSafe(_ value: Any) -> Any {
+        let mirror = Mirror(reflecting: value)
+        if mirror.displayStyle == .optional {
+            guard let wrapped = mirror.children.first?.value else { return NSNull() }
+            return jsonSafe(wrapped)
+        }
+        switch value {
+        case let dictionary as [String: Any]:
+            return dictionary.mapValues { jsonSafe($0) }
+        case let dictionary as NSDictionary:
+            var out: [String: Any] = [:]
+            for (key, item) in dictionary { out[String(describing: key)] = jsonSafe(item) }
+            return out
+        case let array as [Any]:
+            return array.map { jsonSafe($0) }
+        case is String, is NSString, is NSNull:
+            return value
+        case let flag as Bool:
+            return flag
+        case let number as NSNumber:
+            return number
+        case let number as UInt64:
+            return NSNumber(value: number)
+        case let number as Int64:
+            return NSNumber(value: number)
+        case let number as UInt32:
+            return NSNumber(value: number)
+        case let number as Int32:
+            return NSNumber(value: number)
+        case let number as Double:
+            return number.isFinite ? NSNumber(value: number) : NSNull()
+        case let date as Date:
+            return iso(date)
+        case let url as URL:
+            return url.absoluteString
+        default:
+            return String(describing: value)
+        }
+    }
 
     private func write(_ object: [String: Any], to name: String) {
         if let data = try? JSONSerialization.data(withJSONObject: object) {
