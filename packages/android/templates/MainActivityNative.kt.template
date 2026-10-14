@@ -320,6 +320,10 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         val color: String = "#000000",
         val opacity: Float = 1f,
         val typeface: Typeface = Typeface.DEFAULT,
+        val strokeLinecap: String? = null,
+        val strokeLinejoin: String? = null,
+        val strokeDasharray: List<Float> = emptyList(),
+        val vectorEffect: String? = null,
     ) {
         fun merge(node: JSONObject): SvgPaint {
             val props = node.optJSONObject("props") ?: JSONObject()
@@ -328,6 +332,17 @@ private class CraftNativeSvgView(context: Context) : View(context) {
                 style.has(name) && !style.isNull(name) -> style.optString(name)
                 props.has(name) && !props.isNull(name) -> props.optString(name)
                 else -> null
+            }
+            fun raw(name: String): Any? = when {
+                style.has(name) && !style.isNull(name) -> style.opt(name)
+                props.has(name) && !props.isNull(name) -> props.opt(name)
+                else -> null
+            }
+            fun dashes(rawValue: Any?): List<Float>? {
+                val values = rawValue as? JSONArray ?: return null
+                return (0 until values.length()).mapNotNull {
+                    values.optDouble(it, Double.NaN).toFloat().takeIf { value -> value.isFinite() && value >= 0 }
+                }
             }
             // Keep the cascade explicit: computed style wins over a raw prop
             // when both provide the same SVG paint value.
@@ -340,6 +355,10 @@ private class CraftNativeSvgView(context: Context) : View(context) {
                 color = value("color") ?: color,
                 opacity = ownOpacity * opacity,
                 typeface = if (weight in setOf("bold", "700")) Typeface.DEFAULT_BOLD else typeface,
+                strokeLinecap = value("strokeLinecap") ?: strokeLinecap,
+                strokeLinejoin = value("strokeLinejoin") ?: strokeLinejoin,
+                strokeDasharray = dashes(raw("strokeDasharray")) ?: strokeDasharray,
+                vectorEffect = value("vectorEffect") ?: vectorEffect,
             )
         }
     }
@@ -445,34 +464,29 @@ private class CraftNativeSvgView(context: Context) : View(context) {
                 alpha = (style.opacity * 255f).roundToInt().coerceIn(0, 255)
                 this.style = Paint.Style.STROKE
                 strokeWidth = style.strokeWidth
-                strokeCap = when (props.optString("strokeLinecap")) {
+                strokeCap = when (style.strokeLinecap) {
                     "round" -> Paint.Cap.ROUND
                     "square" -> Paint.Cap.SQUARE
                     else -> Paint.Cap.BUTT
                 }
-                strokeJoin = when (props.optString("strokeLinejoin")) {
+                strokeJoin = when (style.strokeLinejoin) {
                     "round" -> Paint.Join.ROUND
                     "bevel" -> Paint.Join.BEVEL
                     else -> Paint.Join.MITER
                 }
-                props.optJSONArray("strokeDasharray")?.let { values ->
-                    val dashes: List<Float> = (0 until values.length()).mapNotNull {
-                        values.optDouble(it, Double.NaN).toFloat().takeIf { value -> value.isFinite() && value >= 0 }
+                if (style.strokeDasharray.isNotEmpty()) {
+                    val dashPattern = style.strokeDasharray.toFloatArray()
+                    val pattern: FloatArray = if (dashPattern.size % 2 == 1) {
+                        FloatArray(dashPattern.size * 2) { index -> dashPattern[index % dashPattern.size] }
+                    } else {
+                        dashPattern
                     }
-                    if (dashes.isNotEmpty()) {
-                        val dashPattern = dashes.toFloatArray()
-                        val pattern: FloatArray = if (dashPattern.size % 2 == 1) {
-                            FloatArray(dashPattern.size * 2) { index -> dashPattern[index % dashPattern.size] }
-                        } else {
-                            dashPattern
-                        }
-                        pathEffect = DashPathEffect(pattern, 0f)
-                    }
+                    pathEffect = DashPathEffect(pattern, 0f)
                 }
             }
             // `vector-effect="non-scaling-stroke"`: the stroke is in the view's
             // pixels, so a stretched chart's line keeps its width.
-            if (props.optString("vectorEffect") == "non-scaling-stroke") {
+            if (style.vectorEffect == "non-scaling-stroke") {
                 val line = Path(path).apply { transform(viewTransform) }
                 canvas.save()
                 canvas.concat(inverseTransform)

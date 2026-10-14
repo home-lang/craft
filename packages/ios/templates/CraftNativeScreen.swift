@@ -2624,11 +2624,13 @@ private final class CraftNativeSvgView: UIView {
         var linecap: String?
         var linejoin: String?
         var dashes: [CGFloat]?
+        var vectorEffect: String?
 
         func merged(_ node: [String: Any]) -> Paint {
             var next = self
             let props = node["props"] as? [String: Any] ?? [:]
             let style = node["style"] as? [String: Any] ?? [:]
+            func value(_ key: String) -> Any? { style[key] ?? props[key] }
             func finite(_ raw: Any?) -> CGFloat? {
                 guard let number = raw as? NSNumber else { return nil }
                 let value = CGFloat(truncating: number)
@@ -2641,9 +2643,10 @@ private final class CraftNativeSvgView: UIView {
             // Computed style wins over the component prop, matching Android
             // and the browser's cascade when both provide opacity.
             if let opacity = finite(style["opacity"] ?? props["opacity"]) { next.opacity *= opacity }
-            if let cap = props["strokeLinecap"] as? String { next.linecap = cap }
-            if let join = props["strokeLinejoin"] as? String { next.linejoin = join }
-            if let dashes = props["strokeDasharray"] as? [Any] { next.dashes = dashes.compactMap(finite).filter { $0 >= 0 } }
+            if let cap = value("strokeLinecap") as? String { next.linecap = cap }
+            if let join = value("strokeLinejoin") as? String { next.linejoin = join }
+            if let dashes = value("strokeDasharray") as? [Any] { next.dashes = dashes.compactMap(finite).filter { $0 >= 0 } }
+            if let vectorEffect = value("vectorEffect") as? String { next.vectorEffect = vectorEffect }
             return next
         }
 
@@ -2710,7 +2713,7 @@ private final class CraftNativeSvgView: UIView {
                     // `vector-effect="non-scaling-stroke"`: the stroke is in the
                     // view's points, so a stretched chart's line keeps its width
                     // and a round cap stays a round dot.
-                    let nonScaling = (shape["props"] as? [String: Any])?["vectorEffect"] as? String == "non-scaling-stroke"
+                    let nonScaling = own.vectorEffect == "non-scaling-stroke"
                     let line: UIBezierPath
                     if nonScaling, let copy = path.copy() as? UIBezierPath {
                         copy.apply(viewTransform)
