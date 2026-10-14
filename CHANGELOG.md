@@ -1,5 +1,20 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.181...v0.0.182)
+
+## 🚀 Features
+
+- **native**: picture in picture, calmer speech in the best voice, animated changes ([14ea516](https://github.com/craft-native/craft/commit/14ea516)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **native**: explicit Kotlin setters, availability check on its own ([b0e9652](https://github.com/craft-native/craft/commit/b0e9652)) _(by Chris Breuer)_
+- **ios**: an app built through craft-native names its Craft version ([f1d0e63](https://github.com/craft-native/craft/commit/f1d0e63)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.180...v0.0.181)
 
 ## 🐛 Bug Fixes
