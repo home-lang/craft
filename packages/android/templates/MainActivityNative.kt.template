@@ -4274,20 +4274,20 @@ class MainActivity : AppCompatActivity() {
                 View.VISIBLE
             }
         }
-        val width = style.optDouble("width", Double.NaN).takeUnless { it.isNaN() }?.let(::dp)
-        val height = style.optDouble("height", Double.NaN).takeUnless { it.isNaN() }?.let(::dp)
+        val width = craftNativeFiniteDouble(style, "width", Double.NaN).takeUnless { it.isNaN() }?.let(::dp)
+        val height = craftNativeFiniteDouble(style, "height", Double.NaN).takeUnless { it.isNaN() }?.let(::dp)
         control.layoutParams = LinearLayout.LayoutParams(
             width ?: ViewGroup.LayoutParams.WRAP_CONTENT,
             height ?: ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            val margin = style.optDouble("margin", 0.0)
-            val horizontal = style.optDouble("marginHorizontal", margin)
-            val vertical = style.optDouble("marginVertical", margin)
+            val margin = craftNativeFiniteDouble(style, "margin", 0.0)
+            val horizontal = craftNativeFiniteDouble(style, "marginHorizontal", margin)
+            val vertical = craftNativeFiniteDouble(style, "marginVertical", margin)
             setMargins(
-                dp(style.optDouble("marginLeft", horizontal)),
-                dp(style.optDouble("marginTop", vertical)),
-                dp(style.optDouble("marginRight", horizontal)),
-                dp(style.optDouble("marginBottom", vertical))
+                dp(craftNativeFiniteDouble(style, "marginLeft", horizontal)),
+                dp(craftNativeFiniteDouble(style, "marginTop", vertical)),
+                dp(craftNativeFiniteDouble(style, "marginRight", horizontal)),
+                dp(craftNativeFiniteDouble(style, "marginBottom", vertical))
             )
         }
         return control

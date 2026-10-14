@@ -913,6 +913,14 @@ describe('native renderer component contract', () => {
     expect(android).not.toContain('(child.layoutParams?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
   })
 
+  it('rejects non-finite Android view dimensions before pixel conversion', () => {
+    expect(android).toContain('val width = craftNativeFiniteDouble(style, "width", Double.NaN)')
+    expect(android).toContain('val height = craftNativeFiniteDouble(style, "height", Double.NaN)')
+    expect(android).toContain('val margin = craftNativeFiniteDouble(style, "margin", 0.0)')
+    expect(android).toContain('dp(craftNativeFiniteDouble(style, "marginLeft", horizontal))')
+    expect(android).toContain('dp(craftNativeFiniteDouble(style, "marginBottom", vertical))')
+  })
+
   it('keeps the native root inside each host safe area', () => {
     expect(ios).toContain('view.safeAreaLayoutGuide.topAnchor')
     expect(ios).toContain('view.safeAreaLayoutGuide.bottomAnchor')
@@ -1106,7 +1114,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('let mainLeading = horizontal ? style.marginLeft : style.marginTop')
     expect(ios).toContain('let crossTrailing = horizontal ? style.marginBottom : style.marginRight')
     expect(ios).toContain('var mainMargins: CGFloat { mainLeading + mainTrailing }')
-    expect(android).toContain('style.optDouble("marginLeft", horizontal)')
+    expect(android).toContain('craftNativeFiniteDouble(style, "marginLeft", horizontal)')
     expect(android).toContain('setMargins(')
     expect(android).toContain('entry.height + (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)')
     expect(android).toContain('val availableWidth = max(0f, layout.cellWidth - marginLeft - marginRight)')

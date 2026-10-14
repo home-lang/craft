@@ -160,6 +160,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('val pixelOffset = (authoredOffset * density.toDouble()).takeIf { it.isFinite() } ?: 0.0')
       expect(nativeActivity).toContain('val minimum = craftNativeFiniteDouble(props, "minimumValue", 0.0)')
       expect(nativeActivity).toContain('val maximumCandidate = craftNativeFiniteDouble(props, "maximumValue", 1.0)')
+      expect(nativeActivity).toContain('val width = craftNativeFiniteDouble(style, "width", Double.NaN)')
+      expect(nativeActivity).toContain('dp(craftNativeFiniteDouble(style, "marginLeft", horizontal))')
       expect(nativeActivity).toContain('style.optDouble("letterSpacing", Double.NaN)')
       expect(nativeActivity).toContain('style.optDouble("lineHeight", Double.NaN).takeIf { it.isFinite() }')
       expect(nativeActivity).toContain('craftNativeFiniteDouble(style, "textShadowRadius", 0.0)')
