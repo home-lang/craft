@@ -272,7 +272,9 @@ current child count when inserting or moving to the end.
 content; omitted `edges` means all four. The maintained iOS and Android hosts
 keep a SafeAreaView screen root edge-to-edge so the selected edges are applied
 by the node itself, while ordinary roots retain the host's full safe-area
-padding.
+padding. The maintained native-navigation fixture uses `top` and `bottom`
+only, so both mobile E2E hosts exercise selective edges rather than just the
+default all-edge case.
 
 The host validates the complete batch against a copy of its retained tree. It
 commits and advances the revision only if every operation succeeds, then sends:

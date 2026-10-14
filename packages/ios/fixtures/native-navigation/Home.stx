@@ -354,7 +354,7 @@ function captureSectionScroll() {
 </script>
 
 <template>
-  <SafeAreaView testID="root" class="p-4">
+  <SafeAreaView testID="root" edges={['top', 'bottom']} class="p-4">
     <ScrollView testID="native-root-scroll" style={{"flex":1}}>
     <View testID="theme-probe" class="bg-white dark:bg-slate-950" style={{"height":24}}>
       <Text testID="theme-probe-label" class="text-slate-900 dark:text-white">Theme probe</Text>

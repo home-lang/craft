@@ -826,6 +826,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('self.additionalSafeAreaInsets.bottom = globalInset')
     expect(iosLayoutUnitTests).toContain('testKeyboardFrameUpdatesAndRestoresTheAdditionalSafeArea')
     expect(iosReadme).toContain("Keyboard frame changes update the native controller's additional safe area")
+    expect(navigationHome).toContain('<SafeAreaView testID="root" edges={[\'top\', \'bottom\']}')
   })
 
   it('keeps native iOS passkeys capability-gated and domain-bound', () => {
