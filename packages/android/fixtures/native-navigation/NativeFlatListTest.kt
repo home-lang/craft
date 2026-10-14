@@ -192,4 +192,41 @@ class NativeFlatListTest {
         SystemClock.sleep(300)
         assertEquals("chrome-only lists must not reach the data end", 0, chromeEndReached.get())
     }
+
+    @Test
+    fun usesRenderedHeightsForVariableRows() {
+        val context = instrumentation.targetContext
+        lateinit var list: CraftNativeFlatList
+        val rows = listOf(row(0), row(1).put("children", JSONArray().put("Tall\nrow\ncontent\ncontent")))
+        instrumentation.runOnMainSync {
+            list = CraftNativeFlatList(context)
+            attach(list)
+            list.apply(
+                rows,
+                false,
+                1,
+                false,
+                0.1,
+                { node, _, previous ->
+                    (previous as? TextView ?: TextView(context)).apply {
+                        text = node.optJSONArray("children")?.optString(0).orEmpty()
+                        minHeight = 0
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            if (text.contains('\n')) 120 else 24,
+                        )
+                    }
+                },
+                { _ -> },
+                null,
+            )
+        }
+        awaitCount(list, 2)
+        instrumentation.runOnMainSync { attach(list) }
+        val short = list.findViewHolderForAdapterPosition(0)?.itemView
+            ?: throw AssertionError("short row did not mount")
+        val tall = list.findViewHolderForAdapterPosition(1)?.itemView
+            ?: throw AssertionError("tall row did not mount")
+        assertTrue("rendered row height was not retained", tall.height > short.height + 20)
+    }
 }

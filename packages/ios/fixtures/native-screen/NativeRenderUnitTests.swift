@@ -738,6 +738,38 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(list.numberOfItems(inSection: 0), 40)
     }
 
+    func testFlatListUsesIntrinsicHeightsForVariableRows() throws {
+        let list = CraftNativeFlatList()
+        list.frame = CGRect(x: 0, y: 0, width: 320, height: 240)
+        let rows: [[String: Any]] = [
+            ["id": "short", "type": "Text", "children": ["Short"]],
+            ["id": "tall", "type": "Text", "children": ["Tall\nrow\ncontent\ncontent"]],
+        ]
+        let render: CraftNativeFlatList.RenderItem = { node, _, previous in
+            let label = (previous as? UILabel) ?? UILabel()
+            label.numberOfLines = 0
+            label.font = .systemFont(ofSize: 16)
+            label.text = (node["children"] as? [String])?.first
+            return label
+        }
+
+        list.apply(
+            nodes: rows,
+            horizontal: false,
+            columns: 1,
+            inverted: false,
+            endReachedThreshold: 0.1,
+            renderItem: render,
+            recycleItem: { _ in },
+            endReached: nil
+        )
+        list.layoutIfNeeded()
+
+        let short = try XCTUnwrap(list.layoutAttributesForItem(at: IndexPath(item: 0, section: 0)))
+        let tall = try XCTUnwrap(list.layoutAttributesForItem(at: IndexPath(item: 1, section: 0)))
+        XCTAssertGreaterThan(tall.size.height, short.size.height + 20)
+    }
+
     func testFlatListCoalescesAnEndReachedRenderDuringSnapshotApplication() {
         let list = CraftNativeFlatList()
         list.frame = CGRect(x: 0, y: 0, width: 320, height: 480)

@@ -448,19 +448,6 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         onMomentumScrollEnd?(scrollView)
     }
 
-    func collectionView(
-        _ collectionView: UICollectionView,
-        layout collectionViewLayout: UICollectionViewLayout,
-        sizeForItemAt indexPath: IndexPath
-    ) -> CGSize {
-        guard items.indices.contains(indexPath.item) else { return CGSize(width: bounds.width, height: 44) }
-        let item = items[indexPath.item]
-        if flowLayout.scrollDirection == .horizontal {
-            return CGSize(width: 44, height: itemExtent(isChrome: item.isChrome))
-        }
-        return CGSize(width: itemExtent(isChrome: item.isChrome), height: 44)
-    }
-
     private func evaluateEndReached() {
         guard !isApplyingSnapshot, pendingApply == nil,
               let endReached = endReached,

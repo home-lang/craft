@@ -1899,6 +1899,13 @@ describe('native renderer component contract', () => {
     expect(iosNavigationScript).toContain("console.log('iOS native navigation fixture prepared')")
   })
 
+  it('keeps variable FlatList row heights intrinsic on both hosts', () => {
+    expect(iosFlatList).not.toContain('sizeForItemAt indexPath')
+    expect(iosNativeUnitTests).toContain('testFlatListUsesIntrinsicHeightsForVariableRows')
+    expect(androidFlatListTest).toContain('usesRenderedHeightsForVariableRows')
+    expect(androidFlatList).toContain('renderedLayout?.height ?: LayoutParams.WRAP_CONTENT')
+  })
+
   it('routes authored links through both native hosts', () => {
     expect(navigationHome).toContain('<a testID="native-route-link" href="/details">')
     expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')
