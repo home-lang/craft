@@ -575,8 +575,9 @@ A screen's content stays inside the safe area. To colour the strips under the
 status bar and the home indicator too, such as a black full-screen timer with
 the bar hidden, set `craft.navigation.setOptions({ hidden: true,
 backgroundColor: '#000000' })`; `backgroundColor: null` gives the app's colour
-back. A `ScrollView` clips what it scrolls to its own frame unless its style
-says `overflow: visible`.
+back. A screen whose first view is its `ScrollView` runs edge to edge under the
+bar, as a large-title screen does: its content scrolls up under the bar
+behind iOS's scroll edge effect, and on down under the floating tab bar.
 
 ## An all-native iOS app: paths, tabs and an app script
 

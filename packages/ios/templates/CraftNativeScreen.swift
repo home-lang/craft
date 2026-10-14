@@ -3353,12 +3353,26 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
             return nil
         }
+        /// The scroll view the screen starts with, when nothing sits above it:
+        /// the root's first child, its first, and so on, none padded on top.
+        func leading(_ node: RenderedNode) -> UIScrollView? {
+            if let scroll = node.view as? CraftNativeScrollView { return scroll.isVertical && scroll.isScrollEnabled ? scroll : nil }
+            if let list = node.view as? CraftNativeFlatList {
+                return list.isScrollEnabled && (list.collectionViewLayout as? UICollectionViewFlowLayout)?.scrollDirection != .horizontal ? list : nil
+            }
+            guard paddingInsets(node.style).top == 0,
+                  let first = node.children.first(where: { $0.type != "Modal" && !$0.view.isHidden }) else { return nil }
+            return leading(first)
+        }
         let scroll = find(renderedRoot)
         // Under a large title the screen runs edge to edge, as UIKit's own
         // screens do: the scroll view starts under the bar and insets its
         // content by it, so the title collapses and pull to refresh draws
-        // in the bar's space. Other screens stay inside the safe area.
-        let edgeToEdge = scroll != nil && prefersLargeTitle == true
+        // in the bar's space. So does a screen that starts with its scroll
+        // view: its content scrolls up under the bar behind iOS's scroll edge
+        // effect, rather than over the bar's back button. Other screens stay
+        // inside the safe area.
+        let edgeToEdge = scroll != nil && (prefersLargeTitle == true || scroll === leading(renderedRoot))
         if rootTopToView?.isActive != edgeToEdge {
             rootTopToSafeArea?.isActive = !edgeToEdge
             rootTopToView?.isActive = edgeToEdge
@@ -4931,13 +4945,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             height: number(shadowOffset?["height"]) ?? (elevation * 0.25)
         )
         // A label paints its background inside its own bounds, so a rounded
-        // chip of text clips to its corners. A scroll view clips its content
-        // unless told `overflow: visible`, as UIKit's and React Native's do:
-        // unclipped, a screen's content scrolled up over its bar's back
-        // button and down into the home indicator.
-        let overflow = style["overflow"] as? String
-        view.clipsToBounds = overflow == "hidden"
-            || (view is UIScrollView && overflow != "visible")
+        // chip of text clips to its corners.
+        // A scroll view does not clip either: its content runs on under the
+        // floating tab bar and the home indicator, as iOS 26's own screens'
+        // does. At the top, a screen that starts with one runs edge to edge
+        // (trackContentScrollView), so nothing scrolls over the bar.
+        view.clipsToBounds = style["overflow"] as? String == "hidden"
             || (view is UILabel && (view.craftRequestedCornerRadius ?? 0) > 0)
         view.layer.masksToBounds = view.clipsToBounds
         view.craftLayoutStyle = CraftNativeLayoutStyle(style)

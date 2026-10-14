@@ -1400,8 +1400,11 @@ describe('Craft iOS builder', () => {
     // and survives a change of appearance.
     expect(screen).toContain('screenBackgroundColor = color(options["backgroundColor"])')
     expect(screen).toContain('view.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor\n        if let document')
-    // A scroll view clips what it scrolls unless told otherwise.
-    expect(screen).toContain('|| (view is UIScrollView && overflow != "visible")')
+    // A screen that starts with its scroll view runs edge to edge, so what
+    // scrolls up goes under the bar, not over its back button; the bottom
+    // stays unclipped, under the floating tab bar.
+    expect(screen).toContain('let edgeToEdge = scroll != nil && (prefersLargeTitle == true || scroll === leading(renderedRoot))')
+    expect(screen).not.toContain('view is UIScrollView && overflow != "visible"')
     // Speech: an interrupting cue speaks on a fresh synthesizer (one handed an
     // utterance right after stopSpeaking can drop it), the session lingers a
     // moment after the last word, and claiming it never blocks the main thread.
