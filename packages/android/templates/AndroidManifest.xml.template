@@ -30,6 +30,8 @@
         android:hardwareAccelerated="true"
         tools:targetApi="34">
 
+{{GOOGLE_MAPS_API_KEY}}
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

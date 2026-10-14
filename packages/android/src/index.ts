@@ -92,6 +92,8 @@ export interface CraftAndroidConfig {
   trustedOrigins?: string[]
   appIconPath?: string
   googleServicesFile?: string
+  /** Google Maps Android SDK key used by native `Map` screens. */
+  mapsApiKey?: string
   devServerURL?: string
   hasBundledFallback?: boolean
   /** Android API level, at least ANDROID_MIN_SDK (26). */
@@ -361,6 +363,10 @@ function validateAndroidConfig(config: CraftAndroidConfig): void {
 
   if (config.backgroundColorDark !== undefined && !config.backgroundColorDark.match(/^#[\dA-F]{3,4}$|^#[\dA-F]{6}$|^#[\dA-F]{8}$/i)) {
     throw new Error(`Invalid Android dark background color: ${config.backgroundColorDark}`)
+  }
+
+  if (config.mapsApiKey !== undefined && !config.mapsApiKey.trim()) {
+    throw new Error('Android mapsApiKey must not be empty')
   }
 
   for (const [name, value] of [
@@ -818,6 +824,9 @@ export async function init(options: InitOptions): Promise<void> {
       : '')
     .replace(/\{\{NATIVE_NOTIFICATION_RECEIVER\}\}/g, config.renderer === 'native'
       ? renderNativeShellManifest(config)
+      : '')
+    .replace(/\{\{GOOGLE_MAPS_API_KEY\}\}/g, config.mapsApiKey
+      ? `        <meta-data android:name="com.google.android.geo.API_KEY" android:value="${escapeXml(config.mapsApiKey)}" />`
       : '')
     .replace(/\{\{HEALTH_CONNECT_QUERIES\}\}/g, config.enableHealthConnect
       ? '    <queries>\n        <package android:name="com.google.android.apps.healthdata" />\n    </queries>'

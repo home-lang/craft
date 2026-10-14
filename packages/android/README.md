@@ -101,7 +101,9 @@ Native mode maps STX `View`, `SafeAreaView`, `Text`, `Button`, `Link`, `Icon`,
 `Map`, `SectionList`, and `FlatList` to Android views. `Map` uses the Google
 Maps SDK for trail polylines and marker taps; its overlays carry flat
 latitude/longitude `geometry` arrays and can fit the visible region to their
-bounds. `SectionList` uses the same
+bounds. Set `mapsApiKey` in the Android config to emit the SDK manifest key;
+without it, the native map remains an explicit opt-in integration that needs
+the app's own Maps credentials. `SectionList` uses the same
 native scroll host for ordinary `.stx` slot children; grouped section data
 should use `FlatList` until the section-data protocol is available. The
 generated host routes both list names through `CraftNativeScrollView` for this
