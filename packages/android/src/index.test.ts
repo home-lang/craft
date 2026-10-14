@@ -353,6 +353,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('Unsupported image source')
       expect(nativeActivity).toContain('"NAVIGATE_BACK" -> if (visibleScreen === screen) back()')
       expect(nativeActivity).toContain('"NAVIGATE_POP_TO_ROOT" -> if (visibleScreen === screen) popToRoot()')
+      expect(nativeActivity).toContain('if (screen !== appScreen) {\n                    payload.keys().forEach')
       expect(nativeActivity).toContain('if (!current.contains(message))')
       expect(nativeActivity).toContain('joinToString(", ")')
       expect(nativeActivity).toContain('screen.controls.putAll(next)')

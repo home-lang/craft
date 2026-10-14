@@ -3260,8 +3260,13 @@ class MainActivity : AppCompatActivity() {
             }
             "NAVIGATE_OPEN" -> payload.optString("path").takeIf { it.isNotBlank() }?.let(::navigateOpen)
             "NAVIGATION_SET_OPTIONS" -> {
-                payload.keys().forEach { key -> screen.options.put(key, payload.opt(key)) }
-                if (visibleScreen === screen) applyChrome(screen)
+                // The app script has no navigation bar of its own. Screen
+                // options remain valid while that screen is off-stack, so
+                // only reject the headless app isolate here.
+                if (screen !== appScreen) {
+                    payload.keys().forEach { key -> screen.options.put(key, payload.opt(key)) }
+                    if (visibleScreen === screen) applyChrome(screen)
+                }
             }
             "SYNC_WRITE" -> syncWrite(screen, payload)
             "TIMER" -> {
