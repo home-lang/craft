@@ -948,10 +948,13 @@ describe('native renderer component contract', () => {
   })
 
   it('applies the shared gap fallback on both flex axes', () => {
-    expect(ios).toContain('stack.rowGap = number(style["rowGap"]) ?? gap')
-    expect(ios).toContain('stack.columnGap = number(style["columnGap"]) ?? gap')
+    expect(ios).toContain('let gap = max(0, number(style["gap"]) ?? 0)')
+    expect(ios).toContain('stack.rowGap = max(0, number(style["rowGap"]) ?? gap)')
+    expect(ios).toContain('stack.columnGap = max(0, number(style["columnGap"]) ?? gap)')
     expect(android).toContain('private var rowGap = 0f')
-    expect(android).toContain('rowGap = style.optDouble("rowGap", gap / density.toDouble()).toFloat() * density')
+    expect(android).toContain('fun spacing(name: String, fallback: Float): Float')
+    expect(android).toContain('value.isFinite() && value >= 0')
+    expect(android).toContain('rowGap = spacing("rowGap", gap)')
     expect(android).toContain('val crossGap = if (orientation == HORIZONTAL) rowGap else columnGap')
     expect(android).toContain('val crossFree = max(0f, availableCross.toFloat() - totalCross)')
     expect(android).toContain('var crossLeading = 0f')
