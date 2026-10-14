@@ -174,6 +174,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('var x = props.optDouble("x", 0.0).takeIf { it.isFinite() }?.toFloat() ?: 0f')
       expect(nativeActivity).toContain('takeIf { it.isFinite() }?.toFloat()?.coerceAtLeast(0.5f) ?: 1f')
       expect(nativeActivity).toContain('if (!milliseconds.isFinite()) return null')
+      expect(nativeActivity).toContain('if ((0 until geometry.length()).any { !geometry.optDouble(it, Double.NaN).toFloat().isFinite() }) return')
       expect(nativeActivity).toContain('internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double')
       expect(nativeActivity).toContain('val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)')
       expect(nativeActivity).toContain('internal fun craftNativeFiniteDouble(style: JSONObject?, name: String, fallback: Double): Double')

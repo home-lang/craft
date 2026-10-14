@@ -318,6 +318,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('SvgPaint().merge(drawing)')
     expect(guide).toContain('`Svg` is DOM-free in native mode')
     expect(guide).toContain('line\ncaps, joins, and dash patterns')
+    expect(ios).toContain('n.allSatisfy(\\.isFinite)')
+    expect(android).toContain('if ((0 until geometry.length()).any { !geometry.optDouble(it, Double.NaN).toFloat().isFinite() }) return')
   })
 
   it('gives computed SVG opacity precedence over the raw prop on both hosts', () => {

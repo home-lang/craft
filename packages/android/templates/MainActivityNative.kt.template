@@ -404,6 +404,7 @@ private class CraftNativeSvgView(context: Context) : View(context) {
     private fun drawPath(canvas: Canvas, node: JSONObject, style: SvgPaint) {
         val props = node.optJSONObject("props") ?: JSONObject()
         val geometry = props.optJSONArray("geometry") ?: return
+        if ((0 until geometry.length()).any { !geometry.optDouble(it, Double.NaN).toFloat().isFinite() }) return
         val path = Path()
         var index = 0
         while (index < geometry.length()) {

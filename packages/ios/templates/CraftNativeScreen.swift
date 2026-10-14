@@ -2522,7 +2522,7 @@ private final class CraftNativeSvgView: UIView {
     static func path(_ value: Any?) -> UIBezierPath? {
         guard let list = value as? [Any] else { return nil }
         let n = list.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
-        guard !n.isEmpty, n.count == list.count else { return nil }
+        guard !n.isEmpty, n.count == list.count, n.allSatisfy(\.isFinite) else { return nil }
         let path = UIBezierPath()
         var i = 0
         func point(_ at: Int) -> CGPoint { CGPoint(x: n[at], y: n[at + 1]) }
