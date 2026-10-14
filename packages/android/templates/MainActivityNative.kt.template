@@ -3277,7 +3277,11 @@ class MainActivity : AppCompatActivity() {
             "TIMER_CLEAR" -> screen.timers.remove(payload.optInt("id"))?.let(capabilityHandler::removeCallbacks)
             "FRAME" -> requestFrame(screen)
             "NAVIGATE", "NAVIGATE_REPLACE" -> {
-                if (screens.lastOrNull() !== screen && screen !== appScreen) return
+                // Navigation belongs to the route that is actually visible.
+                // The stack list can be temporarily detached while a tab or
+                // back transition restores its root; using its last entry
+                // silently drops a valid push from that visible screen.
+                if (visibleScreen !== screen && screen !== appScreen) return
                 val route = payload.optString("screen").takeIf { it.isNotBlank() } ?: return
                 if (message.optString("type") == "NAVIGATE_REPLACE") {
                     closeScreen(screens.removeAt(screens.lastIndex))

@@ -1536,6 +1536,11 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('fun nativeLinkOpensRoute()')
   })
 
+  it('accepts native navigation from the visible Android screen', () => {
+    expect(android).toContain('if (visibleScreen !== screen && screen !== appScreen) return')
+    expect(android).not.toContain('if (screens.lastOrNull() !== screen && screen !== appScreen) return')
+  })
+
   it('proves shared-runtime keyed rows through the maintained iOS host', () => {
     expect(navigationHome).toContain("globalThis.craft.storage.remove('native-navigation-details-destroyed')")
     expect(navigationHome).toContain('const navigationRows = state([')
