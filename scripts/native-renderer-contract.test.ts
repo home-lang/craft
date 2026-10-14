@@ -85,7 +85,7 @@ describe('native renderer component contract', () => {
     const iosContainers = listed(iosMutation, /static let containerTypes: Set<String> = \[([\s\S]*?)\]/)
     const androidContainers = listed(androidMutation, /CONTAINER_TYPES = setOf\(([\s\S]*?)\)/)
     expect(iosContainers).toEqual(androidContainers)
-    expect(iosContainers).toEqual(expect.arrayContaining(['View', 'SafeAreaView', 'ScrollView', 'Svg', 'G', 'Pressable', 'Modal']))
+    expect(iosContainers).toEqual(expect.arrayContaining(['View', 'SafeAreaView', 'ScrollView', 'Svg', 'G', 'Map', 'Pressable', 'Modal']))
     expect(iosMutation).toContain('Self.containerTypeKeys.contains(type.lowercased())')
     // A node the batch created is drawn by its nearest drawn ancestor, not by
     // reconciling the whole screen again.

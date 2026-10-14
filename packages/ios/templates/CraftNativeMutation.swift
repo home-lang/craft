@@ -305,7 +305,7 @@ final class CraftNativeMutationDocument {
     static let containerTypes: Set<String> = [
         "View", "SafeAreaView", "ScrollView", "KeyboardAvoidingView", "Modal", "Pressable",
         "TouchableOpacity", "TouchableHighlight", "ImageBackground", "FlatList", "SectionList",
-        "Fragment", "Svg", "G",
+        "Fragment", "Svg", "G", "Map",
     ]
     private static let containerTypeKeys = Set(containerTypes.map { $0.lowercased() })
 

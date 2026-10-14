@@ -134,6 +134,22 @@ class NativeMutationTest {
         assertEquals(1, document.revision)
     }
 
+    @Test
+    fun keepsMapOverlayParentsAddressableForTargetedUpdates() {
+        val document = CraftNativeMutationDocument()
+        document.apply(batch(1, """
+            [
+              {"op":"createNode","id":"root","root":true,"node":{"type":"View"}},
+              {"op":"createNode","id":"map","node":{"type":"Map"}},
+              {"op":"createNode","id":"route","node":{"type":"MapPolyline","props":{"geometry":[47,11,47.1,11.2]}}},
+              {"op":"insertChild","parentId":"root","childId":"map","index":0},
+              {"op":"insertChild","parentId":"map","childId":"route","index":0}
+            ]
+        """.trimIndent()))
+        assertEquals("map", document.parentId("route"))
+        assertEquals("Map", document.node("map")?.getString("type"))
+    }
+
     private fun failure(
         document: CraftNativeMutationDocument,
         payload: JSONObject
