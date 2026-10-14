@@ -173,7 +173,7 @@ pub const Flags = std.EnumSet(Feature);
 /// the bundled object on its defaults. Missing and null values keep defaults.
 const string_keys = [_][]const u8{ "appName", "bundleId", "renderer", "backgroundColor" };
 const extra_bool_keys = [_][]const u8{"darkMode"};
-const array_of_string_keys = [_][]const u8{"trustedOrigins"};
+const array_of_string_keys = [_][]const u8{ "associatedDomains", "trustedOrigins" };
 const optional_string_keys = [_][]const u8{ "appearance", "backgroundColorDark", "devServerURL", "nativeApp" };
 const optional_bool_keys = [_][]const u8{ "swipeNavigation", "limitNavigationsToAppBoundDomains", "allowsLinkPreview", "keyboardAccessory", "disableZoom" };
 /// Swift `Double`s with a default. Any JSON number decodes; a string or a
@@ -621,7 +621,7 @@ fn mentions(comptime overrides: []const u8, comptime key: []const u8) bool {
 }
 
 fn placeholderFor(comptime key: []const u8) []const u8 {
-    if (std.mem.eql(u8, key, "trustedOrigins")) return "[]";
+    if (std.mem.eql(u8, key, "associatedDomains") or std.mem.eql(u8, key, "trustedOrigins")) return "[]";
     if (std.mem.eql(u8, key, "darkMode")) return "true";
     return "\"T\"";
 }
@@ -710,7 +710,7 @@ test "an unknown key is ignored, and devServerURL may be absent or null" {
     try testing.expectEqual(@as(usize, 0), parse(testing.allocator, with_bad).count());
 }
 
-test "trustedOrigins is checked element by element" {
+test "string arrays are checked element by element" {
     // `[String]` throws on the first non-string element, so an array that is
     // mostly strings still disables the app.
     const bad = try completeConfig(testing.allocator, "\"trustedOrigins\":[\"https://a\",3]");
@@ -720,6 +720,14 @@ test "trustedOrigins is checked element by element" {
     const good = try completeConfig(testing.allocator, "\"trustedOrigins\":[\"https://a\"]");
     defer testing.allocator.free(good);
     try testing.expectEqual(std.enums.values(Feature).len, parse(testing.allocator, good).count());
+
+    const bad_domains = try completeConfig(testing.allocator, "\"associatedDomains\":[\"webcredentials:a\",3]");
+    defer testing.allocator.free(bad_domains);
+    try testing.expectEqual(@as(usize, 0), parse(testing.allocator, bad_domains).count());
+
+    const good_domains = try completeConfig(testing.allocator, "\"associatedDomains\":[\"webcredentials:a\"]");
+    defer testing.allocator.free(good_domains);
+    try testing.expectEqual(std.enums.values(Feature).len, parse(testing.allocator, good_domains).count());
 }
 
 test "optional fields are type-checked when present" {
