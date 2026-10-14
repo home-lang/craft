@@ -97,7 +97,7 @@ craft android build --native-bundle ../native-screen.js
 ```
 
 Native mode maps STX `View`, `SafeAreaView`, `Text`, `Button`, `Link`, `Icon`,
-`Pressable`, `TouchableOpacity`, `TouchableHighlight`, `Checkbox`, `TextInput`, `Picker`, `DatePicker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `Video`, `ScrollView`,
+`Pressable`, `TouchableOpacity`, `TouchableHighlight`, `Checkbox`, `TextInput`, `Picker`, `DatePicker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `ImageBackground`, `Video`, `Svg`, `G`, `SvgText`, `ScrollView`,
 `Map`, `SectionList`, and `FlatList` to Android views. `Map` uses the Google
 Maps SDK for trail polylines and marker taps; its overlays carry flat
 latitude/longitude `geometry` arrays and can fit the visible region to their
@@ -123,7 +123,8 @@ reports load lifecycle events and structured failures. `Video` uses the native
 `VideoView` for URI playback with autoplay, pause, looping, mute, controls, and
 resize-mode props.
 `ImageBackground` loads an image behind ordinary native children while
-preserving the shared flex layout contract.
+preserving the shared flex layout contract. `Svg` is a DOM-free drawing
+surface; grouped `G` and `SvgText` nodes are painted inside it.
 Grid tracks retain fractional widths and row distribution until Android lays
 out the final pixel frames, matching the shared native layout contract.
 `Icon` uses the shared symbol/name contract with a dependency-free Android

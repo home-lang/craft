@@ -529,6 +529,19 @@ describe('native renderer component contract', () => {
     }
   })
 
+  it('documents the DOM-free SVG primitives on both native hosts', () => {
+    for (const readme of [iosReadme, androidReadme]) {
+      expect(readme).toContain('`Svg`')
+      expect(readme).toContain('`G`')
+      expect(readme).toContain('`SvgText`')
+      expect(readme).toContain('DOM-free drawing')
+    }
+    expect(ios).toContain('case "G":')
+    expect(ios).toContain('case "SvgText":')
+    expect(android).toContain('"G" -> drawNodes')
+    expect(android).toContain('"SvgText" -> drawText')
+  })
+
   it('documents native support as part of the shared stx package', () => {
     for (const readme of [iosNavigationReadme, androidNavigationReadme, iosScreenReadme]) {
       expect(readme).toContain('@stacksjs/stx')
