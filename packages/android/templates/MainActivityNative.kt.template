@@ -3635,7 +3635,7 @@ class MainActivity : AppCompatActivity() {
             }
             "StatusBar" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 screen.statusBarStyle = craftNativeOptionalString(props.opt("barStyle"))
-                screen.statusBarHidden = if (props.has("hidden")) props.optBoolean("hidden") else null
+                screen.statusBarHidden = if (props.has("hidden") && !props.isNull("hidden")) props.optBoolean("hidden") else null
                 visibility = View.GONE
             }
             "RefreshControl" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
@@ -3902,7 +3902,7 @@ class MainActivity : AppCompatActivity() {
                 reconcileChildren(screen, content, children, path, next, style, previousControls)
                 // Dynamic :visible bindings arrive as a display style mutation;
                 // static visible props remain authoritative when present.
-                val visible = if (props.has("visible")) {
+                val visible = if (props.has("visible") && !props.isNull("visible")) {
                     // An explicit visible prop owns modal visibility. The
                     // binding runtime may leave a stale display:none style
                     // from the previous hidden state when it patches props.
