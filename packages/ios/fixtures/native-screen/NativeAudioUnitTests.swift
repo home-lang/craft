@@ -36,6 +36,34 @@ final class NativeAudioUnitTests: XCTestCase {
 
     private var context: Int { Int(run("context._id").toInt32()) }
 
+    /// JSGarbageCollect only hints that a collection would be welcome, so a
+    /// test that waits on FinalizationRegistry needs JavaScriptCore's own
+    /// synchronous collector (exported, though not in the public headers).
+    private static let synchronousCollect: (@convention(c) (JSContextRef) -> Void)? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "JSSynchronousGarbageCollectForDebugging") else { return nil }
+        return unsafeBitCast(symbol, to: (@convention(c) (JSContextRef) -> Void).self)
+    }()
+
+    /// Collects everything the script let go of and waits until the
+    /// finalizers that collection scheduled have run (a sentinel registered
+    /// just before it reports in the same batch), so their releases are queued.
+    private func collectGarbage() {
+        run("""
+            globalThis.__collected = false;
+            globalThis.__sentinel = globalThis.__sentinel || new FinalizationRegistry(function() { globalThis.__collected = true; });
+            (function() { globalThis.__sentinel.register({}, 0); })();
+        """)
+        let deadline = Date().addingTimeInterval(5)
+        repeat {
+            if let collect = Self.synchronousCollect { collect(script.jsGlobalContextRef) }
+            else { JSGarbageCollect(script.jsGlobalContextRef) }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            // Drains the microtask that sends the queued releases.
+            run("0")
+        } while !run("__collected").toBool() && Date() < deadline
+        XCTAssertTrue(run("__collected").toBool(), "the collection's finalizers never ran")
+    }
+
     private func render(_ seconds: Double) -> (left: [Float], right: [Float]) {
         audio.renderForTesting(context, frames: Int(seconds * rate))
     }
@@ -516,24 +544,38 @@ final class NativeAudioUnitTests: XCTestCase {
         var loudest: Float = 0
         var energy: Float = 0
         var most = 0
+        var settled: [Int] = []
         // A minute, the sequencer running every 25 ms as setInterval would.
+        // Every five seconds the script's garbage is collected for certain,
+        // so the count measures the engine, not when JavaScriptCore felt
+        // like collecting.
         for tick in 0..<Int(60 / 0.025) {
             run("step()")
             let out = audio.renderForTesting(id, frames: Int(0.025 * rate))
             XCTAssertFalse(out.left.contains { !$0.isFinite }, "a sample went NaN at \(tick)")
             loudest = max(loudest, peak(out.left[...]))
             energy += rms(out.left[...])
-            if tick % 200 == 0 {
-                JSGarbageCollect(script.jsGlobalContextRef)
-                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
-                script.evaluateScript("0")
+            if tick % 200 == 199 {
+                collectGarbage()
+                // The releases reach the engine with the next render, and
+                // what has gone quiet leaves the graph then.
+                let tail = audio.renderForTesting(id, frames: Int(0.025 * rate))
+                loudest = max(loudest, peak(tail.left[...]))
+                settled.append(audio.nodeCountForTesting(id))
             }
             most = max(most, audio.nodeCountForTesting(id))
         }
         XCTAssertGreaterThan(energy / Float(60 / 0.025), 0.01)
         XCTAssertLessThan(loudest, 2)
         // A few hundred notes a minute come and go; the graph does not grow.
-        XCTAssertLessThan(most, 600)
-        XCTAssertLessThan(audio.nodeCountForTesting(id), 400)
+        // Collected, it is the long-lived graph plus what still sounds (about
+        // 40 nodes); between collections, five seconds of notes (about 150).
+        XCTAssertEqual(settled.count, 12)
+        XCTAssertLessThan(settled.max() ?? .max, 120, "settled counts \(settled)")
+        XCTAssertLessThan(most, 400, "settled counts \(settled)")
+        // The last half of the minute holds no more than the first half did.
+        let firstHalf = settled.prefix(6).max() ?? 0
+        let lastHalf = settled.suffix(6).max() ?? .max
+        XCTAssertLessThanOrEqual(lastHalf, firstHalf + 20, "settled counts \(settled)")
     }
 }
