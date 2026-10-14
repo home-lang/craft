@@ -4253,13 +4253,7 @@ class MainActivity : AppCompatActivity() {
         val direct = listOf(node.optString("key"), props.optString("key"), props.optString("testID"))
             .firstOrNull { it.isNotBlank() }
         if (direct != null) return direct
-        val children = node.optJSONArray("children") ?: return null
-        for (index in 0 until children.length()) {
-            val child = children.optJSONObject(index) ?: continue
-            val childProps = child.optJSONObject("props") ?: JSONObject()
-            authoredKey(child, childProps)?.let { return it }
-        }
-        return node.optString("id").takeIf { it.isNotBlank() }
+        return null
     }
 
     private fun configureContainer(layout: CraftNativeFlexLayout, style: JSONObject) {

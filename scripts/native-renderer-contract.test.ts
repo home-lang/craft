@@ -811,6 +811,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('lastLayoutFrames[id] != frame')
     expect(ios).toContain('for child in node["children"] as? [[String: Any]] ?? []')
     expect(android).toContain('private fun authoredKey(node: JSONObject, props: JSONObject): String?')
+    expect(android).not.toContain('authoredKey(child, childProps)')
     expect(android).toContain('events.optString("onLayout")')
     expect(android).toContain('lastLayoutBounds[view] != bounds')
     expect(android).toContain('ViewTreeObserver.OnPreDrawListener')
