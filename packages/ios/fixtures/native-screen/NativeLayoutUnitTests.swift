@@ -102,6 +102,41 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(centered.textAlignment, .center)
     }
 
+    func testAShrinkToFitBubbleWithAPercentageMaxWidthTakesItsTextsWidth() throws {
+        // HQ's chat thread: a justify-end row holding a padded bubble with
+        // max-w-[78%]. stx once sent that bound as 78 points, and "See you
+        // Thursday" broke as "See / you / Thurs / day" (2026-10-13).
+        func bubble(_ key: String, _ body: String) -> [String: Any] {
+            box("\(key)-row", style: ["flexDirection": "row", "justifyContent": "flex-end"], [
+                box(key, style: ["paddingHorizontal": 14, "paddingVertical": 8, "maxWidth": "78%", "borderRadius": 18], [
+                    text("\(key)-text", body, style: ["fontSize": 17]),
+                ]),
+            ])
+        }
+        let long = "A longer reply that has to wrap inside the bubble, between its words and nowhere else"
+        let controller = screen(box("root", style: ["flex": 1, "paddingHorizontal": 12, "gap": 8], [
+            bubble("short", "See you Thursday"),
+            bubble("long", long),
+        ]))
+        let row = try frame("short-row", in: controller)
+        let short = try frame("short", in: controller), shortText = try frame("short-text", in: controller)
+        let font = UIFont.systemFont(ofSize: 17)
+        let oneLine = ceil(("See you Thursday" as NSString).size(withAttributes: [.font: font]).width)
+        // As wide as its text on one line, plus padding, and right-aligned.
+        XCTAssertEqual(short.width, oneLine + 28, accuracy: 1.5)
+        XCTAssertGreaterThanOrEqual(shortText.width, oneLine - 0.5)
+        XCTAssertLessThan(shortText.height, font.lineHeight * 1.5)
+        XCTAssertEqual(short.maxX, row.maxX, accuracy: 1)
+
+        // A long one stops at 78% of the row and wraps between words.
+        let longBubble = try frame("long", in: controller), longText = try frame("long-text", in: controller)
+        XCTAssertEqual(longBubble.width, row.width * 0.78, accuracy: 1)
+        XCTAssertGreaterThan(longText.height, font.lineHeight * 1.5)
+        let widestWord = long.split(separator: " ").map { ceil((String($0) as NSString).size(withAttributes: [.font: font]).width) }.max() ?? 0
+        // Every word fits a line, so none is broken mid-way.
+        XCTAssertGreaterThanOrEqual(longText.width, widestWord)
+    }
+
     func testKeyboardFrameUpdatesAndRestoresTheAdditionalSafeArea() {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
