@@ -169,7 +169,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('"ScrollView", "SectionList" -> (previous as? CraftNativeScrollView')
       expect(nativeActivity).toContain('"sectionlist" -> "SectionList"')
       expect(nativeActivity).toContain('private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context)')
-      expect(nativeActivity).toContain('setRefreshHandler(refreshHandler, props.optBoolean("refreshing", false))')
+      expect(nativeActivity).toContain('setRefreshHandler(refreshHandler, if (refreshNode == null) props.optBoolean("refreshing", false) else refreshProps.optBoolean("refreshing", false))')
       expect(nativeActivity).toContain('"FlatList" -> (previous as? CraftNativeRefreshableFlatList')
       expect(nativeActivity).toContain('val wantedType = inputTypeFor(props)')
       expect(nativeActivity).toContain('val wantedIme = imeOptionsFor(props)')

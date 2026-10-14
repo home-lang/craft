@@ -837,8 +837,12 @@ describe('native renderer component contract', () => {
   it('keeps ScrollView pull-to-refresh controlled on both hosts', () => {
     expect(ios).toContain('scroll.setRefreshHandler(refreshHandlerName.map')
     expect(ios).toContain('refreshNode == nil ? props["refreshing"] : refreshProps["refreshing"]')
+    expect(ios).toContain('func setRefreshAppearance(_ props: [String: Any])')
+    expect(ios).toContain('scroll.setRefreshAppearance(refreshProps)')
     expect(android).toContain('private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context)')
     expect(android).toContain('fun setRefreshHandler(handler: (() -> Unit)?, refreshing: Boolean)')
+    expect(android).toContain('fun setRefreshAppearance(props: JSONObject, density: Float)')
+    expect(android).toContain('setProgressBackgroundColorSchemeColor(craftNativeColor(background))')
     expect(android).toContain('setRefreshHandler(refreshHandler, if (refreshNode == null) props.optBoolean("refreshing", false) else refreshProps.optBoolean("refreshing", false))')
     expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }')
   })

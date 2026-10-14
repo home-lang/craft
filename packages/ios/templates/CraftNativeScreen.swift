@@ -2009,6 +2009,22 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
         }
     }
 
+    /// Applies the shared RefreshControl appearance props. UIKit's refresh
+    /// control owns the spinner and optional title; keep the authored values
+    /// on the control so a later reconciliation can clear them as well.
+    func setRefreshAppearance(_ props: [String: Any]) {
+        pullToRefresh.tintColor = (props["tintColor"] as? String).flatMap { UIColor(hex: $0) }
+        guard let title = props["title"] as? String, !title.isEmpty else {
+            pullToRefresh.attributedTitle = nil
+            return
+        }
+        var attributes: [NSAttributedString.Key: Any] = [:]
+        if let titleColor = (props["titleColor"] as? String).flatMap({ UIColor(hex: $0) }) {
+            attributes[.foregroundColor] = titleColor
+        }
+        pullToRefresh.attributedTitle = NSAttributedString(string: title, attributes: attributes)
+    }
+
     var isRefreshingNow: Bool { pullToRefresh.isRefreshing }
 
     @objc private func refreshPulled() {
@@ -4388,6 +4404,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             scroll.setRefreshHandler(refreshHandlerName.map { [weak self] handler in
                 { self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
             }, refreshing: (refreshNode == nil ? props["refreshing"] : refreshProps["refreshing"]) as? Bool == true)
+            scroll.setRefreshAppearance(refreshProps)
             var contentStyle = style
             if let override = props["contentContainerStyle"] as? [String: Any] {
                 contentStyle.merge(override) { _, next in next }

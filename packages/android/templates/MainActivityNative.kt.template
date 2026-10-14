@@ -1347,6 +1347,18 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         if (handler == null) isRefreshing = false
     }
 
+    fun setRefreshAppearance(props: JSONObject, density: Float) {
+        val tint = props.optString("tintColor").takeIf { it.isNotBlank() }
+        if (tint != null) setColorSchemeColors(craftNativeColor(tint))
+        else setColorSchemeColors(Color.WHITE)
+        val background = props.optString("progressBackgroundColor").takeIf { it.isNotBlank() }
+        if (background != null) setProgressBackgroundColorSchemeColor(craftNativeColor(background))
+        else setProgressBackgroundColorSchemeColor(Color.TRANSPARENT)
+        val offset = props.optDouble("progressViewOffset", Double.NaN)
+        if (offset.isFinite()) setProgressViewOffset(true, 0, (offset * density).roundToInt())
+        else setProgressViewOffset(false, 0, 0)
+    }
+
     override fun onDetachedFromWindow() {
         refreshHandler = null
         isRefreshing = false
@@ -3733,6 +3745,7 @@ class MainActivity : AppCompatActivity() {
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
                 }
                 setRefreshHandler(refreshHandler, if (refreshNode == null) props.optBoolean("refreshing", false) else refreshProps.optBoolean("refreshing", false))
+                setRefreshAppearance(refreshProps, resources.displayMetrics.density)
                 val onScroll = events.optString("onScroll")
                 if (onScroll.isNotBlank()) screen.scrollHandlers[this] = onScroll else screen.scrollHandlers.remove(this)
                 val onBegin = events.optString("onScrollBeginDrag")
