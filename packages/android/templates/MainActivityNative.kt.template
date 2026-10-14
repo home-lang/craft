@@ -1208,14 +1208,15 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private fun sharedLength(value: CraftNativeLength?): Float = value?.points?.toFloat() ?: Float.NaN
 
     /**
-     * Use the host-neutral tree ABI for the narrow case whose platform
-     * measurements are already complete: a definite, non-grid, non-wrapped
-     * direct-child container. Percentages, reverse flows, absolute children,
-     * missing runtimes, and malformed results deliberately fall through to
-     * the established Kotlin layout below.
+     * Use the host-neutral tree ABI when platform measurements are complete:
+     * definite, non-grid direct-child containers, including wrapped flows when
+     * both axes use the same gap. Percentages, reverse flows, absolute
+     * children, missing runtimes, and malformed results deliberately fall
+     * through to the established Kotlin layout below.
      */
     private fun sharedDirectFrames(entries: List<Entry>, width: Int, height: Int): FloatArray? {
-        if (entries.isEmpty() || width < 0 || height < 0 || grid || wrap || reverse || wrapReverse) return null
+        if (entries.isEmpty() || width < 0 || height < 0 || grid || reverse || wrapReverse) return null
+        if (wrap && abs(rowGap - columnGap) > 0.0001f) return null
         fun pointLength(value: CraftNativeLength?): Boolean = value == null || value.fraction == null
         if (entries.any { entry ->
                 val style = entry.style
@@ -1265,7 +1266,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             putEnum(base, 15, if (root) justifyCode() else 0)
             putEnum(base, 16, if (root) sharedAlignItemsCode(alignItems) else 3)
             putEnum(base, 17, if (root) 0 else sharedAlignSelfCode(style.alignSelf))
-            putEnum(base, 18, 0)
+            putEnum(base, 18, if (root && wrap) 1 else 0)
             putEnum(base, 19, if (root) alignContentCode() else 6)
             put(base, 20, margins[2].toFloat())
             put(base, 21, margins[1].toFloat())
@@ -1521,10 +1522,11 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val contentWidth = width - paddingLeft - paddingRight
         val contentHeight = height - paddingTop - paddingBottom
         val (lines, absolute) = entries(width, height)
-        if (absolute.isEmpty() && lines.size == 1) {
-            val sharedFrames = sharedDirectFrames(lines[0].entries, width, height)
+        if (absolute.isEmpty() && lines.isNotEmpty() && (lines.size == 1 || wrap)) {
+            val sharedEntries = if (wrap) lines.flatMap { it.entries } else lines[0].entries
+            val sharedFrames = sharedDirectFrames(sharedEntries, width, height)
             if (sharedFrames != null) {
-                for ((index, entry) in lines[0].entries.withIndex()) {
+                for ((index, entry) in sharedEntries.withIndex()) {
                     val offset = (index + 1) * 4
                     val x = sharedFrames[offset].roundToInt()
                     val y = sharedFrames[offset + 1].roundToInt()

@@ -481,7 +481,7 @@ describe('native renderer component contract', () => {
     expect(androidNative).toContain('fun layoutTree(width: Float, height: Float, nodeData: FloatArray, treeMeta: FloatArray)')
     expect(android).toContain('private fun sharedDirectFrames(entries: List<Entry>, width: Int, height: Int)')
     expect(android).toContain('Float.fromBits(value)')
-    expect(android).toContain('if (absolute.isEmpty() && lines.size == 1)')
+    expect(android).toContain('if (absolute.isEmpty() && lines.isNotEmpty() && (lines.size == 1 || wrap))')
     expect(androidDispatch).toContain('fn nativeLayoutTree(')
     expect(androidDispatch).toContain('.name = "nativeLayoutTree"')
     expect(androidDispatch).toContain('.signature = "(FF[F[F)[F"')
@@ -1086,7 +1086,9 @@ describe('native renderer component contract', () => {
   it('lets both hosts use the shared tree ABI for definite simple containers and fall back otherwise', () => {
     expect(ios).toContain('craft_native_layout_tree')
     expect(ios).toContain('private func sharedDirectFrames(')
-    expect(ios).toContain('!grid, !wrap, !reverse, !wrapReverse')
+    expect(ios).toContain('!grid, !reverse, !wrapReverse')
+    expect(ios).toContain('flexWrap: wrap ? 1 : 0')
+    expect(ios).toContain('guard !wrap || abs(mainGap - crossGap) <= 0.0001')
     expect(ios).toContain('style.width.map({ if case .percent = $0 { return false }')
     expect(ios).toContain('if place, flow.count == children.count, let shared = sharedDirectFrames(flow, width: width, height: height)')
     expect(ios).toContain('frames = shared')
@@ -1099,6 +1101,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('CraftNative.layoutTree(width.toFloat(), height.toFloat(), nodeData, treeMeta)')
     expect(android).toContain('if (sharedFrames != null)')
     expect(android).toContain('return null')
+    expect(android).toContain('if (wrap && abs(rowGap - columnGap) > 0.0001f) return null')
+    expect(android).toContain('putEnum(base, 18, if (root && wrap) 1 else 0)')
+    expect(android).toContain('val sharedEntries = if (wrap) lines.flatMap { it.entries } else lines[0].entries')
   })
 
   it('sanitizes keyboard avoidance offsets before applying host geometry', () => {

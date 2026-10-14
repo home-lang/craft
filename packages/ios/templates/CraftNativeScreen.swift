@@ -196,15 +196,19 @@ private enum CraftNativeTreeLayoutBridge {
         gap: CGFloat,
         rowGap: CGFloat?,
         columnGap: CGFloat?,
+        wrap: Bool,
         justifyContent: String,
         alignItems: String,
         padding: UIEdgeInsets,
         children: [(UIView, CraftNativeLayoutStyle, CGSize, CGFloat)]
     ) -> [(UIView, CGRect)]? {
         guard let function, width.isFinite, height.isFinite, width >= 0, height >= 0, !children.isEmpty else { return nil }
+        let mainGap = direction == .horizontal ? (columnGap ?? gap) : (rowGap ?? gap)
+        let crossGap = direction == .horizontal ? (rowGap ?? gap) : (columnGap ?? gap)
+        guard !wrap || abs(mainGap - crossGap) <= 0.0001 else { return nil }
         var root = StyleInput(
             direction: direction == .horizontal ? 0 : 1,
-            width: Float(width), height: Float(height), gap: Float(max(0, direction == .horizontal ? (columnGap ?? gap) : (rowGap ?? gap))),
+            width: Float(width), height: Float(height), gap: Float(max(0, mainGap)), flexWrap: wrap ? 1 : 0,
             justifyContent: justify(justifyContent), alignItems: alignment(alignItems),
             paddingTop: Float(max(0, padding.top)), paddingRight: Float(max(0, padding.right)),
             paddingBottom: Float(max(0, padding.bottom)), paddingLeft: Float(max(0, padding.left))
@@ -1427,8 +1431,9 @@ private class CraftNativeFlowView: UIStackView {
     /// within `maxWidth`/`maxHeight`. Returns its outer size and, when
     /// placing, every child's frame in its own coordinates.
     private func sharedDirectFrames(_ children: [UIView], width: CGFloat?, height: CGFloat?) -> [(UIView, CGRect)]? {
-        guard let width, let height, !grid, !wrap, !reverse, !wrapReverse,
+        guard let width, let height, !grid, !reverse, !wrapReverse,
               width.isFinite, height.isFinite, width >= 0, height >= 0,
+              !wrap || abs((axis == .horizontal ? (rowGap ?? gap) : (columnGap ?? gap)) - (axis == .horizontal ? (columnGap ?? gap) : (rowGap ?? gap))) <= 0.0001,
               children.allSatisfy({ child in
                   let style = child.craftLayoutStyle
                   guard style.position != "absolute", style.display != "none",
@@ -1452,7 +1457,7 @@ private class CraftNativeFlowView: UIStackView {
             (child, child.craftLayoutStyle, measured.0, measured.1)
         }
         return CraftNativeTreeLayoutBridge.frames(
-            width: width, height: height, direction: axis, gap: gap, rowGap: rowGap, columnGap: columnGap,
+            width: width, height: height, direction: axis, gap: gap, rowGap: rowGap, columnGap: columnGap, wrap: wrap,
             justifyContent: justifyContent, alignItems: alignItems, padding: effectivePadding, children: payload
         )
     }
