@@ -58,13 +58,16 @@ non-finite or negative dimensions are sanitized at the shared boundary. Grid
 the shared core so leftover space between rows cannot drift between UIKit and
 Android; platform-specific measurement must not fork the distribution rules.
 
-The same module contains the #334 tree-layout spike: `Node`, `Style`, and
-`layout` compute a host-free flat frame list for a complete tree. `Style` accepts
-host-measured intrinsic width and height as plain numbers, so font and image
-measurement remain callbacks at the boundary rather than becoming UIKit or
-Android dependencies in Zig. The maintained mobile hosts currently consume the
-smaller flat C/JNI exports while that tree boundary is evaluated; the next step
-is wiring those measured bases and frames into both hosts, not creating a second
+The same module exposes the #334 tree-layout ABI: `LayoutNodeInput` carries a
+preorder tree and `craft_native_layout_tree` returns a host-free flat frame list
+for the complete tree. `Style` accepts host-measured intrinsic width and height
+as plain numbers, so font and image measurement remain callbacks at the boundary
+rather than becoming UIKit or Android dependencies in Zig. The entry point
+rejects malformed trees and undersized frame buffers without returning partial
+geometry, allowing a host to keep its compatibility fallback while an older
+runtime is in use. The maintained mobile hosts currently consume the smaller
+flat C/JNI exports while this complete-tree boundary is wired in; the next step
+is replacing their duplicated tree walks with the ABI, not creating a second
 platform-specific layout implementation. Baseline alignment follows the same
 boundary: hosts provide the measured distance to a child's baseline, and Zig
 only aligns those numeric metrics.

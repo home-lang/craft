@@ -147,6 +147,152 @@ pub const GridItem = extern struct {
     alignment: u32,
 };
 
+/// Flat, C-compatible input for the host-neutral tree layout entry point.
+///
+/// Optional lengths use NaN as their unset value. Enum fields intentionally
+/// use the same zero-based values as the public `Style` enums, except for
+/// `align_self`: zero means `auto` and values one through five map to the
+/// corresponding `AlignItems` value. Children are a contiguous preorder slice
+/// described by `first_child` and `child_count`, so a host can build the tree
+/// without allocating platform objects in the shared core.
+pub const LayoutStyleInput = extern struct {
+    direction: u32,
+    width: f32,
+    height: f32,
+    intrinsic_width: f32,
+    intrinsic_height: f32,
+    baseline: f32,
+    aspect_ratio: f32,
+    flex_basis: f32,
+    flex_grow: f32,
+    flex_shrink: f32,
+    min_width: f32,
+    max_width: f32,
+    min_height: f32,
+    max_height: f32,
+    gap: f32,
+    justify_content: u32,
+    align_items: u32,
+    align_self: u32,
+    flex_wrap: u32,
+    align_content: u32,
+    margin_top: f32,
+    margin_right: f32,
+    margin_bottom: f32,
+    margin_left: f32,
+    padding_top: f32,
+    padding_right: f32,
+    padding_bottom: f32,
+    padding_left: f32,
+    grid: u32,
+    grid_columns: u32,
+    row_gap: f32,
+    column_gap: f32,
+};
+
+pub const LayoutNodeInput = extern struct {
+    style: LayoutStyleInput,
+    first_child: u32,
+    child_count: u32,
+};
+
+const max_layout_nodes: usize = 65_536;
+
+/// Resolve an entire native view tree using the same layout rules used by the
+/// host-neutral tests. Hosts may keep their platform measurement pass, flatten
+/// the measured tree into `LayoutNodeInput`, and then apply these absolute
+/// frames to UIKit or Android views. A non-zero result means the host should
+/// retain its compatibility fallback; no partial frame array is considered
+/// valid.
+pub export fn craft_native_layout_tree(
+    viewport_width: f32,
+    viewport_height: f32,
+    nodes: [*]const LayoutNodeInput,
+    node_count: usize,
+    frames: [*]Frame,
+    frame_count: usize,
+) callconv(.c) c_int {
+    if (node_count == 0 or node_count > max_layout_nodes or frame_count < node_count) return -1;
+
+    const input = nodes[0..node_count];
+    const visited = std.heap.page_allocator.alloc(bool, node_count) catch return -1;
+    defer std.heap.page_allocator.free(visited);
+    @memset(visited, false);
+    if (!validateLayoutTree(input, 0, visited)) return -1;
+
+    var tree = std.heap.page_allocator.alloc(Node, node_count) catch return -1;
+    defer std.heap.page_allocator.free(tree);
+    for (input, 0..) |item, index| {
+        const first = @as(usize, @intCast(item.first_child));
+        const count = @as(usize, @intCast(item.child_count));
+        tree[index] = .{
+            .style = layoutStyle(item.style),
+            .children = tree[first .. first + count],
+        };
+    }
+
+    const result = layout(
+        tree[0],
+        .{ .width = finiteNonNegative(viewport_width), .height = finiteNonNegative(viewport_height) },
+        frames[0..frame_count],
+    ) catch return -1;
+    return if (result == node_count) 0 else -1;
+}
+
+fn validateLayoutTree(input: []const LayoutNodeInput, index: usize, visited: []bool) bool {
+    if (index >= input.len or visited[index]) return false;
+    visited[index] = true;
+    const item = input[index];
+    const first = @as(usize, @intCast(item.first_child));
+    const count = @as(usize, @intCast(item.child_count));
+    if (first > input.len or count > input.len - first or (count > 0 and first <= index)) return false;
+    for (first..first + count) |child| {
+        if (!validateLayoutTree(input, child, visited)) return false;
+    }
+    return true;
+}
+
+fn layoutStyle(input: LayoutStyleInput) Style {
+    return .{
+        .direction = if (input.direction == 1) .column else .row,
+        .width = optionalFinite(input.width),
+        .height = optionalFinite(input.height),
+        .intrinsic_width = optionalFinite(input.intrinsic_width),
+        .intrinsic_height = optionalFinite(input.intrinsic_height),
+        .baseline = optionalFinite(input.baseline),
+        .aspect_ratio = optionalFinite(input.aspect_ratio),
+        .flex_basis = optionalFinite(input.flex_basis),
+        .flex_grow = finiteNonNegative(input.flex_grow),
+        .flex_shrink = finiteNonNegative(input.flex_shrink),
+        .min_width = optionalFinite(input.min_width),
+        .max_width = optionalFinite(input.max_width),
+        .min_height = optionalFinite(input.min_height),
+        .max_height = optionalFinite(input.max_height),
+        .gap = finiteNonNegative(input.gap),
+        .justify_content = @fromBackingInt(@intCast(@min(input.justify_content, 5))),
+        .align_items = @fromBackingInt(@intCast(@min(input.align_items, 4))),
+        .align_self = if (input.align_self == 0) null else @fromBackingInt(@intCast(@min(input.align_self - 1, 4))),
+        .flex_wrap = input.flex_wrap != 0,
+        .align_content = @fromBackingInt(@intCast(@min(input.align_content, 6))),
+        .margin_top = finiteNonNegative(input.margin_top),
+        .margin_right = finiteNonNegative(input.margin_right),
+        .margin_bottom = finiteNonNegative(input.margin_bottom),
+        .margin_left = finiteNonNegative(input.margin_left),
+        .padding_top = finiteNonNegative(input.padding_top),
+        .padding_right = finiteNonNegative(input.padding_right),
+        .padding_bottom = finiteNonNegative(input.padding_bottom),
+        .padding_left = finiteNonNegative(input.padding_left),
+        .grid = input.grid != 0,
+        .grid_columns = @max(@as(u32, 1), input.grid_columns),
+        .row_gap = finiteNonNegative(input.row_gap),
+        .column_gap = finiteNonNegative(input.column_gap),
+    };
+}
+
+fn optionalFinite(value: f32) ?f32 {
+    return if (std.math.isFinite(value)) value else null;
+}
+
 /// Resolve an equal-track grid in content coordinates for native hosts.
 pub export fn craft_native_grid(
     available_width: f32,
@@ -1077,6 +1223,44 @@ fn finiteNonNegative(value: f32) f32 {
     return if (!std.math.isFinite(value) or value < 0) 0 else value;
 }
 
+fn emptyLayoutStyleInput() LayoutStyleInput {
+    const unset = std.math.nan(f32);
+    return .{
+        .direction = 0,
+        .width = unset,
+        .height = unset,
+        .intrinsic_width = unset,
+        .intrinsic_height = unset,
+        .baseline = unset,
+        .aspect_ratio = unset,
+        .flex_basis = unset,
+        .flex_grow = 0,
+        .flex_shrink = 0,
+        .min_width = unset,
+        .max_width = unset,
+        .min_height = unset,
+        .max_height = unset,
+        .gap = 0,
+        .justify_content = 0,
+        .align_items = 3,
+        .align_self = 0,
+        .flex_wrap = 0,
+        .align_content = 6,
+        .margin_top = 0,
+        .margin_right = 0,
+        .margin_bottom = 0,
+        .margin_left = 0,
+        .padding_top = 0,
+        .padding_right = 0,
+        .padding_bottom = 0,
+        .padding_left = 0,
+        .grid = 0,
+        .grid_columns = 1,
+        .row_gap = 0,
+        .column_gap = 0,
+    };
+}
+
 fn clampBounds(value: f32, lower: f32, upper: f32) f32 {
     var result = finiteNonNegative(value);
     if (std.math.isFinite(lower) and lower >= 0) result = @max(result, lower);
@@ -1090,6 +1274,45 @@ fn isUnset(value: f32) bool {
 
 fn optionalDimension(explicit: f32, intrinsic: f32) f32 {
     return finiteNonNegative(if (isUnset(explicit)) intrinsic else explicit);
+}
+
+test "exports the host-neutral tree layout contract" {
+    var root_style = emptyLayoutStyleInput();
+    root_style.width = 100;
+    root_style.height = 40;
+    root_style.padding_left = 8;
+    root_style.padding_top = 4;
+    root_style.gap = 5;
+    root_style.justify_content = 1;
+
+    var child_style = emptyLayoutStyleInput();
+    child_style.intrinsic_width = 20;
+    child_style.intrinsic_height = 10;
+
+    const nodes = [_]LayoutNodeInput{
+        .{ .style = root_style, .first_child = 1, .child_count = 1 },
+        .{ .style = child_style, .first_child = 0, .child_count = 0 },
+    };
+    var frames: [2]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_layout_tree(100, 40, &nodes, nodes.len, &frames, frames.len));
+    try std.testing.expectEqual(@as(f32, 100), frames[0].width);
+    try std.testing.expectEqual(@as(f32, 40), frames[0].height);
+    try std.testing.expectEqual(@as(f32, 44), frames[1].x);
+    try std.testing.expectEqual(@as(f32, 4), frames[1].y);
+    try std.testing.expectEqual(@as(f32, 20), frames[1].width);
+    try std.testing.expectEqual(@as(f32, 10), frames[1].height);
+}
+
+test "rejects malformed host-neutral layout trees without writing frames" {
+    var style = emptyLayoutStyleInput();
+    style.width = 20;
+    style.height = 20;
+    const nodes = [_]LayoutNodeInput{
+        .{ .style = style, .first_child = 0, .child_count = 1 },
+    };
+    var frames = [_]Frame{.{ .x = 7, .y = 8, .width = 9, .height = 10 }};
+    try std.testing.expectEqual(@as(c_int, -1), craft_native_layout_tree(20, 20, &nodes, nodes.len, &frames, frames.len));
+    try std.testing.expectEqual(@as(f32, 7), frames[0].x);
 }
 
 test "distributes positive flex grow from a shared basis" {
