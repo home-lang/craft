@@ -1212,6 +1212,13 @@ private class CraftNativeFlowView: UIStackView {
 
     private var flowChildren: [UIView] = []
     private var measurements: [MeasureKey: CGSize] = [:]
+    /// The screen's rendered root gets a definite viewport from the host. A
+    /// root with `flex: 1` must keep that height even when its first child is
+    /// a ScrollView whose content is taller than the screen; otherwise an
+    /// absolute sibling is positioned against the scroll content and moves
+    /// with it.
+    private weak var viewportChild: UIView?
+    private var viewportChildFillsHeight = false
 
     private struct MeasureKey: Hashable {
         let width: CGFloat?
@@ -1313,6 +1320,12 @@ private class CraftNativeFlowView: UIStackView {
         invalidateMeasurements()
     }
 
+    func setViewportChild(_ view: UIView?, fillsHeight: Bool) {
+        viewportChild = view
+        viewportChildFillsHeight = fillsHeight
+        invalidateMeasurements()
+    }
+
     func removeLayoutStyle(for view: UIView) {
         view.craftLayoutStyle = .empty
     }
@@ -1347,7 +1360,12 @@ private class CraftNativeFlowView: UIStackView {
         let scale = window?.screen.scale ?? traitCollection.displayScale
         let result = layout(width: bounds.width, height: bounds.height, maxWidth: bounds.width, maxHeight: bounds.height, place: true)
         for (child, frame) in result.frames {
-            var snapped = CraftNativeFlexLayout.snapped(frame, scale: scale)
+            var viewportFrame = frame
+            if child === viewportChild, viewportChildFillsHeight {
+                viewportFrame.origin.y = 0
+                viewportFrame.size.height = bounds.height
+            }
+            var snapped = CraftNativeFlexLayout.snapped(viewportFrame, scale: scale)
             // Snapping each edge can take a pixel off a label (15.83…33.83
             // becomes 16…33.67), and a label a pixel narrower than its text
             // truncates it ("13" drew as "…"). Text keeps its whole size.
@@ -4499,6 +4517,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         var rootStyle = next.style
         if rootStyle["flex"] == nil, rootStyle["height"] == nil { rootStyle["flex"] = 1 }
         rootStack.setLayoutStyle(rootStyle, for: next.view)
+        rootStack.setViewportChild(next.view, fillsHeight: rootStyle["height"] == nil)
         rootStack.invalidateMeasurements()
         renderedRoot = next
         rootIsSafeAreaView = next.type == "SafeAreaView"
@@ -4513,6 +4532,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if let root = renderedRoot { detach(root, from: rootStack) }
         renderedRoot = nil
         rootIsSafeAreaView = false
+        rootStack.setViewportChild(nil, fillsHeight: false)
         rootTopToSafeArea?.isActive = true
         rootTopToView?.isActive = false
         rootBottomToSafeArea?.isActive = true

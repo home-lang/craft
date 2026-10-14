@@ -650,6 +650,17 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('collapses shrink-to-fit bubbles and pills')
   })
 
+  it('keeps an absolute root sibling pinned to the viewport beside a ScrollView', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-root-viewport-'))
+    await init({ runtimeDir: null, name: 'NativeRootViewport', bundleId: 'org.example.native-root-viewport', output, config: { renderer: 'native' } })
+    const source = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    expect(source).toContain('private weak var viewportChild: UIView?')
+    expect(source).toContain('func setViewportChild(_ view: UIView?, fillsHeight: Bool)')
+    expect(source).toContain('rootStack.setViewportChild(next.view, fillsHeight: rootStyle["height"] == nil)')
+    expect(source).toContain('viewportFrame.size.height = bounds.height')
+    expect(source).toContain('absolute sibling is positioned against the scroll content')
+  })
+
   it('sizes intrinsic native grids from flow children only', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-grid-intrinsic-'))
     await init({ runtimeDir: null, name: 'NativeGridIntrinsic', bundleId: 'org.example.native-grid-intrinsic', output, config: { renderer: 'native' } })

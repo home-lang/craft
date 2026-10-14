@@ -66,14 +66,18 @@ rather than becoming UIKit or Android dependencies in Zig. The entry point
 rejects malformed trees and undersized frame buffers without returning partial
 geometry, allowing a host to keep its compatibility fallback while an older
 runtime is in use. Both iOS and Android hosts now opt eligible definite-size,
-non-grid, non-wrapped containers into this complete-tree boundary for
-direct-child placement. Both fall back to their local algorithms for percentage
-sizes, absolute children, reverse or wrapped flows, missing runtimes, and any
-malformed ABI result; the fallback is intentional, so an SDK-only project never
-loses native layout. Replacing the remaining duplicated tree walks is the next
-step, not creating a second platform-specific layout implementation. Baseline alignment follows the same
-boundary: hosts provide the measured distance to a child's baseline, and Zig
-only aligns those numeric metrics.
+non-grid containers into this complete-tree boundary for
+direct-child placement. Wrapped flows use the same boundary when both axes use
+the same gap; percentage sizes, absolute children, reverse or wrap-reverse
+flows, differing row/column gaps, missing runtimes, and any malformed ABI
+result stay on the local compatibility algorithms. The iOS root also keeps a
+definite viewport frame for a `flex: 1` screen root, so an absolute sibling of
+a `ScrollView` is anchored to the screen rather than to the scroll content.
+The fallback is intentional, so an SDK-only project never loses native layout.
+Replacing the remaining duplicated tree walks is the next step, not creating a
+second platform-specific layout implementation. Baseline alignment follows the same
+boundary: hosts provide the measured distance to a child's baseline, and Zig only
+aligns those numeric metrics.
 
 Use `onMount` and `onDestroy` for route-scoped lifecycle work. Craft disposes
 the screen runtime before a native screen is removed or replaced, so effects,
