@@ -1046,6 +1046,20 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertNotNil(find(UIView.self, key: "clip", below: controller.view))
     }
 
+    func testNativeBadgeDoesNotDependOnNotificationCapability() async {
+        XCTAssertTrue(CraftNativeActions.capabilities(config: CraftConfig()).contains("badge"))
+        guard case .success = await capability("Badge", "set", [3]) else {
+            return XCTFail("native badge set failed")
+        }
+        guard case .success = await capability("Badge", "clear") else {
+            return XCTFail("native badge clear failed")
+        }
+        guard case .failure(let error) = await capability("Badge", "set", [-1]) else {
+            return XCTFail("negative badge unexpectedly succeeded")
+        }
+        XCTAssertEqual(error.code, "INVALID_ARGUMENT")
+    }
+
     func testDecodesStreamedTextAcrossSplitCharacters() {
         let bytes = Array("data: đ✓\n".utf8)
         let (first, rest) = CraftNativeEventStreams.decodeUTF8(Data(bytes[0..<7]))

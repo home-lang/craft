@@ -862,6 +862,14 @@ describe('native renderer component contract', () => {
     expect(iosReadme).toContain('enablePasskeys: true')
   })
 
+  it('keeps native iOS badges permission-free and capability-advertised', () => {
+    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge"]')
+    expect(iosActions).toContain('case ("Badge", "set"):')
+    expect(iosActions).toContain('case ("Badge", "clear"):')
+    expect(iosActions).toContain('without requesting notification authorization')
+    expect(iosReadme).toContain('Native screens also expose the iOS-only `craft.badge` capability')
+  })
+
   it('keeps reverse row scroll containers horizontal on both hosts', () => {
     expect(ios).toContain('|| flexDirection == "row-reverse"')
     expect(android).toContain('in setOf("row", "row-reverse")')

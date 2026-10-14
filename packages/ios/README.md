@@ -117,6 +117,10 @@ ordinary native children while preserving the shared flex layout contract.
 `KeyboardAvoidingView` also responds to the native keyboard with `padding`,
 `position`, or `height` behavior.
 
+Native screens also expose the iOS-only `craft.badge` capability. `craft.badge.set(count)`
+and `craft.badge.clear()` update the app icon without requesting notification
+authorization or requiring local notifications to be enabled.
+
 Keyboard frame changes update the native controller's additional safe area, so
 focused inputs and responsive `onLayout` measurements move with the keyboard.
 
