@@ -119,6 +119,16 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
     }
 
+    func testNativeLinkOpensRoute() {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["native-route-link"].waitForExistence(timeout: 10))
+        app.staticTexts["native-route-link"].tap()
+        XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
+        app.buttons["details-back"].tap()
+        XCTAssertTrue(app.staticTexts["native-route-link"].waitForExistence(timeout: 10))
+    }
+
     func testCapabilityPersistenceAndNotificationsAcrossRelaunch() throws {
         let app = XCUIApplication()
         app.launch()

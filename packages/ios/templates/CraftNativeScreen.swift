@@ -2525,6 +2525,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var imageLoadHandlers: [ObjectIdentifier: String] = [:]
     private var imageLoadEndHandlers: [ObjectIdentifier: String] = [:]
     private var imageErrorHandlers: [ObjectIdentifier: String] = [:]
+    /// Native links keep their target separate from optional press handlers.
+    /// The compiler can emit an anchor as `TouchableOpacity`, so this map is
+    /// intentionally shared by Link and the generic pressable path.
+    private var linkTargets: [ObjectIdentifier: String] = [:]
     private var renderedRoot: RenderedNode?
     private weak var lastFocusedInput: UIView?
     private var flatListRows: [ObjectIdentifier: [String: RenderedNode]] = [:]
@@ -3978,6 +3982,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let result = current.view
         current.protocolId = node["id"] as? String
         current.style = style
+        let linkTarget = ["href", "to"].lazy.compactMap { props[$0] as? String }
+            .first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if ["Link", "TouchableOpacity", "TouchableHighlight", "Pressable"].contains(type),
+           props["disabled"] as? Bool != true, let linkTarget {
+            linkTargets[ObjectIdentifier(result)] = linkTarget
+        } else {
+            linkTargets.removeValue(forKey: ObjectIdentifier(result))
+        }
         result.accessibilityIdentifier = accessibilityIdentifier(node, props: props) ?? path
         if type != "View" && type != "SafeAreaView" && type != "KeyboardAvoidingView" && type != "ScrollView" && type != "SectionList" && type != "FlatList" && type != "Modal" {
             result.setContentHuggingPriority(.required, for: .vertical)
@@ -4665,6 +4678,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let id = ObjectIdentifier(node.view)
         if let modal = node.view as? CraftNativeModalView { modal.resetForTeardown() }
         handlers.removeValue(forKey: id)
+        linkTargets.removeValue(forKey: id)
         pressInHandlers.removeValue(forKey: id)
         pressOutHandlers.removeValue(forKey: id)
         layoutHandlers.removeValue(forKey: id)
@@ -4779,7 +4793,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let id = ObjectIdentifier(view)
         let handler = handler?.isEmpty == false ? handler : nil
         updateHandler(handler, for: view)
-        if handler != nil, tapRecognizers[id] == nil {
+        let actionable = handler != nil || linkTargets[id] != nil
+        if actionable, tapRecognizers[id] == nil {
             let recognizer = UITapGestureRecognizer(target: self, action: #selector(viewPressed(_:)))
             tapRecognizers[id] = recognizer
             view.addGestureRecognizer(recognizer)
@@ -4788,7 +4803,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         // A container keeps receiving touches without a handler of its own,
         // or every control inside it (and the screen root) would be dead.
-        if !(view is UIScrollView) { view.isUserInteractionEnabled = handler != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }
+        if !(view is UIScrollView) { view.isUserInteractionEnabled = actionable || longPressHandlers[id] != nil || view is CraftNativeFlowView }
     }
 
     private func updatePressFeedback(_ pressIn: String?, _ pressOut: String?, for view: UIView) {
@@ -5450,6 +5465,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     @objc private func buttonPressed(_ sender: UIButton) {
         let focused = firstResponder(in: rootStack) ?? lastFocusedInput
+        if let target = linkTargets[ObjectIdentifier(sender)] {
+            hybridEvents?.nativeScreen(self, open: target)
+            return
+        }
         guard let handler = handlers[ObjectIdentifier(sender)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]])
         restoreFocus(focused)
@@ -5712,8 +5731,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     @objc private func viewPressed(_ sender: UITapGestureRecognizer) {
-        guard let view = sender.view, let handler = handlers[ObjectIdentifier(view)] else { return }
+        guard let view = sender.view else { return }
         let id = ObjectIdentifier(view)
+        if let target = linkTargets[id] {
+            hybridEvents?.nativeScreen(self, open: target)
+            return
+        }
+        guard let handler = handlers[id] else { return }
         if pressInHandlers[id] == nil, pressOutHandlers[id] == nil,
            let pressable = view as? CraftNativeFlowView, let activeOpacity = pressable.pressActiveOpacity {
             UIView.animate(withDuration: 0.1, animations: { pressable.alpha = pressable.pressBaseOpacity * activeOpacity }) { _ in

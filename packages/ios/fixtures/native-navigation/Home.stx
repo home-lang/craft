@@ -561,6 +561,7 @@ function captureSectionScroll() {
       <Text testID="baseline-small" style={{"fontSize":12,"paddingTop":4}}>small</Text>
     </View>
     <Text testID="native-link" accessibilityHint="Opens status" accessibilityValue="ready" accessibilityState={linkAccessibilityState()} @click="setStatus('link pressed')">Open native link</Text>
+    <a testID="native-route-link" href="/details">Open details link</a>
     <Text testID="native-link-status" :text="status" />
     <Button testID="toggle-link-accessibility" @click="toggleLinkAccessibility()">Toggle link accessibility</Button>
     <View testID="native-panel" accessibilityState={panelAccessibilityState()} @click="pressPanel()" style={{"height":24}}><Text>Native panel</Text></View>
