@@ -430,6 +430,7 @@ private final class CraftNativeVideoView: UIView {
 private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var annotationsByID: [String: MKPointAnnotation] = [:]
     private var overlaysByID: [String: MKPolyline] = [:]
+    private var overlayCoordinatesByID: [String: [CLLocationCoordinate2D]] = [:]
     private var overlayColors: [ObjectIdentifier: UIColor] = [:]
     private var overlayWidths: [ObjectIdentifier: CGFloat] = [:]
     private(set) var markerHandlers: [String: String] = [:]
@@ -499,13 +500,31 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         }
         markerHandlers = nextHandlers
 
-        removeOverlays(Array(overlaysByID.values))
-        overlaysByID.removeAll(keepingCapacity: true)
-        overlayColors.removeAll(keepingCapacity: true)
-        overlayWidths.removeAll(keepingCapacity: true)
+        let staleOverlays = overlaysByID.keys.filter { nextPolylines[$0] == nil }
+        for id in staleOverlays {
+            if let overlay = overlaysByID.removeValue(forKey: id) {
+                removeOverlay(overlay)
+                overlayColors.removeValue(forKey: ObjectIdentifier(overlay))
+                overlayWidths.removeValue(forKey: ObjectIdentifier(overlay))
+            }
+            overlayCoordinatesByID.removeValue(forKey: id)
+        }
         for (id, value) in nextPolylines {
+            if let overlay = overlaysByID[id],
+               let coordinates = overlayCoordinatesByID[id],
+               Self.coordinatesEqual(coordinates, value.coordinates),
+               overlayColors[ObjectIdentifier(overlay)]?.isEqual(value.color) == true,
+               overlayWidths[ObjectIdentifier(overlay)] == value.width {
+                continue
+            }
+            if let previous = overlaysByID.removeValue(forKey: id) {
+                removeOverlay(previous)
+                overlayColors.removeValue(forKey: ObjectIdentifier(previous))
+                overlayWidths.removeValue(forKey: ObjectIdentifier(previous))
+            }
             let overlay = MKPolyline(coordinates: value.coordinates, count: value.coordinates.count)
             overlaysByID[id] = overlay
+            overlayCoordinatesByID[id] = value.coordinates
             overlayColors[ObjectIdentifier(overlay)] = value.color
             overlayWidths[ObjectIdentifier(overlay)] = value.width
             addOverlay(overlay)
@@ -559,6 +578,13 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             ?? []
         return stride(from: 0, to: numbers.count - 1, by: 2).map {
             CLLocationCoordinate2D(latitude: numbers[$0], longitude: numbers[$0 + 1])
+        }
+    }
+
+    private static func coordinatesEqual(_ lhs: [CLLocationCoordinate2D], _ rhs: [CLLocationCoordinate2D]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { left, right in
+            left.latitude == right.latitude && left.longitude == right.longitude
         }
     }
 

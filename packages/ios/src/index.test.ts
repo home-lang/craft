@@ -121,6 +121,10 @@ describe('Craft iOS builder', () => {
     // Vector drawing (stx svg.ts): an Svg draws its shapes' geometry
     // commands, and a change to a shape redraws its Svg.
     expect(nativeSwift).toContain('private final class CraftNativeSvgView: UIView')
+    expect(nativeSwift).toContain('private var overlayCoordinatesByID: [String: [CLLocationCoordinate2D]] = [:]')
+    expect(nativeSwift).toContain('let staleOverlays = overlaysByID.keys.filter { nextPolylines[$0] == nil }')
+    expect(nativeSwift).toContain('Self.coordinatesEqual(coordinates, value.coordinates)')
+    expect(nativeSwift).toContain('private static func coordinatesEqual(_ lhs: [CLLocationCoordinate2D], _ rhs: [CLLocationCoordinate2D])')
     expect(nativeSwift).toContain('case "Svg":')
     expect(nativeSwift).toContain('flatListOwners[candidate] ?? svgOwners[candidate] ?? candidate')
     expect(nativeSwift).toContain('path.addCurve(to: point(i + 5), controlPoint1: point(i + 1), controlPoint2: point(i + 3))')
