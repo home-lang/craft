@@ -4070,13 +4070,13 @@ class MainActivity : AppCompatActivity() {
                     else -> ImageView.ScaleType.CENTER_INSIDE
                 }
                 adjustViewBounds = false
-                val onLoadStart = events.optString("onLoadStart")
+                val onLoadStart = craftNativeEventName(events, "onLoadStart")
                 if (onLoadStart.isNotBlank()) screen.imageLoadStartHandlers[this] = onLoadStart else screen.imageLoadStartHandlers.remove(this)
-                val onLoad = events.optString("onLoad")
+                val onLoad = craftNativeEventName(events, "onLoad")
                 if (onLoad.isNotBlank()) screen.imageLoadHandlers[this] = onLoad else screen.imageLoadHandlers.remove(this)
-                val onLoadEnd = events.optString("onLoadEnd")
+                val onLoadEnd = craftNativeEventName(events, "onLoadEnd")
                 if (onLoadEnd.isNotBlank()) screen.imageLoadEndHandlers[this] = onLoadEnd else screen.imageLoadEndHandlers.remove(this)
-                val onError = events.optString("onError")
+                val onError = craftNativeEventName(events, "onError")
                 if (onError.isNotBlank()) screen.imageErrorHandlers[this] = onError else screen.imageErrorHandlers.remove(this)
                 updateImage(screen, this, props.opt("source"), props.opt("defaultSource"))
             }
@@ -4087,13 +4087,13 @@ class MainActivity : AppCompatActivity() {
                     "center" -> ImageView.ScaleType.CENTER
                     else -> ImageView.ScaleType.CENTER_INSIDE
                 }
-                val onLoadStart = events.optString("onLoadStart")
+                val onLoadStart = craftNativeEventName(events, "onLoadStart")
                 if (onLoadStart.isNotBlank()) screen.imageLoadStartHandlers[image] = onLoadStart else screen.imageLoadStartHandlers.remove(image)
-                val onLoad = events.optString("onLoad")
+                val onLoad = craftNativeEventName(events, "onLoad")
                 if (onLoad.isNotBlank()) screen.imageLoadHandlers[image] = onLoad else screen.imageLoadHandlers.remove(image)
-                val onLoadEnd = events.optString("onLoadEnd")
+                val onLoadEnd = craftNativeEventName(events, "onLoadEnd")
                 if (onLoadEnd.isNotBlank()) screen.imageLoadEndHandlers[image] = onLoadEnd else screen.imageLoadEndHandlers.remove(image)
-                val onError = events.optString("onError")
+                val onError = craftNativeEventName(events, "onError")
                 if (onError.isNotBlank()) screen.imageErrorHandlers[image] = onError else screen.imageErrorHandlers.remove(image)
                 updateImage(screen, image, props.opt("source"), props.opt("defaultSource"))
                 configureContainer(content, style)
@@ -4141,22 +4141,23 @@ class MainActivity : AppCompatActivity() {
                     .firstOrNull { canonicalType(it.optString("type")) == "RefreshControl" }
                 val refreshProps = refreshNode?.optJSONObject("props") ?: JSONObject()
                 val refreshEvents = refreshNode?.optJSONObject("events") ?: JSONObject()
-                val refreshHandlerName = refreshEvents.optString("onRefresh").takeIf { it.isNotBlank() }
-                    ?: events.optString("onRefresh").takeIf { it.isNotBlank() }
+                val refreshHandlerName = craftNativeEventName(refreshEvents, "onRefresh")
+                    .takeIf { it.isNotBlank() }
+                    ?: craftNativeEventName(events, "onRefresh").takeIf { it.isNotBlank() }
                 val refreshHandler = refreshHandlerName?.let { handler ->
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
                 }
                 setRefreshHandler(refreshHandler, if (refreshNode == null) props.optBoolean("refreshing", false) else refreshProps.optBoolean("refreshing", false))
                 setRefreshAppearance(refreshProps, resources.displayMetrics.density)
-                val onScroll = events.optString("onScroll")
+                val onScroll = craftNativeEventName(events, "onScroll")
                 if (onScroll.isNotBlank()) screen.scrollHandlers[this] = onScroll else screen.scrollHandlers.remove(this)
-                val onBegin = events.optString("onScrollBeginDrag")
+                val onBegin = craftNativeEventName(events, "onScrollBeginDrag")
                 if (onBegin.isNotBlank()) screen.scrollBeginHandlers[this] = onBegin else screen.scrollBeginHandlers.remove(this)
-                val onEnd = events.optString("onScrollEndDrag")
+                val onEnd = craftNativeEventName(events, "onScrollEndDrag")
                 if (onEnd.isNotBlank()) screen.scrollEndHandlers[this] = onEnd else screen.scrollEndHandlers.remove(this)
-                val onMomentumBegin = events.optString("onMomentumScrollBegin")
+                val onMomentumBegin = craftNativeEventName(events, "onMomentumScrollBegin")
                 if (onMomentumBegin.isNotBlank()) screen.scrollMomentumBeginHandlers[this] = onMomentumBegin else screen.scrollMomentumBeginHandlers.remove(this)
-                val onMomentumEnd = events.optString("onMomentumScrollEnd")
+                val onMomentumEnd = craftNativeEventName(events, "onMomentumScrollEnd")
                 if (onMomentumEnd.isNotBlank()) screen.scrollMomentumEndHandlers[this] = onMomentumEnd else screen.scrollMomentumEndHandlers.remove(this)
                 val nativeScroll = this
                 setScrollListeners(
@@ -4210,7 +4211,7 @@ class MainActivity : AppCompatActivity() {
             }
             "FlatList" -> (previous as? CraftNativeRefreshableFlatList ?: CraftNativeRefreshableFlatList(this)).apply {
                 val nativeList = list
-                configureRefresh(events.optString("onRefresh").takeIf { it.isNotBlank() }?.let { handler ->
+                configureRefresh(craftNativeEventName(events, "onRefresh").takeIf { it.isNotBlank() }?.let { handler ->
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
                 }, props.optBoolean("refreshing", false))
                 nativeList.setKeyboardShouldPersistTaps(props.optString("keyboardShouldPersistTaps", "never"))
@@ -4325,7 +4326,7 @@ class MainActivity : AppCompatActivity() {
             control.isLongClickable = false
         }
         applyAccessibility(control, props, type, explicitKey ?: protocolId ?: path)
-        val layoutHandler = events.optString("onLayout")
+        val layoutHandler = craftNativeEventName(events, "onLayout")
         if (layoutHandler.isNotBlank()) {
             if (screen.layoutHandlers[control] != layoutHandler) screen.lastLayoutBounds.remove(control)
             screen.layoutHandlers[control] = layoutHandler
@@ -4507,19 +4508,19 @@ class MainActivity : AppCompatActivity() {
         }
         val nodes = (0 until children.length()).mapNotNull { children.optJSONObject(it) }
         nodes.forEach { registerFlatListOwnership(screen, it, owner) }
-        list.onScrollEvent = events.optString("onScroll").takeIf { it.isNotBlank() }?.let { handler ->
+        list.onScrollEvent = craftNativeEventName(events, "onScroll").takeIf { it.isNotBlank() }?.let { handler ->
             { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", flatListScrollEvent(list))) }
         }
-        list.onScrollBeginDrag = events.optString("onScrollBeginDrag").takeIf { it.isNotBlank() }?.let { handler ->
+        list.onScrollBeginDrag = craftNativeEventName(events, "onScrollBeginDrag").takeIf { it.isNotBlank() }?.let { handler ->
             { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", flatListScrollEvent(list))) }
         }
-        list.onScrollEndDrag = events.optString("onScrollEndDrag").takeIf { it.isNotBlank() }?.let { handler ->
+        list.onScrollEndDrag = craftNativeEventName(events, "onScrollEndDrag").takeIf { it.isNotBlank() }?.let { handler ->
             { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", flatListScrollEvent(list))) }
         }
-        list.onMomentumScrollBegin = events.optString("onMomentumScrollBegin").takeIf { it.isNotBlank() }?.let { handler ->
+        list.onMomentumScrollBegin = craftNativeEventName(events, "onMomentumScrollBegin").takeIf { it.isNotBlank() }?.let { handler ->
             { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", flatListScrollEvent(list))) }
         }
-        list.onMomentumScrollEnd = events.optString("onMomentumScrollEnd").takeIf { it.isNotBlank() }?.let { handler ->
+        list.onMomentumScrollEnd = craftNativeEventName(events, "onMomentumScrollEnd").takeIf { it.isNotBlank() }?.let { handler ->
             { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", flatListScrollEvent(list))) }
         }
         val threshold = craftNativeNonNegativeDouble(props, "threshold", 0.1)
@@ -4543,7 +4544,7 @@ class MainActivity : AppCompatActivity() {
                 val controls = screen.flatListRows[list]?.remove(itemIdentity).orEmpty()
                 releaseViewState(screen, controls.values.toList(), preservingInputDrafts = true)
             },
-            endReached = events.optString("onEndReached").takeIf { it.isNotBlank() }?.let { handler ->
+            endReached = craftNativeEventName(events, "onEndReached").takeIf { it.isNotBlank() }?.let { handler ->
                 { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
             },
         )
