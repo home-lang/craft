@@ -761,6 +761,19 @@ const available = await craft.biometrics.isAvailable()
 const biometricType = await craft.biometrics.getBiometricType()
 if (available) await craft.biometrics.authenticate('Unlock WildLoop')
 
+// Native iOS passkeys (capability `passkeys`). The server still creates and
+// verifies the WebAuthn challenge; Craft presents Apple's credential sheet and
+// returns the standard WebAuthn response fields. `rpId` must be one of the
+// app's `webcredentials:` associated domains.
+if (craft.capabilities.passkeys && await craft.passkeys.isAvailable()) {
+  const credential = await craft.passkeys.get({
+    rpId: 'login.example.com',
+    challenge: authenticationOptions.challenge,
+    allowCredentials: authenticationOptions.allowCredentials,
+  })
+  await verifyOnServer(credential)
+}
+
 // iOS app-icon badge (the capability is advertised only on iOS).
 if (craft.capabilities.badge) {
   await craft.badge.set(3)
@@ -783,6 +796,18 @@ string values and persists them in the iOS Keychain or Android encrypted
 preferences. The `badge` capability is iOS-only and does not request notification
 authorization; `craft.badge.set(count)` and `craft.badge.clear()` update the app
 icon without requiring local notifications.
+A native passkey screen requires both `enablePasskeys: true` and at least one
+`webcredentials:<host>` entry in `associatedDomains`; otherwise the host does
+not advertise `passkeys`. `craft.passkeys.isAvailable()` is a configuration
+and OS-version check and does not display a sheet. `create(options)` expects a
+base64url `challenge`, `user.name`, and base64url `user.id`; `get(options)`
+expects a base64url `challenge` and optional `allowCredentials`. Both accept an
+explicit `rpId` (or `rp.id`) only when it exactly matches a configured
+`webcredentials:` host, preventing a native screen from presenting credentials
+for another relying party. Results contain `id`, `rawId`, `type: 'public-key'`,
+and the standard registration or assertion `response` fields, all base64url
+encoded. The sheet is presented on the main thread and is cancelled with the
+screen's capability request token when the route is torn down.
 A missing key resolves to `null`. Biometric availability is a
 device check, so an enabled simulator or emulator may still report `false`.
 A disabled or unavailable capability rejects with

@@ -174,6 +174,23 @@ The optional Liquid Glass tab-bar styling is compiler-gated for Xcode 26/Swift 6
 
 The iOS host overlays `craft.config.json` on its defaults. Missing or `null` capability flags stay disabled; explicitly set a flag to `true` to enable it. Both the Swift host and Zig bridge reject malformed values and fall back to all capabilities disabled.
 
+Native passkeys require both `enablePasskeys: true` and a matching
+`webcredentials:<host>` entry in `associatedDomains`:
+
+```json
+{
+  "renderer": "native",
+  "enablePasskeys": true,
+  "associatedDomains": ["webcredentials:login.example.com"]
+}
+```
+
+The native STX screen calls `craft.passkeys.isAvailable()`, `create(options)`,
+or `get(options)`. The host validates the relying-party id against those
+associated domains before showing Apple's `ASAuthorization` sheet; a passkey
+request for another host is rejected. The server remains responsible for
+generating the challenge and verifying the returned WebAuthn response.
+
 Edit `craft.config.json` in your iOS project:
 
 ```json
