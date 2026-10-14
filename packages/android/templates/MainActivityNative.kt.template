@@ -764,6 +764,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             (0 until raw.length()).mapNotNull { raw.optString(it).takeIf { edge -> edge in setOf("top", "right", "bottom", "left") } }.toSet()
         }
         applySafeAreaPadding()
+        invalidateMeasurements()
     }
 
     fun setWindowSafeInsets(left: Int, top: Int, right: Int, bottom: Int) {
@@ -775,6 +776,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             if ("bottom" in safeAreaEdges) insets[3] else 0,
         )
         applySafeAreaPadding()
+        invalidateMeasurements()
     }
 
     private fun applySafeAreaPadding() {
@@ -822,6 +824,19 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private val lastProbe = WeakHashMap<View, Long>()
     private fun probedWidth(size: Long): Int = (size shr 32).toInt()
     private fun probedHeight(size: Long): Int = size.toInt()
+
+    /**
+     * Reactive style and inset mutations can arrive during one frame. The
+     * memo is intentionally frame-scoped for performance, but a mutation
+     * must invalidate it immediately or the next layout can reuse a child's
+     * old intrinsic width/height.
+     */
+    private fun invalidateMeasurements() {
+        memos.clear()
+        lastProbe.clear()
+        forceLayout()
+        requestLayout()
+    }
 
     /**
      * Lays a child out at its final frame, measuring it again at exactly
@@ -883,17 +898,18 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             craftNativePadding(style, "paddingRight", horizontal, density),
             craftNativePadding(style, "paddingBottom", vertical, density),
         )
-        requestLayout()
+        invalidateMeasurements()
     }
 
     fun setChildStyle(view: View, style: JSONObject, density: Float) {
         styles[view] = CraftNativeLayoutStyle.from(style, density)
-        requestLayout()
+        invalidateMeasurements()
     }
 
     override fun onViewRemoved(child: View) {
         styles.remove(child)
         super.onViewRemoved(child)
+        invalidateMeasurements()
     }
 
     private data class Entry(val view: View, val style: CraftNativeLayoutStyle, val width: Int, val height: Int)
