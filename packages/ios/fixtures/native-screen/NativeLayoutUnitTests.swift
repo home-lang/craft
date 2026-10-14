@@ -289,6 +289,33 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertGreaterThan(try frame("list", in: controller).height, listFrame.height + 44)
     }
 
+    func testAPlainRootKeepsAnAbsoluteSiblingPinnedBesideItsScrollView() throws {
+        let scroll: [String: Any] = [
+            "id": "scroll", "type": "ScrollView", "props": ["testID": "scroll"],
+            "style": ["flex": 1],
+            "children": (0..<24).map { text("scroll-\($0)", "Overflow row \($0)", style: ["height": 40]) },
+        ]
+        let controller = screen(box("root", style: ["flex": 1], [
+            scroll,
+            box("overlay", style: [
+                "position": "absolute", "top": 12, "right": 12, "width": 32, "height": 32,
+            ]),
+        ]))
+        settle(controller)
+
+        let nativeScroll = try XCTUnwrap(find("scroll", below: controller.view) as? UIScrollView)
+        let before = try frame("overlay", in: controller)
+        XCTAssertGreaterThan(nativeScroll.contentSize.height, nativeScroll.bounds.height)
+        nativeScroll.setContentOffset(
+            CGPoint(x: 0, y: nativeScroll.contentSize.height - nativeScroll.bounds.height),
+            animated: false
+        )
+        settle(controller)
+        let after = try frame("overlay", in: controller)
+        XCTAssertEqual(after.minY, before.minY, accuracy: 1, "absolute sibling followed scroll content")
+        XCTAssertEqual(after.maxX, before.maxX, accuracy: 1, "absolute sibling changed horizontal position")
+    }
+
     func testAStyleUpdateIsAppliedInPlaceLayoutIncluded() throws {
         let controller = screen(box("root", style: ["padding": 10], [
             box("grows", style: ["height": 24, "marginHorizontal": 48]),

@@ -1813,6 +1813,8 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="native-root-overlay"')
     expect(iosNavigationTest).toContain('root absolute sibling moved with ScrollView content')
     expect(androidNavigationTest).toContain('root absolute sibling moved with ScrollView content')
+    expect(iosLayoutUnitTests).toContain('testAPlainRootKeepsAnAbsoluteSiblingPinnedBesideItsScrollView')
+    expect(iosLayoutUnitTests).toContain('absolute sibling followed scroll content')
     expect(navigationDetails).toContain('<ScrollView')
     expect(navigationDetails).toContain(':for="(item, index) in people"')
     expect(navigationDetails).toContain(':key="item.id"')

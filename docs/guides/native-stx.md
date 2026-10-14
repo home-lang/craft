@@ -77,6 +77,10 @@ ABI result stay on the local compatibility algorithms. The iOS root also keeps
 a
 definite viewport frame for a `flex: 1` screen root, so an absolute sibling of
 a `ScrollView` is anchored to the screen rather than to the scroll content.
+The iOS layout fixture also covers a plain `View` root with overflowing content;
+after scrolling, the sibling's viewport-relative top and trailing edges must be
+unchanged. The maintained navigation fixture checks the same invariant on both
+hosts.
 The Zig contract also exercises a nested preorder tree and checks absolute
 descendant frames, so hosts cannot silently flatten a nested container or lose
 its padding and gap offsets while applying the shared result. The fallback is
