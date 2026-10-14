@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.179...v0.0.180)
+
+## 🐛 Bug Fixes
+
+- **ios**: a bar's round button is 44 points, and a later sibling takes its touches ([7b0182e](https://github.com/craft-native/craft/commit/7b0182e)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.178...v0.0.179)
 
 ## 🐛 Bug Fixes
