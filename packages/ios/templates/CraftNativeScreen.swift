@@ -204,8 +204,8 @@ private enum CraftNativeTreeLayoutBridge {
         let crossGap = direction == .horizontal ? (rowGap ?? gap) : (columnGap ?? gap)
         var root = StyleInput(
             direction: direction == .horizontal ? 0 : 1,
-            width: Float(width), height: Float(height), gap: Float(max(0, mainGap)), flexWrap: wrap ? 1 : 0,
-            justifyContent: justify(justifyContent), alignItems: alignment(alignItems),
+            width: Float(width), height: Float(height), gap: Float(max(0, mainGap)),
+            justifyContent: justify(justifyContent), alignItems: alignment(alignItems), flexWrap: wrap ? 1 : 0,
             paddingTop: Float(max(0, padding.top)), paddingRight: Float(max(0, padding.right)),
             paddingBottom: Float(max(0, padding.bottom)), paddingLeft: Float(max(0, padding.left))
         )
