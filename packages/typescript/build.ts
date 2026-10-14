@@ -25,11 +25,16 @@ async function build(entrypoints: string[], outdir: string): Promise<void> {
 // their implementation and templates instead of importing unpublished peers.
 await build(['../ios/src/index.ts'], 'dist/ios/src')
 await build(['../android/src/index.ts'], 'dist/android/src')
+await build(['../macos/src/index.ts'], 'dist/macos/src')
 // scripts/tsc.ts, not `bunx tsc`: PATH is not trustworthy in CI. See that file.
 await Bun.$`bun ${resolve(root, "scripts/tsc.ts")} ${resolve(root, '../ios/src/index.ts')} --declaration --emitDeclarationOnly --module esnext --target esnext --moduleResolution bundler --types bun --skipLibCheck --ignoreConfig --outDir ${resolve(dist, 'ios/src')}`
 await Bun.$`bun ${resolve(root, "scripts/tsc.ts")} ${resolve(root, '../android/src/index.ts')} --declaration --emitDeclarationOnly --module esnext --target esnext --moduleResolution bundler --types bun --skipLibCheck --ignoreConfig --outDir ${resolve(dist, 'android/src')}`
 await cp(resolve(root, '../ios/templates'), resolve(dist, 'ios/templates'), { recursive: true })
 await cp(resolve(root, '../android/templates'), resolve(dist, 'android/templates'), { recursive: true })
+await Bun.$`bun ${resolve(root, "scripts/tsc.ts")} ${resolve(root, '../macos/src/index.ts')} --declaration --emitDeclarationOnly --module esnext --target esnext --moduleResolution bundler --types bun --skipLibCheck --ignoreConfig --outDir ${resolve(dist, 'macos/src')}`
+await cp(resolve(root, '../macos/templates'), resolve(dist, 'macos/templates'), { recursive: true })
+await cp(resolve(root, '../zig/src/native_layout.zig'), resolve(dist, 'macos/templates/native_layout.zig'))
+await cp(resolve(root, '../ios/templates/CraftNativeMutation.swift'), resolve(dist, 'macos/templates/CraftNativeMutation.swift'))
 
 // Project templates are runtime data used by `craft-sdk init`.
 await cp(resolve(root, '../../templates/projects'), resolve(dist, 'templates/projects'), { recursive: true })

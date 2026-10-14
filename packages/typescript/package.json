@@ -49,6 +49,11 @@
       "types": "./dist/ios/src/index.d.ts",
       "import": "./dist/ios/src/index.js"
     },
+    "./macos": {
+      "types": "./dist/macos/src/index.d.ts",
+      "browser": null,
+      "import": "./dist/macos/src/index.js"
+    },
     "./android": {
       "browser": null,
       "types": "./dist/android/src/index.d.ts",
@@ -62,6 +67,9 @@
       ],
       "ios": [
         "./dist/ios/src/index.d.ts"
+      ],
+      "macos": [
+        "./dist/macos/src/index.d.ts"
       ],
       "android": [
         "./dist/android/src/index.d.ts"
