@@ -277,6 +277,7 @@ final class CraftMacApplication: NSObject, NSApplicationDelegate, UNUserNotifica
         }
         guard let identifier = action["target"] as? String,
               let box = scene.renderer.boxes.values.first(where: { ($0.props["testID"] as? String ?? $0.props["testId"] as? String ?? $0.id) == identifier }) else { return ["ok": false, "error": "Control not found"] }
+        box.scrollToVisible(box.bounds)
         guard box.window?.isVisible == true, !box.isHidden, box.frame.width > 0, box.frame.height > 0 else { return ["ok": false, "error": "Control is not visible"] }
         if let control = box.control as? NSControl, !control.isEnabled { return ["ok": false, "error": "Control is disabled"] }
         switch kind {
