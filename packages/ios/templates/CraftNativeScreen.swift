@@ -1296,6 +1296,22 @@ private class CraftNativeFlowView: UIStackView {
         }
     }
 
+    // MARK: Touches
+
+    /// A child drawn outside this view's bounds still takes its touches, as an
+    /// overflowing element is clickable on the web, unless the view clips
+    /// (`overflow: hidden`). UIKit only asks a view's children when the point
+    /// is inside the view, so a floating button absolutely positioned out of a
+    /// zero-height parent (a component's wrapper) drew but could not be tapped.
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if let hit = super.hitTest(point, with: event) { return hit }
+        guard !clipsToBounds, !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
+        for child in subviews.reversed() where !child.isHidden && child.alpha > 0.01 && child.isUserInteractionEnabled {
+            if let hit = child.hitTest(child.convert(point, from: self), with: event) { return hit }
+        }
+        return nil
+    }
+
     // MARK: Children
 
     override var arrangedSubviews: [UIView] { flowChildren }

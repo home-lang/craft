@@ -1338,6 +1338,17 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('field.borderStyle = style["borderWidth"] != nil || style["backgroundColor"] != nil ? .none : .roundedRect')
   })
 
+  it('lets a child that overflows its flex view take its touches, as the web does', () => {
+    // A floating button absolutely positioned out of a zero-height component
+    // wrapper drew but could not be tapped: UIKit never asked the wrapper.
+    const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    const flow = swift.slice(swift.indexOf('private class CraftNativeFlowView: UIStackView'))
+    const hit = flow.slice(flow.indexOf('override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView?'))
+    expect(hit).toContain('if let hit = super.hitTest(point, with: event) { return hit }')
+    expect(hit).toContain('guard !clipsToBounds, !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }')
+    expect(hit).toContain('child.hitTest(child.convert(point, from: self), with: event)')
+  })
+
   it('stacks a flex view\'s children in tree order, so a later sibling takes the touch it draws over', () => {
     // A child inserted before its siblings was appended above them all: a
     // ScrollView re-created under a floating button took the button's taps.
