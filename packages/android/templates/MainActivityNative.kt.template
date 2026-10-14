@@ -856,15 +856,18 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         requestLayout()
     }
 
-    private fun invalidateMeasurementAncestors(start: ViewParent?) {
-        var ancestor = start
-        while (ancestor != null) {
-            when (ancestor) {
-                is CraftNativeFlexLayout -> ancestor.invalidateMeasurements()
-                is CraftNativeKeyboardAvoidingView -> ancestor.content.invalidateMeasurements()
-                is CraftNativeScrollView -> ancestor.invalidateContentLayout()
+    companion object {
+        /** Clears the memoized measurements of every flex host above `start`. The activity calls it too (an image whose source changed). */
+        fun invalidateMeasurementAncestors(start: ViewParent?) {
+            var ancestor = start
+            while (ancestor != null) {
+                when (ancestor) {
+                    is CraftNativeFlexLayout -> ancestor.invalidateMeasurements()
+                    is CraftNativeKeyboardAvoidingView -> ancestor.content.invalidateMeasurements()
+                    is CraftNativeScrollView -> ancestor.invalidateContentLayout()
+                }
+                ancestor = (ancestor as? View)?.parent
             }
-            ancestor = (ancestor as? View)?.parent
         }
     }
 
@@ -4086,7 +4089,7 @@ class MainActivity : AppCompatActivity() {
                 includeFontPadding = false
                 configureText(this, craftNativeOptionalString(props.opt("title")) ?: childText(children), style)
                 val linkColor = craftNativeOptionalString(props.opt("color")) ?: craftNativeOptionalString(style.opt("color"))
-                setTextColor(color(linkColor, Color.rgb(33, 150, 243)))
+                setTextColor(color(linkColor.orEmpty(), Color.rgb(33, 150, 243)))
                 paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
                 isEnabled = !props.optBoolean("disabled", false)
                 isClickable = true
@@ -4369,7 +4372,7 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         craftNativeOptionalString(events.opt("onDismiss"))
                     }
-                    if (lifecycleHandler.isNotBlank() && !suppressDismiss) {
+                    if (!lifecycleHandler.isNullOrBlank() && !suppressDismiss) {
                         // Deliver lifecycle callbacks after reconciliation returns to
                         // the queue; the handler may immediately schedule another
                         // render against this native view.
@@ -5452,7 +5455,7 @@ class MainActivity : AppCompatActivity() {
     private fun imageDidChange(view: ImageView) {
         view.invalidate()
         view.requestLayout()
-        invalidateMeasurementAncestors(view.parent)
+        CraftNativeFlexLayout.invalidateMeasurementAncestors(view.parent)
     }
 
     private fun emitImageEvent(screen: Screen, view: ImageView, handler: String?, nativeEvent: JSONObject = JSONObject()) {
