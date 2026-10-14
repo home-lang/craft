@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.171...v0.0.172)
+
+## 🚀 Features
+
+- **ios**: pagers keep their back-swipe, tabs swipe from their roots, bar buttons float ([0021a4f](https://github.com/craft-native/craft/commit/0021a4f)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.170...v0.0.171)
 
 ## 🐛 Bug Fixes
