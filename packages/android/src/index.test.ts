@@ -153,6 +153,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('fun spacing(name: String, fallback: Float): Float')
       expect(nativeActivity).toContain('pixels.isFinite() && narrowed.isFinite()')
       expect(nativeActivity).toContain('rowGap = spacing("rowGap", gap)')
+      expect(nativeActivity).toContain('internal fun craftNativeFiniteFloat(style: JSONObject?, name: String, fallback: Float): Float')
+      expect(nativeActivity).toContain('craftNativeFiniteFloat(style, "opacity", 1f)')
       expect(nativeActivity).toContain('"Image" -> (previous as? ImageView')
       expect(nativeActivity).toContain('isAllCaps = false')
       expect(nativeActivity).toContain('includeFontPadding = false')

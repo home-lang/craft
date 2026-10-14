@@ -127,6 +127,12 @@ internal fun craftNativePadding(style: JSONObject?, name: String, fallback: Int,
     return if (value.isFinite() && value >= 0 && pixels.isFinite()) pixels.toInt() else fallback
 }
 
+internal fun craftNativeFiniteFloat(style: JSONObject?, name: String, fallback: Float): Float {
+    val value = style?.optDouble(name, Double.NaN) ?: Double.NaN
+    val narrowed = value.toFloat()
+    return if (value.isFinite() && narrowed.isFinite()) narrowed else fallback
+}
+
 private data class CraftNativeLength(
     val points: Int? = null,
     val fraction: Double? = null,
@@ -3789,7 +3795,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     null
                 }
-                setVisible(visible, style.optDouble("opacity", 1.0).toFloat(), props.optString("animationType").ifBlank { null })
+                setVisible(visible, craftNativeFiniteFloat(style, "opacity", 1f), props.optString("animationType").ifBlank { null })
                 if (visible) clearDismissSuppression()
                 val suppressDismiss = !visible && consumeDismissSuppression()
                 if (wasVisible != visible && (visible || wasVisible == true)) {
@@ -3809,7 +3815,7 @@ class MainActivity : AppCompatActivity() {
             "TouchableOpacity", "TouchableHighlight", "Pressable" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 configureContainer(this, style)
                 screen.pressActiveOpacities[this] = props.optDouble("activeOpacity", 0.5).toFloat()
-                screen.pressBaseOpacities[this] = style.optDouble("opacity", 1.0).toFloat()
+                screen.pressBaseOpacities[this] = craftNativeFiniteFloat(style, "opacity", 1f)
                 reconcileChildren(screen, this, children, path, next, style, previousControls)
             }
             "Switch" -> (previous as? Switch ?: Switch(this)).apply {
@@ -4416,7 +4422,7 @@ class MainActivity : AppCompatActivity() {
     private fun addJustificationSpacers(layout: CraftNativeFlexLayout, value: String) { }
 
     private fun applyViewStyle(view: View, style: JSONObject) {
-        view.alpha = style.optDouble("opacity", 1.0).toFloat()
+        view.alpha = craftNativeFiniteFloat(style, "opacity", 1f)
         // A Text's padding (`px-4` on a line of text) is where its text
         // starts, as on iOS; containers and fields lay out their own.
         if (view is TextView && view !is EditText && view !is CraftNativeIconView) {

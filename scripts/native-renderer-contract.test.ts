@@ -658,7 +658,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('if (visible && alpha != opacity) alpha = opacity')
     expect(android).toContain('fun resetForTeardown()')
     expect(android).toContain('released.filterIsInstance<CraftNativeModalView>().forEach { it.resetForTeardown() }')
-    expect(android).toContain('setVisible(visible, style.optDouble("opacity", 1.0).toFloat(), props.optString("animationType").ifBlank { null })')
+    expect(android).toContain('setVisible(visible, craftNativeFiniteFloat(style, "opacity", 1f), props.optString("animationType").ifBlank { null })')
     expect(android).toContain('val visible = if (props.has("visible"))')
     expect(android).toContain('props.optBoolean("visible", false)')
     expect(android).toContain('props.has("visible")')
@@ -982,6 +982,13 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('const gap = finiteNonNegative(node.style.gap)')
     expect(nativeLayout).toContain('const column_gap = finiteNonNegative(node.style.column_gap)')
     expect(nativeLayout).toContain('test "sanitizes non-finite tree flex and grid gaps"')
+  })
+
+  it('rejects non-finite Android visual floats before touching native views', () => {
+    expect(android).toContain('internal fun craftNativeFiniteFloat(style: JSONObject?, name: String, fallback: Float): Float')
+    expect(android).toContain('value.isFinite() && narrowed.isFinite()')
+    expect(android).toContain('craftNativeFiniteFloat(style, "opacity", 1f)')
+    expect(android).not.toContain('style.optDouble("opacity", 1.0).toFloat()')
   })
 
   it('keeps intrinsic grid tracks equal across hosts', () => {
