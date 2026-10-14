@@ -524,6 +524,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
     }
 
     override fun onMapReady(map: GoogleMap) {
+        if (destroyed) return
         googleMap = map
         map.setOnMarkerClickListener { marker ->
             val id = markers.entries.firstOrNull { it.value == marker }?.key ?: return@setOnMarkerClickListener false

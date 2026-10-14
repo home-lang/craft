@@ -248,6 +248,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('released.filterIsInstance<CraftNativeMapView>().forEach { it.destroy() }')
       expect(nativeActivity).toContain('private var lifecycleStarted = false')
       expect(nativeActivity).toContain('mapView.onDestroy()')
+      expect(nativeActivity).toContain('if (destroyed) return\n        googleMap = map')
       expect(nativeActivity).toContain('drawNodes(canvas, drawing.optJSONArray("children") ?: JSONArray(), SvgPaint().merge(drawing))')
       expect(nativeActivity).toContain('val dashes: List<Float>')
       expect(nativeActivity).toContain('DashPathEffect(pattern, 0f)')

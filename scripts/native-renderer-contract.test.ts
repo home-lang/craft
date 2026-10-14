@@ -290,6 +290,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private var lifecycleStarted = false')
     expect(android).toContain('fun destroy()')
     expect(android).toContain('mapView.onDestroy()')
+    expect(android).toContain('if (destroyed) return\n        googleMap = map')
     expect(android).toContain('released.filterIsInstance<CraftNativeMapView>().forEach { it.destroy() }')
     expect(androidBuild).toContain('{{GOOGLE_MAPS_DEPENDENCY}}')
     expect(androidBuilder).toContain('mapsApiKey?: string')
