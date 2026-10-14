@@ -480,7 +480,10 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
                 }
             } else if type == "mappolyline" || type == "polyline" {
                 guard points.count > 1 else { continue }
-                nextPolylines[id] = (points, Self.color(childProps["strokeColor"] as? String), CGFloat((childProps["strokeWidth"] as? NSNumber)?.doubleValue ?? 3))
+                let authoredWidth = (childProps["strokeWidth"] as? NSNumber)?.doubleValue ?? 3
+                let width = CGFloat(authoredWidth)
+                guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }
+                nextPolylines[id] = (points, Self.color(childProps["strokeColor"] as? String), width)
             }
         }
 
@@ -576,8 +579,11 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         let numbers = (value as? [Any])?.compactMap { ($0 as? NSNumber)?.doubleValue }
             ?? (value as? [NSNumber])?.map(\.doubleValue)
             ?? []
-        return stride(from: 0, to: numbers.count - 1, by: 2).map {
-            CLLocationCoordinate2D(latitude: numbers[$0], longitude: numbers[$0 + 1])
+        return stride(from: 0, to: numbers.count - 1, by: 2).compactMap {
+            let latitude = numbers[$0]
+            let longitude = numbers[$0 + 1]
+            guard latitude.isFinite, longitude.isFinite else { return nil }
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         }
     }
 

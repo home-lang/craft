@@ -254,6 +254,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('let staleOverlays = overlaysByID.keys.filter { nextPolylines[$0] == nil }')
     expect(ios).toContain('Self.coordinatesEqual(coordinates, value.coordinates)')
     expect(ios).toContain('overlayCoordinatesByID[id] = value.coordinates')
+    expect(ios).toContain('guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }')
+    expect(ios).toContain('guard latitude.isFinite, longitude.isFinite else { return nil }')
     expect(ios).toContain('showsUserLocation = props["showsUserLocation"] as? Bool == true && Self.locationPermissionGranted()')
     expect(ios).toContain('private static func locationPermissionGranted() -> Bool')
     expect(android).toContain('private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMapReadyCallback')
