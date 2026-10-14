@@ -151,6 +151,9 @@ class CraftNativeMutationDocument {
 
     fun node(id: String): JSONObject? = materialize(id, nodes)
 
+    /** The committed parent used to redraw a child that has no native view. */
+    fun parentId(id: String): String? = nodes[id]?.parent
+
     private fun createNode(
         operation: JSONObject,
         nodes: MutableMap<String, Node>,

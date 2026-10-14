@@ -9,6 +9,7 @@ const iosHealth = readFileSync(join(root, 'packages/ios/templates/CraftHealth.sw
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
+const androidMutation = readFileSync(join(root, 'packages/android/templates/CraftNativeMutation.kt.template'), 'utf8')
 const androidBuild = readFileSync(join(root, 'packages/android/templates/build.gradle.kts.app.template'), 'utf8')
 const androidBuilder = readFileSync(join(root, 'packages/android/src/index.ts'), 'utf8')
 const androidManifest = readFileSync(join(root, 'packages/android/templates/AndroidManifest.xml.template'), 'utf8')
@@ -861,6 +862,9 @@ describe('native renderer component contract', () => {
   it('rebinds Android targeted style mutations to the parent layout', () => {
     expect(android).toContain('val nodeViews = mutableMapOf<String, View>()')
     expect(android).toContain('val nodePaths = mutableMapOf<String, String>()')
+    expect(android).toContain('private fun drawnTarget(screen: Screen, id: String): String?')
+    expect(android).toContain('current = screen.mutations.parentId(current)')
+    expect(androidMutation).toContain('fun parentId(id: String): String? = nodes[id]?.parent')
     expect(android).toContain('val path = screen.nodePaths[target] ?: return false')
     expect(android).toContain('makeView(screen, document, path, screen.controls)')
     expect(android).toContain('val updated = screen.nodeViews[target] ?: return false')

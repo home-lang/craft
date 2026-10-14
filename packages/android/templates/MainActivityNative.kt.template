@@ -3377,7 +3377,7 @@ class MainActivity : AppCompatActivity() {
     private fun applyTargetedUpdates(screen: Screen, ids: List<String>): Boolean {
         val applied = mutableSetOf<String>()
         for (id in ids) {
-            val target = screen.flatListOwners[id] ?: id
+            val target = drawnTarget(screen, id) ?: return false
             if (!applied.add(target)) continue
             val document = screen.mutations.node(target) ?: return false
             val path = screen.nodePaths[target] ?: return false
@@ -3391,6 +3391,17 @@ class MainActivity : AppCompatActivity() {
             scheduleLayoutEvents(screen)
         }
         return true
+    }
+
+    /** Find the nearest rendered ancestor for protocol nodes with no view. */
+    private fun drawnTarget(screen: Screen, id: String): String? {
+        var current: String? = id
+        while (current != null) {
+            val target = screen.flatListOwners[current] ?: current
+            if (screen.nodeViews[target] != null) return target
+            current = screen.mutations.parentId(current)
+        }
+        return null
     }
 
     private fun scheduleLayoutEvents(screen: Screen) {
