@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.169...v0.0.170)
+
+## 🚀 Features
+
+- **media**: keep a video on Wi-Fi only, and say it is waiting rather than failing ([2b5571e](https://github.com/craft-native/craft/commit/2b5571e)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.168...v0.0.169)
 
 ## 🚀 Features
