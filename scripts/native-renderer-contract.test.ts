@@ -1913,6 +1913,14 @@ describe('native renderer component contract', () => {
     expect(androidFlatList).toContain('renderedLayout?.height ?: LayoutParams.WRAP_CONTENT')
   })
 
+  it('keeps vertical FlatList row roots full-width across hosts', () => {
+    expect(iosFlatList).toContain('view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor)')
+    expect(iosFlatList).toContain('view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)')
+    expect(androidFlatList).toContain('val hostedWidth = if (!horizontal && renderedWidth == LayoutParams.WRAP_CONTENT)')
+    expect(androidFlatList).toContain('LayoutParams.MATCH_PARENT')
+    expect(androidFlatListTest).toContain('verticalRowsFillTheListWidthWhenNoWidthIsAuthored')
+  })
+
   it('routes authored links through both native hosts', () => {
     expect(navigationHome).toContain('<a testID="native-route-link" href="/details">')
     expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')

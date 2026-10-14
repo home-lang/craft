@@ -49,8 +49,19 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
             holder.host.layoutParams = holderLayoutParams()
             val view = renderItem?.invoke(item.node, item.identity, holder.hostedView) ?: View(holder.host.context)
             val renderedLayout = view.layoutParams
+            // iOS pins every row root to the collection cell's content width.
+            // A freshly-rendered Android root normally carries WRAP_CONTENT,
+            // which otherwise shrinks a vertical row to its text width and
+            // makes the two hosts disagree on hit/background geometry. Keep an
+            // authored width when one exists; only the default is promoted.
+            val renderedWidth = renderedLayout?.width ?: LayoutParams.WRAP_CONTENT
+            val hostedWidth = if (!horizontal && renderedWidth == LayoutParams.WRAP_CONTENT) {
+                LayoutParams.MATCH_PARENT
+            } else {
+                renderedWidth
+            }
             val hostedLayout = FrameLayout.LayoutParams(
-                renderedLayout?.width ?: LayoutParams.MATCH_PARENT,
+                hostedWidth,
                 renderedLayout?.height ?: LayoutParams.WRAP_CONTENT,
             )
             if (renderedLayout is ViewGroup.MarginLayoutParams) {
