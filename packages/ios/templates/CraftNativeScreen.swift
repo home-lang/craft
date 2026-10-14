@@ -650,7 +650,7 @@ private enum CraftNativeLength: Equatable {
 
     func resolve(_ base: CGFloat?) -> CGFloat? {
         switch self {
-        case .points(let value): return value
+        case .points(let value): return max(0, value)
         case .percent(let fraction): return base.map { max(0, $0 * fraction) }
         }
     }

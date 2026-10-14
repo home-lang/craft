@@ -125,7 +125,7 @@ private data class CraftNativeLength(
     val points: Int? = null,
     val fraction: Double? = null,
 ) {
-    fun resolve(base: Int?): Int? = points ?: fraction?.let { value -> base?.let { max(0, (it * value).roundToInt()) } }
+    fun resolve(base: Int?): Int? = points?.coerceAtLeast(0) ?: fraction?.let { value -> base?.let { max(0, (it * value).roundToInt()) } }
 
     companion object {
         fun from(value: Any?, density: Float): CraftNativeLength? {

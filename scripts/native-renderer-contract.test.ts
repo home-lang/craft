@@ -369,9 +369,11 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('guard points.isFinite else { return nil }')
     expect(ios).toContain('fraction.isFinite')
     expect(ios).toContain('return value.isFinite ? value : nil')
+    expect(ios).toContain('case .points(let value): return max(0, value)')
     expect(android).toContain('points.takeIf { it.isFinite() }')
     expect(android).toContain('toDoubleOrNull()?.takeIf { it.isFinite() }')
     expect(android).toContain('(points * density).takeIf { it.isFinite() }?.roundToInt()')
+    expect(android).toContain('points?.coerceAtLeast(0)')
   })
 
   it('keeps Android flex justification aligned across the Kotlin and JNI seams', () => {
