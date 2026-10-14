@@ -383,7 +383,7 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         val y = values.optDouble(1, Double.NaN).toFloat()
         val width = values.optDouble(2, Double.NaN).toFloat()
         val height = values.optDouble(3, Double.NaN).toFloat()
-        if (!x.isFinite() || !y.isFinite() || !width.isFinite() || !height.isFinite()) return null
+        if (!x.isFinite() || !y.isFinite() || !width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f) return null
         return Quadruple(width, height, x, y)
     }
 

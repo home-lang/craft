@@ -2368,7 +2368,7 @@ private final class CraftNativeSvgView: UIView {
         let props = drawing["props"] as? [String: Any] ?? [:]
         guard let box = props["viewBox"] as? [Any], box.count == 4 else { return nil }
         let n = box.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
-        guard n.count == 4, n[2] > 0, n[3] > 0 else { return nil }
+        guard n.count == 4, n.allSatisfy(\.isFinite), n[2] > 0, n[3] > 0 else { return nil }
         return CGRect(x: n[0], y: n[1], width: n[2], height: n[3])
     }
 

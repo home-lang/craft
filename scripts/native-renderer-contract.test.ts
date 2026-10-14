@@ -320,6 +320,8 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('line\ncaps, joins, and dash patterns')
     expect(ios).toContain('n.allSatisfy(\\.isFinite)')
     expect(android).toContain('if ((0 until geometry.length()).any { !geometry.optDouble(it, Double.NaN).toFloat().isFinite() }) return')
+    expect(ios).toContain('guard n.count == 4, n.allSatisfy(\\.isFinite), n[2] > 0, n[3] > 0 else { return nil }')
+    expect(android).toContain('!x.isFinite() || !y.isFinite() || !width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f')
   })
 
   it('gives computed SVG opacity precedence over the raw prop on both hosts', () => {
