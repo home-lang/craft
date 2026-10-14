@@ -368,8 +368,10 @@ describe('native renderer component contract', () => {
   it('rejects non-finite authored lengths before host measurement', () => {
     expect(ios).toContain('guard points.isFinite else { return nil }')
     expect(ios).toContain('fraction.isFinite')
+    expect(ios).toContain('return value.isFinite ? value : nil')
     expect(android).toContain('points.takeIf { it.isFinite() }')
     expect(android).toContain('toDoubleOrNull()?.takeIf { it.isFinite() }')
+    expect(android).toContain('(points * density).takeIf { it.isFinite() }?.roundToInt()')
   })
 
   it('keeps Android flex justification aligned across the Kotlin and JNI seams', () => {

@@ -165,11 +165,13 @@ private data class CraftNativeLayoutStyle(
             fun length(name: String): CraftNativeLength? = CraftNativeLength.from(raw.opt(name), density)
             fun number(name: String): Int? {
                 if (!raw.has(name) || raw.isNull(name)) return null
-                return raw.optDouble(name, Double.NaN).takeUnless { it.isNaN() }?.let { (it * density).roundToInt() }
+                return raw.optDouble(name, Double.NaN).takeIf { it.isFinite() }?.let { points ->
+                    (points * density).takeIf { it.isFinite() }?.roundToInt()
+                }
             }
             fun decimal(name: String): Double? {
                 if (!raw.has(name) || raw.isNull(name)) return null
-                return raw.optDouble(name, Double.NaN).takeUnless { it.isNaN() }
+                return raw.optDouble(name, Double.NaN).takeIf { it.isFinite() }
             }
             val flex = decimal("flex")
             return CraftNativeLayoutStyle(

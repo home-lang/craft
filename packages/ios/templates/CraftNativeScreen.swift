@@ -687,7 +687,11 @@ private struct CraftNativeLayoutStyle {
     static let empty = CraftNativeLayoutStyle([:])
 
     init(_ raw: [String: Any]) {
-        func number(_ value: Any?) -> CGFloat? { (value as? NSNumber).map { CGFloat(truncating: $0) } }
+        func number(_ value: Any?) -> CGFloat? {
+            guard let number = value as? NSNumber else { return nil }
+            let value = CGFloat(truncating: number)
+            return value.isFinite ? value : nil
+        }
         width = CraftNativeLength(raw["width"])
         height = CraftNativeLength(raw["height"])
         let ratio = number(raw["aspectRatio"])
@@ -6179,7 +6183,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func number(_ value: Any?) -> CGFloat? {
-        (value as? NSNumber).map { CGFloat(truncating: $0) }
+        guard let number = value as? NSNumber else { return nil }
+        let value = CGFloat(truncating: number)
+        return value.isFinite ? value : nil
     }
 
     private func keyboardType(_ value: Any?) -> UIKeyboardType {
