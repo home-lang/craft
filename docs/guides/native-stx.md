@@ -41,7 +41,7 @@ capability APIs from the host.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
-The current pair is pinned to `9282a03eadb7ccc77ba17373adcda958761ef3aa`,
+The current pair is pinned to `1bb9d581d88517778b10333f57c2be41bae9fd0e`,
 which keeps a container's testID around a library component, draws `Checkbox`
 natively and keeps a style object's `transform` and `shadowOffset`.
 
