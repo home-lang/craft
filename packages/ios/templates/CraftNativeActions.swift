@@ -647,6 +647,12 @@ enum CraftNativeActions {
     /// offline, fetched once (a copy already there answers at once, and two
     /// screens asking at the same time share one download). A refused answer
     /// (not 2xx) keeps nothing and says its status. Cancelled like fetch.
+    ///
+    /// `cellular: false` keeps it off a metered connection: iOS refuses the
+    /// download on cellular, a personal hotspot and Low Data Mode, and the
+    /// answer is `{ ok: false, reason: "cellular" }` straight away, so the
+    /// screen can say it is waiting for Wi-Fi instead of failing. A copy
+    /// already kept still answers, whatever the connection.
     private static func keepMedia(
         requestToken: String,
         args: [Any],
@@ -675,12 +681,21 @@ enum CraftNativeActions {
                 request.setValue(value, forHTTPHeaderField: name)
             }
         }
+        if options["cellular"] as? Bool == false {
+            request.allowsExpensiveNetworkAccess = false
+            request.allowsConstrainedNetworkAccess = false
+        }
         if CraftNativeMedia.join(address, { complete(requestToken, $0, completion) }) { return }
         let task = fetchSession.downloadTask(with: request) { location, response, error in
             cancellationLock.lock()
             fetchTasks.removeValue(forKey: requestToken)
             cancellationLock.unlock()
             if let error = error {
+                // Refused only because the connection is metered: not a failure, a wait.
+                if let reason = (error as? URLError)?.networkUnavailableReason, reason == .expensive || reason == .constrained {
+                    CraftNativeMedia.finish(address, .success(["ok": false, "url": address, "reason": "cellular"]))
+                    return
+                }
                 let code = (error as? URLError)?.code == .timedOut ? "TIMEOUT" : "NETWORK_ERROR"
                 CraftNativeMedia.finish(address, failure(code, error.localizedDescription))
                 return

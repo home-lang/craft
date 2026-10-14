@@ -1631,6 +1631,10 @@ describe('Craft iOS builder', () => {
     // Moved into place whole, never played half-written; a refusal keeps nothing.
     expect(files).toContain('try fm.moveItem(at: staging, to: target)')
     expect(files).toContain('return .success(["ok": false, "url": address, "status": response.statusCode])')
+    // Wi-Fi only: iOS refuses a metered connection, and that answer is a wait, not a failure.
+    expect(actions).toContain('request.allowsExpensiveNetworkAccess = false')
+    expect(actions).toContain('request.allowsConstrainedNetworkAccess = false')
+    expect(actions).toContain('CraftNativeMedia.finish(address, .success(["ok": false, "url": address, "reason": "cellular"]))')
     // Two screens asking for the same address share one download.
     expect(actions).toContain('if CraftNativeMedia.join(address, { complete(requestToken, $0, completion) }) { return }')
     // The Video element plays the kept copy, and says so when an address cannot load.

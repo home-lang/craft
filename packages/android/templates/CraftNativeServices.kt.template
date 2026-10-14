@@ -109,7 +109,7 @@ internal class CraftNativeServices(
                 "Speech" -> speech(method, args, done)
                 "Location" -> location(method, args, done)
                 "Media" -> when (method) {
-                    "keep" -> CraftNativeMedia.keep(context, args.optString(0), args.optJSONObject(1)?.optJSONObject("headers") ?: JSONObject(), done)
+                    "keep" -> CraftNativeMedia.keep(context, args.optString(0), args.optJSONObject(1)?.optJSONObject("headers") ?: JSONObject(), args.optJSONObject(1)?.optBoolean("cellular", true) ?: true, done)
                     "path" -> done(success(CraftNativeMedia.local(context, args.optString(0))?.absolutePath ?: JSONObject.NULL))
                     "prune" -> {
                         val keep = args.optJSONArray(0) ?: JSONArray()

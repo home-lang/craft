@@ -808,12 +808,21 @@ internal object CraftNativeMedia {
 
     private fun describe(address: String, file: File) = JSONObject().put("ok", true).put("url", address).put("path", file.absolutePath).put("size", file.length())
 
-    fun keep(context: Context, address: String, headers: JSONObject, done: (CraftNativeCapabilityResult) -> Unit) {
+    /**
+     * `cellular = false` keeps it off a metered connection (mobile data, a
+     * hotspot): nothing is fetched and the answer is `{ ok: false, reason:
+     * "cellular" }`, so the screen can say it is waiting for Wi-Fi. A copy
+     * already kept still answers, whatever the connection.
+     */
+    fun keep(context: Context, address: String, headers: JSONObject, cellular: Boolean, done: (CraftNativeCapabilityResult) -> Unit) {
         val uri = runCatching { Uri.parse(address) }.getOrNull()
         if (uri == null || uri.scheme?.lowercase() !in setOf("http", "https") || uri.host.isNullOrBlank()) {
             return done(CraftNativeCapabilityResult(code = "INVALID_ARGUMENT", message = "media.keep needs an absolute http or https URL"))
         }
         local(context, address)?.let { return done(CraftNativeCapabilityResult(data = describe(address, it))) }
+        if (!cellular && metered(context)) {
+            return done(CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("reason", "cellular")))
+        }
         synchronized(inFlight) {
             inFlight[address]?.let { waiting ->
                 waiting.add(done)
@@ -850,6 +859,12 @@ internal object CraftNativeMedia {
             main.post { waiting.forEach { it(result) } }
         }
     }
+
+    /** Whether the connection now is one the person pays for by the byte. */
+    private fun metered(context: Context): Boolean = runCatching {
+        val connectivity = context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        connectivity.isActiveNetworkMetered
+    }.getOrDefault(false)
 
     /** Removes every copy whose address is not in `keep`; answers how many. */
     fun prune(context: Context, keep: List<String>): Int {

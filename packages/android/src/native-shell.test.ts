@@ -153,6 +153,10 @@ describe('the native app shell in a generated project', () => {
         expect(existsSync(join(java, file))).toBe(true)
       expect(readFileSync(join(java, 'CraftNativeHealth.kt'), 'utf8')).toContain('HealthConnectClient')
       expect(readFileSync(join(java, 'CraftNativeServices.kt'), 'utf8')).toContain('FirebaseMessaging.getInstance().token')
+      // Wi-Fi only: a kept video is not fetched on a metered connection, and says it is waiting.
+      expect(readFileSync(join(java, 'CraftNativeServices.kt'), 'utf8')).toContain('optBoolean("cellular", true)')
+      expect(readFileSync(join(java, 'CraftNativeShell.kt'), 'utf8')).toContain('if (!cellular && metered(context))')
+      expect(readFileSync(join(java, 'CraftNativeShell.kt'), 'utf8')).toContain('.put("reason", "cellular")')
       const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
       expect(manifest).toContain('android.permission.health.WRITE_MINDFULNESS')
       expect(manifest).not.toContain('android.permission.health.WRITE_EXERCISE')
