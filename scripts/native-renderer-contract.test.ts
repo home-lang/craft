@@ -942,8 +942,11 @@ describe('native renderer component contract', () => {
 
   it('applies FlatList content container padding on both hosts', () => {
     expect(iosFlatList).toContain('func setContentContainerStyle(_ raw: [String: Any]?)')
+    expect(iosFlatList).toContain('func nonNegative(_ value: Any?) -> CGFloat?')
+    expect(iosFlatList).toContain('let padding = nonNegative(raw?["padding"]) ?? 0')
     expect(ios).toContain('list.setContentContainerStyle(props["contentContainerStyle"] as? [String: Any])')
     expect(androidFlatList).toContain('fun setContentContainerStyle(style: JSONObject?, density: Float)')
+    expect(androidFlatList).toContain('craftNativePadding(style, "padding", 0, density)')
     expect(android).toContain('setContentContainerStyle(props.optJSONObject("contentContainerStyle"), resources.displayMetrics.density)')
   })
 
@@ -970,9 +973,9 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('func nonNegative(_ value: Any?) -> CGFloat?')
     expect(ios).toContain('let padding = nonNegative(style["padding"]) ?? 0')
     expect(ios).toContain('right: nonNegative(style["paddingRight"]) ?? horizontal')
-    expect(android).toContain('fun padding(name: String, fallback: Int): Int')
+    expect(android).toContain('internal fun craftNativePadding(style: JSONObject?, name: String, fallback: Int, density: Float): Int')
     expect(android).toContain('value.isFinite() && value >= 0 && pixels.isFinite()')
-    expect(android).toContain('padding("paddingLeft", horizontal)')
+    expect(android).toContain('craftNativePadding(style, "paddingLeft", horizontal, density)')
     expect(nativeLayout).toContain('const padding_left = finiteNonNegative(node.style.padding_left)')
     expect(nativeLayout).toContain('const content_x = x + padding_left')
     expect(nativeLayout).toContain('test "sanitizes non-finite and negative tree padding"')

@@ -219,15 +219,20 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     }
 
     func setContentContainerStyle(_ raw: [String: Any]?) {
-        func number(_ value: Any?) -> CGFloat? { (value as? NSNumber).map { CGFloat(truncating: $0) } }
-        let padding = number(raw?["padding"]) ?? 0
-        let horizontal = number(raw?["paddingHorizontal"]) ?? padding
-        let vertical = number(raw?["paddingVertical"]) ?? padding
+        func nonNegative(_ value: Any?) -> CGFloat? {
+            guard let number = value as? NSNumber else { return nil }
+            let points = CGFloat(truncating: number)
+            guard points.isFinite, points >= 0 else { return nil }
+            return points
+        }
+        let padding = nonNegative(raw?["padding"]) ?? 0
+        let horizontal = nonNegative(raw?["paddingHorizontal"]) ?? padding
+        let vertical = nonNegative(raw?["paddingVertical"]) ?? padding
         contentInset = UIEdgeInsets(
-            top: number(raw?["paddingTop"]) ?? vertical,
-            left: number(raw?["paddingLeft"]) ?? horizontal,
-            bottom: number(raw?["paddingBottom"]) ?? vertical,
-            right: number(raw?["paddingRight"]) ?? horizontal
+            top: nonNegative(raw?["paddingTop"]) ?? vertical,
+            left: nonNegative(raw?["paddingLeft"]) ?? horizontal,
+            bottom: nonNegative(raw?["paddingBottom"]) ?? vertical,
+            right: nonNegative(raw?["paddingRight"]) ?? horizontal
         )
         scrollIndicatorInsets = contentInset
         collectionViewLayout.invalidateLayout()

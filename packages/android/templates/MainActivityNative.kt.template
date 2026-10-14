@@ -121,6 +121,12 @@ import kotlin.math.sin
 
 private const val CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS = 30_000L
 
+internal fun craftNativePadding(style: JSONObject?, name: String, fallback: Int, density: Float): Int {
+    val value = style?.optDouble(name, Double.NaN) ?: Double.NaN
+    val pixels = value * density
+    return if (value.isFinite() && value >= 0 && pixels.isFinite()) pixels.toInt() else fallback
+}
+
 private data class CraftNativeLength(
     val points: Int? = null,
     val fraction: Double? = null,
@@ -776,19 +782,14 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             if (style.has("gridTemplateColumns")) style.opt("gridTemplateColumns") else style.opt("gridColumns")
         )
         gridAutoRows = CraftNativeLength.from(style.opt("gridAutoRows"), density)
-        fun padding(name: String, fallback: Int): Int {
-            val value = style.optDouble(name, Double.NaN)
-            val pixels = value * density
-            return if (value.isFinite() && value >= 0 && pixels.isFinite()) pixels.toInt() else fallback
-        }
-        val all = padding("padding", 0)
-        val horizontal = padding("paddingHorizontal", all)
-        val vertical = padding("paddingVertical", all)
+        val all = craftNativePadding(style, "padding", 0, density)
+        val horizontal = craftNativePadding(style, "paddingHorizontal", all, density)
+        val vertical = craftNativePadding(style, "paddingVertical", all, density)
         setPadding(
-            padding("paddingLeft", horizontal),
-            padding("paddingTop", vertical),
-            padding("paddingRight", horizontal),
-            padding("paddingBottom", vertical),
+            craftNativePadding(style, "paddingLeft", horizontal, density),
+            craftNativePadding(style, "paddingTop", vertical, density),
+            craftNativePadding(style, "paddingRight", horizontal, density),
+            craftNativePadding(style, "paddingBottom", vertical, density),
         )
         requestLayout()
     }
@@ -3623,14 +3624,14 @@ class MainActivity : AppCompatActivity() {
                 // the web; without one the field keeps its own.
                 if (listOf("padding", "paddingHorizontal", "paddingVertical", "paddingLeft", "paddingRight", "paddingTop", "paddingBottom").any { style.has(it) }) {
                     val density = resources.displayMetrics.density
-                    val all = style.optDouble("padding", 0.0)
-                    val horizontal = style.optDouble("paddingHorizontal", all)
-                    val vertical = style.optDouble("paddingVertical", all)
+                    val all = craftNativePadding(style, "padding", 0, density)
+                    val horizontal = craftNativePadding(style, "paddingHorizontal", all, density)
+                    val vertical = craftNativePadding(style, "paddingVertical", all, density)
                     setPadding(
-                        (style.optDouble("paddingLeft", horizontal) * density).toInt(),
-                        (style.optDouble("paddingTop", vertical) * density).toInt(),
-                        (style.optDouble("paddingRight", horizontal) * density).toInt(),
-                        (style.optDouble("paddingBottom", vertical) * density).toInt(),
+                        craftNativePadding(style, "paddingLeft", horizontal, density),
+                        craftNativePadding(style, "paddingTop", vertical, density),
+                        craftNativePadding(style, "paddingRight", horizontal, density),
+                        craftNativePadding(style, "paddingBottom", vertical, density),
                     )
                 }
                 // Reused EditTexts must forget the previous field's hint as
@@ -4419,14 +4420,15 @@ class MainActivity : AppCompatActivity() {
         if (view is TextView && view !is EditText && view !is CraftNativeIconView) {
             val keys = listOf("padding", "paddingHorizontal", "paddingVertical", "paddingLeft", "paddingRight", "paddingTop", "paddingBottom")
             if (keys.any(style::has)) {
-                val all = style.optDouble("padding", 0.0)
-                val horizontal = style.optDouble("paddingHorizontal", all)
-                val vertical = style.optDouble("paddingVertical", all)
+                val density = resources.displayMetrics.density
+                val all = craftNativePadding(style, "padding", 0, density)
+                val horizontal = craftNativePadding(style, "paddingHorizontal", all, density)
+                val vertical = craftNativePadding(style, "paddingVertical", all, density)
                 view.setPadding(
-                    dp(style.optDouble("paddingLeft", horizontal)),
-                    dp(style.optDouble("paddingTop", vertical)),
-                    dp(style.optDouble("paddingRight", horizontal)),
-                    dp(style.optDouble("paddingBottom", vertical)),
+                    craftNativePadding(style, "paddingLeft", horizontal, density),
+                    craftNativePadding(style, "paddingTop", vertical, density),
+                    craftNativePadding(style, "paddingRight", horizontal, density),
+                    craftNativePadding(style, "paddingBottom", vertical, density),
                 )
             } else if (view.javaClass == TextView::class.java) {
                 view.setPadding(0, 0, 0, 0)
