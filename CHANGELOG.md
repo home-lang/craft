@@ -1,5 +1,26 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.172...v0.0.173)
+
+## 🚀 Features
+
+- **macos**: render stx screens with AppKit and zig-js ([0a051e0](https://github.com/craft-native/craft/commit/0a051e0)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **ios**: a native screen's keyboard is avoided once, and a text view keeps its own traits ([e8b5329](https://github.com/craft-native/craft/commit/e8b5329)) _(by Chris Breuer)_
+- **macos**: preserve readable appearance and size native text controls ([ec38694](https://github.com/craft-native/craft/commit/ec38694)) _(by Chris Breuer)_
+- **macos**: scroll native test controls into view ([639f842](https://github.com/craft-native/craft/commit/639f842)) _(by Chris Breuer)_
+- **macos**: follow system appearance in native windows ([ebe8afa](https://github.com/craft-native/craft/commit/ebe8afa)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- add the macos workspace package to the lockfile ([909cfaa](https://github.com/craft-native/craft/commit/909cfaa)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.171...v0.0.172)
 
 ## 🚀 Features

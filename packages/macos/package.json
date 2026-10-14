@@ -1,8 +1,13 @@
 {
   "name": "@craft-native/macos",
-  "version": "0.0.172",
+  "version": "0.0.173",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "bun test", "typecheck": "tsc --noEmit" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  }
 }
