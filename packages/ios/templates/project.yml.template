@@ -34,6 +34,7 @@ targets:
     settings:
       INFOPLIST_FILE: Info.plist
       CODE_SIGN_ENTITLEMENTS: Craft.entitlements
+      PRODUCT_NAME: "$(TARGET_NAME)"
       PRODUCT_BUNDLE_IDENTIFIER: {{BUNDLE_ID}}
       TARGETED_DEVICE_FAMILY: "{{DEVICE_FAMILIES}}"
       SWIFT_VERSION: "5.0"

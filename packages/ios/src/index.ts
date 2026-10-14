@@ -1390,6 +1390,7 @@ export async function init(options: InitOptions): Promise<void> {
       - Shared
     settings:
       INFOPLIST_FILE: WidgetExtension/Info.plist
+      PRODUCT_NAME: "$(TARGET_NAME)"
       PRODUCT_BUNDLE_IDENTIFIER: ${finalBundleId}.liveactivity
       SWIFT_VERSION: "5.0"
       APPLICATION_EXTENSION_API_ONLY: YES
@@ -1405,6 +1406,7 @@ export async function init(options: InitOptions): Promise<void> {
     settings:
       INFOPLIST_FILE: WatchApp/Info.plist
       CODE_SIGN_ENTITLEMENTS: WatchApp/Watch.entitlements
+      PRODUCT_NAME: "$(TARGET_NAME)"
       PRODUCT_BUNDLE_IDENTIFIER: ${finalBundleId}.watchkitapp
       SWIFT_VERSION: "5.0"
       SKIP_INSTALL: YES
@@ -1419,6 +1421,7 @@ export async function init(options: InitOptions): Promise<void> {
     settings:
       INFOPLIST_FILE: WatchExtension/Info.plist
       CODE_SIGN_ENTITLEMENTS: WatchExtension/Watch.entitlements
+      PRODUCT_NAME: "$(TARGET_NAME)"
       PRODUCT_BUNDLE_IDENTIFIER: ${finalBundleId}.watchkitapp.watchkitextension
       SWIFT_VERSION: "5.0"
       APPLICATION_EXTENSION_API_ONLY: YES
