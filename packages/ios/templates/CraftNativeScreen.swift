@@ -4,6 +4,7 @@ import AVKit
 import CryptoKit
 import Darwin
 import JavaScriptCore
+import MapKit
 import OSLog
 import Security
 import SwiftUI
@@ -424,6 +425,166 @@ private final class CraftNativeVideoView: UIView {
     }
 
     deinit { stop() }
+}
+
+private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
+    private var annotationsByID: [String: MKPointAnnotation] = [:]
+    private var overlaysByID: [String: MKPolyline] = [:]
+    private var overlayColors: [ObjectIdentifier: UIColor] = [:]
+    private(set) var markerHandlers: [String: String] = [:]
+    var onMarkerTap: ((String) -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        delegate = self
+        showsCompass = false
+        showsScale = false
+        isRotateEnabled = false
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        delegate = self
+    }
+
+    func configure(props: [String: Any], children: [Any], markerHandler: @escaping (String) -> Void) {
+        onMarkerTap = markerHandler
+        isScrollEnabled = props["scrollEnabled"] as? Bool ?? true
+        isZoomEnabled = props["zoomEnabled"] as? Bool ?? true
+        isRotateEnabled = props["rotateEnabled"] as? Bool ?? false
+        mapType = Self.mapType(props["mapType"] as? String)
+
+        var nextMarkers: [String: (coordinate: CLLocationCoordinate2D, title: String?)] = [:]
+        var nextHandlers: [String: String] = [:]
+        var nextPolylines: [String: (coordinates: [CLLocationCoordinate2D], color: UIColor, width: CGFloat)] = [:]
+        for (index, child) in children.enumerated() {
+            guard let node = child as? [String: Any], let rawType = node["type"] as? String else { continue }
+            let type = rawType.lowercased()
+            let childProps = node["props"] as? [String: Any] ?? [:]
+            let childEvents = node["events"] as? [String: String] ?? [:]
+            let id = (childProps["id"] as? CustomStringConvertible)?.description
+                ?? (node["id"] as? String)
+                ?? "overlay-\(index)"
+            let points = Self.coordinates(childProps["geometry"])
+            if type == "mapmarker" || type == "marker" {
+                guard let point = points.first else { continue }
+                nextMarkers[id] = (point, childProps["title"] as? String)
+                if let handler = childEvents["onPress"] ?? childEvents["onMarkerPress"], !handler.isEmpty {
+                    nextHandlers[id] = handler
+                }
+            } else if type == "mappolyline" || type == "polyline" {
+                guard points.count > 1 else { continue }
+                nextPolylines[id] = (points, Self.color(childProps["strokeColor"] as? String), CGFloat((childProps["strokeWidth"] as? NSNumber)?.doubleValue ?? 3))
+            }
+        }
+
+        let staleMarkers = annotationsByID.keys.filter { nextMarkers[$0] == nil }
+        removeAnnotations(staleMarkers.compactMap { annotationsByID.removeValue(forKey: $0) })
+        for (id, value) in nextMarkers {
+            if let annotation = annotationsByID[id] {
+                annotation.coordinate = value.coordinate
+                annotation.title = value.title
+            } else {
+                let annotation = MKPointAnnotation()
+                annotation.coordinate = value.coordinate
+                annotation.title = value.title
+                annotationsByID[id] = annotation
+                addAnnotation(annotation)
+            }
+        }
+        markerHandlers = nextHandlers
+
+        removeOverlays(Array(overlaysByID.values))
+        overlaysByID.removeAll(keepingCapacity: true)
+        overlayColors.removeAll(keepingCapacity: true)
+        for (id, value) in nextPolylines {
+            let overlay = MKPolyline(coordinates: value.coordinates, count: value.coordinates.count)
+            overlaysByID[id] = overlay
+            overlayColors[ObjectIdentifier(overlay)] = value.color
+            addOverlay(overlay)
+        }
+
+        if let region = Self.region(props["region"] ?? props["initialRegion"]) {
+            setRegion(region, animated: false)
+        } else if props["fitToBounds"] as? Bool == true {
+            fitToOverlays()
+        }
+    }
+
+    private func fitToOverlays() {
+        var rect = MKMapRect.null
+        for overlay in overlaysByID.values { rect = rect.union(overlay.boundingMapRect) }
+        for annotation in annotationsByID.values {
+            let point = MKMapPoint(annotation.coordinate)
+            rect = rect.union(MKMapRect(x: point.x, y: point.y, width: 0, height: 0))
+        }
+        guard !rect.isNull else { return }
+        let inset = UIEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
+        setVisibleMapRect(rect, edgePadding: inset, animated: false)
+    }
+
+    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        guard let id = annotationsByID.first(where: { $0.value === annotation })?.key else { return nil }
+        let view = (dequeueReusableAnnotationView(withIdentifier: "craft-native-marker") as? MKMarkerAnnotationView)
+            ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "craft-native-marker")
+        view.annotation = annotation
+        view.markerTintColor = .systemRed
+        view.accessibilityIdentifier = id
+        return view
+    }
+
+    func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
+        guard let id = annotationsByID.first(where: { $0.value === annotation })?.key else { return }
+        onMarkerTap?(id)
+        deselectAnnotation(annotation, animated: false)
+    }
+
+    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        let renderer = MKPolylineRenderer(overlay: overlay)
+        renderer.strokeColor = overlayColors[ObjectIdentifier(overlay)] ?? .systemBlue
+        renderer.lineWidth = 3
+        return renderer
+    }
+
+    private static func coordinates(_ value: Any?) -> [CLLocationCoordinate2D] {
+        let numbers = (value as? [Any])?.compactMap { ($0 as? NSNumber)?.doubleValue }
+            ?? (value as? [NSNumber])?.map(\.doubleValue)
+            ?? []
+        return stride(from: 0, to: numbers.count - 1, by: 2).map {
+            CLLocationCoordinate2D(latitude: numbers[$0], longitude: numbers[$0 + 1])
+        }
+    }
+
+    private static func region(_ value: Any?) -> MKCoordinateRegion? {
+        guard let value = value as? [String: Any],
+              let center = value["center"] as? [String: Any],
+              let span = value["span"] as? [String: Any],
+              let latitude = (center["latitude"] as? NSNumber)?.doubleValue,
+              let longitude = (center["longitude"] as? NSNumber)?.doubleValue,
+              let latitudeDelta = (span["latitudeDelta"] as? NSNumber)?.doubleValue ?? (span["latitude_delta"] as? NSNumber)?.doubleValue,
+              let longitudeDelta = (span["longitudeDelta"] as? NSNumber)?.doubleValue ?? (span["longitude_delta"] as? NSNumber)?.doubleValue else { return nil }
+        return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta))
+    }
+
+    private static func color(_ value: String?) -> UIColor {
+        switch value?.lowercased() {
+        case "red": return .systemRed
+        case "green": return .systemGreen
+        case "orange": return .systemOrange
+        case "purple": return .systemPurple
+        case "yellow": return .systemYellow
+        default: return .systemBlue
+        }
+    }
+
+    private static func mapType(_ value: String?) -> MKMapType {
+        switch value?.lowercased() {
+        case "satellite": return .satellite
+        case "hybrid": return .hybrid
+        case "muted_standard": return .mutedStandard
+        default: return .standard
+        }
+    }
 }
 
 /// A WebView-free host for the first stx native vertical slice. The bundled
@@ -4454,6 +4615,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 controls: (props["controls"] as? Bool) == true,
                 resizeMode: style["resizeMode"] as? String ?? props["resizeMode"] as? String
             )
+        case "Map":
+            let map = result as! CraftNativeMapView
+            map.configure(props: props, children: children) { [weak self, weak map] markerID in
+                guard let self, let map, let handler = map.markerHandlers[markerID], !handler.isEmpty else { return }
+                self.send(type: "EVENT", payload: [
+                    "handlerName": handler,
+                    "nativeEvent": ["id": markerID],
+                ])
+            }
         case "ScrollView", "SectionList":
             let scroll = result as! CraftNativeScrollView
             let flexDirection = style["flexDirection"] as? String
@@ -4515,7 +4685,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             reconcileChildren(children, in: stack, parent: current, path: path, style: style)
         }
         updateLongPressHandler(props["disabled"] as? Bool == true ? nil : events["onLongPress"], for: result)
-        if type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "StatusBar" && type != "RefreshControl" {
+        if type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "StatusBar" && type != "RefreshControl" && type != "Map" {
             let disabled = props["disabled"] as? Bool == true
             updatePressHandler(disabled ? nil : nonEmptyHandler(events["onPress"]) ?? nonEmptyHandler(events["onClick"]), for: result)
             updatePressFeedback(
@@ -4590,6 +4760,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return CraftNativeKeyboardAvoidingView()
         case "Video":
             return CraftNativeVideoView(host: self)
+        case "Map":
+            return CraftNativeMapView()
         case "Icon":
             let icon = CraftNativeIconView()
             icon.contentMode = .scaleAspectFit
@@ -4631,6 +4803,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "image": return "Image"
         case "imagebackground": return "ImageBackground"
         case "video": return "Video"
+        case "map": return "Map"
         case "icon": return "Icon"
         case "scrollview": return "ScrollView"
         case "sectionlist": return "SectionList"

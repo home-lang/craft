@@ -86,6 +86,17 @@ import androidx.javascriptengine.Message
 import androidx.javascriptengine.MessagePort
 import androidx.javascriptengine.MessagePortClient
 import com.craft.runtime.CraftNative
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.OnMapReadyCallback
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.Polyline
+import com.google.android.gms.maps.model.PolylineOptions
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
@@ -457,6 +468,145 @@ private class CraftNativeSvgView(context: Context) : View(context) {
     }.getOrDefault(fallback)
 
     private data class Quadruple<T1, T2, T3, T4>(val first: T1, val second: T2, val third: T3, val fourth: T4)
+}
+
+/** The Android host for the small, host-neutral native trail map contract. */
+private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMapReadyCallback {
+    private val mapView = MapView(context)
+    private var googleMap: GoogleMap? = null
+    private var pendingProps = JSONObject()
+    private var pendingChildren = JSONArray()
+    private val markers = mutableMapOf<String, Marker>()
+    private val polylines = mutableMapOf<String, Polyline>()
+    private val markerHandlers = mutableMapOf<String, String>()
+    private var onMarkerTap: ((String) -> Unit)? = null
+
+    init {
+        addView(mapView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        mapView.onCreate(null)
+        mapView.getMapAsync(this)
+    }
+
+    override fun onMapReady(map: GoogleMap) {
+        googleMap = map
+        map.setOnMarkerClickListener { marker ->
+            val id = markers.entries.firstOrNull { it.value == marker }?.key ?: return@setOnMarkerClickListener false
+            onMarkerTap?.invoke(id)
+            false
+        }
+        applyPending()
+    }
+
+    fun configure(props: JSONObject, children: JSONArray, markerHandler: (String) -> Unit) {
+        pendingProps = props
+        pendingChildren = children
+        onMarkerTap = markerHandler
+        applyPending()
+    }
+
+    fun markerHandler(id: String): String? = markerHandlers[id]
+
+    private fun applyPending() {
+        val map = googleMap ?: return
+        map.uiSettings.isScrollGesturesEnabled = pendingProps.optBoolean("scrollEnabled", true)
+        map.uiSettings.isZoomGesturesEnabled = pendingProps.optBoolean("zoomEnabled", true)
+        map.uiSettings.isRotateGesturesEnabled = pendingProps.optBoolean("rotateEnabled", false)
+        map.mapType = when (pendingProps.optString("mapType").lowercase()) {
+            "satellite" -> GoogleMap.MAP_TYPE_SATELLITE
+            "hybrid" -> GoogleMap.MAP_TYPE_HYBRID
+            "terrain" -> GoogleMap.MAP_TYPE_TERRAIN
+            else -> GoogleMap.MAP_TYPE_NORMAL
+        }
+        val nextMarkers = mutableMapOf<String, Pair<LatLng, String?>>()
+        val nextHandlers = mutableMapOf<String, String>()
+        val nextPolylines = mutableMapOf<String, Pair<List<LatLng>, Int>>()
+        for (index in 0 until pendingChildren.length()) {
+            val child = pendingChildren.optJSONObject(index) ?: continue
+            val type = child.optString("type").lowercase()
+            val props = child.optJSONObject("props") ?: JSONObject()
+            val events = child.optJSONObject("events") ?: JSONObject()
+            val id = props.opt("id")?.takeUnless { it == JSONObject.NULL }?.toString()
+                ?: child.optString("id").takeIf { it.isNotBlank() }
+                ?: "overlay-$index"
+            val points = coordinates(props.optJSONArray("geometry"))
+            if (type == "mapmarker" || type == "marker") {
+                points.firstOrNull()?.let { point ->
+                    nextMarkers[id] = point to props.optString("title").takeIf { it.isNotBlank() }
+                    events.optString("onPress").ifBlank { events.optString("onMarkerPress") }
+                        .takeIf { it.isNotBlank() }?.let { nextHandlers[id] = it }
+                }
+            } else if (type == "mappolyline" || type == "polyline") {
+                if (points.size > 1) nextPolylines[id] = points to color(props.optString("strokeColor"))
+            }
+        }
+        markers.keys.filter { nextMarkers[it] == null }.forEach { markers.remove(it)?.remove() }
+        for ((id, value) in nextMarkers) {
+            val marker = markers[id]
+            if (marker != null) {
+                marker.position = value.first
+                marker.title = value.second
+            } else {
+                map.addMarker(MarkerOptions().position(value.first).title(value.second).icon(BitmapDescriptorFactory.defaultMarker()))?.let { markers[id] = it }
+            }
+        }
+        markerHandlers.clear()
+        markerHandlers.putAll(nextHandlers)
+        polylines.values.forEach { it.remove() }
+        polylines.clear()
+        for ((id, value) in nextPolylines) {
+            polylines[id] = map.addPolyline(PolylineOptions().addAll(value.first).color(value.second).width(3f))
+        }
+        if (pendingProps.optBoolean("fitToBounds", false)) fitToBounds()
+        region(pendingProps.optJSONObject("region") ?: pendingProps.optJSONObject("initialRegion"))?.let { bounds ->
+            post {
+                if (width > 0 && height > 0) map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 24))
+            }
+        }
+    }
+
+    private fun fitToBounds() {
+        val map = googleMap ?: return
+        val builder = LatLngBounds.Builder()
+        var count = 0
+        markers.values.forEach { builder.include(it.position); count++ }
+        polylines.values.flatMap { it.points }.forEach { builder.include(it); count++ }
+        if (count == 0) return
+        post {
+            if (width > 0 && height > 0) map.moveCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 24))
+        }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        mapView.onResume()
+    }
+
+    override fun onDetachedFromWindow() {
+        mapView.onPause()
+        super.onDetachedFromWindow()
+    }
+
+    private fun coordinates(geometry: JSONArray?): List<LatLng> {
+        if (geometry == null) return emptyList()
+        return (0 until geometry.length() - 1 step 2).mapNotNull { index ->
+            val latitude = geometry.optDouble(index, Double.NaN)
+            val longitude = geometry.optDouble(index + 1, Double.NaN)
+            if (latitude.isFinite() && longitude.isFinite()) LatLng(latitude, longitude) else null
+        }
+    }
+
+    private fun region(value: JSONObject?): LatLngBounds? {
+        val center = value?.optJSONObject("center") ?: return null
+        val span = value.optJSONObject("span") ?: return null
+        val latitude = center.optDouble("latitude", Double.NaN)
+        val longitude = center.optDouble("longitude", Double.NaN)
+        val latitudeDelta = span.optDouble("latitudeDelta", span.optDouble("latitude_delta", Double.NaN))
+        val longitudeDelta = span.optDouble("longitudeDelta", span.optDouble("longitude_delta", Double.NaN))
+        if (!latitude.isFinite() || !longitude.isFinite() || !latitudeDelta.isFinite() || !longitudeDelta.isFinite()) return null
+        return LatLngBounds(LatLng(latitude - latitudeDelta / 2, longitude - longitudeDelta / 2), LatLng(latitude + latitudeDelta / 2, longitude + longitudeDelta / 2))
+    }
+
+    private fun color(value: String): Int = runCatching { Color.parseColor(value) }.getOrDefault(Color.BLUE)
 }
 
 /** A deterministic flex-shaped container shared by normal views and scroll content. */
@@ -3775,6 +3925,13 @@ class MainActivity : AppCompatActivity() {
                     controls = props.optBoolean("controls", false),
                 )
             }
+            "Map" -> (previous as? CraftNativeMapView ?: CraftNativeMapView(this)).apply {
+                configure(props, children) { markerId ->
+                    markerHandler(markerId)?.let { handler ->
+                        send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject().put("id", markerId)))
+                    }
+                }
+            }
             "Svg" -> (previous as? CraftNativeSvgView ?: CraftNativeSvgView(this)).apply {
                 drawing = node
             }
@@ -3904,7 +4061,7 @@ class MainActivity : AppCompatActivity() {
         val pressOutHandler = events.optString("onPressOut").takeIf { it.isNotBlank() }
         if (pressInHandler != null) screen.pressInHandlers[control] = pressInHandler else screen.pressInHandlers.remove(control)
         if (pressOutHandler != null) screen.pressOutHandlers[control] = pressOutHandler else screen.pressOutHandlers.remove(control)
-        if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView" && type != "StatusBar" && type != "RefreshControl") {
+        if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView" && type != "StatusBar" && type != "RefreshControl" && type != "Map") {
             val handler = events.optString("onPress").ifBlank { events.optString("onClick") }
             val disabled = props.optBoolean("disabled", false)
             val target = listOf(props.optString("href"), props.optString("to"))
@@ -4065,6 +4222,7 @@ class MainActivity : AppCompatActivity() {
         "imagebackground" -> "ImageBackground"
         "keyboardavoidingview" -> "KeyboardAvoidingView"
         "video" -> "Video"
+        "map" -> "Map"
         "icon" -> "Icon"
         "scrollview" -> "ScrollView"
         "sectionlist" -> "SectionList"

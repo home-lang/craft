@@ -94,6 +94,9 @@ dependencies {
     // Google Play Location Services (for geolocation)
     implementation("com.google.android.gms:play-services-location:21.1.0")
 
+    // Native STX Map overlays and trail routes
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+
     // Google Play In-App Review
     implementation("com.google.android.play:review:2.0.1")
     implementation("com.google.android.play:review-ktx:2.0.1")

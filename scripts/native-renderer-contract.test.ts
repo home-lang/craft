@@ -9,6 +9,7 @@ const iosHealth = readFileSync(join(root, 'packages/ios/templates/CraftHealth.sw
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
+const androidBuild = readFileSync(join(root, 'packages/android/templates/build.gradle.kts.app.template'), 'utf8')
 const androidChrome = readFileSync(join(root, 'packages/android/templates/CraftNativeShell.kt.template'), 'utf8')
 const androidCapabilities = readFileSync(join(root, 'packages/android/templates/CraftNativeCapabilities.kt.template'), 'utf8')
 const androidNative = readFileSync(join(root, 'packages/android/templates/CraftNative.kt.template'), 'utf8')
@@ -231,6 +232,21 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<Icon testID="native-icon" symbol="sun.max"')
     expect(iosNavigationTest).toContain('let icon = app.images["native-icon"]')
     expect(androidNavigationTest).toContain('CraftNativeIconView')
+  })
+
+  it('keeps the native trail map contract host-neutral', () => {
+    expect(ios).toContain('import MapKit')
+    expect(ios).toContain('private final class CraftNativeMapView: MKMapView, MKMapViewDelegate')
+    expect(ios).toContain('let points = Self.coordinates(childProps["geometry"])')
+    expect(ios).toContain('self.send(type: "EVENT", payload: [')
+    expect(ios).toContain('"nativeEvent": ["id": markerID]')
+    expect(ios).toContain('fitToOverlays()')
+    expect(android).toContain('private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMapReadyCallback')
+    expect(android).toContain('val points = coordinates(props.optJSONArray("geometry"))')
+    expect(android).toContain('nativeEvent", JSONObject().put("id", markerId)')
+    expect(androidBuild).toContain('implementation("com.google.android.gms:play-services-maps:18.2.0")')
+    expect(guide).toContain('| `Map` | `CraftNativeMapView` (`MKMapView`) |')
+    expect(guide).toContain('flat latitude,\nlongitude `geometry` array')
   })
 
   it('keeps SVG stroke semantics aligned across hosts', () => {
