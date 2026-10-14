@@ -130,11 +130,14 @@ private data class CraftNativeLength(
     companion object {
         fun from(value: Any?, density: Float): CraftNativeLength? {
             if (value == null || value == JSONObject.NULL) return null
-            if (value is Number) return CraftNativeLength(points = (value.toDouble() * density).roundToInt())
+            if (value is Number) {
+                val points = value.toDouble() * density
+                return points.takeIf { it.isFinite() }?.let { CraftNativeLength(points = it.roundToInt()) }
+            }
             val text = value.toString().trim()
-            if (text.endsWith('%')) return text.dropLast(1).toDoubleOrNull()?.let { CraftNativeLength(fraction = it / 100) }
-            if (text.endsWith("px")) return text.dropLast(2).toDoubleOrNull()?.let { CraftNativeLength(points = (it * density).roundToInt()) }
-            return text.toDoubleOrNull()?.let { CraftNativeLength(points = (it * density).roundToInt()) }
+            if (text.endsWith('%')) return text.dropLast(1).toDoubleOrNull()?.takeIf { it.isFinite() }?.let { CraftNativeLength(fraction = it / 100) }
+            if (text.endsWith("px")) return text.dropLast(2).toDoubleOrNull()?.takeIf { it.isFinite() }?.let { CraftNativeLength(points = (it * density).roundToInt()) }
+            return text.toDoubleOrNull()?.takeIf { it.isFinite() }?.let { CraftNativeLength(points = (it * density).roundToInt()) }
         }
     }
 }

@@ -365,6 +365,13 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('non-finite widths, positions, and frames')
   })
 
+  it('rejects non-finite authored lengths before host measurement', () => {
+    expect(ios).toContain('guard points.isFinite else { return nil }')
+    expect(ios).toContain('fraction.isFinite')
+    expect(android).toContain('points.takeIf { it.isFinite() }')
+    expect(android).toContain('toDoubleOrNull()?.takeIf { it.isFinite() }')
+  })
+
   it('keeps Android flex justification aligned across the Kotlin and JNI seams', () => {
     expect(androidNative).toContain('private external fun nativeFlexRow(\n        available: Float,\n        gap: Float,\n        justify: Int,')
     expect(androidDispatch).toContain('.signature = "(FFI[F[F[F[F[F[F)[F"')

@@ -631,15 +631,17 @@ private enum CraftNativeLength: Equatable {
 
     init?(_ value: Any?) {
         if let number = value as? NSNumber {
-            self = .points(CGFloat(truncating: number))
+            let points = CGFloat(truncating: number)
+            guard points.isFinite else { return nil }
+            self = .points(points)
             return
         }
         guard let text = (value as? String)?.trimmingCharacters(in: .whitespaces), !text.isEmpty else { return nil }
-        if text.hasSuffix("%"), let fraction = Double(text.dropLast()) {
+        if text.hasSuffix("%"), let fraction = Double(text.dropLast()), fraction.isFinite {
             self = .percent(CGFloat(fraction) / 100)
-        } else if text.hasSuffix("px"), let points = Double(text.dropLast(2)) {
+        } else if text.hasSuffix("px"), let points = Double(text.dropLast(2)), points.isFinite {
             self = .points(CGFloat(points))
-        } else if let points = Double(text) {
+        } else if let points = Double(text), points.isFinite {
             self = .points(CGFloat(points))
         } else {
             return nil
