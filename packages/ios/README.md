@@ -164,8 +164,9 @@ the [Native STX guide](../../docs/guides/native-stx.md). On macOS,
 `bun packages/ios/scripts/test-native-render.ts` runs the renderer's unit and
 simulator UI tests.
 
-The iOS host uses the shared layout ABI when it is available and retains a
-local fallback for older runtimes. Both paths implement wrapped-line and grid
+The iOS host uses the shared tree-layout ABI for eligible definite-size,
+non-grid, non-wrapped containers and retains a local fallback for older
+runtimes or unsupported styles. Both paths implement wrapped-line and grid
 `alignContent`, including `space-evenly`, so a missing optional shared symbol
 does not change placement semantics.
 Reverse flex directions also retain wrapped line order on the cross axis while

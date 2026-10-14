@@ -1083,7 +1083,7 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<SafeAreaView testID="root" edges={[\'top\', \'bottom\']}')
   })
 
-  it('lets iOS use the shared tree ABI for definite simple containers and fall back otherwise', () => {
+  it('lets both hosts use the shared tree ABI for definite simple containers and fall back otherwise', () => {
     expect(ios).toContain('craft_native_layout_tree')
     expect(ios).toContain('private func sharedDirectFrames(')
     expect(ios).toContain('!grid, !wrap, !reverse, !wrapReverse')
@@ -1095,6 +1095,10 @@ describe('native renderer component contract', () => {
     // Older runtimes and unsupported styles must retain the host algorithm.
     expect(ios).toContain('guard let function')
     expect(ios).toContain('return nil')
+    expect(android).toContain('private fun sharedDirectFrames(')
+    expect(android).toContain('CraftNative.layoutTree(width.toFloat(), height.toFloat(), nodeData, treeMeta)')
+    expect(android).toContain('if (sharedFrames != null)')
+    expect(android).toContain('return null')
   })
 
   it('sanitizes keyboard avoidance offsets before applying host geometry', () => {

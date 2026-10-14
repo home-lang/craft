@@ -65,12 +65,11 @@ as plain numbers, so font and image measurement remain callbacks at the boundary
 rather than becoming UIKit or Android dependencies in Zig. The entry point
 rejects malformed trees and undersized frame buffers without returning partial
 geometry, allowing a host to keep its compatibility fallback while an older
-runtime is in use. The iOS host now opts eligible definite-size, non-grid,
-non-wrapped containers into this complete-tree boundary for direct-child
-placement. It still falls back to its local algorithm for percentage sizes,
-absolute children, reverse or wrapped flows, missing runtimes, and any malformed
-ABI result. Android remains on the smaller JNI exports until the same guarded
-adapter is in place; the fallback is intentional, so an SDK-only project never
+runtime is in use. Both iOS and Android hosts now opt eligible definite-size,
+non-grid, non-wrapped containers into this complete-tree boundary for
+direct-child placement. Both fall back to their local algorithms for percentage
+sizes, absolute children, reverse or wrapped flows, missing runtimes, and any
+malformed ABI result; the fallback is intentional, so an SDK-only project never
 loses native layout. Replacing the remaining duplicated tree walks is the next
 step, not creating a second platform-specific layout implementation. Baseline alignment follows the same
 boundary: hosts provide the measured distance to a child's baseline, and Zig
