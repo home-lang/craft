@@ -41,8 +41,9 @@ capability APIs from the host.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
-The current pair is pinned to `78c6b5759588c9f2c12827e92e370e707d4d9dbc`,
-which carries ordinary native event aliases and preserves Modal child content.
+The current pair is pinned to `9282a03eadb7ccc77ba17373adcda958761ef3aa`,
+which keeps a container's testID around a library component, draws `Checkbox`
+natively and keeps a style object's `transform` and `shadowOffset`.
 
 The host-neutral layout contract lives in Craft's Zig runtime at
 `packages/zig/src/native_layout.zig`. It defines the shared row/column flex
