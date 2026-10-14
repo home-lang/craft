@@ -308,6 +308,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('strokeCap = when (props.optString("strokeLinecap"))')
     expect(android).toContain('strokeJoin = when (props.optString("strokeLinejoin"))')
     expect(android).toContain('val dashes: List<Float>')
+    expect(ios).toContain('return value.isFinite ? value : nil')
+    expect(ios).toContain('next.dashes = dashes.compactMap(finite).filter { $0 >= 0 }')
+    expect(android).toContain('value("opacity")?.toFloatOrNull()?.takeIf { it.isFinite() } ?: 1f')
+    expect(android).toContain('value("strokeWidth")?.toFloatOrNull()?.takeIf { it.isFinite() } ?: strokeWidth')
+    expect(android).toContain('value.isFinite() && value >= 0')
     expect(android).toContain('DashPathEffect(pattern, 0f)')
     expect(android).toContain('val pattern: FloatArray')
     expect(android).toContain('SvgPaint().merge(drawing)')
@@ -316,8 +321,8 @@ describe('native renderer component contract', () => {
   })
 
   it('gives computed SVG opacity precedence over the raw prop on both hosts', () => {
-    expect(ios).toContain('if let opacity = style["opacity"] as? NSNumber ?? props["opacity"] as? NSNumber')
-    expect(android).toContain('val ownOpacity = value("opacity")?.toFloatOrNull() ?: 1f')
+    expect(ios).toContain('if let opacity = finite(style["opacity"] ?? props["opacity"])')
+    expect(android).toContain('val ownOpacity = value("opacity")?.toFloatOrNull()?.takeIf { it.isFinite() } ?: 1f')
     expect(android).toContain('opacity = ownOpacity * opacity')
   })
 
