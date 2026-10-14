@@ -92,7 +92,7 @@ function verifyAudioContext() {
     const context = new AudioContext()
     const oscillator = context.createOscillator()
     const gain = context.createGain()
-    const buffer = context.createBuffer(1, 32, context.sampleRate)
+    const buffer = context.createBuffer(2, 32, context.sampleRate)
     const source = context.createBufferSource()
     const filter = context.createBiquadFilter()
     const compressor = context.createDynamicsCompressor()
@@ -100,6 +100,7 @@ function verifyAudioContext() {
     source.buffer = buffer
     convolver.buffer = buffer
     buffer.getChannelData(0).set([0.25, -0.25, 0.125, 0])
+    buffer.getChannelData(1).set([-0.125, 0.125, -0.0625, 0])
     oscillator.connect(gain)
     source.connect(filter).connect(gain)
     gain.connect(compressor).connect(convolver).connect(context.destination)

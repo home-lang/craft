@@ -236,8 +236,9 @@ once per quantum, the compressor has no look-ahead, and a 4-channel impulse
 response uses its first two channels. The session is `.ambient`, mixing with
 other audio and muted by the silent switch, as a web view's Web Audio is.
 `decodeAudioData` refuses: play a file with `craft.audio`. Android renders the
-same native graph shape through `AudioTrack`, including uploaded `AudioBuffer`
-channel samples, buffer sources, and the gain/filter/compressor/convolver chain
+same native graph shape through `AudioTrack`, including uploaded stereo
+`AudioBuffer` channel samples, buffer sources, and the
+gain/filter/compressor/convolver chain
 used by `useAmbientSound`; its effects are intentionally conservative and file
 decoding remains outside the native runtime. Both hosts tear the graph down
 with the screen.

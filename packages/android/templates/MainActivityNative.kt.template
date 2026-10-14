@@ -2708,28 +2708,32 @@ private class CraftNativeAudio {
 
     private fun render(output: AudioTrack, sampleRate: Int) {
         val buffer = ShortArray(1024 * 2)
+        val stereo = DoubleArray(2)
         while (running && !Thread.currentThread().isInterrupted) {
             for (frame in 0 until 1024) {
-                val sample = synchronized(this) {
-                    contextStarts.keys.sumOf { contextId ->
+                synchronized(this) {
+                    stereo[0] = contextStarts.keys.sumOf { contextId ->
                         if (contextId in suspended) 0.0
-                        else renderNode(key(contextId, "destination"), contextTime(contextId) + frame.toDouble() / sampleRate, mutableSetOf())
+                        else renderNode(key(contextId, "destination"), contextTime(contextId) + frame.toDouble() / sampleRate, 0, mutableSetOf())
+                    }
+                    stereo[1] = contextStarts.keys.sumOf { contextId ->
+                        if (contextId in suspended) 0.0
+                        else renderNode(key(contextId, "destination"), contextTime(contextId) + frame.toDouble() / sampleRate, 1, mutableSetOf())
                     }
                 }
-                val value = (sample.coerceIn(-1.0, 1.0) * Short.MAX_VALUE).toInt().toShort()
-                buffer[frame * 2] = value
-                buffer[frame * 2 + 1] = value
+                buffer[frame * 2] = (stereo[0].coerceIn(-1.0, 1.0) * Short.MAX_VALUE).toInt().toShort()
+                buffer[frame * 2 + 1] = (stereo[1].coerceIn(-1.0, 1.0) * Short.MAX_VALUE).toInt().toShort()
             }
             if (output.write(buffer, 0, buffer.size, AudioTrack.WRITE_BLOCKING) < 0) break
         }
     }
 
-    private fun renderNode(nodeKey: String, time: Double, visited: MutableSet<String>): Double {
+    private fun renderNode(nodeKey: String, time: Double, channel: Int, visited: MutableSet<String>): Double {
         if (!visited.add(nodeKey)) return 0.0
         val state = nodes[nodeKey]
         var value = 0.0
         if (state == null || state.kind == "destination" || state.kind == "Gain" || state.kind == "BiquadFilter" || state.kind == "Delay" || state.kind == "DynamicsCompressor" || state.kind == "Convolver") {
-            for (source in inputs[nodeKey].orEmpty()) value += renderNode(source, time, visited)
+            for (source in inputs[nodeKey].orEmpty()) value += renderNode(source, time, channel, visited)
         } else if (state.kind == "Oscillator") {
             if (time >= state.startAt && time < state.stopAt) {
                 val elapsed = (time - state.startAt).coerceAtLeast(0.0)
@@ -2753,7 +2757,7 @@ private class CraftNativeAudio {
                 } else elapsed + state.startOffset
                 if (state.bufferLoop || position < length) {
                     val sampleIndex = (position * buffer.sampleRate).toLong().coerceAtLeast(0)
-                    value = buffer.channels.firstOrNull()
+                    value = (buffer.channels.getOrNull(channel) ?: buffer.channels.firstOrNull())
                         ?.getOrNull(sampleIndex.toInt())
                         ?.toDouble()
                         ?: 0.0
