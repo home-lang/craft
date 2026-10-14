@@ -3289,8 +3289,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 openScreen(route, payload.optJSONObject("params") ?: JSONObject())
             }
-            "NAVIGATE_BACK" -> if (screens.lastOrNull() === screen || screen === appScreen) back()
-            "NAVIGATE_POP_TO_ROOT" -> if (screens.lastOrNull() === screen || screen === appScreen) popToRoot()
+            "NAVIGATE_BACK" -> if (visibleScreen === screen) back()
+            "NAVIGATE_POP_TO_ROOT" -> if (visibleScreen === screen) popToRoot()
             "API_REQUEST" -> answerAPI(screen, message, payload)
             "API_CANCEL" -> {
                 val id = payload.optString("requestId")

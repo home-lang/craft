@@ -1540,6 +1540,8 @@ describe('native renderer component contract', () => {
   it('accepts native navigation from the visible Android screen', () => {
     expect(android).toContain('if (visibleScreen !== screen) return')
     expect(android).toContain('The\n                // app script has no stack of its own; it uses NAVIGATE_OPEN.')
+    expect(android).toContain('"NAVIGATE_BACK" -> if (visibleScreen === screen) back()')
+    expect(android).toContain('"NAVIGATE_POP_TO_ROOT" -> if (visibleScreen === screen) popToRoot()')
     expect(android).not.toContain('if (screens.lastOrNull() !== screen && screen !== appScreen) return')
   })
 
