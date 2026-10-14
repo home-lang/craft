@@ -1309,11 +1309,18 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('field.borderStyle = style["borderWidth"] != nil || style["backgroundColor"] != nil ? .none : .roundedRect')
   })
 
-  it('draws a native bar\'s round buttons in the system\'s own fills and blue', () => {
+  it('floats a native bar\'s round buttons, as the tab bar floats: glass, else the thin material', () => {
     const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
     const button = swift.slice(swift.indexOf('private func accountNavigationButton'))
-    expect(button).toContain('button.backgroundColor = accent ? UIColor.systemBlue.withAlphaComponent(0.15) : .tertiarySystemFill')
+    expect(button).toContain('let surface = Self.floatingSurface(diameter: 44)')
     expect(button).toContain('button.tintColor = .systemBlue')
+    // No flat fill under the glass.
+    expect(button).not.toContain('.tertiarySystemFill')
+    // The surface stays under the symbol, the initials, the picture and the badge.
+    expect(button.split('button.sendSubviewToBack(surface)').length - 1).toBe(2)
+    const surface = swift.slice(swift.indexOf('private static func floatingSurface'))
+    expect(surface).toContain('if #available(iOS 26.0, *) { effect = UIGlassEffect() } else { effect = UIBlurEffect(style: .systemUltraThinMaterial) }')
+    expect(surface).toContain('surface.isUserInteractionEnabled = false')
   })
 
   it('signs in with Apple natively: the entitlement, a page nonce, and the code for the server', () => {
@@ -1415,10 +1422,16 @@ describe('Craft iOS builder', () => {
     expect(app).toContain('if body["interrupt"] as? Bool ?? true, self.cancelPendingSpeech() {')
     expect(app).toContain('private static let speechReleaseAfterSilence: TimeInterval = 1.5')
     expect(hybrid).toContain('!native.contentSwipeBack')
-    // Both iOS pop recognizers must yield to a native horizontal pager unless
-    // the gesture starts inside the normal 32pt back-swipe edge.
-    expect(hybrid).toContain('nativeScreenContainsHorizontalScroll(native) {\n            let moved')
-    expect(hybrid).not.toContain('gestureRecognizer !== nav.interactivePopGestureRecognizer,\n           nativeScreenContainsHorizontalScroll(native)')
+    // Both iOS pop recognizers yield to a native horizontal pager that can
+    // still scroll back (the edge's included); at its first page the swipe is
+    // Back again. `swipeBack: false` turns both off.
+    expect(hybrid).toContain('if horizontalScrollCanScrollBack(at: nav.view.convert(start, to: view), in: native.view) { return false }')
+    expect(hybrid).toContain('scroll.contentOffset.x > -scroll.adjustedContentInset.left + 1')
+    expect(hybrid).toContain('if !native.swipeBack { return false }')
+    expect(hybrid).not.toContain('nativeScreenContainsHorizontalScroll')
+    expect(screen).toContain('if let swipeBack = options["swipeBack"] as? Bool {')
+    // Tabs swipe only between their first screens, and not under a screen that put the bar away.
+    expect(hybrid).toContain('guard nav.viewControllers.count == 1, nav.transitionCoordinator == nil,\n                  !CraftChrome.shared.hiddenByScreen else { return false }')
     expect(hybrid).toContain('!native.tabSwipeEnabled || !native.contentSwipeBack')
     expect(hybrid).toContain('private var tabSwipeRecognizers: [UIGestureRecognizer] = []')
     expect(hybrid).toContain('@objc private func tabSwipeRecognized(_ recognizer: UIPanGestureRecognizer)')

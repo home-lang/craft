@@ -1614,17 +1614,22 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         return popRecognizers(of: nav).contains { $0 === recognizer }
     }
 
-    private func nativeScreenContainsHorizontalScroll(_ screen: CraftNativeScreenController) -> Bool {
-        guard let root = screen.viewIfLoaded else { return false }
-        func visit(_ view: UIView) -> Bool {
-            if let scroll = view as? UIScrollView,
-               scroll.isScrollEnabled,
-               scroll.alwaysBounceHorizontal || scroll.contentSize.width > scroll.bounds.width + 1 {
+    /// Whether the touch at `point` (in this controller's view) is on a
+    /// horizontal scroll view of `root` that is past its leading edge, so a
+    /// swipe to the right scrolls it back rather than leaving the screen.
+    private func horizontalScrollCanScrollBack(at point: CGPoint, in root: UIView) -> Bool {
+        let local = root.convert(point, from: view)
+        guard root.bounds.contains(local), let hit = root.hitTest(local, with: nil) else { return false }
+        var candidate: UIView? = hit
+        while let current = candidate, current !== root.superview {
+            if let scroll = current as? UIScrollView, scroll.isScrollEnabled,
+               scroll.contentSize.width + scroll.adjustedContentInset.left + scroll.adjustedContentInset.right > scroll.bounds.width + 1,
+               scroll.contentOffset.x > -scroll.adjustedContentInset.left + 1 {
                 return true
             }
-            return view.subviews.contains(where: visit)
+            candidate = current.superview
         }
-        return visit(root)
+        return false
     }
 
     /// The edge swipe goes ahead of the web view's own gestures, which
@@ -1639,8 +1644,14 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         if tabSwipeRecognizers.contains(where: { $0 === gestureRecognizer }) {
-            guard hybrid.tabIds.count > 1, let top = visibleStack?.topViewController else { return false }
+            guard hybrid.tabIds.count > 1, let nav = visibleStack, let top = nav.topViewController else { return false }
             guard CraftChrome.shared.tabSwipeEnabled else { return false }
+            // Only between the tabs' own first screens, as the bar shows them:
+            // deeper in a tab a swipe to the right is Back, and a screen that
+            // put the bar away (a workout under way, a tour) has the whole
+            // screen to itself.
+            guard nav.viewControllers.count == 1, nav.transitionCoordinator == nil,
+                  !CraftChrome.shared.hiddenByScreen else { return false }
             if let pan = gestureRecognizer as? UIPanGestureRecognizer {
                 let velocity = pan.velocity(in: view)
                 guard abs(velocity.x) > abs(velocity.y) else { return false }
@@ -1651,15 +1662,19 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         }
         guard let nav = visibleStack, isPopRecognizer(gestureRecognizer),
               nav.viewControllers.count > 1, nav.transitionCoordinator == nil else { return false }
-        if let native = nav.topViewController as? CraftNativeScreenController,
-           gestureRecognizer !== nav.interactivePopGestureRecognizer,
-           !native.contentSwipeBack {
-            return false
-        }
-        if let native = nav.topViewController as? CraftNativeScreenController,
-           nativeScreenContainsHorizontalScroll(native) {
-            let moved = (gestureRecognizer as? UIPanGestureRecognizer)?.translation(in: nav.view).x ?? 0
-            if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }
+        if let native = nav.topViewController as? CraftNativeScreenController {
+            // `swipeBack: false`: the screen's own Back is the only way back.
+            if !native.swipeBack { return false }
+            if gestureRecognizer !== nav.interactivePopGestureRecognizer, !native.contentSwipeBack { return false }
+            // A back-swipe that starts on a pager, a carousel or a chart that
+            // can still scroll back is that view's: the pager goes back a
+            // page. At its first page there is nothing to scroll back to, and
+            // the swipe is the screen's Back again, from the edge or (iOS 26)
+            // from anywhere.
+            let moved = (gestureRecognizer as? UIPanGestureRecognizer)?.translation(in: nav.view) ?? .zero
+            let location = gestureRecognizer.location(in: nav.view)
+            let start = CGPoint(x: location.x - moved.x, y: location.y - moved.y)
+            if horizontalScrollCanScrollBack(at: nav.view.convert(start, to: view), in: native.view) { return false }
         }
         guard let slot = nav.topViewController as? CraftHybridWebSlot else { return true }
         // Over the page, only from its left edge: a swipe across the page is

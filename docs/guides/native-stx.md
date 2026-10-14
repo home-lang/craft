@@ -557,13 +557,16 @@ it is compiled for either native host.
 stack. A pushed route receives `craft.route.params`; returning to an earlier
 route reveals its existing native tree and JavaScript state. Native events are
 delivered only to the top route, and route teardown removes its subscriptions
-and cancels its in-flight requests. On iOS, a native screen that contains a
-horizontal `ScrollView` keeps the navigation back-swipe at the 32-point edge;
-swipes across the pager, carousel, or chart remain available to that scroll
-view. A custom horizontal gesture can opt out of iOS 26's content-wide
-back-swipe with `craft.navigation.setOptions({ contentSwipeBack: false })`;
-the edge-only back gesture remains available. A screen that should keep back
-navigation but own the tab gesture can independently set
+and cancels its in-flight requests. On iOS, a back-swipe that starts on a
+horizontal `ScrollView` that can still scroll back (a pager past its first
+page, a scrolled carousel or chart) is that scroll view's, from the edge too:
+the pager goes back a page. At its first page there is nothing to scroll back
+to, and the swipe goes back as usual. A custom horizontal gesture can opt out
+of iOS 26's content-wide back-swipe with
+`craft.navigation.setOptions({ contentSwipeBack: false })`; the edge-only back
+gesture remains available. `swipeBack: false` turns off both, for a screen
+whose own Back steps through it (a tour's questions). A screen that should
+keep back navigation but own the tab gesture can independently set
 `craft.navigation.setOptions({ tabSwipeEnabled: false })`.
 
 In a hybrid app, the same tab gesture also covers the WebView. Pass
@@ -622,7 +625,9 @@ all: no `WKWebView` is ever created.
   launched the app waits for the shell.
 - Tab taps and completed left/right swipes switch stacks natively. In a hybrid
   app the gesture works over both native screens and the WebView; the page can
-  disable it with `craft.tabBar.set(tabs, { swipeEnabled: false })`. Swipes
+  disable it with `craft.tabBar.set(tabs, { swipeEnabled: false })`. A swipe
+  switches tabs only on a tab's first screen (deeper, a swipe to the right is
+  Back) and not while a screen has put the tab bar away (`tabBarHidden`). Swipes
   yield to a horizontal native scroll view or a screen that sets
   `contentSwipeBack: false` or `tabSwipeEnabled: false`; the tab bar provides selection feedback when a
   swipe changes tabs. A screen that throws before its first frame

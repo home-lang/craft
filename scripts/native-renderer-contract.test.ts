@@ -1638,7 +1638,7 @@ describe('native renderer component contract', () => {
     const hybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
     const chrome = readFileSync(join(root, 'packages/ios/templates/CraftApp.swift'), 'utf8')
     const nativeScreen = readFileSync(join(root, 'packages/ios/templates/CraftNativeScreen.swift'), 'utf8')
-    expect(hybrid).toContain('nativeScreenContainsHorizontalScroll')
+    expect(hybrid).toContain('horizontalScrollCanScrollBack')
     expect(hybrid).toContain('scroll.alwaysBounceHorizontal || scroll.contentSize.width > scroll.bounds.width + 1')
     expect(hybrid).toContain('hit.isDescendant(of: webView) || webView.isDescendant(of: hit)')
     expect(hybrid).toContain('!native.tabSwipeEnabled || !native.contentSwipeBack')
@@ -1653,8 +1653,7 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('!(current.topViewController is CraftHybridWebSlot && target.topViewController is CraftHybridWebSlot)')
     expect(hybrid).toContain('target.awaitingPage = false')
     expect(hybrid).toContain('let delta = abs(translation) >= 32 ? translation : velocity')
-    expect(hybrid).toContain('nativeScreenContainsHorizontalScroll(native) {\n            let moved')
-    expect(hybrid).not.toContain('gestureRecognizer !== nav.interactivePopGestureRecognizer,\n           nativeScreenContainsHorizontalScroll(native)')
+    expect(hybrid).toContain('horizontalScrollCanScrollBack(at: nav.view.convert(start, to: view), in: native.view)')
     expect(hybrid).toContain('if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }')
   })
 

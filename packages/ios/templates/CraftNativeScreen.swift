@@ -2895,7 +2895,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// - `craft.secureStorage.getSync(key)`: the Keychain item the web page's
     ///   `craft.secureStorage.set` wrote.
     /// - `craft.navigation.setOptions({ title, largeTitle, hidden, backTitle,
-    ///   tabBarHidden, contentSwipeBack, tabSwipeEnabled, backgroundColor, rightButtons })`;
+    ///   tabBarHidden, swipeBack, contentSwipeBack, tabSwipeEnabled, backgroundColor, rightButtons })`;
     ///   a right button's tap is the event `navButton`.
     ///
     /// A runtime that assigns `craft.storage` (or the others) afterwards keeps
@@ -3140,6 +3140,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var navigationBarHidden: Bool?
     /// The app's tab bar away while this screen shows (`tabBarHidden`).
     private var tabBarHidden = false
+    /// Whether a back-swipe may leave this screen at all, the edge's
+    /// included (`swipeBack: false`): a screen that steps through its own
+    /// pages with a Back of its own (a first-run tour's questions) would
+    /// otherwise lose its place to a stray swipe.
+    private(set) var swipeBack = true
     /// Whether iOS 26's content-wide back-swipe may begin on this screen.
     /// Setting `contentSwipeBack: false` leaves the 32-point edge gesture.
     private(set) var contentSwipeBack = true
@@ -3185,6 +3190,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if navigationController?.topViewController === self, view.window != nil {
                 CraftChrome.shared.setHiddenByScreen(hidden)
             }
+        }
+        if let swipeBack = options["swipeBack"] as? Bool {
+            self.swipeBack = swipeBack
         }
         if let contentSwipeBack = options["contentSwipeBack"] as? Bool {
             self.contentSwipeBack = contentSwipeBack
@@ -3265,11 +3273,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         button.addAction(action, for: .touchUpInside)
         button.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([button.widthAnchor.constraint(equalToConstant: 44), button.heightAnchor.constraint(equalToConstant: 44)])
-        // The system's own fills and blue, as Apple's apps draw a bar's round
-        // buttons: they follow light, dark and Increase Contrast by themselves.
-        let accent = spec["variant"] as? String == "accent"
-        button.backgroundColor = accent ? UIColor.systemBlue.withAlphaComponent(0.15) : .tertiarySystemFill
-        button.layer.cornerRadius = 22
+        // Floating, as the tab bar floats: a round piece of glass on iOS 26
+        // (the bar's own material), the thin material with the tab bar's
+        // hairline and shadow before it. The content scrolls on under it, and
+        // it follows light, dark and Increase Contrast by itself.
+        let surface = Self.floatingSurface(diameter: 44)
+        button.addSubview(surface)
+        // Glass lifts itself off the content; the material needs the tab
+        // bar's shadow to.
+        if surface.effect is UIBlurEffect {
+            button.layer.shadowColor = UIColor.black.cgColor
+            button.layer.shadowOpacity = 0.12
+            button.layer.shadowRadius = 8
+            button.layer.shadowOffset = CGSize(width: 0, height: 3)
+            button.layer.shadowPath = UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: 44, height: 44)).cgPath
+        }
         button.tintColor = .systemBlue
         button.setTitleColor(button.tintColor, for: .normal)
         button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
@@ -3314,8 +3332,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 }
                 button.setTitle(nil, for: .normal)
                 button.setImage(round.withRenderingMode(.alwaysOriginal), for: .normal)
+                if let surface = button.subviews.first(where: { $0 is UIVisualEffectView }) { button.sendSubviewToBack(surface) }
             }
         }
+        // Under the symbol, the initials, the picture and the badge.
+        if let surface = button.subviews.first(where: { $0 is UIVisualEffectView }) { button.sendSubviewToBack(surface) }
         let item = UIBarButtonItem(customView: button)
         // iOS 26 groups adjacent bar items on one glass platter and tints
         // their custom views with it: the two 44-point circles came out as
@@ -3326,6 +3347,29 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if #available(iOS 26.0, *) { item.hidesSharedBackground = true; item.sharesBackground = false }
         #endif
         return item
+    }
+
+    /// The round surface under a bar button: glass on iOS 26, the tab bar's
+    /// thin material and hairline before it. It takes no touches.
+    private static func floatingSurface(diameter: CGFloat) -> UIVisualEffectView {
+        let effect: UIVisualEffect
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) { effect = UIGlassEffect() } else { effect = UIBlurEffect(style: .systemUltraThinMaterial) }
+        #else
+        effect = UIBlurEffect(style: .systemUltraThinMaterial)
+        #endif
+        let surface = UIVisualEffectView(effect: effect)
+        surface.frame = CGRect(x: 0, y: 0, width: diameter, height: diameter)
+        surface.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        surface.isUserInteractionEnabled = false
+        surface.layer.cornerRadius = diameter / 2
+        surface.layer.cornerCurve = .circular
+        surface.clipsToBounds = true
+        if effect is UIBlurEffect {
+            surface.layer.borderWidth = 0.5
+            surface.layer.borderColor = UIColor.white.withAlphaComponent(0.35).cgColor
+        }
+        return surface
     }
 
     /// A bar picture, kept for the app's life so each screen does not fetch it again.
