@@ -2511,7 +2511,11 @@ private class CraftNativeAudio {
         var stopAt = Double.POSITIVE_INFINITY
     }
 
-    private data class BufferSpec(val length: Int, val sampleRate: Double, val channels: Int)
+    private data class BufferSpec(
+        val length: Int,
+        val sampleRate: Double,
+        val channels: List<FloatArray> = emptyList(),
+    )
 
     private val nodes = mutableMapOf<String, NodeState>()
     private val inputs = mutableMapOf<String, MutableSet<String>>()
@@ -2546,11 +2550,28 @@ private class CraftNativeAudio {
             }
             "createBuffer" -> {
                 val id = payload.optString("bufferId")
-                if (id.isNotBlank()) buffers[id] = BufferSpec(
-                    payload.optInt("length", 1).coerceAtLeast(1),
-                    payload.optDouble("sampleRate", 44_100.0).coerceAtLeast(3_000.0),
-                    payload.optInt("channels", 1).coerceIn(1, 2),
-                )
+                if (id.isNotBlank()) {
+                    val length = payload.optInt("length", 1).coerceAtLeast(1)
+                    val channelCount = payload.optInt("channels", 1).coerceIn(1, 2)
+                    buffers[id] = BufferSpec(
+                        length,
+                        payload.optDouble("sampleRate", 44_100.0).coerceAtLeast(3_000.0),
+                        List(channelCount) { FloatArray(length) },
+                    )
+                }
+            }
+            "bufferData" -> {
+                val id = payload.optString("bufferId")
+                val existing = buffers[id] ?: return
+                val rawChannels = payload.optJSONArray("channels") ?: return
+                val channels = (0 until min(existing.channels.size, rawChannels.length())).map { channelIndex ->
+                    val raw = rawChannels.optJSONArray(channelIndex)
+                    FloatArray(existing.length) { sampleIndex ->
+                        val value = raw?.optDouble(sampleIndex, 0.0) ?: 0.0
+                        value.takeIf { it.isFinite() }?.toFloat()?.coerceIn(-1f, 1f) ?: 0f
+                    }
+                }
+                buffers[id] = existing.copy(channels = channels)
             }
             "connect" -> {
                 val source = payload.optString("sourceId")
@@ -2732,8 +2753,10 @@ private class CraftNativeAudio {
                 } else elapsed + state.startOffset
                 if (state.bufferLoop || position < length) {
                     val sampleIndex = (position * buffer.sampleRate).toLong().coerceAtLeast(0)
-                    val seed = (sampleIndex * 1103515245L + state.id.hashCode()) and 0x7fffffff
-                    value = ((seed.toDouble() / 0x7fffffff.toDouble()) * 2.0) - 1.0
+                    value = buffer.channels.firstOrNull()
+                        ?.getOrNull(sampleIndex.toInt())
+                        ?.toDouble()
+                        ?: 0.0
                 }
             }
         }
@@ -3415,6 +3438,16 @@ class MainActivity : AppCompatActivity() {
                   audioMessage({ action: 'createBuffer', contextId: this._id, bufferId: buffer._id, channels: channels, length: length, sampleRate: sampleRate });
                   return buffer;
                 };
+                function uploadBuffer(contextId, buffer) {
+                  var channels = [];
+                  for (var index = 0; index < buffer._channels.length; index++) {
+                    var source = buffer._channels[index];
+                    var values = [];
+                    for (var sample = 0; sample < source.length; sample++) values.push(Number(source[sample]) || 0);
+                    channels.push(values);
+                  }
+                  audioMessage({ action: 'bufferData', contextId: contextId, bufferId: buffer._id, channels: channels });
+                }
                 AudioContext.prototype.createBufferSource = function() {
                   var context = this;
                   var value = makeNode(context, 'BufferSource');
@@ -3425,7 +3458,10 @@ class MainActivity : AppCompatActivity() {
                   value.loopStart = 0;
                   value.loopEnd = 0;
                   value.start = function(when, offset, duration) {
-                    if (value.buffer) audioMessage({ action: 'buffer', contextId: context._id, nodeId: value._nodeId, bufferId: value.buffer._id });
+                    if (value.buffer) {
+                      uploadBuffer(context._id, value.buffer);
+                      audioMessage({ action: 'buffer', contextId: context._id, nodeId: value._nodeId, bufferId: value.buffer._id });
+                    }
                     audioMessage({ action: 'loop', contextId: context._id, nodeId: value._nodeId, loop: value.loop, loopStart: value.loopStart, loopEnd: value.loopEnd });
                     audioMessage({ action: 'start', contextId: context._id, nodeId: value._nodeId, delay: Math.max(0, (Number(when) || 0) - context.currentTime), offset: Number(offset) || 0, duration: Number(duration) || -1 });
                   };

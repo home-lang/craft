@@ -423,6 +423,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('AudioContext.prototype.createBufferSource')
     expect(android).toContain('AudioContext.prototype.createDynamicsCompressor')
     expect(android).toContain('AudioContext.prototype.createConvolver')
+    expect(android).toContain('function uploadBuffer(contextId, buffer)')
+    expect(android).toContain("action: 'bufferData'")
+    expect(android).toContain('"bufferData" ->')
+    expect(android).toContain('buffer.channels.firstOrNull()')
+    expect(android).not.toContain('val seed = (sampleIndex * 1103515245L')
     expect(android).toContain("param.linearRampToValueAtTime = function(value, when)")
     expect(android).toContain("param.exponentialRampToValueAtTime = function(value, when)")
     expect(android).toContain('AudioTrack')
@@ -432,6 +437,22 @@ describe('native renderer component contract', () => {
     expect(android).toContain('audio.close()')
     expect(guide).toContain('Native screens have Web Audio')
     expect(guide).toContain('Android renders the\nsame native graph shape')
+  })
+
+  it('uploads Android AudioBuffer samples before a buffer source starts', () => {
+    const messages: any[] = []
+    const sandbox: any = {
+      __stxNativeBridge: { postMessage: (message: any) => messages.push(message) },
+    }
+    new Function('globalThis', androidAudioPrelude)(sandbox)
+    const context = new sandbox.AudioContext()
+    const buffer = context.createBuffer(1, 3, 44_100)
+    buffer.getChannelData(0).set([0.25, -0.5, 0])
+    const source = context.createBufferSource()
+    source.buffer = buffer
+    source.start()
+    const upload = messages.find(message => message.payload?.action === 'bufferData')
+    expect(upload?.payload.channels[0]).toEqual([0.25, -0.5, 0])
   })
 
   it('keeps the shared layout core explicit', () => {
@@ -699,6 +720,7 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="native-audio-context"')
     expect(navigationHome).toContain('const context = new AudioContext()')
     expect(navigationHome).toContain('context.createBufferSource()')
+    expect(navigationHome).toContain('buffer.getChannelData(0).set([0.25, -0.25, 0.125, 0])')
     expect(navigationHome).toContain('context.createBiquadFilter()')
     expect(navigationHome).toContain('context.createDynamicsCompressor()')
     expect(navigationHome).toContain('context.createConvolver()')

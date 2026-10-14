@@ -99,6 +99,7 @@ function verifyAudioContext() {
     const convolver = context.createConvolver()
     source.buffer = buffer
     convolver.buffer = buffer
+    buffer.getChannelData(0).set([0.25, -0.25, 0.125, 0])
     oscillator.connect(gain)
     source.connect(filter).connect(gain)
     gain.connect(compressor).connect(convolver).connect(context.destination)
