@@ -57,6 +57,10 @@
         "craft-ios": "dist/cli.js",
       },
     },
+    "packages/macos": {
+      "name": "@craft-native/macos",
+      "version": "0.0.172",
+    },
     "packages/react": {
       "name": "@craft-native/react",
       "version": "0.0.172",
@@ -136,6 +140,8 @@
     "@craft-native/android": ["@craft-native/android@workspace:packages/android"],
 
     "@craft-native/ios": ["@craft-native/ios@workspace:packages/ios"],
+
+    "@craft-native/macos": ["@craft-native/macos@workspace:packages/macos"],
 
     "@craft-native/react": ["@craft-native/react@workspace:packages/react"],
 
