@@ -36,6 +36,12 @@ describe('Craft iOS builder', () => {
     expect(resolveCraftVersion(resolve(import.meta.dir, '..', 'dist', 'ios', 'src', 'nested'))).toBe(version)
   })
 
+  it('reads the version from craft-native when the builder is bundled inside it', () => {
+    const root = mkdtempSync(join(tmpdir(), 'craft-native-bundle-'))
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'craft-native', version: '9.8.7' }))
+    expect(resolveCraftVersion(join(root, 'dist', 'ios', 'src'))).toBe('9.8.7')
+  })
+
   it('inserts simulator test targets before the shared schemes block', () => {
     const project = 'targets:\n  App:\n    type: application\n\nschemes:\n  App:\n    build:\n      targets:\n        App: all\n    test:\n      config: Debug\n'
     const result = insertProjectTargetsBeforeSchemes(project, '  AppTests:\n    type: bundle.unit-test')

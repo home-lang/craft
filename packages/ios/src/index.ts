@@ -19,7 +19,10 @@ export function resolveCraftVersion(startDir: string = import.meta.dir): string 
         name?: unknown
         version?: unknown
       }
-      if (packageJSON.name === '@craft-native/ios' && typeof packageJSON.version === 'string' && packageJSON.version.length > 0)
+      // `craft-native` bundles this builder under its own dist and publishes
+      // in lockstep, so its version is this builder's version too. Without
+      // it an app built through craft-native reported Craft 0.0.0.
+      if ((packageJSON.name === '@craft-native/ios' || packageJSON.name === 'craft-native') && typeof packageJSON.version === 'string' && packageJSON.version.length > 0)
         return packageJSON.version
     }
     catch {
