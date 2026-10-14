@@ -653,6 +653,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"Checkbox" -> (previous as? CheckBox ?: CheckBox(this)).apply')
     expect(android).toContain('props.optBoolean("indeterminate", false)')
     expect(android).toContain('isActivated = props.optBoolean("indeterminate", false)')
+    expect(android).toContain('val checkboxColor = props.optString("color").takeIf { it.isNotBlank() }\n                    ?: style.optString("color").takeIf { it.isNotBlank() }')
+    expect(android).toContain('buttonTintList = checkboxColor?.let { ColorStateList.valueOf(color(it, defaultTextColor)) }')
     expect(android).toContain('ViewCompat.setStateDescription(')
     expect(android).toContain('if (type == "Checkbox" && props.optBoolean("indeterminate", false)) "mixed" else null')
     expect(android).toContain('nativeEvent", JSONObject().put("value", value)')

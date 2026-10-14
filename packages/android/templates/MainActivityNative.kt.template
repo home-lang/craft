@@ -3677,7 +3677,9 @@ class MainActivity : AppCompatActivity() {
                 isChecked = checked
                 isActivated = props.optBoolean("indeterminate", false)
                 isEnabled = !props.optBoolean("disabled", false)
-                props.optString("color").takeIf { it.isNotBlank() }?.let { buttonTintList = ColorStateList.valueOf(color(it, defaultTextColor)) }
+                val checkboxColor = props.optString("color").takeIf { it.isNotBlank() }
+                    ?: style.optString("color").takeIf { it.isNotBlank() }
+                buttonTintList = checkboxColor?.let { ColorStateList.valueOf(color(it, defaultTextColor)) }
                 val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 setOnCheckedChangeListener { _, value ->
