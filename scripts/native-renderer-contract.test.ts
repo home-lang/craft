@@ -405,6 +405,15 @@ describe('native renderer component contract', () => {
     expect(mobileE2EWorkflow).not.toContain('stx-native')
   })
 
+  it('keeps mobile fixture route names aligned with the STX bundle manifest', () => {
+    for (const script of [iosNavigationScript, androidNavigationScript]) {
+      expect(script).toContain("'/': 'home'")
+      expect(script).toContain("'/details': 'details'")
+      expect(script).toContain("'/summary': 'summary'")
+      expect(script).toContain("'/capabilities': 'capabilities'")
+    }
+  })
+
   it('uses image alt text as the native accessibility fallback', () => {
     expect(ios).toContain('((type == "Image" || type == "ImageBackground") ? props["alt"] as? String : nil)')
     expect(android).toContain('props.optString("alt").takeIf { (type == "Image" || type == "ImageBackground") && it.isNotBlank() }')

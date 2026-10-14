@@ -51,10 +51,10 @@ try {
     config: {
       renderer: 'native',
       nativeScreens: {
-        '/': 'Home',
-        '/details': 'Details',
-        '/summary': 'Summary',
-        '/capabilities': 'Capabilities',
+        '/': 'home',
+        '/details': 'details',
+        '/summary': 'summary',
+        '/capabilities': 'capabilities',
       },
       tabs: [
         { id: '/', title: 'Home', symbol: 'house' },
