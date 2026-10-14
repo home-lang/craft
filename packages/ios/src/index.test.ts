@@ -141,6 +141,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('line.lineJoinStyle = own.linejoin')
     expect(nativeSwift).toContain('line.setLineDash(dashes, count: dashes.count, phase: 0)')
     expect(nativeSwift).toContain('context.concatenate(viewTransform.inverted())')
+    expect(nativeSwift).toContain('guard n.count == 4, n.allSatisfy(\\.isFinite), n[2] > 0, n[3] > 0 else { return nil }')
     // A linear gradient (stx bg-gradient-to-*) is drawn under the subviews.
     expect(nativeSwift).toContain('private final class CraftNativeGradientLayer: CAGradientLayer')
     expect(nativeSwift).toContain('direction: style["gradientDirection"] as? String')

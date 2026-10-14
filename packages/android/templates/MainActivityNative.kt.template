@@ -514,6 +514,8 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
     private val polylines = mutableMapOf<String, Polyline>()
     private val markerHandlers = mutableMapOf<String, String>()
     private var onMarkerTap: ((String) -> Unit)? = null
+    private var lifecycleStarted = false
+    private var destroyed = false
 
     init {
         addView(mapView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -636,14 +638,37 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        if (destroyed) return
         mapView.onStart()
         mapView.onResume()
+        lifecycleStarted = true
     }
 
     override fun onDetachedFromWindow() {
-        mapView.onPause()
-        mapView.onStop()
+        if (lifecycleStarted) {
+            mapView.onPause()
+            mapView.onStop()
+            lifecycleStarted = false
+        }
         super.onDetachedFromWindow()
+    }
+
+    fun destroy() {
+        if (destroyed) return
+        destroyed = true
+        if (lifecycleStarted) {
+            mapView.onPause()
+            mapView.onStop()
+            lifecycleStarted = false
+        }
+        onMarkerTap = null
+        markerHandlers.clear()
+        markers.values.forEach { it.remove() }
+        markers.clear()
+        polylines.values.forEach { it.remove() }
+        polylines.clear()
+        mapView.onDestroy()
+        googleMap = null
     }
 
     private fun hasLocationPermission(): Boolean =
@@ -5356,6 +5381,7 @@ class MainActivity : AppCompatActivity() {
         }
         released.filterIsInstance<CraftNativeModalView>().forEach { it.resetForTeardown() }
         released.filterIsInstance<CraftNativeVideoView>().forEach { it.stop() }
+        released.filterIsInstance<CraftNativeMapView>().forEach { it.destroy() }
         released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }
         released.filterIsInstance<CraftNativeKeyboardAvoidingView>().forEach { it.content.onLayoutChanged = null }
         released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }
