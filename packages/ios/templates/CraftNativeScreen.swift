@@ -4355,6 +4355,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// `craft.navigation.setOptions`: this screen's bar. Every key is
     /// optional and only the keys given change.
     private func applyNavigationOptions(_ options: [String: Any]) {
+        if let tab = options["tabItem"] as? [String: Any] {
+            CraftChrome.shared.updateTab(tab)
+        }
         // The app script has no screen, so no bar and no tab bar to change.
         guard !isAppScript else { return }
         if options.keys.contains("title") {

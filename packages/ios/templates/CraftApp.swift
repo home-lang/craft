@@ -614,7 +614,10 @@ final class CraftChrome: ObservableObject {
         let id: String
         let title: String
         let symbol: String
-        let badge: String?
+        var badge: String?
+        var iconText: String? = nil
+        var accessibilityLabel: String? = nil
+        var image: String? = nil
     }
 
     @Published var tabs: [Tab] = []
@@ -668,6 +671,23 @@ final class CraftChrome: ObservableObject {
     /// the bar away while it shows (`tabBarHidden`, CraftNativeScreen.swift);
     /// the next screen shown says again. The page's own hideTabBar is apart.
     private(set) var hiddenByScreen = false
+
+    /// Change one tab's icon without replacing tabs, navigation stacks or selection.
+    func updateTab(_ item: [String: Any]) {
+        guard let id = item["id"] as? String, let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        if item.keys.contains("iconText") {
+            tabs[index].iconText = (item["iconText"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) }
+        }
+        if item.keys.contains("accessibilityLabel") {
+            tabs[index].accessibilityLabel = (item["accessibilityLabel"] as? String).map { String($0.prefix(160)) }
+        }
+        if item.keys.contains("image") {
+            tabs[index].image = (item["image"] as? String).flatMap { URL(string: $0)?.scheme == "https" ? $0 : nil }
+        }
+        if item.keys.contains("badge") {
+            tabs[index].badge = (item["badge"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) }
+        }
+    }
     func setHiddenByScreen(_ hidden: Bool) {
         guard hiddenByScreen != hidden else { return }
         hiddenByScreen = hidden
@@ -941,9 +961,28 @@ struct CraftTabBarView: View {
                 Button { chrome.tap(tab) } label: {
                     VStack(spacing: 3) {
                         ZStack(alignment: .topTrailing) {
-                            Image(systemName: symbol(tab.symbol, selected: isSelected))
-                                .font(.system(size: iconSize, weight: isSelected ? .semibold : .regular))
+                            if let image = tab.image, let url = URL(string: image) {
+                                AsyncImage(url: url) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    Image(systemName: symbol(tab.symbol, selected: isSelected))
+                                }
+                                .frame(width: iconSize + 4, height: iconSize + 4)
+                                .clipShape(Circle())
                                 .frame(height: iconSize + 6)
+                            } else if let text = tab.iconText {
+                                Text(text)
+                                    .font(.system(size: iconSize, weight: .semibold, design: .rounded))
+                                    .monospacedDigit()
+                                    .foregroundStyle(Color.red)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                                    .frame(height: iconSize + 6)
+                            } else {
+                                Image(systemName: symbol(tab.symbol, selected: isSelected))
+                                    .font(.system(size: iconSize, weight: isSelected ? .semibold : .regular))
+                                    .frame(height: iconSize + 6)
+                            }
                             if let badge = tab.badge {
                                 Text(badge)
                                     .font(.system(size: badgeSize, weight: .bold))
@@ -975,7 +1014,7 @@ struct CraftTabBarView: View {
                     Image(systemName: symbol(tab.symbol, selected: isSelected))
                     Text(tab.title)
                 }
-                .accessibilityLabel(tab.badge.map { "\(tab.title), \($0)" } ?? tab.title)
+                .accessibilityLabel(tab.accessibilityLabel ?? tab.badge.map { "\(tab.title), \($0)" } ?? tab.title)
                 .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
             }
         }

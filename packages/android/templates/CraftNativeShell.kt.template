@@ -576,6 +576,9 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     private val buttons = LinearLayout(context)
     private val tabBar = LinearLayout(context)
     private val tabViews = mutableListOf<Pair<TextView, TextView>>()
+    private val tabIconText = mutableMapOf<String, String>()
+    private val tabImageURLs = mutableMapOf<String, String>()
+    private val tabImages = mutableMapOf<String, android.graphics.drawable.Drawable>()
     private val density = resources.displayMetrics.density
     private var selectedTab = 0
     private var swipeTracking = false
@@ -703,6 +706,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
 
     /** Draws `options` (a screen's `setOptions`) for a screen `depth` deep in its stack. */
     fun apply(options: JSONObject, depth: Int, fallbackTitle: String?) {
+        options.optJSONObject("tabItem")?.let(::updateTab)
         val hidden = options.optBoolean("hidden", false)
         val large = options.optBoolean("largeTitle", false) && depth == 0
         val title = options.optString("title").takeIf { options.has("title") } ?: fallbackTitle.orEmpty()
@@ -728,6 +732,42 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         refreshColors()
     }
 
+    private fun updateTab(item: JSONObject) {
+        val id = item.optString("id")
+        val index = tabs.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val cell = tabBar.getChildAt(index)
+        if (item.has("accessibilityLabel")) cell.contentDescription = item.optString("accessibilityLabel").takeUnless { item.isNull("accessibilityLabel") || it.isBlank() } ?: tabs[index].title
+        if (item.has("iconText")) {
+            tabIconText.remove(id)
+            item.optString("iconText").takeUnless { item.isNull("iconText") || it.isBlank() }?.let { tabIconText[id] = it.take(8) }
+        }
+        if (item.has("image")) {
+            val address = item.optString("image").takeIf { !item.isNull("image") && it.startsWith("https://") }
+            if (address != tabImageURLs[id]) {
+                tabImages.remove(id)
+                tabImageURLs.remove(id)
+                if (address != null) {
+                    tabImageURLs[id] = address
+                    Thread {
+                        val image = runCatching {
+                            val connection = java.net.URL(address).openConnection().apply { connectTimeout = 5000; readTimeout = 5000 }
+                            val bitmap = connection.getInputStream().use { android.graphics.BitmapFactory.decodeStream(it) } ?: return@runCatching null
+                            androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(resources, android.graphics.Bitmap.createScaledBitmap(bitmap, dp(27), dp(27), true)).apply { isCircular = true }
+                        }.getOrNull()
+                        post {
+                            if (tabImageURLs[id] == address && image != null) {
+                                tabImages[id] = image
+                                refreshColors()
+                            }
+                        }
+                    }.start()
+                }
+            }
+        }
+        refreshColors()
+    }
+
     /** Light or dark changed: the bars follow the screen's background. */
     fun refreshColors() {
         val background = ContextCompat.getColor(context, R.color.background)
@@ -749,11 +789,12 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         )).apply { setLayerInset(1, 0, maxOf(1, (density / 2).toInt()), 0, 0) }
         tabViews.forEachIndexed { index, (icon, label) ->
             val color = if (index == selectedTab) accent else muted
-            icon.setTextColor(color)
+            val number = tabIconText[tabs[index].id]
+            icon.setTextColor(if (number != null) Color.parseColor("#FF2D55") else color)
             label.setTextColor(color)
-            val vector = CraftNativeIcons.drawable(context, null, tabs[index].symbol, color)
+            val vector = tabImages[tabs[index].id] ?: if (number == null) CraftNativeIcons.drawable(context, null, tabs[index].symbol, color) else null
             icon.foreground = vector
-            if (vector != null) icon.text = ""
+            icon.text = if (vector != null) "" else number ?: CraftNativeSymbols.glyph(tabs[index].symbol)
         }
         for (index in 0 until buttons.childCount) (buttons.getChildAt(index) as? TextView)?.setTextColor(accent)
     }
