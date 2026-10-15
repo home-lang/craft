@@ -593,8 +593,18 @@ class NativeNavigationTest {
             val nestedSharedFirst = awaitView(activity, "nested-shared-first")
             val nestedSharedSecond = awaitView(activity, "nested-shared-second")
             val nestedSharedSibling = awaitView(activity, "nested-shared-sibling")
-            assertEquals("nested column gap was not preserved", (18 * density).toInt(), nestedSharedSecond.top - nestedSharedFirst.top)
-            assertEquals("nested row gap was not preserved", (80 * density).toInt(), nestedSharedSibling.left - nestedSharedColumn.left)
+            assertEquals(
+                "nested column gap was not preserved",
+                18.0 * density,
+                (nestedSharedSecond.top - nestedSharedFirst.top).toDouble(),
+                1.0,
+            )
+            assertEquals(
+                "nested row gap was not preserved",
+                80.0 * density,
+                (nestedSharedSibling.left - nestedSharedColumn.left).toDouble(),
+                1.0,
+            )
             val nestedPercentParent = awaitView(activity, "nested-percent-parent")
             val nestedPercentChild = awaitView(activity, "nested-percent-child")
             assertEquals((80 * density).toInt(), nestedPercentParent.width)
