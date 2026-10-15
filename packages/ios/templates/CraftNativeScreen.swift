@@ -201,6 +201,7 @@ private enum CraftNativeTreeLayoutBridge {
         let grid: Bool
         let gridColumns: Int
         let reverse: Bool
+        let wrapReverse: Bool
         let children: [TreeNode]
     }
 
@@ -225,6 +226,11 @@ private enum CraftNativeTreeLayoutBridge {
 
     private static let functionV2: FunctionV2? = {
         guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_layout_tree_v2") else { return nil }
+        return unsafeBitCast(symbol, to: FunctionV2.self)
+    }()
+
+    private static let functionV3: FunctionV2? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_layout_tree_v3") else { return nil }
         return unsafeBitCast(symbol, to: FunctionV2.self)
     }()
 
@@ -340,7 +346,12 @@ private enum CraftNativeTreeLayoutBridge {
 
     fileprivate static func treeFrames(root: TreeNode, width: CGFloat, height: CGFloat) -> TreeResult? {
         guard let function, width.isFinite, height.isFinite, width >= 0, height >= 0, !root.children.isEmpty else { return nil }
-        if containsReverse(root) { return treeFramesV2(root: root, width: width, height: height) }
+        if containsWrapReverse(root) {
+            return treeFramesV2(root: root, width: width, height: height, function: functionV3)
+        }
+        if containsReverse(root) {
+            return treeFramesV2(root: root, width: width, height: height, function: functionV2)
+        }
         var nodes: [TreeNode] = []
         var parents: [Int] = []
         func append(_ node: TreeNode, parent: Int) {
@@ -432,8 +443,12 @@ private enum CraftNativeTreeLayoutBridge {
         node.reverse || node.children.contains(where: containsReverse)
     }
 
-    private static func treeFramesV2(root: TreeNode, width: CGFloat, height: CGFloat) -> TreeResult? {
-        guard let functionV2, width.isFinite, height.isFinite, width >= 0, height >= 0, !root.children.isEmpty else { return nil }
+    private static func containsWrapReverse(_ node: TreeNode) -> Bool {
+        node.wrapReverse || node.children.contains(where: containsWrapReverse)
+    }
+
+    private static func treeFramesV2(root: TreeNode, width: CGFloat, height: CGFloat, function: FunctionV2?) -> TreeResult? {
+        guard let function, width.isFinite, height.isFinite, width >= 0, height >= 0, !root.children.isEmpty else { return nil }
         var nodes: [TreeNode] = []
         var parents: [Int] = []
         func append(_ node: TreeNode, parent: Int) {
@@ -481,7 +496,7 @@ private enum CraftNativeTreeLayoutBridge {
             input.gridColumns = UInt32(max(1, node.gridColumns))
             input.rowGap = Float(max(0, node.rowGap))
             input.columnGap = Float(max(0, node.columnGap))
-            input.reverse = node.reverse ? 1 : 0
+            input.reverse = (node.reverse ? 1 : 0) | (node.wrapReverse ? 2 : 0)
         }
 
         var styles = [StyleInputV2](repeating: StyleInputV2(), count: nodes.count)
@@ -1810,11 +1825,11 @@ private class CraftNativeFlowView: UIStackView {
     }
 
     /// Builds the eligible portion of this container for the host-neutral
-    /// tree ABI. The local algorithm remains authoritative for wrap-reverse,
+    /// tree ABI. The local algorithm remains authoritative for
     /// grid-auto-rows, absolute children, and any subtree whose measurement
     /// cannot be represented by the shared contract.
     fileprivate func sharedTreeNode(parentWidth: CGFloat, parentHeight: CGFloat) -> CraftNativeTreeLayoutBridge.TreeNode? {
-        guard !wrapReverse, gridAutoRows == nil else { return nil }
+        guard gridAutoRows == nil else { return nil }
         let children = visibleChildren
         let flow = children.filter { $0.craftLayoutStyle.position != "absolute" }
         guard flow.count == children.count else { return nil }
@@ -1859,6 +1874,7 @@ private class CraftNativeFlowView: UIStackView {
                 grid: nested?.grid ?? false,
                 gridColumns: nested?.gridColumns ?? 1,
                 reverse: nested?.reverse ?? false,
+                wrapReverse: nested?.wrapReverse ?? false,
                 children: nestedNode?.children ?? []
             )
         }
@@ -1880,12 +1896,13 @@ private class CraftNativeFlowView: UIStackView {
             grid: grid,
             gridColumns: gridColumns,
             reverse: reverse,
+            wrapReverse: wrapReverse,
             children: nodes.compactMap { $0 }
         )
     }
 
     private func sharedTreeFrames(_ children: [UIView], width: CGFloat?, height: CGFloat?) -> CraftNativeTreeLayoutBridge.TreeResult? {
-        guard let width, let height, !wrapReverse, gridAutoRows == nil,
+        guard let width, let height, gridAutoRows == nil,
               width.isFinite, height.isFinite, width >= 0, height >= 0 else { return nil }
         let nodes = children.map { child -> CraftNativeTreeLayoutBridge.TreeNode? in
             let style = child.craftLayoutStyle
@@ -1910,6 +1927,7 @@ private class CraftNativeFlowView: UIStackView {
                 grid: nested?.grid ?? false,
                 gridColumns: nested?.gridColumns ?? 1,
                 reverse: nested?.reverse ?? false,
+                wrapReverse: nested?.wrapReverse ?? false,
                 children: nestedNode?.children ?? []
             )
         }
@@ -1931,6 +1949,7 @@ private class CraftNativeFlowView: UIStackView {
             grid: grid,
             gridColumns: gridColumns,
             reverse: reverse,
+            wrapReverse: wrapReverse,
             children: nodes.compactMap { $0 }
         )
         return CraftNativeTreeLayoutBridge.treeFrames(root: root, width: width, height: height)
