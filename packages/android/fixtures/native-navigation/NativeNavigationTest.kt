@@ -319,11 +319,11 @@ class NativeNavigationTest {
             assertTrue("View did not render as LinearLayout", root is LinearLayout)
             val rootScroll = awaitView(activity, "native-root-scroll") as ScrollView
             val rootOverlay = awaitView(activity, "native-root-overlay")
-            val overlayTop = rootOverlay.top
-            val overlayRight = rootOverlay.right
+            val overlayTopBeforeScroll = rootOverlay.top
+            val overlayRightBeforeScroll = rootOverlay.right
             assertScrolls(rootScroll)
-            assertEquals("root absolute sibling moved with ScrollView content", overlayTop, rootOverlay.top)
-            assertEquals("root absolute sibling changed horizontal position", overlayRight, rootOverlay.right)
+            assertEquals("root absolute sibling moved with ScrollView content", overlayTopBeforeScroll, rootOverlay.top)
+            assertEquals("root absolute sibling changed horizontal position", overlayRightBeforeScroll, rootOverlay.right)
             instrumentation.runOnMainSync { rootScroll.scrollTo(0, 0) }
             val bubble = awaitView(activity, "max-content-bubble") as ViewGroup
             val bubbleText = awaitView(activity, "max-content-bubble-text") as TextView

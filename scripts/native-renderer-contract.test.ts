@@ -2207,6 +2207,8 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('private fun swipeHorizontalCarousel(activity: MainActivity, left: Boolean)')
     expect(androidNavigationTest).toContain('carousel swipe did not move the nested horizontal scroll')
     expect(androidNavigationTest).toContain('assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())')
+    expect(androidNavigationTest).toContain('overlayTopBeforeScroll')
+    expect(androidNavigationTest).toContain('overlayRightBeforeScroll')
   })
 
   it('keeps Android tab swipes interactive and screen-configurable', () => {
