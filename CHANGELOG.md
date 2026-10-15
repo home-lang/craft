@@ -1,5 +1,84 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.187...v0.0.188)
+
+## 🚀 Features
+
+- **browser**: provide Craft services for portable stx screens ([797a33a](https://github.com/craft-native/craft/commit/797a33a)) _(by Chris Breuer <chris@stacksjs.com>)_
+- **ios**: support solid native navigation bars ([7de71de](https://github.com/craft-native/craft/commit/7de71de)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **native**: route wrap-reverse trees through shared layout ([72562a6](https://github.com/craft-native/craft/commit/72562a6)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **layout**: add wrap-reverse tree ABI ([92786c6](https://github.com/craft-native/craft/commit/92786c6)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **native**: route reverse trees through shared layout ([5d779fe](https://github.com/craft-native/craft/commit/5d779fe)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **layout**: add versioned reverse tree ABI ([a924e1b](https://github.com/craft-native/craft/commit/a924e1b)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **native**: route nested grids through shared layout ([ee7e736](https://github.com/craft-native/craft/commit/ee7e736)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: route nested flex trees through shared layout ([e93f339](https://github.com/craft-native/craft/commit/e93f339)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: route nested flex trees through shared layout ([fff00b0](https://github.com/craft-native/craft/commit/fff00b0)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+## 🐛 Bug Fixes
+
+- **mobile**: support video selection and streaming multipart uploads ([3fde828](https://github.com/craft-native/craft/commit/3fde828)) _(by Chris Breuer <chris@stacksjs.com>)_
+- **android**: apply native switch thumb tint ([9767cde](https://github.com/craft-native/craft/commit/9767cde)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: compile dynamic navigation color fixture ([91dad49](https://github.com/craft-native/craft/commit/91dad49)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: keep interactive tab swipe edge stable ([8860fb9](https://github.com/craft-native/craft/commit/8860fb9)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: compile shared line trees ([4d47a9b](https://github.com/craft-native/craft/commit/4d47a9b)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **native**: unwrap shared layout bridge results ([c57283e](https://github.com/craft-native/craft/commit/c57283e)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: compile shared tree bridge buffers ([77ca6c4](https://github.com/craft-native/craft/commit/77ca6c4)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: lock nested carousel gestures ([4108703](https://github.com/craft-native/craft/commit/4108703)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: retain measured horizontal scroll width ([5b61224](https://github.com/craft-native/craft/commit/5b61224)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: measure exact horizontal scroll content ([1daf51e](https://github.com/craft-native/craft/commit/1daf51e)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: preserve horizontal scroll axis after styling ([42dd718](https://github.com/craft-native/craft/commit/42dd718)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: measure horizontal scroll content unbounded ([75984af](https://github.com/craft-native/craft/commit/75984af)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: defer tab swipes over carousels ([699c378](https://github.com/craft-native/craft/commit/699c378)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: keep nested scrolls touch-enabled ([d6a7afb](https://github.com/craft-native/craft/commit/d6a7afb)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: preserve nested horizontal scroll gestures ([f793989](https://github.com/craft-native/craft/commit/f793989)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: preserve hybrid web pages during transitions ([087d9dc](https://github.com/craft-native/craft/commit/087d9dc)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: preserve nested horizontal swipe ownership ([6f4f715](https://github.com/craft-native/craft/commit/6f4f715)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+## 📚 Documentation
+
+- distinguish native mobile rendering and release boundaries ([4363e12](https://github.com/craft-native/craft/commit/4363e12)) _(by Chris Breuer <chris@stacksjs.com>)_
+- **ios**: clarify hybrid navigation fixture scope ([3920b86](https://github.com/craft-native/craft/commit/3920b86)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **native**: describe floating navigation fixture ([1a0c898](https://github.com/craft-native/craft/commit/1a0c898)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+## 🧪 Tests
+
+- **browser**: verify account isolation and multipart file transport ([48d3759](https://github.com/craft-native/craft/commit/48d3759)) _(by Chris Breuer <chris@stacksjs.com>)_
+- **android**: tolerate nested grid rounding ([0168b61](https://github.com/craft-native/craft/commit/0168b61)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: tolerate percentage rounding ([bbd3b30](https://github.com/craft-native/craft/commit/bbd3b30)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: cover dynamic solid navigation colors ([7ce96b3](https://github.com/craft-native/craft/commit/7ce96b3)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: tolerate nested gap rounding ([ab779c7](https://github.com/craft-native/craft/commit/ab779c7)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: tolerate fractional gap rounding ([4123907](https://github.com/craft-native/craft/commit/4123907)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: resolve scroll wrappers in navigation fixture ([16ea2e8](https://github.com/craft-native/craft/commit/16ea2e8)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: drive tab swipe callbacks deterministically ([75e92e4](https://github.com/craft-native/craft/commit/75e92e4)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: make tab swipes deterministic ([a726ec2](https://github.com/craft-native/craft/commit/a726ec2)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: track versioned layout natives ([612ea34](https://github.com/craft-native/craft/commit/612ea34)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **native**: cover nested wrap-reverse layout ([6b538ea](https://github.com/craft-native/craft/commit/6b538ea)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **native**: cover nested reverse layout ([f077696](https://github.com/craft-native/craft/commit/f077696)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **native**: cover nested grid placement ([55b5e28](https://github.com/craft-native/craft/commit/55b5e28)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: avoid restricted pointer injection ([bb10375](https://github.com/craft-native/craft/commit/bb10375)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: inject carousel swipes through window ([27dec87](https://github.com/craft-native/craft/commit/27dec87)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: send incremental carousel swipe ([47317b4](https://github.com/craft-native/craft/commit/47317b4)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: await carousel layout before gestures ([c4c3f17](https://github.com/craft-native/craft/commit/c4c3f17)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: reject overlapping floating navigation buttons ([3f494ce](https://github.com/craft-native/craft/commit/3f494ce)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: enforce validation conformance table ([47088f5](https://github.com/craft-native/craft/commit/47088f5)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: cover multiple floating navigation buttons ([053e624](https://github.com/craft-native/craft/commit/053e624)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: traverse native scroll wrappers ([b5f0b2a](https://github.com/craft-native/craft/commit/b5f0b2a)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: make hybrid fixture server deterministic ([bf1bde0](https://github.com/craft-native/craft/commit/bf1bde0)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: exercise slow hybrid page arrivals ([cbd2f4d](https://github.com/craft-native/craft/commit/cbd2f4d)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: document hybrid navigation coverage ([e9642af](https://github.com/craft-native/craft/commit/e9642af)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **ios**: cover hybrid web navigation transitions ([f8fb94c](https://github.com/craft-native/craft/commit/f8fb94c)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: verify root overlays stay pinned ([c491488](https://github.com/craft-native/craft/commit/c491488)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **android**: prove nested carousel gesture ownership ([4ed3c4a](https://github.com/craft-native/craft/commit/4ed3c4a)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.188 ([e7e9d39](https://github.com/craft-native/craft/commit/e7e9d39)) _(by Chris Breuer <chris@stacksjs.com>)_
+
+## Contributors
+
+- _Chris Breuer <chris@stacksjs.com>_
+- _glennmichael123 <gtorregosa@gmail.com>_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.186...v0.0.187)
 
 ## 🐛 Bug Fixes
