@@ -812,7 +812,7 @@ class NativeNavigationTest {
             awaitText(activity, "hidden-layout-status", "Hidden layout events: 0")
             val bounded = awaitView(activity, "layout-min")
             val absolute = awaitView(activity, "layout-absolute")
-            assertEquals((140 * density).toInt(), bounded.width)
+            assertEquals("constrained width should snap to the nearest physical pixel", 140.0 * density.toDouble(), bounded.width.toDouble(), 0.500001)
             assertTrue(
                 "absolute child ignored its trailing insets",
                 absolute.right <= wrapped.width - (8 * density).toInt() && absolute.bottom <= wrapped.height - (8 * density).toInt()
