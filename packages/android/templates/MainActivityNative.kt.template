@@ -2653,6 +2653,37 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
     }
 }
 
+/** A field's pending native edits and the props acknowledged by the screen. */
+internal class CraftNativeInputEcho {
+    private val pending = ArrayDeque<String>()
+    private var rendered: String? = null
+    private var initialized = false
+
+    fun record(value: String) {
+        pending.addLast(value)
+        while (pending.size > 64) pending.removeFirst()
+    }
+
+    fun accept(value: String?, nativeValue: String): Boolean {
+        if (value == null) {
+            initialized = false
+            rendered = null
+            pending.clear()
+            return false
+        }
+        // A retained field can render the same prop more than once, after
+        // its echo was consumed. That repeated prop must not overwrite a
+        // keystroke that has not made the native/JS round trip yet.
+        val changed = !initialized || rendered != value
+        initialized = true
+        rendered = value
+        if (!changed) return false
+        val index = pending.indexOf(value)
+        if (index >= 0) repeat(index + 1) { pending.removeFirst() }
+        return nativeValue != value && index < 0
+    }
+}
+
 /**
  * A native screen's `<Video>`: the platform's VideoView.
  *
@@ -3261,7 +3292,7 @@ class MainActivity : AppCompatActivity() {
          * the screen answer with a value the field has already moved past;
          * that echo is not written back over what was typed since.
          */
-        val inputEchoes = mutableMapOf<EditText, ArrayDeque<String>>()
+        val inputEchoes = mutableMapOf<EditText, CraftNativeInputEcho>()
         val controls = mutableMapOf<String, View>()
         // Protocol ids identify mutation targets; authored keys identify the
         // retained view. Keep both mappings so a targeted update can recover
@@ -4601,10 +4632,8 @@ class MainActivity : AppCompatActivity() {
                 val autofillHint = autofillHintFor(props)
                 if (autofillHint == null) setAutofillHints(*emptyArray()) else setAutofillHints(autofillHint)
                 val controlledValue = props.opt("value")?.takeUnless { it == JSONObject.NULL }?.toString()
-                val echoes = screen.inputEchoes[this]
-                val echoIndex = if (controlledValue == null || echoes == null) -1 else echoes.indexOf(controlledValue)
-                if (echoIndex >= 0) repeat(echoIndex + 1) { echoes!!.removeFirst() }
-                if (controlledValue != null && text.toString() != controlledValue && echoIndex < 0) {
+                val echoes = screen.inputEchoes.getOrPut(this) { CraftNativeInputEcho() }
+                if (echoes.accept(controlledValue, text.toString()) && controlledValue != null) {
                     screen.suppressedTextChanges.add(this)
                     setTextPreservingSelection(this, controlledValue)
                 }
@@ -4662,9 +4691,7 @@ class MainActivity : AppCompatActivity() {
                         (screen.inputIdentities[this@apply] ?: identity).let { screen.drafts[it] = updated }
                         if (screen.suppressedTextChanges.remove(this@apply)) return
                         val current = screen.handlers[this@apply] ?: return
-                        val echoes = screen.inputEchoes.getOrPut(this@apply) { ArrayDeque() }
-                        echoes.addLast(updated)
-                        while (echoes.size > 64) echoes.removeFirst()
+                        screen.inputEchoes.getOrPut(this@apply) { CraftNativeInputEcho() }.record(updated)
                         send(screen, "EVENT", JSONObject()
                             .put("handlerName", current)
                             .put("nativeEvent", JSONObject().put("text", updated)))
@@ -5430,6 +5457,11 @@ class MainActivity : AppCompatActivity() {
         view.elevation = dp(craftNativeNonNegativeDouble(style, "elevation", 0.0)).toFloat()
         view.z = craftNativeFiniteFloat(style, "zIndex", 0f)
         val background = style.has("backgroundColor") && !style.isNull("backgroundColor")
+        // VideoView's Surface is behind this window. An opaque View
+        // background paints over the decoded picture (only rounded corners
+        // showed it). Keep the outline/borders, with a transparent fill.
+        val backgroundColor = if (view is CraftNativeVideoView) Color.TRANSPARENT
+            else color(style.optString("backgroundColor"), Color.TRANSPARENT)
         val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)
         val radius = craftNativeNonNegativeDouble(style, "borderRadius", 0.0)
         val sideBorderKeys = listOf("borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth")
@@ -5452,14 +5484,14 @@ class MainActivity : AppCompatActivity() {
         if (background || border > 0 || radius > 0 || hasSideBorders) {
             if (hasSideBorders) {
                 view.background = CraftNativeSideBorderDrawable(
-                    color(style.optString("backgroundColor"), Color.TRANSPARENT),
+                    backgroundColor,
                     cornerRadii,
                     sideWidths,
                     sideColors,
                 )
             } else {
                 view.background = GradientDrawable().apply {
-                    setColor(color(style.optString("backgroundColor"), Color.TRANSPARENT))
+                    setColor(backgroundColor)
                     if (hasCornerRadii) setCornerRadii(cornerRadii) else cornerRadius = dp(radius).toFloat()
                     if (border > 0) {
                         val borderColor = color(style.optString("borderColor"), Color.TRANSPARENT)
