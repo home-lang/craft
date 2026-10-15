@@ -313,7 +313,7 @@ class NativeNavigationTest {
             val carouselContent = carousel.getChildAt(0)
                 ?: throw AssertionError("carousel did not mount a content child")
             assertTrue(
-                "carousel content was not wider than its viewport",
+                "carousel content was not wider than its viewport (content=${carouselContent.width}, viewport=${carousel.width})",
                 carouselContent.width > carousel.width,
             )
             assertTrue(

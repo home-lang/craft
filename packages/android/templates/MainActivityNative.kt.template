@@ -1857,6 +1857,18 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
             if (!sideways || heightMode == MeasureSpec.UNSPECIFIED) unspecified
             else MeasureSpec.makeMeasureSpec(max(0, heightSize - verticalPadding), MeasureSpec.AT_MOST),
         )
+        if (sideways) {
+            // HorizontalScrollView may turn a WRAP_CONTENT child into an
+            // AT_MOST viewport measurement during its own pass. Preserve the
+            // intrinsic width we just measured as the child's layout width so
+            // the second pass cannot collapse a carousel back to the viewport.
+            val params = content.layoutParams ?: ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            params.width = max(params.width, content.measuredWidth)
+            content.layoutParams = params
+        }
         fun fit(mode: Int, size: Int, wanted: Int): Int = when (mode) {
             MeasureSpec.EXACTLY -> size
             MeasureSpec.AT_MOST -> min(size, wanted)

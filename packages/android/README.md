@@ -147,9 +147,10 @@ content box, keeping responsive sizing aligned with the iOS renderer.
 When `flexShrink` is omitted, horizontal text labels and scroll hosts use the
 same shrink defaults as the iOS renderer; buttons and editable fields retain
 their intrinsic width unless explicitly configured.
-An exact horizontal scroll viewport still measures its content unbounded, so a
-wider carousel retains its overflow and receives the horizontal gesture before
-the tab shell.
+An exact horizontal scroll viewport still measures its content unbounded and
+retains that measured child width for the platform's second pass, so a wider
+carousel keeps its overflow and receives the horizontal gesture before the tab
+shell.
 Wrapped containers also honor `alignContent` (`center`, `flex-end`,
 `space-between`, `space-around`, `space-evenly`, and `stretch`) consistently
 across hosts.
