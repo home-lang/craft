@@ -61,6 +61,7 @@ pub const Frame = extern struct {
 pub const Style = struct {
     direction: Axis = .row,
     reverse: bool = false,
+    wrap_reverse: bool = false,
     width: ?f32 = null,
     height: ?f32 = null,
     /// Host-measured natural dimensions. These are deliberately plain numbers
@@ -322,6 +323,44 @@ pub export fn craft_native_layout_tree_v2(
     return if (result == node_count) 0 else -1;
 }
 
+/// v3 tree layout entry point. It reuses the v2 payload shape but gives the
+/// trailing reverse field a second bit for wrap-reverse cross-axis placement;
+/// v2 keeps treating any non-zero value as main-axis reverse.
+pub export fn craft_native_layout_tree_v3(
+    viewport_width: f32,
+    viewport_height: f32,
+    nodes: [*]const LayoutNodeInputV2,
+    node_count: usize,
+    frames: [*]Frame,
+    frame_count: usize,
+) callconv(.c) c_int {
+    if (node_count == 0 or node_count > max_layout_nodes or frame_count < node_count) return -1;
+
+    const input = nodes[0..node_count];
+    const visited = std.heap.page_allocator.alloc(bool, node_count) catch return -1;
+    defer std.heap.page_allocator.free(visited);
+    @memset(visited, false);
+    if (!validateLayoutTreeV2(input, 0, visited)) return -1;
+
+    var tree = std.heap.page_allocator.alloc(Node, node_count) catch return -1;
+    defer std.heap.page_allocator.free(tree);
+    for (input, 0..) |item, index| {
+        const first = @as(usize, @intCast(item.first_child));
+        const count = @as(usize, @intCast(item.child_count));
+        tree[index] = .{
+            .style = layoutStyleV3(item.style),
+            .children = tree[first .. first + count],
+        };
+    }
+
+    const result = layout(
+        tree[0],
+        .{ .width = finiteNonNegative(viewport_width), .height = finiteNonNegative(viewport_height) },
+        frames[0..frame_count],
+    ) catch return -1;
+    return if (result == node_count) 0 else -1;
+}
+
 fn validateLayoutTree(input: []const LayoutNodeInput, index: usize, visited: []bool) bool {
     if (index >= input.len or visited[index]) return false;
     visited[index] = true;
@@ -422,6 +461,13 @@ fn layoutStyleV2(input: LayoutStyleInputV2) Style {
         .row_gap = finiteNonNegative(input.row_gap),
         .column_gap = finiteNonNegative(input.column_gap),
     };
+}
+
+fn layoutStyleV3(input: LayoutStyleInputV2) Style {
+    var style = layoutStyleV2(input);
+    style.reverse = (input.reverse & 1) != 0;
+    style.wrap_reverse = (input.reverse & 2) != 0;
+    return style;
 }
 
 fn optionalFinite(value: f32) ?f32 {
@@ -1024,8 +1070,12 @@ fn layoutWrapped(
                 main_size - main_offset - leading_margin - child_main
             else
                 main_offset + leading_margin;
-            const child_x = if (direction == .row) x + main_position else x + child_cross_offset;
-            const child_y = if (direction == .row) y + cross_offset + child_cross_offset else y + main_position;
+            const cross_position = if (node.style.wrap_reverse)
+                cross_size - cross_offset - child_cross - child_cross_offset
+            else
+                cross_offset + child_cross_offset;
+            const child_x = if (direction == .row) x + main_position else x + cross_position;
+            const child_y = if (direction == .row) y + cross_position else y + main_position;
             next_index = try layoutNode(child, child_size, child_x, child_y, next_index, frames);
             main_offset += mainMargins(child, direction) + child_main;
             if (index + 1 < children.len) main_offset += between_space;
@@ -1588,6 +1638,32 @@ test "v2 tree layout mirrors reverse main-axis children" {
     try std.testing.expectEqual(@as(f32, 65), frames[2].x);
     try std.testing.expectEqual(@as(f32, 20), frames[1].width);
     try std.testing.expectEqual(@as(f32, 10), frames[2].width);
+}
+
+test "v3 tree layout mirrors wrapped cross-axis lines" {
+    var root_style = emptyLayoutStyleInputV2();
+    root_style.width = 60;
+    root_style.height = 50;
+    root_style.flex_wrap = 1;
+    root_style.align_content = 0;
+    root_style.reverse = 2;
+
+    var first_style = emptyLayoutStyleInputV2();
+    first_style.intrinsic_width = 40;
+    first_style.intrinsic_height = 10;
+    var second_style = emptyLayoutStyleInputV2();
+    second_style.intrinsic_width = 40;
+    second_style.intrinsic_height = 10;
+
+    const nodes = [_]LayoutNodeInputV2{
+        .{ .style = root_style, .first_child = 1, .child_count = 2 },
+        .{ .style = first_style, .first_child = 0, .child_count = 0 },
+        .{ .style = second_style, .first_child = 0, .child_count = 0 },
+    };
+    var frames: [3]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_layout_tree_v3(60, 50, &nodes, nodes.len, &frames, frames.len));
+    try std.testing.expectEqual(@as(f32, 40), frames[1].y);
+    try std.testing.expectEqual(@as(f32, 30), frames[2].y);
 }
 
 test "rejects malformed host-neutral layout trees without writing frames" {

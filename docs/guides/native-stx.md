@@ -63,7 +63,10 @@ preorder tree and `craft_native_layout_tree` returns a host-free flat frame list
 for the complete tree. `craft_native_layout_tree_v2` is the versioned extension
 for reverse main-axis flows; it adds a `reverse` flag without changing the v1
 struct stride, so a host can probe the newer symbol and retain the v1 path on an
-older runtime. `Style` accepts host-measured intrinsic width and height as plain
+older runtime. `craft_native_layout_tree_v3` reuses that payload shape with a
+separate symbol whose reverse bitmask also supports `wrap-reverse`, so a host
+can probe each newer symbol and retain the older path on an older runtime.
+`Style` accepts host-measured intrinsic width and height as plain
 numbers, so font and image measurement remain callbacks at the boundary rather
 than becoming UIKit or Android dependencies in Zig. Each entry point rejects
 malformed trees and undersized frame buffers without returning partial geometry,
@@ -75,8 +78,8 @@ nested container's direction, padding, gap, and grid columns with its own
 content-box measurements, so parent placement cannot erase those values.
 Wrapped flows use the same boundary when both axes use independent row/column gaps; percentage sizes
 resolve against the parent content box before entering the shared ABI. Reverse
-main-axis flows use the versioned v2 boundary when available; wrap-reverse,
-absolute children, missing runtimes, and any malformed ABI result stay on the
+main-axis flows use the versioned v2 boundary when available, and wrap-reverse
+flows use v3; absolute children, missing runtimes, and any malformed ABI result stay on the
 local compatibility algorithms. Grid-auto-rows remain
 on the local path because they need host-specific row measurement. The iOS root also keeps
 a
