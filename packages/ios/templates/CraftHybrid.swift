@@ -1572,8 +1572,12 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         // title unless it asked for the bar; a pushed native screen gets the
         // bar and its Back.
         // A root screen that asked for its own bar (setOptions) keeps it.
-        let asksForBar = (viewController as? CraftNativeScreenController)?.wantsNavigationBar ?? false
-        let bare = viewController is CraftHybridWebSlot || (navigationController.viewControllers.first === viewController && !asksForBar)
+        // A screen that put its bar away (`hidden: true`, a tour drawing its
+        // own Back and Skip) stays bare, pushed or not.
+        let native = viewController as? CraftNativeScreenController
+        let asksForBar = native?.wantsNavigationBar ?? false
+        let bare = viewController is CraftHybridWebSlot || native?.navigationBarHidden == true
+            || (navigationController.viewControllers.first === viewController && !asksForBar)
         navigationController.setNavigationBarHidden(bare, animated: animated)
     }
 

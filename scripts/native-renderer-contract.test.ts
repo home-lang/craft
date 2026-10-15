@@ -1049,7 +1049,10 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('lastLayoutFrames[id] != frame')
     expect(ios).toContain('isEffectivelyVisible(node.view)')
     expect(ios).toContain('if current.isHidden { return false }')
-    expect(ios).toContain('for child in node["children"] as? [[String: Any]] ?? []')
+    // A key is a node's own, or a lone wrapped child's: never a sibling-
+    // dependent descendant's, which rebuilt whole subtrees when it toggled.
+    expect(ios).toContain('guard children.count == 1, let only = children.first as? [String: Any] else { return nil }')
+    expect(ios).not.toContain('if let nested = explicitKey(child, props: childProps) { return nested }')
     expect(android).toContain('private fun authoredKey(node: JSONObject, props: JSONObject): String?')
     expect(android).not.toContain('authoredKey(child, childProps)')
     expect(android).toContain('craftNativeEventName(events, "onLayout")')
@@ -2016,7 +2019,8 @@ describe('native renderer component contract', () => {
 
   it('prefers authored keys over compiler ids when reconciling native rows', () => {
     expect(ios).toContain('let direct = [node["key"], props["key"], props["testID"]]')
-    expect(ios).toContain('for child in node["children"] as? [[String: Any]] ?? []')
+    // Through a lone wrapped child (a component's wrapper) only.
+    expect(ios).toContain('return authoredKey(only, props: only["props"] as? [String: Any] ?? [:])')
     expect(iosFlatList).toContain('[node["key"], props["key"], props["testID"], node["id"]]')
     expect(android).toContain('screen.lastLayoutBounds.remove(updated)')
   })

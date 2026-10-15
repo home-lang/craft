@@ -3883,7 +3883,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var rootTrailingToSafeArea: NSLayoutConstraint?
     private var rootTrailingToView: NSLayoutConstraint?
     private var rootIsSafeAreaView = false
-    private var navigationBarHidden: Bool?
+    private(set) var navigationBarHidden: Bool?
     /// A native `<StatusBar>` node overrides the app default for this screen.
     private var statusBarStyleOverride: UIStatusBarStyle?
     private var statusBarHiddenOverride: Bool?
@@ -5340,17 +5340,26 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func explicitKey(_ node: [String: Any], props: [String: Any]) -> String? {
+        if let authored = authoredKey(node, props: props) { return authored }
+        return (node["id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// The key a node's author gave it. A wrapper of one child (a
+    /// component's) is keyed by what it wraps, so a keyed row drawn through
+    /// a component keeps its key. Never a key further down beside siblings:
+    /// one an `:if` shows and hides (a Back button) changed the identity of
+    /// everything above it, and the whole subtree was built again, a pager's
+    /// scroll position with it.
+    private func authoredKey(_ node: [String: Any], props: [String: Any]) -> String? {
         // The current @stacksjs/stx native compiler emits key in props; accept the IR
         // field too so keyed children keep working when the compiler adopts it.
         let direct = [node["key"], props["key"], props["testID"]]
             .compactMap { $0 as? String }
             .first { !$0.isEmpty }
         if let direct { return direct }
-        for child in node["children"] as? [[String: Any]] ?? [] {
-            let childProps = child["props"] as? [String: Any] ?? [:]
-            if let nested = explicitKey(child, props: childProps) { return nested }
-        }
-        return (node["id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let children = node["children"] as? [Any] ?? []
+        guard children.count == 1, let only = children.first as? [String: Any] else { return nil }
+        return authoredKey(only, props: only["props"] as? [String: Any] ?? [:])
     }
 
     private func accessibilityIdentifier(_ node: [String: Any], props: [String: Any]) -> String? {

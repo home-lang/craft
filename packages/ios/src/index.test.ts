@@ -1344,6 +1344,16 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('field.borderStyle = style["borderWidth"] != nil || style["backgroundColor"] != nil ? .none : .roundedRect')
   })
 
+  it('keeps the bar away for a pushed screen that hid it', () => {
+    // The tour hides the bar and draws its own Back; pushed from Settings,
+    // the stack's willShow showed the bar again, so it had two Backs.
+    const hybrid = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftHybrid.swift'), 'utf8')
+    const willShow = hybrid.slice(hybrid.indexOf('func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController'))
+    expect(willShow.slice(0, 900)).toContain('native?.navigationBarHidden == true')
+    const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    expect(swift).toContain('private(set) var navigationBarHidden: Bool?')
+  })
+
   it('lets a child that overflows its flex view take its touches, as the web does', () => {
     // A floating button absolutely positioned out of a zero-height component
     // wrapper drew but could not be tapped: UIKit never asked the wrapper.
