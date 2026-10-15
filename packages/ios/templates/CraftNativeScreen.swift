@@ -577,6 +577,9 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
         // A muted video makes no sound, so it leaves the session as it is.
         if muted { releaseSession() } else { claimSession() }
         playerController.showsPlaybackControls = controls
+        // The system's controls are for VoiceOver too; a bare video stays one element.
+        playerController.view.accessibilityElementsHidden = !controls
+        isUserInteractionEnabled = true
         playerController.videoGravity = resizeMode == "cover" ? .resizeAspectFill
             : resizeMode == "stretch" ? .resize
             : .resizeAspect
@@ -5687,6 +5690,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         return handler
     }
 
+    /// Views that take their own touches whatever handlers the screen gives
+    /// them: a scroll view, a modal, and a video's system controls (with
+    /// interaction off, its play, scrubber and full screen never answered).
+    private func ownsTouches(_ view: UIView) -> Bool {
+        view is UIScrollView || view is CraftNativeModalView || view is CraftNativeVideoView
+    }
+
     private func updatePressHandler(_ handler: String?, for view: UIView) {
         let id = ObjectIdentifier(view)
         let handler = handler?.isEmpty == false ? handler : nil
@@ -5701,7 +5711,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         // A container keeps receiving touches without a handler of its own,
         // or every control inside it (and the screen root) would be dead.
-        if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = actionable || longPressHandlers[id] != nil || view is CraftNativeFlowView }
+        if !ownsTouches(view) { view.isUserInteractionEnabled = actionable || longPressHandlers[id] != nil || view is CraftNativeFlowView }
     }
 
     private func updatePressFeedback(_ pressIn: String?, _ pressOut: String?, for view: UIView) {
@@ -5710,7 +5720,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if let pressOut, !pressOut.isEmpty { pressOutHandlers[id] = pressOut } else { pressOutHandlers.removeValue(forKey: id) }
         guard pressInHandlers[id] != nil || pressOutHandlers[id] != nil else {
             if let recognizer = pressFeedbackRecognizers.removeValue(forKey: id) { view.removeGestureRecognizer(recognizer) }
-            if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }
+            if !ownsTouches(view) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }
             return
         }
         if pressFeedbackRecognizers[id] == nil {
@@ -5722,14 +5732,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             pressFeedbackRecognizers[id] = recognizer
             view.addGestureRecognizer(recognizer)
         }
-        if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = true }
+        if !ownsTouches(view) { view.isUserInteractionEnabled = true }
     }
 
     private func updateLongPressHandler(_ handler: String?, for view: UIView) {
         let id = ObjectIdentifier(view)
         if let handler, !handler.isEmpty {
             longPressHandlers[id] = handler
-            if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = true }
+            if !ownsTouches(view) { view.isUserInteractionEnabled = true }
             if longPressRecognizers[id] == nil {
                 let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(viewLongPressed(_:)))
                 longPressRecognizers[id] = recognizer
@@ -5740,7 +5750,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if let recognizer = longPressRecognizers.removeValue(forKey: id) {
                 view.removeGestureRecognizer(recognizer)
             }
-            if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || view is CraftNativeFlowView }
+            if !ownsTouches(view) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || view is CraftNativeFlowView }
         }
     }
 
@@ -6336,10 +6346,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // reads: its label names the group, as a tab strip or a pager's
         // name, and never stands in for its content. As an element of its
         // own, a labelled pager hid every page from VoiceOver.
+        // A video with its system controls is a group too: VoiceOver reaches
+        // play, the scrubber, skipping and full screen inside it.
+        let controlledVideo = type == "Video" && (props["controls"] as? Bool) == true
         let container = ["ScrollView", "FlatList", "SectionList"].contains(type)
             || ["tablist", "radiogroup", "list", "menu", "menubar", "toolbar"].contains(role ?? "")
+            || controlledVideo
         view.isAccessibilityElement = !container && role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "DatePicker", "Switch", "Slider"].contains(type))
-        view.accessibilityContainerType = container && view.accessibilityLabel != nil ? .semanticGroup : .none
+        view.accessibilityContainerType = container && (view.accessibilityLabel != nil || controlledVideo) ? .semanticGroup : .none
         var traits: UIAccessibilityTraits = []
         switch role ?? type.lowercased() {
         case "tablist": traits.insert(.tabBar)
