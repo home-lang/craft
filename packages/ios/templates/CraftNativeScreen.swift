@@ -355,12 +355,13 @@ private enum CraftNativeTreeLayoutBridge {
         }
 
         var output = [Frame](repeating: Frame(x: 0, y: 0, width: 0, height: 0), count: nodes.count)
+        let frameCount = output.count
         let status = inputs.withUnsafeBufferPointer { inputBuffer in
             metadata.withUnsafeBufferPointer { metadataBuffer in
                 output.withUnsafeMutableBufferPointer { outputBuffer in
                     function(
                         Float(width), Float(height), UnsafeRawPointer(inputBuffer.baseAddress!), inputs.count,
-                        UnsafeMutableRawPointer(outputBuffer.baseAddress!), output.count
+                        UnsafeMutableRawPointer(outputBuffer.baseAddress!), frameCount
                     )
                 }
             }
