@@ -625,9 +625,24 @@ class NativeNavigationTest {
             val nestedGridSecond = awaitView(activity, "nested-grid-second")
             val nestedGridThird = awaitView(activity, "nested-grid-third")
             val nestedGridSibling = awaitView(activity, "nested-grid-sibling")
-            assertEquals("nested grid columns were not shared through the tree ABI", (52 * density).toInt(), nestedGridSecond.left - nestedGridFirst.left)
-            assertEquals("nested grid rows were not shared through the tree ABI", (26 * density).toInt(), nestedGridThird.top - nestedGridFirst.top)
-            assertEquals("nested grid parent placement was not preserved", (110 * density).toInt(), nestedGridSibling.left - nestedGrid.left)
+            assertEquals(
+                "nested grid columns were not shared through the tree ABI",
+                52.0 * density,
+                (nestedGridSecond.left - nestedGridFirst.left).toDouble(),
+                1.0,
+            )
+            assertEquals(
+                "nested grid rows were not shared through the tree ABI",
+                26.0 * density,
+                (nestedGridThird.top - nestedGridFirst.top).toDouble(),
+                1.0,
+            )
+            assertEquals(
+                "nested grid parent placement was not preserved",
+                110.0 * density,
+                (nestedGridSibling.left - nestedGrid.left).toDouble(),
+                1.0,
+            )
             val nestedReverse = awaitView(activity, "nested-reverse")
             val nestedReverseFirst = awaitView(activity, "nested-reverse-first")
             val nestedReverseSecond = awaitView(activity, "nested-reverse-second")
