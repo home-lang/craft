@@ -2211,6 +2211,18 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('overlayRightBeforeScroll')
   })
 
+  it('keeps the outgoing hybrid web page visible during navigation transitions', () => {
+    const hybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
+    const slot = hybrid.slice(hybrid.indexOf('final class CraftHybridWebSlot'))
+    expect(slot.indexOf('prepareWebTransition(to: self)')).toBeLessThan(slot.indexOf('adoptWeb(into: self)'))
+    expect(hybrid).toContain('private var webTransitionSnapshots: [UIView] = []')
+    expect(hybrid).toContain('func prepareWebTransition(to slot: CraftHybridWebSlot)')
+    expect(hybrid).toContain('webHost.view.snapshotView(afterScreenUpdates: false)')
+    expect(hybrid).toContain('source.view.addSubview(snapshot)')
+    expect(hybrid).toContain('for snapshot in webTransitionSnapshots { snapshot.removeFromSuperview() }')
+    expect(hybrid).toContain('webTransitionSnapshots.removeAll()')
+  })
+
   it('keeps Android tab swipes interactive and screen-configurable', () => {
     expect(androidChrome).toContain('override fun onInterceptTouchEvent(event: MotionEvent)')
     expect(androidChrome).toContain('onTabSwipeStart?.invoke(dx, event.x, event.y)')

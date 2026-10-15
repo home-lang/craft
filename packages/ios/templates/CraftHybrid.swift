@@ -992,7 +992,10 @@ final class CraftHybridWebSlot: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        (parent?.parent as? CraftHybridController)?.adoptWeb(into: self)
+        if let controller = parent?.parent as? CraftHybridController {
+            controller.prepareWebTransition(to: self)
+            controller.adoptWeb(into: self)
+        }
     }
 }
 
@@ -1011,6 +1014,9 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     private var shownStacks: [ObjectIdentifier: [UIViewController]] = [:]
     /// A tab whose page has not caught up yet; shown when it has, or soon.
     private var pendingTab: (id: String, deadline: DispatchWorkItem)?
+    /// The live WebView moves to the destination before UIKit animates a web
+    /// push. Keep the outgoing page visible until that transition completes.
+    private var webTransitionSnapshots: [UIView] = []
     private var openingWeb = false
     private var firstFrameLogged = false
     private var tabBarHeight: CGFloat = 0
@@ -1242,6 +1248,26 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             child.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             child.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
+    }
+
+    /// UIKit calls the destination's viewWillAppear before it starts a push.
+    /// Since the hybrid shell has one WebView shared by all web entries, moving
+    /// it at that point would leave the outgoing slot blank for the whole
+    /// transition. A snapshot gives that slot the page it was showing while
+    /// the live WebView is adopted by the destination.
+    func prepareWebTransition(to slot: CraftHybridWebSlot) {
+        guard let nav = slot.navigationController,
+              nav === visibleStack,
+              let from = nav.transitionCoordinator?.viewController(forKey: .from),
+              let source = from as? CraftHybridWebSlot,
+              source !== slot,
+              let webHost,
+              webHost.view.superview === source.view,
+              let snapshot = webHost.view.snapshotView(afterScreenUpdates: false) else { return }
+        snapshot.frame = source.view.bounds
+        snapshot.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        source.view.addSubview(snapshot)
+        webTransitionSnapshots.append(snapshot)
     }
 
     private var visibleStack: UINavigationController? { stacks[currentTab] }
@@ -1593,6 +1619,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         if let depth = removed.compactMap({ ($0 as? CraftHybridWebSlot)?.depth }).min() {
             hybrid.pageBack(to: depth - 1)
         }
+        for snapshot in webTransitionSnapshots { snapshot.removeFromSuperview() }
+        webTransitionSnapshots.removeAll()
         // Back at a tab's native root while the page, with no history left
         // to go back through (it reloaded on the screen just popped), still
         // shows that screen: it moves to the root's path. Left there, the

@@ -1367,6 +1367,15 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('private(set) var navigationBarHidden: Bool?')
   })
 
+  it('keeps the outgoing hybrid web page visible while a web push animates', () => {
+    const hybrid = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftHybrid.swift'), 'utf8')
+    const slot = hybrid.slice(hybrid.indexOf('final class CraftHybridWebSlot'))
+    expect(slot.indexOf('prepareWebTransition(to: self)')).toBeLessThan(slot.indexOf('adoptWeb(into: self)'))
+    expect(hybrid).toContain('webHost.view.snapshotView(afterScreenUpdates: false)')
+    expect(hybrid).toContain('snapshot.frame = source.view.bounds')
+    expect(hybrid).toContain('for snapshot in webTransitionSnapshots { snapshot.removeFromSuperview() }')
+  })
+
   it('lets a child that overflows its flex view take its touches, as the web does', () => {
     // A floating button absolutely positioned out of a zero-height component
     // wrapper drew but could not be tapped: UIKit never asked the wrapper.
