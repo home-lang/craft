@@ -44,6 +44,9 @@ teardown when Android Back or replace closes a screen.
 Home also supplies the same two right navigation buttons as the iOS fixture,
 so the native shell exercises the shared `rightButtons` contract while the
 platform-specific iOS UI gate checks their floating geometry.
+The scroll wrapper remains touch-enabled without a refresh handler; only its
+pull-to-refresh interception is disabled, so nested horizontal carousels still
+receive their own gestures.
 The native form coverage also keeps a keyed input's draft while changing its
 single-line/multiline mode, recreating the incompatible platform control, and
 the iOS fixture runs the same mode-transition and recycled-row assertions.

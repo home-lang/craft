@@ -28,6 +28,7 @@ const androidFlatList = readFileSync(join(root, 'packages/android/templates/Craf
 const androidRefreshableFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeRefreshableFlatList.kt.template'), 'utf8')
 const iosNotifCancel = readFileSync(join(root, 'packages/zig/src/bridge_mobile_notifcancel.zig'), 'utf8')
 const androidNavigationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeNavigationTest.kt'), 'utf8')
+const androidCapabilityTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeCapabilityUiTest.kt'), 'utf8')
 const androidMutationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeMutationTest.kt'), 'utf8')
 const androidBuilderTest = readFileSync(join(root, 'packages/android/src/index.test.ts'), 'utf8')
 const androidFlatListTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeFlatListTest.kt'), 'utf8')
@@ -214,6 +215,11 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('svg.waitForExistence(timeout: 5)')
     expect(iosNavigationTest).toContain('let link = app.staticTexts["native-link"]')
     expect(androidNavigationTest).toContain('assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)')
+  })
+
+  it('waits for asynchronous capability text before asserting it', () => {
+    expect(androidCapabilityTest).toContain('awaitText(activity, "capabilities-platform", "Platform: android")')
+    expect(androidCapabilityTest).not.toContain('assertEquals("Platform: android", (await(activity, "capabilities-platform") as TextView).text.toString())')
   })
 
   it('keeps the same host-neutral controls on iOS and Android', () => {
@@ -1231,6 +1237,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('setProgressBackgroundColorSchemeColor(craftNativeColor(background))')
     expect(android).toContain('setRefreshHandler(refreshHandler, if (refreshNode == null) props.optBoolean("refreshing", false) else refreshProps.optBoolean("refreshing", false))')
     expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }')
+    const scrollStart = android.indexOf('private class CraftNativeScrollView')
+    const scrollEnd = android.indexOf('private class CraftNativeFlexSpacer', scrollStart)
+    const scroll = android.slice(scrollStart, scrollEnd)
+    expect(scroll).toContain('override fun onInterceptTouchEvent(event: MotionEvent): Boolean')
+    expect(scroll).toContain('if (refreshHandler == null) return false')
+    expect(scroll).toContain('isEnabled = true')
+    expect(scroll).not.toContain('isEnabled = false')
   })
 
   it('applies FlatList content container padding on both hosts', () => {

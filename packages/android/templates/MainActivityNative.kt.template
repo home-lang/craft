@@ -1808,8 +1808,16 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         vertical.isFillViewport = true
         horizontal.isFillViewport = true
         setOnRefreshListener { refreshHandler?.invoke() }
-        isEnabled = false
+        // The outer refresh host must stay touch-enabled so its real scroll
+        // child can receive gestures even when no pull-to-refresh handler is
+        // configured. Interception is gated below instead.
+        isEnabled = true
         setHorizontal(false)
+    }
+
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        if (refreshHandler == null) return false
+        return super.onInterceptTouchEvent(event)
     }
 
     /**
@@ -1853,7 +1861,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
 
     fun setRefreshHandler(handler: (() -> Unit)?, refreshing: Boolean) {
         refreshHandler = handler
-        isEnabled = handler != null
+        isEnabled = true
         isRefreshing = handler != null && refreshing
         if (handler == null) isRefreshing = false
     }

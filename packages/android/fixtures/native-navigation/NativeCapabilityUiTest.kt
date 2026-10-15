@@ -8,7 +8,6 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -63,7 +62,7 @@ class NativeCapabilityUiTest {
         var activity = launch()
         try {
             click(activity, "open-capabilities")
-            assertEquals("Platform: android", (await(activity, "capabilities-platform") as TextView).text.toString())
+            awaitText(activity, "capabilities-platform", "Platform: android")
             click(activity, "save-capabilities")
             awaitText(activity, "capabilities-status", "Saved Ada and Grace")
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
