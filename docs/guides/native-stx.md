@@ -66,6 +66,9 @@ struct stride, so a host can probe the newer symbol and retain the v1 path on an
 older runtime. `craft_native_layout_tree_v3` reuses that payload shape with a
 separate symbol whose reverse bitmask also supports `wrap-reverse`, so a host
 can probe each newer symbol and retain the older path on an older runtime.
+The Android JNI table registers all three layout entry points (114 natives in the
+current bridge), while each Kotlin wrapper still treats an unavailable symbol as
+a normal compatibility fallback.
 `Style` accepts host-measured intrinsic width and height as plain
 numbers, so font and image measurement remain callbacks at the boundary rather
 than becoming UIKit or Android dependencies in Zig. Each entry point rejects
