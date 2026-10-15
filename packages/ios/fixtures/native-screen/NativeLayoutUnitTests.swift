@@ -17,6 +17,28 @@ final class NativeLayoutUnitTests: XCTestCase {
         return controller
     }
 
+    func testActivityIndicatorSizeSurvivesStyleReconciliation() throws {
+        func document(_ size: Any, transform: [[String: Any]]? = nil) -> [String: Any] {
+            var style: [String: Any] = [:]
+            if let transform { style["transform"] = transform }
+            return ["type": "ActivityIndicator", "props": ["key": "indicator", "size": size], "style": style]
+        }
+        let controller = screen(document("small"))
+        let indicator = try XCTUnwrap(find("indicator", below: controller.view) as? UIActivityIndicatorView)
+        XCTAssertEqual(indicator.transform.a, 0.75, accuracy: 0.001)
+        XCTAssertEqual(indicator.transform.d, 0.75, accuracy: 0.001)
+        controller.render(document("large"))
+        XCTAssertTrue(find("indicator", below: controller.view) === indicator)
+        XCTAssertEqual(indicator.transform.a, 1, accuracy: 0.001)
+        controller.render(document(40, transform: [["scale": 0.5], ["translateX": 4]]))
+        XCTAssertEqual(indicator.transform.a, 1, accuracy: 0.001)
+        XCTAssertEqual(indicator.transform.d, 1, accuracy: 0.001)
+        XCTAssertEqual(indicator.transform.tx, 2, accuracy: 0.001)
+        controller.render(document("small"))
+        XCTAssertEqual(indicator.transform.a, 0.75, accuracy: 0.001)
+        XCTAssertEqual(indicator.transform.tx, 0, accuracy: 0.001)
+    }
+
     private func settle(_ controller: CraftNativeScreenController) {
         for _ in 0..<4 {
             let settled = expectation(description: "layout settled")

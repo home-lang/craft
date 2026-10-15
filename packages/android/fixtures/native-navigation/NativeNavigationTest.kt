@@ -772,6 +772,16 @@ class NativeNavigationTest {
             assertTrue("stopped indicator should stay visible when requested", stoppedIndicator.isShown)
             assertTrue("stopped indicator should not animate", !stoppedIndicator.isIndeterminate)
             assertEquals(0.75f, stoppedIndicator.scaleX)
+            assertEquals(0.75f, stoppedIndicator.scaleY)
+            click(activity, "toggle-indicator-size")
+            val enlargedIndicator = awaitProgressBar(activity, "stopped-indicator", "large size") { it.scaleX == 1.35f }
+            assertEquals(1.35f, enlargedIndicator.scaleY)
+            click(activity, "toggle-indicator-size")
+            val resizedIndicator = awaitProgressBar(activity, "stopped-indicator", "small size restored") { it.scaleX == 0.75f }
+            assertEquals(0.75f, resizedIndicator.scaleY)
+            val scaledIndicator = awaitProgressBar(activity, "scaled-indicator", "numeric size with authored transform") { it.isShown }
+            assertEquals(1f, scaledIndicator.scaleX)
+            assertEquals(1f, scaledIndicator.scaleY)
             val hiddenIndicator = awaitProgressBar(activity, "hidden-indicator", "hidden") { it.visibility == View.GONE }
             assertEquals("hidesWhenStopped should hide a stopped indicator", View.GONE, hiddenIndicator.visibility)
             val displayNoneIndicator = awaitProgressBar(activity, "display-none-indicator", "hidden") { it.visibility == View.GONE }

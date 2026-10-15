@@ -2458,6 +2458,8 @@ private data class LayoutBounds(
  */
 private class CraftNativeActivityIndicator(context: Context) :
     android.widget.ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal) {
+    var indicatorScale = 1f
+
     init {
         val spinner = android.widget.ProgressBar(context).indeterminateDrawable
         indeterminateDrawable = spinner
@@ -4903,8 +4905,7 @@ class MainActivity : AppCompatActivity() {
                     is Number -> (requestedSize.toDouble() / 24.0).takeIf { it.isFinite() }?.toFloat()?.coerceAtLeast(0.5f) ?: 1f
                     else -> 1f
                 }
-                scaleX = scale
-                scaleY = scale
+                indicatorScale = scale
                 val animating = props.optBoolean("animating", true)
                 isIndeterminate = animating
                 visibility = if (!animating && props.optBoolean("hidesWhenStopped", true)) View.GONE else View.VISIBLE
@@ -5546,8 +5547,11 @@ class MainActivity : AppCompatActivity() {
     private fun applyTransform(view: View, transforms: JSONArray?) {
         view.translationX = 0f
         view.translationY = 0f
-        view.scaleX = 1f
-        view.scaleY = 1f
+        // Reconciliation reapplies transforms; start from the control's
+        // intrinsic scale rather than erasing its authored indicator size.
+        val intrinsicScale = (view as? CraftNativeActivityIndicator)?.indicatorScale ?: 1f
+        view.scaleX = intrinsicScale
+        view.scaleY = intrinsicScale
         view.rotation = 0f
         view.rotationX = 0f
         view.rotationY = 0f

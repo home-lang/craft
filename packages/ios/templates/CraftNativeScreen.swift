@@ -726,6 +726,11 @@ private func craftNativeAlignContentCode(_ value: String) -> UInt32 {
     }
 }
 
+/// Keep the indicator's intrinsic size separate from authored style transforms.
+private final class CraftNativeActivityIndicatorView: UIActivityIndicatorView {
+    var indicatorScale: CGFloat = 1
+}
+
 /// A native screen's `<Video>`: AVPlayerViewController in place.
 ///
 /// With sound, a video takes the audio session as a playing sound does
@@ -5510,7 +5515,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: slider)
             updateAuxiliaryHandler(events["onSlidingComplete"], in: &sliderCompleteHandlers, for: slider)
         case "ActivityIndicator":
-            let indicator = result as! UIActivityIndicatorView
+            let indicator = result as! CraftNativeActivityIndicatorView
             let requestedSize = props["size"]
             indicator.style = (requestedSize as? String) == "large" ? .large : .medium
             let scale: CGFloat
@@ -5522,7 +5527,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             } else {
                 scale = 1
             }
-            indicator.transform = CGAffineTransform(scaleX: scale, y: scale)
+            indicator.indicatorScale = scale
             indicator.color = color(props["color"]) ?? .tintColor
             indicator.hidesWhenStopped = props["hidesWhenStopped"] as? Bool ?? true
             if props["animating"] as? Bool == false {
@@ -5728,7 +5733,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             slider.addTarget(self, action: #selector(sliderFinished(_:)), for: [.touchUpInside, .touchUpOutside, .touchCancel])
             return slider
         case "ActivityIndicator":
-            return UIActivityIndicatorView(style: .medium)
+            return CraftNativeActivityIndicatorView(style: .medium)
         case "StatusBar", "RefreshControl":
             return CraftNativeFlowView()
         case "Image":
@@ -6437,8 +6442,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func applyTransform(_ raw: Any?, to view: UIView) {
-        view.transform = .identity
+        let intrinsicScale = (view as? CraftNativeActivityIndicatorView)?.indicatorScale ?? 1
         view.layer.transform = CATransform3DIdentity
+        view.transform = CGAffineTransform(scaleX: intrinsicScale, y: intrinsicScale)
         guard let transforms = raw as? [[String: Any]] else { return }
         var affine = CGAffineTransform.identity
         var threeDimensional = CATransform3DIdentity
@@ -6461,6 +6467,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 hasThreeDimensionalRotation = true
             }
         }
+        affine = affine.scaledBy(x: intrinsicScale, y: intrinsicScale)
         if hasThreeDimensionalRotation {
             view.layer.transform = CATransform3DConcat(CATransform3DMakeAffineTransform(affine), threeDimensional)
         } else {

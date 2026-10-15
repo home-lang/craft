@@ -1778,10 +1778,12 @@ describe('native renderer component contract', () => {
 
   it('keeps activity indicator visibility and sizing props aligned', () => {
     expect(ios).toContain('if let numericSize = requestedSize as? NSNumber')
-    expect(ios).toContain('indicator.transform = CGAffineTransform(scaleX: scale, y: scale)')
+    expect(ios).toContain('indicator.indicatorScale = scale')
+    expect(ios).toContain('affine = affine.scaledBy(x: intrinsicScale, y: intrinsicScale)')
     expect(ios).toContain('indicator.hidesWhenStopped = props["hidesWhenStopped"] as? Bool ?? true')
     expect(ios).toContain('indicator.stopAnimating()')
     expect(android).toContain('val requestedSize = props.opt("size")')
+    expect(android).toContain('val intrinsicScale = (view as? CraftNativeActivityIndicator)?.indicatorScale ?: 1f')
     expect(android).toContain('is Number -> (requestedSize.toDouble() / 24.0).takeIf { it.isFinite() }?.toFloat()?.coerceAtLeast(0.5f) ?: 1f')
     expect(android).toContain('isIndeterminate = animating')
     expect(android).toContain('props.optBoolean("hidesWhenStopped", true)')

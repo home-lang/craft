@@ -28,6 +28,7 @@ const modalVisible = state(false)
 const modalStatus = state('')
 const modalOpacity = state(1)
 const sliderValue = state(0.5)
+const indicatorSize = state('small')
 const sliderCompletions = state(0)
 const layoutWidth = state(0)
 const layoutWide = state(true)
@@ -669,7 +670,9 @@ function captureSectionScroll() {
     <Text testID="slider-value" :text="sliderValue" />
     <Text testID="slider-completions" :text="'Slider completions: ' + sliderCompletions" />
     <ActivityIndicator testID="native-indicator" color="#22c55e" size="large" />
-    <ActivityIndicator testID="stopped-indicator" color="#ef4444" size="small" :animating="false" :hides-when-stopped="false" />
+    <ActivityIndicator testID="stopped-indicator" color="#ef4444" :size="indicatorSize" :animating="false" :hides-when-stopped="false" />
+    <Button testID="toggle-indicator-size" @click="indicatorSize.set(indicatorSize() === 'small' ? 'large' : 'small')">Toggle indicator size</Button>
+    <ActivityIndicator testID="scaled-indicator" size={48} style={{"transform":[{"scale":0.5}]}} />
     <ActivityIndicator testID="hidden-indicator" color="#ef4444" size="small" :animating="false" hidesWhenStopped />
     <ActivityIndicator testID="display-none-indicator" style={{"display":"none"}} />
     <View testID="layout-wrap" @layout="captureLayout($event)" style={{"width":layoutWide ? 240 : 180,"height":90,"flexDirection":"row","flexWrap":"wrap","gap":4,"padding":4,"alignItems":"stretch","backgroundColor":"#223344"}}>
