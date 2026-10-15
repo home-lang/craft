@@ -56,19 +56,36 @@ final class FilesUnitTests: XCTestCase {
     func testAFormIsSentAsMultipartWithItsFile() throws {
         let made = try CraftNativeFiles.newFile(named: "IMG_2.jpg")
         try Data([0xFF, 0xD8, 0xFF, 0xD9]).write(to: made)
-        guard case .success(let (body, boundary)) = CraftNativeFiles.multipart([
+        guard case .success(let (bodyURL, boundary)) = CraftNativeFiles.multipart([
             ["name": "caption", "value": "Long run"],
             ["name": "photo", "path": made.path, "filename": "my \"best\".jpg", "type": "image/jpeg"],
         ]) else {
             return XCTFail("the form was refused")
         }
+        defer { CraftNativeFiles.remove(bodyURL.path); CraftNativeFiles.remove(made.path) }
+        let body = try Data(contentsOf: bodyURL)
         let text = String(decoding: body, as: UTF8.self)
         XCTAssertTrue(boundary.hasPrefix("craft-"))
         XCTAssertTrue(text.hasPrefix("--\(boundary)\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\nLong run\r\n"))
         XCTAssertTrue(text.contains("Content-Disposition: form-data; name=\"photo\"; filename=\"my %22best%22.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n"))
         XCTAssertTrue(body.range(of: Data([0xFF, 0xD8, 0xFF, 0xD9])) != nil, "the file's bytes are in the body")
         XCTAssertTrue(text.hasSuffix("\r\n--\(boundary)--\r\n"))
-        CraftNativeFiles.remove(made.path)
+    }
+
+    func testAMultipartFilePreservesEveryStreamingChunk() throws {
+        let made = try CraftNativeFiles.newFile(named: "session.mp4")
+        // Span multiple 64 KiB production reads, with a partial final chunk.
+        let bytes = Data((0..<(64 * 1024 * 3 + 17)).map { UInt8($0 % 251) })
+        try bytes.write(to: made)
+        defer { CraftNativeFiles.remove(made.path) }
+        guard case .success(let (bodyURL, boundary)) = CraftNativeFiles.multipart([
+            ["name": "video", "path": made.path, "filename": "session.mp4", "type": "video/mp4"],
+        ]) else { return XCTFail("the video form was refused") }
+        defer { CraftNativeFiles.remove(bodyURL.path) }
+        let body = try Data(contentsOf: bodyURL)
+        let header = Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"video\"; filename=\"session.mp4\"\r\nContent-Type: video/mp4\r\n\r\n".utf8)
+        let trailer = Data("\r\n--\(boundary)--\r\n".utf8)
+        XCTAssertEqual(body, header + bytes + trailer)
     }
 
     func testAFormNamesNoFileItDidNotMake() {
