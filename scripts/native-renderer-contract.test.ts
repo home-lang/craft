@@ -2291,6 +2291,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('bars.onTabSwipeShouldDefer = { x, y ->')
     expect(android).toContain('horizontalScrollAtPoint(')
     expect(android).toContain('private fun horizontalScrollAtPoint(view: View, screenX: Float, screenY: Float): Boolean')
+    expect(android).toContain('fun setUnboundedWidth(value: Boolean)')
+    expect(android).toContain('val unboundedHorizontal = unboundedWidth && orientation == HORIZONTAL')
+    expect(android).toContain('content.setUnboundedWidth(value)')
   })
 
   it('documents the hybrid tab-swipe opt-out', () => {

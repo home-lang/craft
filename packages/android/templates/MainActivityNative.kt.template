@@ -771,6 +771,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var gridAutoRows: CraftNativeLength? = null
     private var reverse = false
     private var wrapReverse = false
+    private var unboundedWidth = false
     private var authoredPadding = intArrayOf(0, 0, 0, 0)
     private var safeAreaPadding = intArrayOf(0, 0, 0, 0)
     private var applyingPadding = false
@@ -944,6 +945,13 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             craftNativePadding(style, "paddingRight", horizontal, density),
             craftNativePadding(style, "paddingBottom", vertical, density),
         )
+        invalidateMeasurements()
+    }
+
+    /** A horizontal scroll host measures its content beyond the viewport. */
+    fun setUnboundedWidth(value: Boolean) {
+        if (unboundedWidth == value) return
+        unboundedWidth = value
         invalidateMeasurements()
     }
 
@@ -1410,7 +1418,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
+        val unboundedHorizontal = unboundedWidth && orientation == HORIZONTAL
+        val widthMode = if (unboundedHorizontal) View.MeasureSpec.UNSPECIFIED else View.MeasureSpec.getMode(widthMeasureSpec)
         widthDefinite = widthMode == View.MeasureSpec.EXACTLY
         val width = View.MeasureSpec.getSize(widthMeasureSpec).takeUnless { widthMode == View.MeasureSpec.UNSPECIFIED } ?: 1_000_000
         val height = View.MeasureSpec.getSize(heightMeasureSpec).takeUnless { View.MeasureSpec.getMode(heightMeasureSpec) == View.MeasureSpec.UNSPECIFIED } ?: 1_000_000
@@ -1437,7 +1446,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val absWidth = absolute.maxOfOrNull { it.width } ?: 0
         val absHeight = absolute.maxOfOrNull { it.height } ?: 0
         setMeasuredDimension(
-            resolveSize(max(desiredWidth + paddingLeft + paddingRight, absWidth + paddingLeft + paddingRight), widthMeasureSpec),
+            if (unboundedHorizontal) max(desiredWidth + paddingLeft + paddingRight, absWidth + paddingLeft + paddingRight)
+            else resolveSize(max(desiredWidth + paddingLeft + paddingRight, absWidth + paddingLeft + paddingRight), widthMeasureSpec),
             resolveSize(max(desiredHeight + paddingTop + paddingBottom, absHeight + paddingTop + paddingBottom), heightMeasureSpec),
         )
     }
@@ -1892,6 +1902,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         val scroller: ViewGroup = if (value) horizontal else vertical
         scroller.removeAllViews()
         content.orientation = if (value) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        content.setUnboundedWidth(value)
         scroller.addView(content, if (value)
             ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT)
         else ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
