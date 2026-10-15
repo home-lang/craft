@@ -36,9 +36,9 @@ screen-height changes cannot silently change which native control is tested.
 
 Home also sets two right navigation buttons (`fixture-messages` and
 `fixture-account`) with independent accent/account variants and badges. The
-UI gate checks that both remain separate 36–52 point controls inside the
-window, covering the iOS 26 shared-platter regression without relying on a
-screenshot.
+UI gate checks that both remain separate, non-overlapping 36–52 point
+controls inside the window, covering the iOS 26 shared-platter regression
+without relying on a screenshot.
 
 From the Craft repository, with `@stacksjs/stx` available as `stx` (the
 maintained CI checkout is pinned to

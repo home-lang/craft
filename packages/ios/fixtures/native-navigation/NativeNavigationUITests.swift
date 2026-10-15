@@ -137,6 +137,9 @@ final class NativeNavigationUITests: XCTestCase {
             XCTAssertLessThanOrEqual(button.frame.maxX, window.maxX + 1, "navigation button ran past the screen edge")
         }
         XCTAssertNotEqual(messages.frame, account.frame, "adjacent buttons collapsed into one surface")
+        let ordered = [messages.frame, account.frame].sorted { $0.minX < $1.minX }
+        XCTAssertGreaterThanOrEqual(ordered[1].minX, ordered[0].maxX - 1,
+                                    "floating navigation buttons overlapped into one platter")
     }
 
     func testNativeLinkOpensRoute() {

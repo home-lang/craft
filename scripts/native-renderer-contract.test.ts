@@ -1859,7 +1859,8 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('testMultipleFloatingNavigationButtonsStayIndependent')
     expect(iosNavigationTest).toContain('navigation button grew into a shared slab')
     expect(iosNavigationTest).toContain('navigation button ran past the screen edge')
-    expect(iosNavigationReadme).toContain('36–52 point controls inside the')
+    expect(iosNavigationTest).toContain('floating navigation buttons overlapped into one platter')
+    expect(iosNavigationReadme).toContain('non-overlapping 36–52 point')
     expect(androidNavigationReadme).toContain('same two right navigation buttons')
   })
 
