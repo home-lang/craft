@@ -590,6 +590,8 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     var onTabSwipeStart: ((Float, Float, Float) -> Boolean)? = null
     var onTabSwipeMove: ((Float) -> Unit)? = null
     var onTabSwipeEnd: ((Float, Boolean) -> Unit)? = null
+    /** Lets a native horizontal scroller own the gesture from its first down. */
+    var onTabSwipeShouldDefer: ((Float, Float) -> Boolean)? = null
     var tabSwipeEnabled = true
 
     init {
@@ -654,7 +656,8 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                swipeTracking = tabs.size > 1 && tabSwipeEnabled && tabBar.visibility == View.VISIBLE && event.y < tabBar.top
+                val overHorizontalScroll = onTabSwipeShouldDefer?.invoke(event.x, event.y) == true
+                swipeTracking = tabs.size > 1 && tabSwipeEnabled && !overHorizontalScroll && tabBar.visibility == View.VISIBLE && event.y < tabBar.top
                 swipeIntercepted = false
                 swipeDownX = event.x
                 swipeDownY = event.y

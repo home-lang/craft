@@ -310,6 +310,16 @@ class NativeNavigationTest {
         ) as MainActivity
         try {
             val carousel = awaitHorizontalScroller(activity, "tab-swipe-carousel")
+            val carouselContent = carousel.getChildAt(0)
+                ?: throw AssertionError("carousel did not mount a content child")
+            assertTrue(
+                "carousel content was not wider than its viewport",
+                carouselContent.width > carousel.width,
+            )
+            assertTrue(
+                "carousel should be able to consume a left swipe before the tab shell",
+                carousel.canScrollHorizontally(1),
+            )
             swipeHorizontalCarousel(activity, left = true)
             assertFalse("carousel swipe was claimed by the tab shell", find(activity.window.decorView, "details-title") != null)
             repeat(25) {

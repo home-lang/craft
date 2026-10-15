@@ -3280,6 +3280,16 @@ class MainActivity : AppCompatActivity() {
         bars.onTabSwipeStart = { dx, x, y -> beginTabSwipe(dx, x, y) }
         bars.onTabSwipeMove = { dx -> updateTabSwipe(dx) }
         bars.onTabSwipeEnd = { dx, cancelled -> finishTabSwipe(dx, cancelled) }
+        bars.onTabSwipeShouldDefer = { x, y ->
+            val location = IntArray(2)
+            bars.getLocationOnScreen(location)
+            val screen = visibleScreen
+            screen != null && horizontalScrollAtPoint(
+                screen.view,
+                location[0] + x,
+                location[1] + y,
+            )
+        }
         root.addView(bars)
         chrome = bars
         tabStacks.clear()
@@ -3400,6 +3410,21 @@ class MainActivity : AppCompatActivity() {
         if (view !is ViewGroup) return false
         for (index in view.childCount - 1 downTo 0) {
             if (horizontalScrollCanConsume(view.getChildAt(index), screenX, screenY, dx)) return true
+        }
+        return false
+    }
+
+    /** Returns true when a native horizontal scroll host owns the touch point. */
+    private fun horizontalScrollAtPoint(view: View, screenX: Float, screenY: Float): Boolean {
+        if (!view.isShown) return false
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        if (screenX < location[0] || screenY < location[1]
+            || screenX > location[0] + view.width || screenY > location[1] + view.height) return false
+        if (view is android.widget.HorizontalScrollView) return true
+        if (view !is ViewGroup) return false
+        for (index in view.childCount - 1 downTo 0) {
+            if (horizontalScrollAtPoint(view.getChildAt(index), screenX, screenY)) return true
         }
         return false
     }

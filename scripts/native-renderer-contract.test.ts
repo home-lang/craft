@@ -28,6 +28,7 @@ const androidFlatList = readFileSync(join(root, 'packages/android/templates/Craf
 const androidRefreshableFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeRefreshableFlatList.kt.template'), 'utf8')
 const iosNotifCancel = readFileSync(join(root, 'packages/zig/src/bridge_mobile_notifcancel.zig'), 'utf8')
 const androidNavigationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeNavigationTest.kt'), 'utf8')
+const androidShell = readFileSync(join(root, 'packages/android/templates/CraftNativeShell.kt.template'), 'utf8')
 const androidCapabilityTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeCapabilityUiTest.kt'), 'utf8')
 const androidMutationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeMutationTest.kt'), 'utf8')
 const androidBuilderTest = readFileSync(join(root, 'packages/android/src/index.test.ts'), 'utf8')
@@ -2250,6 +2251,8 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('testHorizontalCarouselKeepsItsSwipe')
     expect(androidNavigationTest).toContain('private fun swipeTab(activity: MainActivity, left: Boolean)')
     expect(androidNavigationTest).toContain('private fun swipeHorizontalCarousel(activity: MainActivity, left: Boolean)')
+    expect(androidNavigationTest).toContain('carousel content was not wider than its viewport')
+    expect(androidNavigationTest).toContain('carousel.canScrollHorizontally(1)')
     expect(androidNavigationTest).toContain('carousel swipe did not move the nested horizontal scroll')
     expect(androidNavigationTest).toContain('assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())')
     expect(androidNavigationTest).toContain('overlayTopBeforeScroll')
@@ -2283,6 +2286,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('view.getLocationOnScreen(location)')
     expect(android).toContain('showImmediately: Boolean = true')
     expect(android).toContain('ensureTabRoot(targetIndex)')
+    expect(androidShell).toContain('var onTabSwipeShouldDefer: ((Float, Float) -> Boolean)? = null')
+    expect(androidShell).toContain('val overHorizontalScroll = onTabSwipeShouldDefer?.invoke(event.x, event.y) == true')
+    expect(android).toContain('bars.onTabSwipeShouldDefer = { x, y ->')
+    expect(android).toContain('horizontalScrollAtPoint(')
+    expect(android).toContain('private fun horizontalScrollAtPoint(view: View, screenX: Float, screenY: Float): Boolean')
   })
 
   it('documents the hybrid tab-swipe opt-out', () => {

@@ -47,6 +47,8 @@ platform-specific iOS UI gate checks their floating geometry.
 The scroll wrapper remains touch-enabled without a refresh handler; only its
 pull-to-refresh interception is disabled, so nested horizontal carousels still
 receive their own gestures.
+The Android tab shell also defers swipe tracking at touch-down over a native
+horizontal scroller, letting that child receive the complete gesture sequence.
 The native form coverage also keeps a keyed input's draft while changing its
 single-line/multiline mode, recreating the incompatible platform control, and
 the iOS fixture runs the same mode-transition and recycled-row assertions.
