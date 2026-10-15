@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.185...v0.0.186)
+
+## 🐛 Bug Fixes
+
+- **ios**: a video's system controls answer touches and VoiceOver ([3ba12c2](https://github.com/craft-native/craft/commit/3ba12c2)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.184...v0.0.185)
 
 ## 🐛 Bug Fixes
