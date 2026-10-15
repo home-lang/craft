@@ -6952,6 +6952,10 @@ final class CraftNativeAnimationTransaction {
     var screenBackground: UIColor?
     /// Reduce Motion: the screen as it was, crossfaded into the new one.
     var picture: UIView?
+    /// Commits the change as the run loop finishes the pass it came in.
+    var observer: CFRunLoopObserver?
+    /// The screen as it was, drawn over it until the animation is set up.
+    var cover: UIView?
 
     init(spec: CraftNativeAnimationSpec, reduceMotion: Bool) {
         self.spec = spec
@@ -7004,16 +7008,40 @@ extension CraftNativeScreenController {
         let transaction = CraftNativeAnimationTransaction(spec: CraftNativeAnimationSpec(payload), reduceMotion: UIAccessibility.isReduceMotionEnabled)
         transaction.screenBackground = view.backgroundColor
         if transaction.reduceMotion {
-            transaction.picture = view.window == nil ? nil : view.snapshotView(afterScreenUpdates: false)
+            // Held over the screen until the change is in, then faded away.
+            if view.window != nil, let picture = view.snapshotView(afterScreenUpdates: false) {
+                picture.frame = view.bounds
+                picture.isUserInteractionEnabled = false
+                view.addSubview(picture)
+                transaction.picture = picture
+            }
         } else {
             view.layoutIfNeeded()
             recordAnimationState(renderedRoot, into: transaction)
+            // The screen as it is, held over it until the change's animation
+            // is set up: UIKit can draw the new screen before the run loop's
+            // pass ends, which showed it for a frame before it animated.
+            if view.window != nil, let cover = view.snapshotView(afterScreenUpdates: false) {
+                cover.frame = view.bounds
+                cover.isUserInteractionEnabled = false
+                view.addSubview(cover)
+                transaction.cover = cover
+            }
         }
         animationTransaction = transaction
         CraftNativeAnimationClock.duration = transaction.spec.duration
         // The change comes from the same turn of the script (the state it
-        // changed renders in a microtask); a slow one still animates.
-        DispatchQueue.main.async { [weak self] in self?.commitAnimatedChange() }
+        // changed renders in a microtask), so it is set up as the run loop
+        // finishes this pass, before Core Animation draws it: drawn first, the
+        // new screen showed for a frame and then jumped back to animate. A
+        // change that comes later still animates.
+        let observer = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault, CFRunLoopActivity.beforeWaiting.rawValue, false, 0) { [weak self] _, _ in
+            self?.commitAnimatedChange()
+        }
+        if let observer {
+            CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+            transaction.observer = observer
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.commitAnimatedChange() }
     }
 
@@ -7033,6 +7061,13 @@ extension CraftNativeScreenController {
     private func commitAnimatedChange() {
         guard let transaction = animationTransaction else { return }
         animationTransaction = nil
+        if let observer = transaction.observer {
+            CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, .commonModes)
+            transaction.observer = nil
+        }
+        // Taken off in the same transaction the animations start in.
+        transaction.cover?.removeFromSuperview()
+        transaction.cover = nil
         let spec = transaction.spec
         let running = CraftNativeRunningAnimation()
         runningAnimation = running
@@ -7040,9 +7075,6 @@ extension CraftNativeScreenController {
 
         if transaction.reduceMotion {
             guard let picture = transaction.picture else { running.finish(); return }
-            picture.frame = view.bounds
-            picture.isUserInteractionEnabled = false
-            view.addSubview(picture)
             let fade = UIViewPropertyAnimator(duration: 0.3, curve: .easeInOut) { picture.alpha = 0 }
             fade.addCompletion { _ in running.finish() }
             running.animators.append(fade)
@@ -7090,9 +7122,10 @@ extension CraftNativeScreenController {
         // overlay where they were and fade there. Put back as they were
         // afterwards, in case the screen shows them again.
         let fadeOut = UIViewPropertyAnimator(duration: spec.duration * 0.5, curve: .easeOut)
+        let quickFade = UIViewPropertyAnimator(duration: spec.duration * 0.35, curve: .easeOut)
         let travel = UIViewPropertyAnimator(duration: spec.duration, timingParameters: spec.timing)
-        running.animators = [fadeOut, travel]
-        func adopt(_ record: CraftNativeAnimationRecord) {
+        running.animators = [fadeOut, quickFade, travel]
+        func adopt(_ record: CraftNativeAnimationRecord, fading fade: UIViewPropertyAnimator) {
             let going = record.view
             let resizes = going.translatesAutoresizingMaskIntoConstraints
             let base = going.transform
@@ -7101,7 +7134,7 @@ extension CraftNativeScreenController {
             going.frame = record.frameOnScreen
             going.alpha = record.alpha
             overlay.addSubview(going)
-            fadeOut.addAnimations { going.alpha = 0 }
+            fade.addAnimations { going.alpha = 0 }
             running.cleanup.append {
                 going.removeFromSuperview()
                 going.transform = base
@@ -7119,7 +7152,7 @@ extension CraftNativeScreenController {
                 }
             }
         }
-        removedRoots.forEach(adopt)
+        for record in removedRoots { adopt(record, fading: fadeOut) }
 
         // Live views are animated on their layers only, from how they were to
         // how the screen draws them now: nothing the screen sets on them
@@ -7156,8 +7189,9 @@ extension CraftNativeScreenController {
             let target = new.superview?.convert(new.frame, to: view) ?? new.frame
             let move = morph(from: old.frameOnScreen, to: target, uniform: true)
             animate(new.layer, "transform", from: CATransform3DMakeAffineTransform(new.transform.concatenating(move)))
-            animate(new.layer, "opacity", from: 0, duration: fades)
-            adopt(old)
+            // Crossed quickly, so the two are never both half there for long.
+            animate(new.layer, "opacity", from: 0, duration: spec.duration * 0.35)
+            adopt(old, fading: quickFade)
             let going = old.view
             travel.addAnimations { going.transform = move.inverted() }
         }
@@ -7199,6 +7233,7 @@ extension CraftNativeScreenController {
 
         travel.addCompletion { _ in running.finish() }
         fadeOut.startAnimation()
+        quickFade.startAnimation()
         travel.startAnimation()
         // The springs settle a little after `duration`; the views are already
         // where the screen draws them, so finishing then changes nothing.
