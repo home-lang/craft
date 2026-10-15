@@ -698,6 +698,11 @@ class NativeNavigationTest {
             assertFalse("native checkbox should start unchecked", (checkbox as CheckBox).isChecked)
             instrumentation.runOnMainSync { checkbox.performClick() }
             awaitText(activity, "checkbox-status", "checkbox on")
+            // Prop updates must retain the dedicated change handler too.
+            instrumentation.runOnMainSync { checkbox.performClick() }
+            awaitText(activity, "checkbox-status", "checkbox off")
+            instrumentation.runOnMainSync { checkbox.performClick() }
+            awaitText(activity, "checkbox-status", "checkbox on")
             val indeterminateCheckbox = awaitView(activity, "native-checkbox-indeterminate") as CheckBox
             assertFalse("indeterminate checkbox should not report checked", indeterminateCheckbox.isChecked)
             assertTrue("indeterminate checkbox should retain its mixed state", indeterminateCheckbox.isActivated)

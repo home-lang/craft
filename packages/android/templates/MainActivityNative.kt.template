@@ -5111,7 +5111,7 @@ class MainActivity : AppCompatActivity() {
         val pressOutHandler = craftNativeEventName(events, "onPressOut").takeIf { it.isNotBlank() }
         if (pressInHandler != null) screen.pressInHandlers[control] = pressInHandler else screen.pressInHandlers.remove(control)
         if (pressOutHandler != null) screen.pressOutHandlers[control] = pressOutHandler else screen.pressOutHandlers.remove(control)
-        if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView" && type != "StatusBar" && type != "RefreshControl" && type != "Map") {
+        if (type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView" && type != "StatusBar" && type != "RefreshControl" && type != "Map") {
             val handler = craftNativeEventName(events, "onPress", "onClick")
             val disabled = props.optBoolean("disabled", false)
             val target = listOf(props.opt("href"), props.opt("to"))
