@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.190...v0.0.191)
+
+## 🐛 Bug Fixes
+
+- **android**: preserve newer input and native video frames ([7a47d54](https://github.com/craft-native/craft/commit/7a47d54)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: verify streamed multipart bodies from their temporary files ([be1b25b](https://github.com/craft-native/craft/commit/be1b25b)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.189...v0.0.190)
 
 ## 🚀 Features
