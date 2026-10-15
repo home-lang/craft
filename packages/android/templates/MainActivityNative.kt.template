@@ -4803,6 +4803,11 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 configureContainer(content, contentStyle)
+                // Content-style reconciliation configures the flex host again;
+                // restore the scroll axis after it so horizontal children are
+                // measured beyond the viewport rather than clamped to it.
+                content.orientation = if (horizontal) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+                content.setUnboundedWidth(horizontal)
                 val contentChildren = JSONArray()
                 for (index in 0 until children.length()) {
                     val child = children.opt(index)

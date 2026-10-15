@@ -2294,6 +2294,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('fun setUnboundedWidth(value: Boolean)')
     expect(android).toContain('val unboundedHorizontal = unboundedWidth && orientation == HORIZONTAL')
     expect(android).toContain('content.setUnboundedWidth(value)')
+    expect(android).toContain('content.orientation = if (horizontal) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL')
+    expect(android).toContain('content.setUnboundedWidth(horizontal)')
   })
 
   it('documents the hybrid tab-swipe opt-out', () => {
