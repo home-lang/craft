@@ -1,5 +1,28 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.191...v0.0.192)
+
+## 🚀 Features
+
+- **android**: title native share link previews ([dfbc316](https://github.com/craft-native/craft/commit/dfbc316)) _(by Chris Breuer <chris@stacksjs.com>)_
+- **ios**: share titled URLs with native link previews ([eb75e6a](https://github.com/craft-native/craft/commit/eb75e6a)) _(by Chris Breuer <chris@stacksjs.com>)_
+
+## 🐛 Bug Fixes
+
+- **android**: retain checkbox change handlers during press reconciliation ([2d41620](https://github.com/craft-native/craft/commit/2d41620)) _(by Chris Breuer <chris@stacksjs.com>)_
+
+## 🧪 Tests
+
+- **android**: skip JVM input check without a cached toolchain ([4e734ba](https://github.com/craft-native/craft/commit/4e734ba)) _(by Chris Breuer <chris@stacksjs.com>)_
+
+## 🧹 Chores
+
+- release v0.0.192 ([84c4638](https://github.com/craft-native/craft/commit/84c4638)) _(by Chris Breuer <chris@stacksjs.com>)_
+
+## Contributors
+
+- _Chris Breuer <chris@stacksjs.com>_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.190...v0.0.191)
 
 ## 🐛 Bug Fixes
