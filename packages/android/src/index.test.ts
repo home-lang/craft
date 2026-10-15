@@ -505,6 +505,9 @@ describe('Craft Android builder', () => {
     const root = join(output, 'app/src/main/java/org/example/nativemedia')
     const native = readFileSync(join(root, 'MainActivity.kt'), 'utf8')
     const services = readFileSync(join(root, 'CraftNativeServices.kt'), 'utf8')
+    // Android's Sharesheet preview and mail subject both identify a shared link.
+    expect(services).toContain('intent.putExtra(Intent.EXTRA_TITLE, it)')
+    expect(services).toContain('intent.putExtra(Intent.EXTRA_SUBJECT, it)')
     const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
     // Picture in Picture: the activity may float, the playing video asks,
     // and its frames move to a surface of the floating window's own.

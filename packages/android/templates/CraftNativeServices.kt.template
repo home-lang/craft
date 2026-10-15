@@ -286,7 +286,10 @@ internal class CraftNativeServices(
             else -> Intent(Intent.ACTION_SEND).apply { type = "text/plain" }
         }
         if (text.isNotBlank()) intent.putExtra(Intent.EXTRA_TEXT, text)
-        options.optString("title").takeIf { it.isNotBlank() }?.let { intent.putExtra(Intent.EXTRA_SUBJECT, it) }
+        options.optString("title").takeIf { it.isNotBlank() }?.let {
+            intent.putExtra(Intent.EXTRA_SUBJECT, it)
+            intent.putExtra(Intent.EXTRA_TITLE, it)
+        }
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         host.startActivity(Intent.createChooser(intent, options.optString("title").ifBlank { null }))
         // Android does not say whether something was shared; the sheet opened.
