@@ -1216,6 +1216,8 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="independent-gap-wrap"')
     expect(iosNavigationTest).toContain('column gap was not shared through the native layout ABI')
     expect(androidNavigationTest).toContain('row gap was not shared through the native layout ABI')
+    expect(androidNavigationTest).toContain('val moveXs = listOf(')
+    expect(androidNavigationTest).toContain('MotionEvent.ACTION_MOVE')
     expect(navigationHome).toContain('testID="nested-shared-column"')
     expect(navigationHome).toContain('testID="nested-percent-child"')
     expect(navigationHome).toContain('testID="nested-grid"')

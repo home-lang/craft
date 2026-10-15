@@ -24,6 +24,8 @@ platform control that actually moves. The test locates that underlying
 of depending on the wrapper's implementation class. The details `ScrollView` also exercises
 the same swipe-to-refresh and keyed-row insertion path as iOS; the dedicated
 `NativeFlatListTest` continues to cover recycling and virtualized row layout.
+The maintained navigation test emits tab swipes as several timed move events so
+the hosted emulator cannot drop the entire gesture between two snapshots.
 The shared home route also exercises Android's native `DatePicker` and
 `TimePicker`, including date bounds, minute-interval snapping, and the shared
 value/ISO/timestamp event payload.

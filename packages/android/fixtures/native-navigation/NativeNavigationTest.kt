@@ -170,15 +170,31 @@ class NativeNavigationTest {
         val y = chrome.content.top + chrome.content.height * 0.85f
         val startX = if (left) chrome.width * 0.8f else chrome.width * 0.2f
         val endX = if (left) chrome.width * 0.2f else chrome.width * 0.8f
+        val deltaX = endX - startX
+        val moveXs = listOf(
+            startX + deltaX * 0.25f,
+            startX + deltaX * 0.5f,
+            startX + deltaX * 0.75f,
+            endX,
+        )
         instrumentation.runOnMainSync {
             val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, startX, y, 0)
-            val move = MotionEvent.obtain(downTime, downTime + 16, MotionEvent.ACTION_MOVE, endX, y, 0)
-            val up = MotionEvent.obtain(downTime, downTime + 32, MotionEvent.ACTION_UP, endX, y, 0)
             chrome.dispatchTouchEvent(down)
-            chrome.dispatchTouchEvent(move)
+            moveXs.forEachIndexed { index, x ->
+                val move = MotionEvent.obtain(
+                    downTime,
+                    downTime + 16L * (index + 1),
+                    MotionEvent.ACTION_MOVE,
+                    x,
+                    y,
+                    0,
+                )
+                chrome.dispatchTouchEvent(move)
+                move.recycle()
+            }
+            val up = MotionEvent.obtain(downTime, downTime + 80, MotionEvent.ACTION_UP, endX, y, 0)
             chrome.dispatchTouchEvent(up)
             down.recycle()
-            move.recycle()
             up.recycle()
         }
     }
