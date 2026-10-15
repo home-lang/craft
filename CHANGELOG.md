@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.184...v0.0.185)
+
+## 🐛 Bug Fixes
+
+- **ios**: an animated change never shows the new screen for a frame first ([a039d4a](https://github.com/craft-native/craft/commit/a039d4a)) _(by Chris Breuer)_
+- **ios**: an animated change leaves the screen's own values alone ([0360b36](https://github.com/craft-native/craft/commit/0360b36)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.183...v0.0.184)
 
 ## 🐛 Bug Fixes
