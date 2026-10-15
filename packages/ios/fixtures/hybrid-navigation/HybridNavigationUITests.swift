@@ -20,7 +20,7 @@ final class HybridNavigationUITests: XCTestCase {
         return pixel[0] > 180 && pixel[1] < 140 && pixel[2] < 140
     }
 
-    func testWebToWebPushKeepsTheOutgoingPageVisible() {
+    func testShellWebPushKeepsTheOutgoingPageVisible() {
         let app = XCUIApplication()
         app.launch()
         let open = app.buttons["Open second"]
