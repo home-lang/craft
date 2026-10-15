@@ -599,6 +599,12 @@ class NativeNavigationTest {
             assertEquals("nested grid columns were not shared through the tree ABI", (52 * density).toInt(), nestedGridSecond.left - nestedGridFirst.left)
             assertEquals("nested grid rows were not shared through the tree ABI", (26 * density).toInt(), nestedGridThird.top - nestedGridFirst.top)
             assertEquals("nested grid parent placement was not preserved", (110 * density).toInt(), nestedGridSibling.left - nestedGrid.left)
+            val nestedReverse = awaitView(activity, "nested-reverse")
+            val nestedReverseFirst = awaitView(activity, "nested-reverse-first")
+            val nestedReverseSecond = awaitView(activity, "nested-reverse-second")
+            val nestedReverseSibling = awaitView(activity, "nested-reverse-sibling")
+            assertTrue("nested reverse flow did not use the shared v2 tree ABI", nestedReverseFirst.top > nestedReverseSecond.top)
+            assertEquals("nested reverse parent placement was not preserved", (56 * density).toInt(), nestedReverseSibling.left - nestedReverse.left)
             val toggle = awaitView(activity, "native-switch")
             assertTrue("native switch should be an Android Switch", toggle is Switch)
             val nativeSwitch = toggle as Switch

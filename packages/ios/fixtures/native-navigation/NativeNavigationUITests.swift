@@ -634,6 +634,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(nestedGridSecond.frame.minX - nestedGridFirst.frame.minX, 52, accuracy: 2, "nested grid columns were not shared through the tree ABI")
         XCTAssertEqual(nestedGridThird.frame.minY - nestedGridFirst.frame.minY, 26, accuracy: 2, "nested grid rows were not shared through the tree ABI")
         XCTAssertEqual(nestedGridSibling.frame.minX - app.otherElements["nested-grid"].frame.minX, 110, accuracy: 2, "nested grid parent placement was not preserved")
+        let nestedReverseFirst = app.staticTexts["nested-reverse-first"]
+        let nestedReverseSecond = app.staticTexts["nested-reverse-second"]
+        let nestedReverseSibling = app.otherElements["nested-reverse-sibling"]
+        XCTAssertTrue(nestedReverseSecond.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(nestedReverseFirst.frame.minY, nestedReverseSecond.frame.minY, "nested reverse flow did not use the shared v2 tree ABI")
+        XCTAssertEqual(nestedReverseSibling.frame.minX - app.otherElements["nested-reverse"].frame.minX, 56, accuracy: 2, "nested reverse parent placement was not preserved")
         let absolute = app.otherElements["layout-absolute"]
         XCTAssertTrue(absolute.exists)
         XCTAssertLessThanOrEqual(absolute.frame.maxX, wrapped.frame.maxX - 8)
