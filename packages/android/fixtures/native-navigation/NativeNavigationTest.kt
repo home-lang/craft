@@ -740,11 +740,13 @@ class NativeNavigationTest {
             assertTrue("checked accessibility state was not exposed", switchInfo?.isChecked == true)
             val slider = awaitView(activity, "native-slider")
             assertTrue("native slider should be a SeekBar", slider is SeekBar)
-            instrumentation.runOnMainSync { (slider as SeekBar).progress = 845 }
+            // One native position represents each authored 0.1 step.
+            assertEquals("stepped slider should expose ten positions", 10, (slider as SeekBar).max)
+            instrumentation.runOnMainSync { slider.progress = 8 }
             awaitText(activity, "native-link-status", "slider moved")
             assertEquals("0.8", (awaitView(activity, "slider-value") as TextView).text.toString())
             val nativeSlider = slider as SeekBar
-            assertEquals("slider thumb should snap to its step", 800, nativeSlider.progress)
+            assertEquals("slider thumb should retain its selected step", 8, nativeSlider.progress)
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()
                 val y = nativeSlider.height / 2f
