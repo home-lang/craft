@@ -66,10 +66,10 @@ rather than becoming UIKit or Android dependencies in Zig. The entry point
 rejects malformed trees and undersized frame buffers without returning partial
 geometry, allowing a host to keep its compatibility fallback while an older
 runtime is in use. Both iOS and Android hosts now opt eligible definite-size,
-non-grid containers into this complete-tree boundary for direct-child
-placement. Android additionally recurses eligible nested, non-grid flex
-containers through the same boundary with their own content-box measurements,
-so parent placement cannot erase a child's direction, padding, or gap. Wrapped flows use the same
+non-grid containers into this complete-tree boundary for direct-child and
+eligible nested placement. Each adapter recursively preserves a nested
+container's direction, padding, and gap with its own content-box measurements,
+so parent placement cannot erase those values. Wrapped flows use the same
 boundary when both axes use independent row/column gaps; percentage sizes
 resolve against the parent content box before entering the shared ABI. Absolute
 children, reverse or wrap-reverse flows, missing runtimes, and any malformed

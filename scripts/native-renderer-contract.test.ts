@@ -1154,6 +1154,8 @@ describe('native renderer component contract', () => {
   it('lets both hosts use the shared tree ABI for definite simple containers and fall back otherwise', () => {
     expect(ios).toContain('craft_native_layout_tree')
     expect(ios).toContain('private func sharedDirectFrames(')
+    expect(ios).toContain('private func sharedTreeFrames(')
+    expect(ios).toContain('fileprivate func sharedTreeNode(')
     expect(ios).toContain('!grid, !reverse, !wrapReverse')
     expect(ios).toContain('flexWrap: wrap ? 1 : 0')
     expect(ios).toContain('let mainGap = direction == .horizontal ? (columnGap ?? gap) : (rowGap ?? gap)')
@@ -1161,6 +1163,9 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('width: length(style.width, base: contentWidth)')
     expect(ios).toContain('if place, flow.count == children.count, let shared = sharedDirectFrames(flow, width: width, height: height)')
     expect(ios).toContain('frames = shared')
+    expect(ios).toContain('sharedTree.nodes.count > flow.count + 1')
+    expect(ios).toContain('offset.x - parentFrame.x')
+    expect(ios).toContain('CraftNativeTreeLayoutBridge.treeFrames(root: root, width: width, height: height)')
     expect(ios).toContain('let frameCount = output.count')
     expect(ios).toContain('childFrames.allSatisfy')
     // Older runtimes and unsupported styles must retain the host algorithm.
