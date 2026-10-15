@@ -60,20 +60,24 @@ Android; platform-specific measurement must not fork the distribution rules.
 
 The same module exposes the #334 tree-layout ABI: `LayoutNodeInput` carries a
 preorder tree and `craft_native_layout_tree` returns a host-free flat frame list
-for the complete tree. `Style` accepts host-measured intrinsic width and height
-as plain numbers, so font and image measurement remain callbacks at the boundary
-rather than becoming UIKit or Android dependencies in Zig. The entry point
-rejects malformed trees and undersized frame buffers without returning partial
-geometry, allowing a host to keep its compatibility fallback while an older
-runtime is in use. Both iOS and Android hosts now opt eligible definite-size
+for the complete tree. `craft_native_layout_tree_v2` is the versioned extension
+for reverse main-axis flows; it adds a `reverse` flag without changing the v1
+struct stride, so a host can probe the newer symbol and retain the v1 path on an
+older runtime. `Style` accepts host-measured intrinsic width and height as plain
+numbers, so font and image measurement remain callbacks at the boundary rather
+than becoming UIKit or Android dependencies in Zig. Each entry point rejects
+malformed trees and undersized frame buffers without returning partial geometry,
+allowing a host to keep its compatibility fallback while an older runtime is in
+use. Both iOS and Android hosts now opt eligible definite-size
 flex containers and equal-track grids into this complete-tree boundary for direct-
 child and eligible nested placement. Each adapter recursively preserves a
 nested container's direction, padding, gap, and grid columns with its own
 content-box measurements, so parent placement cannot erase those values.
 Wrapped flows use the same boundary when both axes use independent row/column gaps; percentage sizes
-resolve against the parent content box before entering the shared ABI. Absolute
-children, reverse or wrap-reverse flows, missing runtimes, and any malformed
-ABI result stay on the local compatibility algorithms. Grid-auto-rows remain
+resolve against the parent content box before entering the shared ABI. Reverse
+main-axis flows use the versioned v2 boundary when available; wrap-reverse,
+absolute children, missing runtimes, and any malformed ABI result stay on the
+local compatibility algorithms. Grid-auto-rows remain
 on the local path because they need host-specific row measurement. The iOS root also keeps
 a
 definite viewport frame for a `flex: 1` screen root, so an absolute sibling of
@@ -84,7 +88,7 @@ unchanged. The maintained navigation fixture checks the same invariant on both
 hosts.
 The Zig contract also exercises a nested preorder tree and checks absolute
 descendant frames, so hosts cannot silently flatten a nested container or lose
-its padding and gap offsets while applying the shared result. Reverse flows,
+its padding and gap offsets while applying the shared result. Wrap-reverse,
 absolute overlays, grid-auto-rows, missing runtimes, and malformed ABI results
 stay on the local compatibility algorithms. The fallback is intentional, so
 an SDK-only project never loses native layout. Baseline alignment follows the same

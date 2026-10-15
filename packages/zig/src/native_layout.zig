@@ -60,6 +60,7 @@ pub const Frame = extern struct {
 
 pub const Style = struct {
     direction: Axis = .row,
+    reverse: bool = false,
     width: ?f32 = null,
     height: ?f32 = null,
     /// Host-measured natural dimensions. These are deliberately plain numbers
@@ -196,6 +197,51 @@ pub const LayoutNodeInput = extern struct {
     child_count: u32,
 };
 
+/// Versioned tree input used when a host needs reverse main-axis placement.
+/// The original LayoutNodeInput remains unchanged so older runtimes can keep
+/// consuming the v1 export without interpreting a different stride.
+pub const LayoutStyleInputV2 = extern struct {
+    direction: u32,
+    width: f32,
+    height: f32,
+    intrinsic_width: f32,
+    intrinsic_height: f32,
+    baseline: f32,
+    aspect_ratio: f32,
+    flex_basis: f32,
+    flex_grow: f32,
+    flex_shrink: f32,
+    min_width: f32,
+    max_width: f32,
+    min_height: f32,
+    max_height: f32,
+    gap: f32,
+    justify_content: u32,
+    align_items: u32,
+    align_self: u32,
+    flex_wrap: u32,
+    align_content: u32,
+    margin_top: f32,
+    margin_right: f32,
+    margin_bottom: f32,
+    margin_left: f32,
+    padding_top: f32,
+    padding_right: f32,
+    padding_bottom: f32,
+    padding_left: f32,
+    grid: u32,
+    grid_columns: u32,
+    row_gap: f32,
+    column_gap: f32,
+    reverse: u32,
+};
+
+pub const LayoutNodeInputV2 = extern struct {
+    style: LayoutStyleInputV2,
+    first_child: u32,
+    child_count: u32,
+};
+
 const max_layout_nodes: usize = 65_536;
 
 /// Resolve an entire native view tree using the same layout rules used by the
@@ -239,6 +285,43 @@ pub export fn craft_native_layout_tree(
     return if (result == node_count) 0 else -1;
 }
 
+/// Versioned tree layout entry point with reverse main-axis support. Keep the
+/// v1 symbol above for runtimes built before the reverse flag existed.
+pub export fn craft_native_layout_tree_v2(
+    viewport_width: f32,
+    viewport_height: f32,
+    nodes: [*]const LayoutNodeInputV2,
+    node_count: usize,
+    frames: [*]Frame,
+    frame_count: usize,
+) callconv(.c) c_int {
+    if (node_count == 0 or node_count > max_layout_nodes or frame_count < node_count) return -1;
+
+    const input = nodes[0..node_count];
+    const visited = std.heap.page_allocator.alloc(bool, node_count) catch return -1;
+    defer std.heap.page_allocator.free(visited);
+    @memset(visited, false);
+    if (!validateLayoutTreeV2(input, 0, visited)) return -1;
+
+    var tree = std.heap.page_allocator.alloc(Node, node_count) catch return -1;
+    defer std.heap.page_allocator.free(tree);
+    for (input, 0..) |item, index| {
+        const first = @as(usize, @intCast(item.first_child));
+        const count = @as(usize, @intCast(item.child_count));
+        tree[index] = .{
+            .style = layoutStyleV2(item.style),
+            .children = tree[first .. first + count],
+        };
+    }
+
+    const result = layout(
+        tree[0],
+        .{ .width = finiteNonNegative(viewport_width), .height = finiteNonNegative(viewport_height) },
+        frames[0..frame_count],
+    ) catch return -1;
+    return if (result == node_count) 0 else -1;
+}
+
 fn validateLayoutTree(input: []const LayoutNodeInput, index: usize, visited: []bool) bool {
     if (index >= input.len or visited[index]) return false;
     visited[index] = true;
@@ -252,9 +335,61 @@ fn validateLayoutTree(input: []const LayoutNodeInput, index: usize, visited: []b
     return true;
 }
 
+fn validateLayoutTreeV2(input: []const LayoutNodeInputV2, index: usize, visited: []bool) bool {
+    if (index >= input.len or visited[index]) return false;
+    visited[index] = true;
+    const item = input[index];
+    const first = @as(usize, @intCast(item.first_child));
+    const count = @as(usize, @intCast(item.child_count));
+    if (first > input.len or count > input.len - first or (count > 0 and first <= index)) return false;
+    for (first..first + count) |child| {
+        if (!validateLayoutTreeV2(input, child, visited)) return false;
+    }
+    return true;
+}
+
 fn layoutStyle(input: LayoutStyleInput) Style {
     return .{
         .direction = if (input.direction == 1) .column else .row,
+        .reverse = false,
+        .width = optionalFinite(input.width),
+        .height = optionalFinite(input.height),
+        .intrinsic_width = optionalFinite(input.intrinsic_width),
+        .intrinsic_height = optionalFinite(input.intrinsic_height),
+        .baseline = optionalFinite(input.baseline),
+        .aspect_ratio = optionalFinite(input.aspect_ratio),
+        .flex_basis = optionalFinite(input.flex_basis),
+        .flex_grow = finiteNonNegative(input.flex_grow),
+        .flex_shrink = finiteNonNegative(input.flex_shrink),
+        .min_width = optionalFinite(input.min_width),
+        .max_width = optionalFinite(input.max_width),
+        .min_height = optionalFinite(input.min_height),
+        .max_height = optionalFinite(input.max_height),
+        .gap = finiteNonNegative(input.gap),
+        .justify_content = @fromBackingInt(@intCast(@min(input.justify_content, 5))),
+        .align_items = @fromBackingInt(@intCast(@min(input.align_items, 4))),
+        .align_self = if (input.align_self == 0) null else @fromBackingInt(@intCast(@min(input.align_self - 1, 4))),
+        .flex_wrap = input.flex_wrap != 0,
+        .align_content = @fromBackingInt(@intCast(@min(input.align_content, 6))),
+        .margin_top = finiteNonNegative(input.margin_top),
+        .margin_right = finiteNonNegative(input.margin_right),
+        .margin_bottom = finiteNonNegative(input.margin_bottom),
+        .margin_left = finiteNonNegative(input.margin_left),
+        .padding_top = finiteNonNegative(input.padding_top),
+        .padding_right = finiteNonNegative(input.padding_right),
+        .padding_bottom = finiteNonNegative(input.padding_bottom),
+        .padding_left = finiteNonNegative(input.padding_left),
+        .grid = input.grid != 0,
+        .grid_columns = @max(@as(u32, 1), input.grid_columns),
+        .row_gap = finiteNonNegative(input.row_gap),
+        .column_gap = finiteNonNegative(input.column_gap),
+    };
+}
+
+fn layoutStyleV2(input: LayoutStyleInputV2) Style {
+    return .{
+        .direction = if (input.direction == 1) .column else .row,
+        .reverse = input.reverse != 0,
         .width = optionalFinite(input.width),
         .height = optionalFinite(input.height),
         .intrinsic_width = optionalFinite(input.intrinsic_width),
@@ -792,13 +927,17 @@ fn layoutNode(
             node.style.align_items,
             line_baseline,
         );
-        const leading_margin = mainLeadingMargin(child, node.style.direction);
+        const leading_margin = mainFlowStartMargin(child, node.style.direction, node.style.reverse);
         const child_size = if (node.style.direction == .row)
             Size{ .width = child_main, .height = child_cross }
         else
             Size{ .width = child_cross, .height = child_main };
-        const child_x = if (node.style.direction == .row) content_x + main_offset + leading_margin else content_x + child_cross_offset;
-        const child_y = if (node.style.direction == .row) content_y + child_cross_offset else content_y + main_offset + leading_margin;
+        const main_position = if (node.style.reverse)
+            main_size - main_offset - leading_margin - child_main
+        else
+            main_offset + leading_margin;
+        const child_x = if (node.style.direction == .row) content_x + main_position else content_x + child_cross_offset;
+        const child_y = if (node.style.direction == .row) content_y + child_cross_offset else content_y + main_position;
         next_index = try layoutNode(child, child_size, child_x, child_y, next_index, frames);
         main_offset += mainMargins(child, node.style.direction) + child_main + if (index + 1 < node.children.len) between_space else 0;
     }
@@ -876,13 +1015,17 @@ fn layoutWrapped(
                 crossOffset(child, direction, child_cross, width, line_cross, node.style.align_items, line_baseline)
             else
                 crossOffset(child, direction, child_cross, line_cross, height, node.style.align_items, null);
-            const leading_margin = mainLeadingMargin(child, direction);
+            const leading_margin = mainFlowStartMargin(child, direction, node.style.reverse);
             const child_size = if (direction == .row)
                 Size{ .width = child_main, .height = child_cross }
             else
                 Size{ .width = child_cross, .height = child_main };
-            const child_x = if (direction == .row) x + main_offset + leading_margin else x + child_cross_offset;
-            const child_y = if (direction == .row) y + cross_offset + child_cross_offset else y + main_offset + leading_margin;
+            const main_position = if (node.style.reverse)
+                main_size - main_offset - leading_margin - child_main
+            else
+                main_offset + leading_margin;
+            const child_x = if (direction == .row) x + main_position else x + child_cross_offset;
+            const child_y = if (direction == .row) y + cross_offset + child_cross_offset else y + main_position;
             next_index = try layoutNode(child, child_size, child_x, child_y, next_index, frames);
             main_offset += mainMargins(child, direction) + child_main;
             if (index + 1 < children.len) main_offset += between_space;
@@ -1168,6 +1311,14 @@ fn mainLeadingMargin(node: Node, direction: Axis) f32 {
     return if (direction == .row) node.style.margin_left else node.style.margin_top;
 }
 
+fn mainTrailingMargin(node: Node, direction: Axis) f32 {
+    return if (direction == .row) node.style.margin_right else node.style.margin_bottom;
+}
+
+fn mainFlowStartMargin(node: Node, direction: Axis, reverse: bool) f32 {
+    return if (reverse) mainTrailingMargin(node, direction) else mainLeadingMargin(node, direction);
+}
+
 fn crossLeadingMargin(node: Node, direction: Axis) f32 {
     return if (direction == .row) node.style.margin_top else node.style.margin_left;
 }
@@ -1284,6 +1435,45 @@ fn emptyLayoutStyleInput() LayoutStyleInput {
     };
 }
 
+fn emptyLayoutStyleInputV2() LayoutStyleInputV2 {
+    const unset = std.math.nan(f32);
+    return .{
+        .direction = 0,
+        .width = unset,
+        .height = unset,
+        .intrinsic_width = unset,
+        .intrinsic_height = unset,
+        .baseline = unset,
+        .aspect_ratio = unset,
+        .flex_basis = unset,
+        .flex_grow = 0,
+        .flex_shrink = 0,
+        .min_width = unset,
+        .max_width = unset,
+        .min_height = unset,
+        .max_height = unset,
+        .gap = 0,
+        .justify_content = 0,
+        .align_items = 3,
+        .align_self = 0,
+        .flex_wrap = 0,
+        .align_content = 6,
+        .margin_top = 0,
+        .margin_right = 0,
+        .margin_bottom = 0,
+        .margin_left = 0,
+        .padding_top = 0,
+        .padding_right = 0,
+        .padding_bottom = 0,
+        .padding_left = 0,
+        .grid = 0,
+        .grid_columns = 1,
+        .row_gap = 0,
+        .column_gap = 0,
+        .reverse = 0,
+    };
+}
+
 fn clampBounds(value: f32, lower: f32, upper: f32) f32 {
     var result = finiteNonNegative(value);
     if (std.math.isFinite(lower) and lower >= 0) result = @max(result, lower);
@@ -1371,6 +1561,33 @@ test "lays out nested flat trees with absolute descendant frames" {
     try std.testing.expectEqual(@as(f32, 20), frames[3].y);
     try std.testing.expectEqual(@as(f32, 30), frames[3].width);
     try std.testing.expectEqual(@as(f32, 15), frames[3].height);
+}
+
+test "v2 tree layout mirrors reverse main-axis children" {
+    var root_style = emptyLayoutStyleInputV2();
+    root_style.width = 100;
+    root_style.height = 40;
+    root_style.gap = 5;
+    root_style.reverse = 1;
+
+    var first_style = emptyLayoutStyleInputV2();
+    first_style.intrinsic_width = 20;
+    first_style.intrinsic_height = 10;
+    var second_style = emptyLayoutStyleInputV2();
+    second_style.intrinsic_width = 10;
+    second_style.intrinsic_height = 12;
+
+    const nodes = [_]LayoutNodeInputV2{
+        .{ .style = root_style, .first_child = 1, .child_count = 2 },
+        .{ .style = first_style, .first_child = 0, .child_count = 0 },
+        .{ .style = second_style, .first_child = 0, .child_count = 0 },
+    };
+    var frames: [3]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_layout_tree_v2(100, 40, &nodes, nodes.len, &frames, frames.len));
+    try std.testing.expectEqual(@as(f32, 80), frames[1].x);
+    try std.testing.expectEqual(@as(f32, 65), frames[2].x);
+    try std.testing.expectEqual(@as(f32, 20), frames[1].width);
+    try std.testing.expectEqual(@as(f32, 10), frames[2].width);
 }
 
 test "rejects malformed host-neutral layout trees without writing frames" {
