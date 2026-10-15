@@ -85,6 +85,8 @@ on the local path because they need host-specific row measurement. The iOS root 
 a
 definite viewport frame for a `flex: 1` screen root, so an absolute sibling of
 a `ScrollView` is anchored to the screen rather than to the scroll content.
+Android flattens each measured flex line explicitly before serializing the tree,
+so line metadata never becomes part of the shared ABI payload.
 The iOS layout fixture also covers a plain `View` root with overflowing content;
 after scrolling, the sibling's viewport-relative top and trailing edges must be
 unchanged. The maintained navigation fixture checks the same invariant on both

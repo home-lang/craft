@@ -1291,7 +1291,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         }
         val (lines, absolute) = entries(width, height)
         if (absolute.isNotEmpty()) return null
-        return lines.flatten()
+        return lines.flatMap { it.entries }
     }
 
     private fun sharedTreeNode(entry: Entry): SharedTreeNode? {
@@ -1417,13 +1417,13 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             treeMeta[index * 2 + 1] = (cursor - firstChild).toFloat()
         }
         write(root, width, height, true)
-        val frames = if (wrapReverseAware) {
+        val frames = (if (wrapReverseAware) {
             CraftNative.layoutTreeV3(width.toFloat(), height.toFloat(), nodeData, treeMeta)
         } else if (reverseAware) {
             CraftNative.layoutTreeV2(width.toFloat(), height.toFloat(), nodeData, treeMeta)
         } else {
             CraftNative.layoutTree(width.toFloat(), height.toFloat(), nodeData, treeMeta)
-        } ?: return null
+        }) ?: return null
         return SharedTreeResult(nodes, parents.toIntArray(), frames)
     }
 
