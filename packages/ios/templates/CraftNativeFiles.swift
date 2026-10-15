@@ -274,41 +274,147 @@ enum CraftNativeFiles {
         }
     }
 
+    // MARK: Picking a video
+
+    /// System pickers grant access to just the selected video. Copy it while
+    /// the provider's URL is valid; no movie bytes cross JavaScriptCore.
+    static func pickVideo(_ options: [String: Any], done: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
+        guard activePicker == nil else {
+            done(.failure(CraftNativeActionError(code: "BUSY", message: "A picker is already open")))
+            return
+        }
+        let limit = min(512 * 1024 * 1024, max(1, (options["maxBytes"] as? NSNumber)?.intValue ?? 512 * 1024 * 1024))
+        let finish: (Result<Any, CraftNativeActionError>) -> Void = { result in
+            DispatchQueue.main.async { activePicker = nil; done(result) }
+        }
+        if options["source"] as? String == "files" {
+            let delegate = VideoDocumentDelegate(limit: limit, done: finish)
+            var types: [UTType] = [.movie]
+            if let webm = UTType(filenameExtension: "webm") { types.append(webm) }
+            let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+            picker.allowsMultipleSelection = false
+            picker.delegate = delegate
+            activePicker = delegate
+            if !CraftPresenter.present(picker, from: nil) {
+                activePicker = nil
+                done(.failure(CraftNativeActionError(code: "PICKER_ERROR", message: "Unable to present the video picker")))
+            }
+        } else {
+            var configuration = PHPickerConfiguration()
+            configuration.filter = .videos
+            configuration.selectionLimit = 1
+            configuration.preferredAssetRepresentationMode = .current
+            let delegate = VideoLibraryDelegate(limit: limit, done: finish)
+            let picker = PHPickerViewController(configuration: configuration)
+            picker.delegate = delegate
+            activePicker = delegate
+            if !CraftPresenter.present(picker, from: nil) {
+                activePicker = nil
+                done(.failure(CraftNativeActionError(code: "PICKER_ERROR", message: "Unable to present the video picker")))
+            }
+        }
+    }
+
+    static func copyVideo(_ source: URL, limit: Int) -> Result<Any, CraftNativeActionError> {
+        let ext = source.pathExtension.lowercased()
+        let types = ["mp4": "video/mp4", "m4v": "video/x-m4v", "mov": "video/quicktime", "webm": "video/webm"]
+        guard let type = types[ext] else {
+            return .failure(CraftNativeActionError(code: "INVALID_VIDEO", message: "Choose an MP4, MOV or WebM video."))
+        }
+        do {
+            let size = ((try FileManager.default.attributesOfItem(atPath: source.path))[.size] as? NSNumber)?.intValue ?? 0
+            guard size > 0, size <= limit else {
+                return .failure(CraftNativeActionError(code: "FILE_TOO_LARGE", message: "Choose a nonempty video under \(limit / 1024 / 1024)MB."))
+            }
+            let destination = try newFile(named: source.lastPathComponent)
+            do { try FileManager.default.copyItem(at: source, to: destination) }
+            catch { try? FileManager.default.removeItem(at: destination.deletingLastPathComponent()); throw error }
+            return .success(describe(destination, type: type))
+        } catch {
+            return .failure(CraftNativeActionError(code: "READ_ERROR", message: error.localizedDescription))
+        }
+    }
+
+    private final class VideoLibraryDelegate: NSObject, PHPickerViewControllerDelegate {
+        let limit: Int
+        let done: (Result<Any, CraftNativeActionError>) -> Void
+        init(limit: Int, done: @escaping (Result<Any, CraftNativeActionError>) -> Void) { self.limit = limit; self.done = done }
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            guard let provider = results.first?.itemProvider else { done(.success(NSNull())); return }
+            let (limit, done) = (self.limit, self.done)
+            provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, error in
+                guard let url else {
+                    done(.failure(CraftNativeActionError(code: "READ_ERROR", message: error?.localizedDescription ?? "The video could not be read")))
+                    return
+                }
+                done(CraftNativeFiles.copyVideo(url, limit: limit))
+            }
+        }
+    }
+
+    private final class VideoDocumentDelegate: NSObject, UIDocumentPickerDelegate {
+        let limit: Int
+        let done: (Result<Any, CraftNativeActionError>) -> Void
+        init(limit: Int, done: @escaping (Result<Any, CraftNativeActionError>) -> Void) { self.limit = limit; self.done = done }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { done(.success(NSNull())) }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { done(.success(NSNull())); return }
+            let (limit, done) = (self.limit, self.done)
+            DispatchQueue.global(qos: .userInitiated).async {
+                let granted = url.startAccessingSecurityScopedResource()
+                defer { if granted { url.stopAccessingSecurityScopedResource() } }
+                done(CraftNativeFiles.copyVideo(url, limit: limit))
+            }
+        }
+    }
+
     // MARK: Sending files
 
     /// A multipart/form-data body from a screen's `FormData`: parts are
     /// `{ name, value }` or `{ name, path, filename?, type? }`, a file made
     /// here. Answers the body and its boundary.
-    static func multipart(_ parts: [Any]) -> Result<(Data, String), CraftNativeActionError> {
+    static func multipart(_ parts: [Any]) -> Result<(URL, String), CraftNativeActionError> {
         let boundary = "craft-\(UUID().uuidString)"
-        var body = Data()
-        func append(_ text: String) { body.append(Data(text.utf8)) }
-        for item in parts {
-            guard let part = item as? [String: Any], let name = part["name"] as? String else {
-                return .failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "A form part needs a name"))
-            }
-            append("--\(boundary)\r\n")
-            if let path = part["path"] as? String {
-                guard let url = owned(path) else {
-                    return .failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "A form file must be one craft.files made, and still there"))
+        var temporary: URL?
+        do {
+            let destination = try newFile(named: "upload.multipart")
+            temporary = destination
+            FileManager.default.createFile(atPath: destination.path, contents: nil)
+            let output = try FileHandle(forWritingTo: destination)
+            defer { try? output.close() }
+            func append(_ text: String) throws { try output.write(contentsOf: Data(text.utf8)) }
+            for item in parts {
+                guard let part = item as? [String: Any], let name = part["name"] as? String else {
+                    throw CraftNativeActionError(code: "INVALID_ARGUMENT", message: "A form part needs a name")
                 }
-                guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
-                    return .failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "A form file could not be read"))
+                try append("--\(boundary)\r\n")
+                if let path = part["path"] as? String {
+                    guard let url = owned(path) else {
+                        throw CraftNativeActionError(code: "INVALID_ARGUMENT", message: "A form file must be one craft.files made, and still there")
+                    }
+                    let filename = (part["filename"] as? String).map(safeName) ?? url.lastPathComponent
+                    let type = (part["type"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "application/octet-stream"
+                    try append("Content-Disposition: form-data; name=\"\(quoted(name))\"; filename=\"\(quoted(filename))\"\r\n")
+                    try append("Content-Type: \(type.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: ""))\r\n\r\n")
+                    let input = try FileHandle(forReadingFrom: url)
+                    defer { try? input.close() }
+                    while let chunk = try input.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                        try output.write(contentsOf: chunk)
+                    }
+                    try append("\r\n")
+                } else {
+                    try append("Content-Disposition: form-data; name=\"\(quoted(name))\"\r\n\r\n")
+                    try append(part["value"] as? String ?? "")
+                    try append("\r\n")
                 }
-                let filename = (part["filename"] as? String).map(safeName) ?? url.lastPathComponent
-                let type = (part["type"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "application/octet-stream"
-                append("Content-Disposition: form-data; name=\"\(quoted(name))\"; filename=\"\(quoted(filename))\"\r\n")
-                append("Content-Type: \(type.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: ""))\r\n\r\n")
-                body.append(data)
-                append("\r\n")
-            } else {
-                append("Content-Disposition: form-data; name=\"\(quoted(name))\"\r\n\r\n")
-                append(part["value"] as? String ?? "")
-                append("\r\n")
             }
+            try append("--\(boundary)--\r\n")
+            return .success((destination, boundary))
+        } catch {
+            if let temporary { remove(temporary.path) }
+            return .failure((error as? CraftNativeActionError) ?? CraftNativeActionError(code: "WRITE_ERROR", message: error.localizedDescription))
         }
-        append("--\(boundary)--\r\n")
-        return .success((body, boundary))
     }
 
     /// A name inside a quoted header value, escaped as browsers send it.

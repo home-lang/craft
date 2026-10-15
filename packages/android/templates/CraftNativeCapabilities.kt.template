@@ -104,6 +104,7 @@ internal class CraftNativeCapabilities(
         val maxPixels: Int,
         val quality: Float,
         val completion: (CraftNativeCapabilityResult) -> Unit,
+        val videoLimit: Long = 0,
     )
 
     init {
@@ -166,6 +167,7 @@ internal class CraftNativeCapabilities(
             }
             "Files" -> when (method) {
                 "pickImage" -> pickImage(requestToken, args, completion)
+                "pickVideo" -> pickVideo(requestToken, args, completion)
                 "download", "write", "remove" -> networkExecutor.execute {
                     complete(requestToken, files(requestToken, method, args), completion)
                 }
@@ -238,21 +240,28 @@ internal class CraftNativeCapabilities(
                     }
                 }
                 if (body != null || multipart is FileResult.Multipart) doOutput = true
-                if (multipart is FileResult.Multipart) setRequestProperty("Content-Type", "multipart/form-data; boundary=${multipart.boundary}")
+                if (multipart is FileResult.Multipart) {
+                    setRequestProperty("Content-Type", "multipart/form-data; boundary=${multipart.boundary}")
+                    setFixedLengthStreamingMode(multipart.body.length())
+                    readTimeout = 600_000
+                }
             }
         } catch (error: IllegalArgumentException) {
+            if (multipart is FileResult.Multipart) multipart.body.parentFile?.deleteRecursively()
             return failure("INVALID_ARGUMENT", error.message ?: "fetch request is invalid")
         } catch (error: Exception) {
+            if (multipart is FileResult.Multipart) multipart.body.parentFile?.deleteRecursively()
             return failure("NETWORK_ERROR", error.message ?: "Network request failed")
         }
         fetchConnections[requestToken] = connection
         if (cancelled.contains(requestToken)) {
             fetchConnections.remove(requestToken)?.disconnect()
+            if (multipart is FileResult.Multipart) multipart.body.parentFile?.deleteRecursively()
             return failure("CANCELLED", "Network request was cancelled")
         }
         return try {
             if (body != null) connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            if (multipart is FileResult.Multipart) connection.outputStream.use { it.write(multipart.body) }
+            if (multipart is FileResult.Multipart) connection.outputStream.use { output -> multipart.body.inputStream().use { it.copyTo(output, 64 * 1024) } }
             val status = connection.responseCode
             val input = if (status >= 400) connection.errorStream else connection.inputStream
             val output = ByteArrayOutputStream()
@@ -283,17 +292,21 @@ internal class CraftNativeCapabilities(
             failure("NETWORK_ERROR", error.message ?: "Network request failed")
         } finally {
             fetchConnections.remove(requestToken)?.disconnect()
+            if (multipart is FileResult.Multipart) multipart.body.parentFile?.deleteRecursively()
         }
     }
 
     private sealed interface FileResult {
-        data class Multipart(val body: ByteArray, val boundary: String) : FileResult
+        data class Multipart(val body: File, val boundary: String) : FileResult
         data class Failure(val code: String, val message: String) : FileResult
     }
 
     private fun multipart(parts: JSONArray): FileResult {
         val boundary = "craft-${UUID.randomUUID()}"
-        val body = ByteArrayOutputStream()
+        val file = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve("upload.multipart")
+        var kept = false
+        try {
+        FileOutputStream(file).use { body ->
         fun append(value: String) { body.write(value.toByteArray(Charsets.UTF_8)) }
         for (index in 0 until parts.length()) {
             val part = parts.optJSONObject(index) ?: return FileResult.Failure("INVALID_ARGUMENT", "A form part must be an object")
@@ -303,14 +316,11 @@ internal class CraftNativeCapabilities(
             val path = part.optString("path")
             if (path.isNotBlank()) {
                 val file = ownedFile(path) ?: return FileResult.Failure("INVALID_ARGUMENT", "A form file must be one craft.files made, and still there")
-                val bytes = runCatching { file.readBytes() }.getOrElse {
-                    return FileResult.Failure("INVALID_ARGUMENT", "A form file could not be read")
-                }
                 val filename = safeFileName(part.optString("filename").ifBlank { file.name })
                 val type = part.optString("type").ifBlank { URLConnection.guessContentTypeFromName(filename) ?: "application/octet-stream" }
                 append("Content-Disposition: form-data; name=\"${quoted(name)}\"; filename=\"${quoted(filename)}\"\r\n")
                 append("Content-Type: ${headerValue(type)}\r\n\r\n")
-                body.write(bytes)
+                file.inputStream().use { it.copyTo(body, 64 * 1024) }
                 append("\r\n")
             } else {
                 append("Content-Disposition: form-data; name=\"${quoted(name)}\"\r\n\r\n")
@@ -319,7 +329,14 @@ internal class CraftNativeCapabilities(
             }
         }
         append("--$boundary--\r\n")
-        return FileResult.Multipart(body.toByteArray(), boundary)
+        }
+        kept = true
+        return FileResult.Multipart(file, boundary)
+        } catch (error: Exception) {
+            return FileResult.Failure("WRITE_ERROR", error.message ?: "A form file could not be read")
+        } finally {
+            if (!kept) file.parentFile?.deleteRecursively()
+        }
     }
 
     private fun files(requestToken: String, method: String, args: JSONArray): CraftNativeCapabilityResult {
@@ -417,6 +434,64 @@ internal class CraftNativeCapabilities(
         return success(JSONObject().put("ok", false).put("status", status).put("body", body.toString(Charsets.UTF_8.name())))
     }
 
+    private fun pickVideo(requestToken: String, args: JSONArray, completion: (CraftNativeCapabilityResult) -> Unit) {
+        mainHandler.post {
+            val host = activity ?: return@post complete(requestToken, failure("NEEDS_ACTIVITY", "No screen is showing to pick from"), completion)
+            if (pendingFilePick != null) {
+                complete(requestToken, failure("BUSY", "Another file picker is already open"), completion)
+                return@post
+            }
+            val options = args.optJSONObject(0) ?: JSONObject()
+            val limit = options.optLong("maxBytes", 512L * 1024 * 1024).coerceIn(1, 512L * 1024 * 1024)
+            pendingFilePick = PendingFilePick(requestToken, "video", 0, 1f, completion, limit)
+            val photos = options.optString("source", "library") != "files" && Build.VERSION.SDK_INT >= 33
+            val intent = Intent(if (photos) MediaStore.ACTION_PICK_IMAGES else Intent.ACTION_OPEN_DOCUMENT).apply {
+                type = "video/*"
+                if (!photos) addCategory(Intent.CATEGORY_OPENABLE)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            try { host.startActivityForResult(intent, CRAFT_NATIVE_FILE_PICK_REQUEST) }
+            catch (error: Exception) {
+                pendingFilePick = null
+                complete(requestToken, failure("PICKER_UNAVAILABLE", error.message ?: "Video picker could not be opened"), completion)
+            }
+        }
+    }
+
+    /** Copy with a bound even when a cloud provider does not report its size. */
+    private fun copyVideo(uri: Uri, limit: Long): CraftNativeCapabilityResult {
+        var target: File? = null
+        return try {
+            val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                if (it.moveToFirst()) it.getString(0) else null
+            } ?: "video.mp4"
+            val types = mapOf("mp4" to "video/mp4", "m4v" to "video/x-m4v", "mov" to "video/quicktime", "webm" to "video/webm")
+            val type = types[name.substringAfterLast('.', "").lowercase()]
+                ?: return failure("INVALID_VIDEO", "Choose an MP4, MOV or WebM video.")
+            val destination = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve(safeFileName(name))
+            target = destination
+            val input = context.contentResolver.openInputStream(uri) ?: throw IllegalArgumentException("The video could not be read")
+            var size = 0L
+            input.use { source ->
+                destination.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val count = source.read(buffer)
+                        if (count < 0) break
+                        size += count
+                        require(size <= limit) { "Choose a video under ${limit / 1024 / 1024}MB." }
+                        output.write(buffer, 0, count)
+                    }
+                }
+            }
+            require(size > 0) { "Choose a nonempty video." }
+            success(descriptor(destination, type))
+        } catch (error: Exception) {
+            target?.parentFile?.deleteRecursively()
+            failure("READ_ERROR", error.message ?: "The video could not be read")
+        }
+    }
+
     private fun pickImage(
         requestToken: String,
         args: JSONArray,
@@ -463,6 +538,14 @@ internal class CraftNativeCapabilities(
         pendingFilePick = null
         if (resultCode != android.app.Activity.RESULT_OK) {
             complete(pending.requestToken, success(JSONObject.NULL), pending.completion)
+            return true
+        }
+        if (pending.source == "video") {
+            networkExecutor.execute {
+                val result = data?.data?.let { copyVideo(it, pending.videoLimit) }
+                    ?: failure("PICKER_FAILED", "The selected video could not be read")
+                complete(pending.requestToken, result, pending.completion)
+            }
             return true
         }
         val descriptor = if (pending.source == "camera") {

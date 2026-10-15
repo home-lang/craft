@@ -31,7 +31,7 @@ enum CraftNativeActions {
     private static let fetchSession: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = craftNativeFetchTimeoutSeconds
-        configuration.timeoutIntervalForResource = craftNativeFetchTimeoutSeconds
+        configuration.timeoutIntervalForResource = 600
         return URLSession(configuration: configuration)
     }()
     private static var initialDeepLinkClaimed = false
@@ -217,6 +217,12 @@ enum CraftNativeActions {
             let options = args.first as? [String: Any] ?? [:]
             DispatchQueue.main.async {
                 CraftNativeFiles.pickImage(options, cameraEnabled: config.enableCamera) { complete(requestToken, $0, completion) }
+            }
+            return
+        case ("Files", "pickVideo"):
+            let options = args.first as? [String: Any] ?? [:]
+            DispatchQueue.main.async {
+                CraftNativeFiles.pickVideo(options) { complete(requestToken, $0, completion) }
             }
             return
         case ("Files", "download"):
@@ -594,6 +600,7 @@ enum CraftNativeActions {
                 request.setValue(value, forHTTPHeaderField: name)
             }
         }
+        var uploadFile: URL?
         if let form = options["form"] as? [Any] {
             // A screen's FormData: text fields, and files craft.files made.
             guard method != "GET", method != "HEAD" else {
@@ -604,8 +611,9 @@ enum CraftNativeActions {
             case .failure(let error):
                 complete(requestToken, .failure(error), completion)
                 return
-            case .success(let (data, boundary)):
-                request.httpBody = data
+            case .success(let (file, boundary)):
+                uploadFile = file
+                request.timeoutInterval = 600
                 request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
             }
         } else if let body = options["body"] as? String {
@@ -619,7 +627,8 @@ enum CraftNativeActions {
             return
         }
 
-        let task = fetchSession.dataTask(with: request) { data, response, error in
+        let responseHandler: (Data?, URLResponse?, Error?) -> Void = { data, response, error in
+            if let uploadFile { CraftNativeFiles.remove(uploadFile.path) }
             cancellationLock.lock()
             fetchTasks.removeValue(forKey: requestToken)
             cancellationLock.unlock()
@@ -656,11 +665,14 @@ enum CraftNativeActions {
                 "body": String(decoding: body, as: UTF8.self),
             ]), completion)
         }
+        let task: URLSessionTask = uploadFile.map { fetchSession.uploadTask(with: request, fromFile: $0, completionHandler: responseHandler) }
+            ?? fetchSession.dataTask(with: request, completionHandler: responseHandler)
         cancellationLock.lock()
         let alreadyCancelled = cancelledRequests.contains(requestToken)
         if !alreadyCancelled { fetchTasks[requestToken] = task }
         cancellationLock.unlock()
         if !alreadyCancelled { task.resume() }
+        else if let uploadFile { CraftNativeFiles.remove(uploadFile.path) }
     }
 
     /// `craft.files.download`: a GET straight to a file made here (for the
