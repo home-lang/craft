@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.189...v0.0.190)
+
+## 🚀 Features
+
+- support live tab icons and profile images ([68198d8](https://github.com/craft-native/craft/commit/68198d8)) _(by Chris Breuer <chris@stacksjs.com>)_
+
+## 🧹 Chores
+
+- release v0.0.190 ([2ec74a1](https://github.com/craft-native/craft/commit/2ec74a1)) _(by Chris Breuer <chris@stacksjs.com>)_
+
+## Contributors
+
+- _Chris Breuer <chris@stacksjs.com>_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.188...v0.0.189)
 
 ## 🐛 Bug Fixes
