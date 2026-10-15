@@ -1,11 +1,14 @@
-import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 test('packed Svelte condition resolves outside the workspace', async () => {
   const root = resolve(import.meta.dir, '..')
-  const temp = mkdtempSync(join(tmpdir(), 'craft-svelte-package-'))
+  const temp = createTempDir('craft-svelte-package-')
   try {
     const packed = Bun.spawnSync([
       process.execPath, 'pm', 'pack', '--filename', join(temp, 'package.tgz'),
@@ -34,7 +37,7 @@ test('packed Svelte condition resolves outside the workspace', async () => {
 
 test('store declarations expose the public Readable contract', () => {
   const root = resolve(import.meta.dir, '..')
-  const temp = mkdtempSync(join(tmpdir(), 'craft-svelte-types-'))
+  const temp = createTempDir('craft-svelte-types-')
   const run = (args: string[], cwd = temp): void => {
     const result = Bun.spawnSync([
       process.execPath, join(root, 'packages/typescript/scripts/tsc.ts'), ...args,

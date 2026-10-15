@@ -1,8 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'bun:test'
 import { build, hasNativeRoutes, hybridConfigProblems, init, isHybrid, matchNativePath, nativeStartPath, normalizeNativePath, usesNativeBundle } from './index'
+import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 // Hybrid apps: web plus native screens (CraftHybrid.swift). The shell, the
 // page script it injects and the typescript API each decide which paths are
@@ -441,7 +444,7 @@ describe('hybrid paths in typescript', () => {
 })
 
 describe('hybrid project generation', () => {
-  const workspace = mkdtempSync(join(tmpdir(), 'craft-hybrid-'))
+  const workspace = createTempDir('craft-hybrid-')
   afterAll(() => rmSync(workspace, { recursive: true, force: true }))
   const bundle = join(workspace, 'screens.js')
   writeFileSync(bundle, '// screens v1\n')
@@ -572,7 +575,7 @@ function declaration(opening: string): string {
 const swiftc = process.platform === 'darwin' && Bun.which('swiftc')
 
 describe.skipIf(!swiftc)('hybrid shell in Swift', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'craft-hybrid-swift-'))
+  const dir = createTempDir('craft-hybrid-swift-')
   afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
   const main = `import Foundation

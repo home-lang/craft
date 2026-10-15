@@ -8,12 +8,15 @@
  * path or `CRAFT_BIN`.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import { rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { craftBinaryIsCliShimMessage, craftBinaryNotFoundMessage, resolveCraftBinary } from '../binary-resolver'
+import { createTempDir, removeAllTempDirs } from '../temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 describe('resolveCraftBinary', () => {
   let savedEnv: string | undefined
@@ -33,7 +36,7 @@ describe('resolveCraftBinary', () => {
   })
 
   it('honours an explicit caller-supplied path when it exists', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-resolver-'))
+    const dir = createTempDir('craft-resolver-')
     const bin = join(dir, 'craft-fake')
     writeFileSync(bin, '#!/bin/sh\necho hi\n', { mode: 0o755 })
     try {
@@ -49,7 +52,7 @@ describe('resolveCraftBinary', () => {
   })
 
   it('honours CRAFT_BIN when no explicit path is given', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-resolver-'))
+    const dir = createTempDir('craft-resolver-')
     const bin = join(dir, 'craft-fake-env')
     writeFileSync(bin, '#!/bin/sh\necho hi\n', { mode: 0o755 })
     process.env.CRAFT_BIN = bin
@@ -67,7 +70,7 @@ describe('resolveCraftBinary', () => {
   })
 
   it('explicit path wins over CRAFT_BIN', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-resolver-'))
+    const dir = createTempDir('craft-resolver-')
     const explicit = join(dir, 'explicit')
     const env = join(dir, 'env')
     writeFileSync(explicit, 'x', { mode: 0o755 })

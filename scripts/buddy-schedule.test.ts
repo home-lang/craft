@@ -1,13 +1,16 @@
-import { expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/buddy-bot.yml'), 'utf8')) as any
 const selector = workflow.jobs['determine-jobs'].steps.find((step: any) => step.id === 'determine')
 
 function select(event: string, schedule = '', job = '') {
-  const directory = mkdtempSync(join(tmpdir(), 'craft-buddy-schedule-'))
+  const directory = createTempDir('craft-buddy-schedule-')
   try {
     const output = join(directory, 'output')
     // Substitute the old workflow's expressions too, so this executes the

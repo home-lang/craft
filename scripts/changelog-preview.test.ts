@@ -1,13 +1,16 @@
-import { expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { dedupeChangelogReferences, previewChangelog } from './changelog-preview'
 import { generateReleaseChangelog } from './generate-release-changelog'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const cli = join(import.meta.dir, 'changelog-preview.ts')
 function fixture(run: (directory: string, git: (...args: string[]) => string) => void) {
-  const directory = mkdtempSync(join(tmpdir(), 'craft-changelog-fixture-'))
+  const directory = createTempDir('craft-changelog-fixture-')
   const git = (...args: string[]) => {
     const result = Bun.spawnSync(['git', ...args], { cwd: directory, stdout: 'pipe', stderr: 'pipe' })
     if (result.exitCode !== 0) throw new Error(result.stderr.toString())

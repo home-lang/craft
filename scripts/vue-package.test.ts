@@ -1,13 +1,16 @@
-import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { afterAll, expect, test } from 'bun:test'
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 test('packed Vue composables render on the server and expose usable types', () => {
   const root = resolve(import.meta.dir, '..')
   const packageDir = join(root, 'packages/vue')
-  const temp = mkdtempSync(join(tmpdir(), 'craft-vue-package-'))
+  const temp = createTempDir('craft-vue-package-')
   const run = (args: string[], cwd = temp): void => {
     const result = Bun.spawnSync(args, { cwd, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
     expect(`${result.stdout}\n${result.stderr}`).not.toContain('error TS')

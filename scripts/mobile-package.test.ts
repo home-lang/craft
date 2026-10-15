@@ -1,13 +1,16 @@
-import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const root = resolve(import.meta.dir, '..')
 
 for (const platform of ['android', 'ios']) {
   test(`${platform} tarball exposes usable standalone declarations`, () => {
-    const temp = mkdtempSync(join(tmpdir(), `craft-${platform}-package-`))
+    const temp = createTempDir(`craft-${platform}-package-`)
     const packageDir = join(root, 'packages', platform)
     const run = (args: string[], cwd = temp): void => {
       const result = Bun.spawnSync(args, { cwd, stdout: 'pipe', stderr: 'pipe' })

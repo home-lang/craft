@@ -1,11 +1,15 @@
-import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { afterAll, afterEach, describe, expect, it } from 'bun:test'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { assertNoApplicationSwiftSources, findApplicationSwiftSources } from './source-audit'
+import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const roots: string[] = []
 function root(): string {
-  const path = mkdtempSync(join('/tmp', 'craft-swift-audit-'))
+  const path = createTempDir('craft-swift-audit-')
   roots.push(path)
   return path
 }

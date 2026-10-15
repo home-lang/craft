@@ -14,15 +14,15 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   writeFileSync,
 } from 'fs'
-import { homedir, tmpdir } from 'os'
+import { homedir } from 'os'
 import { basename, join } from 'path'
 import { deflateRawSync } from 'zlib'
+import { createTempDir, removeTempDir } from './temp-dir.js'
 
 /** Runtime packages required by the default Linux DEB, including notify-send. */
 export const DEFAULT_DEB_DEPENDENCIES = ['libgtk-3-0', 'libwebkit2gtk-4.1-37', 'libnotify-bin'] as const
@@ -1086,7 +1086,7 @@ async function createPKG(opts: {
 
   // pkgbuild installs the contents of --root, so stage the bundle under the
   // path it should land in.
-  const tempDir = mkdtempSync(join(tmpdir(), 'craft-pkg-'))
+  const tempDir = createTempDir('craft-pkg-')
   try {
     // A `root` child rather than tempDir itself, created 0755. mkdtemp makes
     // its directory 0700, pkgbuild records the --root directory's own mode as
@@ -1116,7 +1116,7 @@ async function createPKG(opts: {
       : { success: false, error: built.error }
   }
   finally {
-    rmSync(tempDir, { recursive: true, force: true })
+    removeTempDir(tempDir)
   }
 }
 
@@ -1256,7 +1256,7 @@ function runCommand(command: string, args: string[], cwd?: string): Promise<void
 }
 
 async function createMSI(opts: MSIOptions): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-  const tempDir = mkdtempSync(join(tmpdir(), 'craft-msi-'))
+  const tempDir = createTempDir('craft-msi-')
   try {
     const binaryName = windowsExecutableName(opts.name)
     const additionalFiles = windowsCompanionFiles(opts.additionalFiles, binaryName)
@@ -1284,7 +1284,7 @@ async function createMSI(opts: MSIOptions): Promise<{ success: boolean; outputPa
     return { success: false, error: missingTool ? `WiX Toolset not found: ${message}` : message }
   }
   finally {
-    rmSync(tempDir, { recursive: true, force: true })
+    removeTempDir(tempDir)
   }
 }
 
@@ -1330,6 +1330,9 @@ async function createDEB(opts: {
   launchUrl?: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   return new Promise((resolve) => {
+    // Hoisted so a throw between creating the staging tree and handing it to
+    // dpkg-deb (a missing binary, a full disk) still removes it.
+    let staging: string | undefined
     try {
       // Validate inputs that get interpolated into the DEBIAN/control file.
       // dpkg's control file is line-oriented; newlines or `,` in fields, or
@@ -1358,7 +1361,8 @@ async function createDEB(opts: {
       const desktopContent = linuxDesktopEntry(opts.name, sanitizedName, opts.urlSchemes, opts.launchUrl)
 
       // Create DEB package structure
-      const tempDir = mkdtempSync(join(tmpdir(), 'craft-deb-'))
+      const tempDir = createTempDir('craft-deb-')
+      staging = tempDir
       const debianDir = join(tempDir, 'DEBIAN')
       const binDir = join(tempDir, 'usr', 'bin')
       const applicationsDir = join(tempDir, 'usr', 'share', 'applications')
@@ -1391,7 +1395,7 @@ Description: ${description || opts.name}
       const proc = spawn('dpkg-deb', ['--build', tempDir, opts.outputPath])
 
       proc.on('close', (code) => {
-        rmSync(tempDir, { recursive: true, force: true })
+        removeTempDir(tempDir)
         if (code === 0) {
           resolve({ success: true, outputPath: opts.outputPath })
         }
@@ -1401,11 +1405,12 @@ else {
       })
 
       proc.on('error', (err) => {
-        rmSync(tempDir, { recursive: true, force: true })
+        removeTempDir(tempDir)
         resolve({ success: false, error: err.message })
       })
     }
 catch (error) {
+      if (staging) removeTempDir(staging)
       resolve({ success: false, error: (error as Error).message })
     }
   })
@@ -1529,10 +1534,13 @@ async function createAppImage(opts: {
   iconPath?: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   return new Promise((resolve) => {
+    // Hoisted for the same reason as createDEB's staging tree.
+    let staging: string | undefined
 
     try {
       // Create AppDir structure
-      const appDir = mkdtempSync(join(tmpdir(), 'craft-appimage-'))
+      const appDir = createTempDir('craft-appimage-')
+      staging = appDir
       const appDirPath = join(appDir, `${opts.name}.AppDir`)
       const binDir = join(appDirPath, 'usr', 'bin')
       const shareDir = join(appDirPath, 'usr', 'share')
@@ -1589,7 +1597,7 @@ else {
       })
 
       proc.on('close', (code) => {
-        rmSync(appDir, { recursive: true, force: true })
+        removeTempDir(appDir)
         if (code === 0) {
           chmodSync(opts.outputPath, 0o755)
           resolve({ success: true, outputPath: opts.outputPath })
@@ -1600,11 +1608,12 @@ else {
       })
 
       proc.on('error', (err) => {
-        rmSync(appDir, { recursive: true, force: true })
+        removeTempDir(appDir)
         resolve({ success: false, error: `appimagetool not found: ${err.message}` })
       })
     }
 catch (error) {
+      if (staging) removeTempDir(staging)
       resolve({ success: false, error: (error as Error).message })
     }
   })

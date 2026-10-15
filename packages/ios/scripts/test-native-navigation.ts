@@ -1,13 +1,13 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { bootSimulator, build, init, pickSimulator } from '../src/index'
 import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './insert-project-targets'
+import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 const fixture = join(import.meta.dir, '..', 'fixtures', 'native-navigation')
 // The @stacksjs/stx CLI (`stx native compile`), from a sibling checkout unless CI pins one.
 const stxCli = process.env.STX_CLI || resolve(import.meta.dir, '../../../../stx/packages/stx/bin/cli.ts')
-const workspace = mkdtempSync(join(tmpdir(), 'craft-native-navigation-'))
+const workspace = createTempDir('craft-native-navigation-')
 const output = join(workspace, 'NativeNavigation')
 const bundle = join(workspace, 'routes.js')
 const prepareOnly = process.argv.includes('--prepare-only')
@@ -112,8 +112,11 @@ try {
   }
 }
 finally {
-  if (process.env.CRAFT_KEEP_NATIVE_NAVIGATION_PROJECT === '1')
+  if (process.env.CRAFT_KEEP_NATIVE_NAVIGATION_PROJECT === '1') {
+    keepTempDir(workspace)
     console.log(`Kept generated test project: ${workspace}`)
-  else
-    rmSync(workspace, { recursive: true, force: true })
+  }
+  else {
+    removeTempDir(workspace)
+  }
 }

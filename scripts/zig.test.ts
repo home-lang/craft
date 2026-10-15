@@ -1,14 +1,17 @@
-import { afterEach, expect, test } from 'bun:test'
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, afterEach, expect, test } from 'bun:test'
+import { chmodSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pinnedPantryZigPath, pinnedZigVersion, resolveZig, runZig } from './zig'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
 function fixture(version = '0.17.0-dev.1963+e00c6c439') {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'craft-zig-toolchain-')))
+  const root = realpathSync(createTempDir('craft-zig-toolchain-'))
   roots.push(root)
   mkdirSync(join(root, 'packages/zig'), { recursive: true })
   writeFileSync(join(root, 'pantry.lock'), JSON.stringify({ workspaces: { '': { system: { 'ziglang.org': '0.17.0-dev.1963_e00c6c439' } } } }))

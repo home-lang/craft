@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { createTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 /**
  * Run the page-load failure classifier for real, not just read it (#252).
@@ -70,9 +71,7 @@ check("NSURLErrorDNSLookupFailed", url(NSURLErrorDNSLookupFailed), true)
 // Runnable on its own, without the xcodebuild fixtures that make up the rest
 // of `test:templates`: `bun packages/ios/scripts/load-failure.ts`.
 if (import.meta.main) {
-  const { mkdtempSync, rmSync } = await import('node:fs')
-  const { tmpdir } = await import('node:os')
-  const workspace = mkdtempSync(join(tmpdir(), 'craft-load-failure-'))
+  const workspace = createTempDir('craft-load-failure-')
   try {
     checkLoadFailureClassifier(workspace, (args, cwd, label) => {
       console.log(`\n${label}`)
@@ -82,6 +81,6 @@ if (import.meta.main) {
     })
   }
   finally {
-    rmSync(workspace, { force: true, recursive: true })
+    removeTempDir(workspace)
   }
 }

@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createTempDir } from '../packages/typescript/src/temp-dir'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const templates = ['minimal', 'full-featured', 'todo-app']
@@ -22,7 +22,7 @@ function run(cmd: string[], cwd: string, env: NodeJS.ProcessEnv = process.env): 
   }
 }
 
-const tmp = mkdtempSync(join(tmpdir(), 'craft-create-smoke-'))
+const tmp = createTempDir('craft-create-smoke-')
 
 try {
   for (const template of templates) {

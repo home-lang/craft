@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { createTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 /**
  * Run the web content crash budget for real, not just read it.
@@ -80,9 +81,7 @@ check("after Retry", loop.onCrash(at: 21), .reload)
 
 // Runnable on its own: `bun packages/ios/scripts/recovery-budget.ts`.
 if (import.meta.main) {
-  const { mkdtempSync, rmSync } = await import('node:fs')
-  const { tmpdir } = await import('node:os')
-  const workspace = mkdtempSync(join(tmpdir(), 'craft-recovery-budget-'))
+  const workspace = createTempDir('craft-recovery-budget-')
   try {
     checkRecoveryBudget(workspace, (args, cwd, label) => {
       console.log(`\n${label}`)
@@ -92,6 +91,6 @@ if (import.meta.main) {
     })
   }
   finally {
-    rmSync(workspace, { force: true, recursive: true })
+    removeTempDir(workspace)
   }
 }

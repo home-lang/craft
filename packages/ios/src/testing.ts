@@ -134,7 +134,17 @@ export interface NativeMutationValidator {
 
 /** Compile the actual Foundation mutation host once, then validate captured STX messages. Requires macOS and swiftc. */
 export function createNativeMutationValidator(): NativeMutationValidator {
-  const output = mkdtempSync(join(tmpdir(), 'craft-native-mutation-'))
+  // Removed by dispose(), or at exit for a caller that never disposes. The
+  // pid in the name is the convention craft-native's temp-dir sweep reads
+  // (`craft-<label>-p<pid>-XXXXXX`), so a run killed outright is cleaned up
+  // by the next Craft process. Not imported from there: this builder's
+  // declarations are emitted on their own and cannot reach another package.
+  const output = mkdtempSync(join(tmpdir(), `craft-native-mutation-p${process.pid}-`))
+  const removeOutput = (): void => {
+    process.off('exit', removeOutput)
+    rmSync(output, { recursive: true, force: true })
+  }
+  process.on('exit', removeOutput)
   const binary = join(output, 'validate')
   try {
     writeFileSync(join(output, 'main.swift'), readFileSync(join(templates, 'MutationValidator.swift')))
@@ -142,7 +152,7 @@ export function createNativeMutationValidator(): NativeMutationValidator {
     if (build.exitCode !== 0) throw new Error(build.stderr.toString())
   }
   catch (error) {
-    rmSync(output, { recursive: true, force: true })
+    removeOutput()
     throw error
   }
   let disposed = false
@@ -161,7 +171,7 @@ export function createNativeMutationValidator(): NativeMutationValidator {
     },
     dispose() {
       disposed = true
-      rmSync(output, { recursive: true, force: true })
+      removeOutput()
     },
   }
 }

@@ -1,7 +1,10 @@
-import { expect, test } from 'bun:test'
-import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { createTempDir, removeAllTempDirs } from '../temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const sdk = resolve(import.meta.dir, '../..')
 const declarations = join(sdk, 'types/craft.d.ts')
@@ -21,7 +24,7 @@ test('mobile native error types exactly match the Zig wire vocabulary', () => {
 })
 
 test('isolated mobile consumers accept native and legacy codes but reject misspellings', () => {
-  const root = mkdtempSync(join(tmpdir(), 'craft-error-types-'))
+  const root = createTempDir('craft-error-types-')
   try {
     copyFileSync(declarations, join(root, 'craft.d.ts'))
     writeFileSync(join(root, 'consumer.ts'), `

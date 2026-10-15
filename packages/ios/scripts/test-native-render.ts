@@ -1,11 +1,11 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { bootSimulator, build, init, pickSimulator } from '../src/index'
 import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './insert-project-targets'
+import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 const fixture = join(import.meta.dir, '..', 'fixtures', 'native-screen')
-const workspace = mkdtempSync(join(tmpdir(), 'craft-native-render-'))
+const workspace = createTempDir('craft-native-render-')
 const output = join(workspace, 'NativeRender')
 
 function run(args: string[], cwd: string): void {
@@ -76,8 +76,11 @@ try {
   console.log('Native renderer unit and simulator UI tests passed')
 }
 finally {
-  if (process.env.CRAFT_KEEP_NATIVE_RENDER_PROJECT === '1')
+  if (process.env.CRAFT_KEEP_NATIVE_RENDER_PROJECT === '1') {
+    keepTempDir(workspace)
     console.log(`Kept generated test project: ${workspace}`)
-  else
-    rmSync(workspace, { recursive: true, force: true })
+  }
+  else {
+    removeTempDir(workspace)
+  }
 }

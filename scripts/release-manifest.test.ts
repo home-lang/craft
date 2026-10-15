@@ -1,14 +1,17 @@
-import { expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createReleaseManifest, requiredReleaseAssets, verifyReleaseManifest } from './release-manifest'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const identity = { repository: 'craft-native/craft', tag: 'v0.0.93', commit: 'a'.repeat(40) }
 const names = requiredReleaseAssets
 
 function withArchives(check: (dir: string) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), 'craft-manifest-'))
+  const dir = createTempDir('craft-manifest-')
   try {
     for (const name of names) writeFileSync(join(dir, name), `bytes for ${name}`)
     check(dir)

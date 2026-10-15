@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, afterEach, describe, expect, it } from 'bun:test'
+import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { watchCompanionProblems } from './watch-bundle'
+import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const roots: string[] = []
 afterEach(() => {
@@ -11,7 +14,7 @@ afterEach(() => {
 
 /** A built app's directory shape, with plists served from memory. */
 function bundle(parts: { watch?: boolean, extension?: boolean }) {
-  const root = mkdtempSync(join(tmpdir(), 'craft-watch-bundle-'))
+  const root = createTempDir('craft-watch-bundle-')
   roots.push(root)
   const app = join(root, 'Probe.app')
   mkdirSync(app, { recursive: true })

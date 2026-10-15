@@ -3,7 +3,7 @@
  * Automatic updates with delta/differential update support
  */
 
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, rmdirSync, rmSync, statSync, unlinkSync, writeFileSync } from 'fs'
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { join, basename, dirname } from 'path'
 import { tmpdir } from 'os'
 import { execFileSync, spawn } from 'child_process'
@@ -17,6 +17,7 @@ import {
   swapBundle,
   verifyBundleTrust,
 } from './macos-bundle.js'
+import { removeTempDir } from '../temp-dir.js'
 
 /**
  * How often download progress is reported, in milliseconds.
@@ -631,8 +632,9 @@ catch (error) {
     finally {
       // `swapBundle` renames the staged bundle out of here on success, so this
       // is either cleaning up a failure or removing an empty directory.
-      try { rmSync(staged.stagingDir, { recursive: true, force: true }) }
-      catch { /* a temp directory we could not remove is not worth failing an update over */ }
+      // Never throws: a temp directory we could not remove is not worth
+      // failing an update over.
+      removeTempDir(staged.stagingDir)
     }
   }
 

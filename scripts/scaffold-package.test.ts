@@ -1,12 +1,15 @@
-import { expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { existsSync, mkdirSync, rmSync, symlinkSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 for (const tool of ['create-craft', 'craft-sdk']) {
   test(`${tool} rejects an unknown template without preventing a corrected retry`, () => {
     const root = resolve(import.meta.dir, '..')
-    const temp = mkdtempSync(join(tmpdir(), 'craft-scaffold-package-'))
+    const temp = createTempDir('craft-scaffold-package-')
     const packageDir = join(root, 'packages', tool === 'create-craft' ? 'create-craft' : 'typescript')
     const run = (args: string[], cwd: string) => Bun.spawnSync(args, { cwd, stdout: 'pipe', stderr: 'pipe' })
     try {

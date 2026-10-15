@@ -24,10 +24,10 @@
  */
 
 import { execFile, execFileSync } from 'child_process'
-import { accessSync, constants, existsSync, mkdtempSync, renameSync, rmSync, statSync } from 'fs'
-import { tmpdir } from 'os'
+import { accessSync, constants, existsSync, renameSync, rmSync, statSync } from 'fs'
 import { basename, dirname, join } from 'path'
 import { promisify } from 'util'
+import { createTempDir, removeTempDir } from '../temp-dir.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -258,9 +258,10 @@ function findTopLevelApp(root: string): string | null {
  * same image already mounted at `/Volumes/Name 1`.
  */
 export async function extractBundleFromDmg(dmgPath: string, stagingDir?: string): Promise<StagedBundle> {
-  const staging = stagingDir ?? mkdtempSync(join(tmpdir(), 'craft-update-'))
-  const mountPoint = mkdtempSync(join(tmpdir(), 'craft-mount-'))
+  const staging = stagingDir ?? createTempDir('craft-update-')
+  const mountPoint = createTempDir('craft-mount-')
   let mounted = false
+  let staged = false
 
   try {
     await execFileAsync('hdiutil', ['attach', dmgPath, '-nobrowse', '-readonly', '-mountpoint', mountPoint])
@@ -272,6 +273,7 @@ export async function extractBundleFromDmg(dmgPath: string, stagingDir?: string)
 
     const appPath = join(staging, basename(source))
     await dittoBundle(source, appPath)
+    staged = true
     return { appPath, stagingDir: staging }
   }
   finally {
@@ -279,8 +281,10 @@ export async function extractBundleFromDmg(dmgPath: string, stagingDir?: string)
       try { await execFileAsync('hdiutil', ['detach', mountPoint, '-force']) }
       catch { /* the image is gone either way; leaking a mount is worse than ignoring this */ }
     }
-    try { rmSync(mountPoint, { recursive: true, force: true }) }
-    catch { /* best effort */ }
+    removeTempDir(mountPoint)
+    // A staging directory we made and are not handing back is ours to remove;
+    // one the caller passed in stays theirs.
+    if (!staged && !stagingDir) removeTempDir(staging)
   }
 }
 
@@ -292,16 +296,22 @@ export async function extractBundleFromDmg(dmgPath: string, stagingDir?: string)
  * restores the extended attributes a code signature is computed over.
  */
 export async function extractBundleFromZip(zipPath: string, stagingDir?: string): Promise<StagedBundle> {
-  const staging = stagingDir ?? mkdtempSync(join(tmpdir(), 'craft-update-'))
+  const staging = stagingDir ?? createTempDir('craft-update-')
   const unpacked = join(staging, 'payload')
 
-  await execFileAsync('ditto', ['-x', '-k', zipPath, unpacked])
+  try {
+    await execFileAsync('ditto', ['-x', '-k', zipPath, unpacked])
 
-  const source = findTopLevelApp(unpacked)
-  if (!source)
-    throw new Error(`No .app found in archive: ${zipPath}`)
+    const source = findTopLevelApp(unpacked)
+    if (!source)
+      throw new Error(`No .app found in archive: ${zipPath}`)
 
-  return { appPath: source, stagingDir: staging }
+    return { appPath: source, stagingDir: staging }
+  }
+  catch (error) {
+    if (!stagingDir) removeTempDir(staging)
+    throw error
+  }
 }
 
 /** Extract whichever container the download turned out to be. */

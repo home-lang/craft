@@ -1,12 +1,12 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { build, init } from '../src/index'
+import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 const fixture = resolve(import.meta.dir, '../../ios/fixtures/native-navigation')
 // The @stacksjs/stx CLI (`stx native compile`), from a sibling checkout unless CI pins one.
 const stxCli = process.env.STX_CLI || resolve(import.meta.dir, '../../../../stx/packages/stx/bin/cli.ts')
-const workspace = mkdtempSync(join(tmpdir(), 'craft-android-native-navigation-'))
+const workspace = createTempDir('craft-android-native-navigation-')
 const output = join(workspace, 'NativeNavigation')
 const bundle = join(workspace, 'routes.js')
 const packageName = 'dev.craft.navigationtest'
@@ -73,6 +73,11 @@ try {
   console.log(process.argv.includes('--prepare-only') ? 'Android native navigation fixture prepared' : 'Android native navigation test passed')
 }
 finally {
-  if (process.env.CRAFT_KEEP_ANDROID_NATIVE_PROJECT === '1') console.log(`Kept generated test project: ${workspace}`)
-  else rmSync(workspace, { recursive: true, force: true })
+  if (process.env.CRAFT_KEEP_ANDROID_NATIVE_PROJECT === '1') {
+    keepTempDir(workspace)
+    console.log(`Kept generated test project: ${workspace}`)
+  }
+  else {
+    removeTempDir(workspace)
+  }
 }

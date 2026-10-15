@@ -4,12 +4,12 @@
  */
 
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { CRAFT_CLI_SPAWN_MARKER, craftBinaryNotFoundMessage, resolveCraftBinary } from './binary-resolver.js'
 import { SDK_VERSION } from './sdk-version.js'
+import { createTempDir, removeTempDir } from './temp-dir.js'
 import type { AppConfig, WindowOptions } from './types.js'
 
 const execFileAsync = promisify(execFile)
@@ -320,6 +320,8 @@ function detectDevMode(): boolean {
 export class CraftApp {
   private process?: ChildProcess
   private config: AppConfig
+  /** The spilled sidebar config's directory, removed when the window process ends. */
+  private sidebarConfigDir?: string
 
   constructor(config: AppConfig = {}) {
     // Validate window dimensions
@@ -370,8 +372,16 @@ export class CraftApp {
       )
     }
 
+    this.removeSidebarConfig()
     const args = this.buildArgs()
-    const craftPath = await this.findCraftBinary()
+    let craftPath: string
+    try {
+      craftPath = await this.findCraftBinary()
+    }
+    catch (error) {
+      this.removeSidebarConfig()
+      throw error
+    }
 
     // Probe the binary's reported version and warn if the SDK and native
     // halves drift. Fire-and-forget — the warning isn't load-bearing and
@@ -401,6 +411,7 @@ export class CraftApp {
 
     return new Promise((resolve, reject) => {
       this.process?.on('error', (error: Error & { code?: string }) => {
+        this.removeSidebarConfig()
         if (error.code === 'ENOENT') {
           // Single canonical message — we no longer probe a matrix of
           // "we tried these locations" since pantry is the install
@@ -429,6 +440,7 @@ export class CraftApp {
       // the diagnosis. With no pipe — the inherit path — the two fire
       // together.
       this.process?.on('close', (code) => {
+        this.removeSidebarConfig()
         if (code === 0 || code === null) {
           resolve()
         }
@@ -454,6 +466,13 @@ export class CraftApp {
     if (this.process) {
       this.process.kill()
     }
+  }
+
+  /** The window process has read its sidebar config, or never will. */
+  private removeSidebarConfig(): void {
+    if (!this.sidebarConfigDir) return
+    removeTempDir(this.sidebarConfigDir)
+    this.sidebarConfigDir = undefined
   }
 
   private buildArgs(): string[] {
@@ -596,7 +615,8 @@ export class CraftApp {
           args.push('--sidebar-config', json)
         }
         else {
-          const dir = mkdtempSync(join(tmpdir(), 'craft-sidebar-'))
+          const dir = createTempDir('craft-sidebar-')
+          this.sidebarConfigDir = dir
           const path = join(dir, 'sidebar-config.json')
           writeFileSync(path, json, 'utf-8')
           args.push('--sidebar-config-file', path)

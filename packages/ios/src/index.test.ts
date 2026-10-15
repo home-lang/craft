@@ -1,7 +1,6 @@
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import { addSchemeBuildTargets, addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from '../scripts/insert-project-targets'
 import {
   associatedDomainEntries,
@@ -28,6 +27,10 @@ import {
   resolveCraftVersion,
   syncWebAssets,
 } from './index'
+import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 describe('Craft iOS builder', () => {
   it('resolves the package version from bundled module directories', () => {
@@ -37,7 +40,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('reads the version from craft-native when the builder is bundled inside it', () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-native-bundle-'))
+    const root = createTempDir('craft-native-bundle-')
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'craft-native', version: '9.8.7' }))
     expect(resolveCraftVersion(join(root, 'dist', 'ios', 'src'))).toBe('9.8.7')
   })
@@ -53,7 +56,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('keeps WebView as the default and opt-in native screens load a compiled bundle', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-'))
+    const output = createTempDir('craft-ios-native-')
     await init({ runtimeDir: null, name: 'Native Slice', output, config: { renderer: 'native' } })
     const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
     const swift = readFileSync(join(output, 'Sources', 'NativeSliceApp.swift'), 'utf8')
@@ -302,7 +305,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('copies a complete web distribution and removes stale assets', () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-ios-assets-'))
+    const root = createTempDir('craft-ios-assets-')
     const source = join(root, 'web')
     const output = join(root, 'ios')
     Bun.spawnSync(['mkdir', '-p', join(source, 'assets'), join(output, 'dist')])
@@ -318,7 +321,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('keeps native route teardown and missing-bundle fallback explicit', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-lifecycle-'))
+    const output = createTempDir('craft-ios-native-lifecycle-')
     await init({ runtimeDir: null, name: 'NativeLifecycle', output, config: { renderer: 'native' } })
 
     const native = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
@@ -441,7 +444,7 @@ describe('Craft iOS builder', () => {
     const rgba = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
     expect(pngHasAlpha(new Uint8Array(rgba))).toBe(true)
     expect(pngHasAlpha(new Uint8Array([1, 2, 3]))).toBe(false)
-    const dir = mkdtempSync(join(tmpdir(), 'craft-ios-icon-'))
+    const dir = createTempDir('craft-ios-icon-')
     const icon = join(dir, 'icon.png')
     writeFileSync(icon, rgba)
     const output = join(dir, 'app')
@@ -457,7 +460,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('shows the splash logo on the launch screen, light and dark, kept as a vector', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-ios-splash-'))
+    const dir = createTempDir('craft-ios-splash-')
     const light = join(dir, 'logo.svg')
     const dark = join(dir, 'logo-dark.svg')
     writeFileSync(light, '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="48"/>')
@@ -478,7 +481,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('shares a scheme that builds and archives the app, for CI such as Xcode Cloud', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-scheme-'))
+    const output = createTempDir('craft-ios-scheme-')
     await init({ runtimeDir: null, name: 'SchemeApp', bundleId: 'org.example.scheme', output })
     const project = readFileSync(join(output, 'project.yml'), 'utf8')
     expect(project).toContain('schemes:\n  SchemeApp:\n    build:\n      targets:\n        SchemeApp: all')
@@ -486,7 +489,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('generates a production project whose bundled index lives under dist', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-project-'))
+    const output = createTempDir('craft-ios-project-')
     await init({
       runtimeDir: null,
       name: 'WildLoop',
@@ -542,7 +545,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('attaches keychain entitlements to secure-storage targets', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-secure-storage-'))
+    const output = createTempDir('craft-ios-secure-storage-')
     await init({
       runtimeDir: null,
       name: 'SecureStorage',
@@ -565,7 +568,7 @@ describe('Craft iOS builder', () => {
     expect(productName('7 Summits')).toBe('App7Summits')
     expect(productName('…')).toBe('Craft')
 
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-dotted-'))
+    const output = createTempDir('craft-ios-dotted-')
     await init({ runtimeDir: null, name: 'HQ.training', bundleId: 'training.hq.app', output, config: {} })
 
     const swift = readFileSync(join(output, 'Sources', 'HQTrainingApp.swift'), 'utf8')
@@ -588,7 +591,7 @@ describe('Craft iOS builder', () => {
     expect(renderAppearance({ darkMode: true }).interfaceStyle).toBe('Dark')
     expect(renderAppearance({ darkMode: false }).interfaceStyle).toBe('Light')
 
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-appearance-'))
+    const output = createTempDir('craft-ios-appearance-')
     await init({
       runtimeDir: null,
       name: 'Appearance',
@@ -617,7 +620,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('refreshes native screen backgrounds when the iOS trait changes', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-trait-'))
+    const output = createTempDir('craft-ios-native-trait-')
     await init({
       runtimeDir: null,
       name: 'NativeTraitRefresh',
@@ -633,7 +636,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('emits native layout measurements only when a view changes frame', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-layout-'))
+    const output = createTempDir('craft-ios-native-layout-')
     await init({
       runtimeDir: null,
       name: 'NativeLayout',
@@ -657,7 +660,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('keeps an absolute root sibling pinned to the viewport beside a ScrollView', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-root-viewport-'))
+    const output = createTempDir('craft-ios-native-root-viewport-')
     await init({ runtimeDir: null, name: 'NativeRootViewport', bundleId: 'org.example.native-root-viewport', output, config: { renderer: 'native' } })
     const source = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
     expect(source).toContain('private weak var viewportChild: UIView?')
@@ -668,7 +671,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('sizes intrinsic native grids from flow children only', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-grid-intrinsic-'))
+    const output = createTempDir('craft-ios-native-grid-intrinsic-')
     await init({ runtimeDir: null, name: 'NativeGridIntrinsic', bundleId: 'org.example.native-grid-intrinsic', output, config: { renderer: 'native' } })
     const source = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
     expect(source).toContain('let flow = children.filter { $0.craftLayoutStyle.position != "absolute" }')
@@ -680,7 +683,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('keeps native scroll views\' sticky headers stuck and scrolls to a target', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-sticky-'))
+    const output = createTempDir('craft-ios-native-sticky-')
     await init({ runtimeDir: null, name: 'NativeSticky', bundleId: 'org.example.native-sticky', output, config: { renderer: 'native' } })
     const source = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
     expect(source).toContain('scroll.setStickyHeaderIndices(props["stickyHeaderIndices"])')
@@ -703,7 +706,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('keeps transform angle parsing unambiguous for current Swift toolchains', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-transform-angle-'))
+    const output = createTempDir('craft-ios-transform-angle-')
     await init({ runtimeDir: null, name: 'TransformAngle', bundleId: 'org.example.transform-angle', output, config: { renderer: 'native' } })
     const source = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
     expect(source).toContain('return Double(text).map { CGFloat($0) }')
@@ -711,7 +714,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('applies image tinting to every native image source', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-image-tint-'))
+    const output = createTempDir('craft-ios-native-image-tint-')
     await init({ runtimeDir: null, name: 'NativeImageTint', bundleId: 'org.example.native-image-tint', output, config: { renderer: 'native' } })
     const source = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
     expect(source).toContain('private var tintedImages = Set<ObjectIdentifier>()')
@@ -720,7 +723,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('reads Apple Health workouts and daily values, each with the statistic its type has', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-health-'))
+    const output = createTempDir('craft-ios-health-')
     await init({ runtimeDir: null, name: 'Health', bundleId: 'com.example.health', output, config: { enableHealthKit: true } })
     // The page's bridge lives in the app; the HealthKit reads it calls, in CraftHealth.swift.
     const swift = readFileSync(join(output, 'Sources', 'HealthApp.swift'), 'utf8') + readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')
@@ -757,7 +760,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('reads heart rate through the day and the night\'s sleep stages', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-heart-'))
+    const output = createTempDir('craft-ios-heart-')
     await init({ runtimeDir: null, name: 'Heart', bundleId: 'com.example.heart', output, config: { enableHealthKit: true } })
     const swift = readFileSync(join(output, 'Sources', 'HeartApp.swift'), 'utf8') + readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')
 
@@ -778,7 +781,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('writes and reads mindful sessions, keeping one sample per session', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-mindful-'))
+    const output = createTempDir('craft-ios-mindful-')
     await init({ runtimeDir: null, name: 'Calm', bundleId: 'com.example.calm', output, config: { enableHealthKit: true } })
     const swift = readFileSync(join(output, 'Sources', 'CalmApp.swift'), 'utf8') + readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')
 
@@ -801,7 +804,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('streams Apple Health heart rate as it arrives, to the page and every native screen', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-health-stream-'))
+    const output = createTempDir('craft-ios-health-stream-')
     await init({ runtimeDir: null, name: 'Breathe', bundleId: 'com.example.breathe', output, config: { enableHealthKit: true } })
     const app = readFileSync(join(output, 'Sources', 'BreatheApp.swift'), 'utf8')
     const health = readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')
@@ -837,7 +840,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('answers a native screen\'s Apple Health reads from the same service the page uses', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-health-'))
+    const output = createTempDir('craft-ios-native-health-')
     await init({ runtimeDir: null, name: 'Pulse', bundleId: 'com.example.pulse', output, config: { enableHealthKit: true } })
     const app = readFileSync(join(output, 'Sources', 'PulseApp.swift'), 'utf8')
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
@@ -863,7 +866,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('asks a native screen\'s questions with the system\'s own alerts and sheets', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-dialog-'))
+    const output = createTempDir('craft-ios-native-dialog-')
     await init({ runtimeDir: null, name: 'Ask', bundleId: 'com.example.ask', output })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     expect(actions).toContain('"fetch", "dialog", "speech"')
@@ -873,7 +876,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('keeps a default when a caller passes undefined, and the app reads a partial config over its defaults', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-undefined-'))
+    const output = createTempDir('craft-ios-undefined-')
     await init({ runtimeDir: null, name: 'Partial', bundleId: 'com.example.partial', output, config: { darkMode: undefined, enableHaptics: true } })
     const generated = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
     expect(generated.darkMode).toBe(true)
@@ -887,7 +890,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('keeps bundled assets as a remote-app recovery path', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-ios-fallback-'))
+    const root = createTempDir('craft-ios-fallback-')
     const web = join(root, 'web')
     const output = join(root, 'ios')
     Bun.spawnSync(['mkdir', '-p', web])
@@ -901,7 +904,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('delivers shortcut and Siri activations after cold launches', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-shortcut-events-'))
+    const output = createTempDir('craft-ios-shortcut-events-')
     await init({ runtimeDir: null, name: 'WildLoop', bundleId: 'org.wildloop.app', output })
 
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
@@ -920,7 +923,7 @@ describe('Craft iOS builder', () => {
     // #211: the deletion completion comes from a system daemon, and on a
     // fresh simulator it sometimes never does. The Swift arm only runs in
     // apps without the Zig runtime, so no simulator suite reaches it.
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-siri-removal-'))
+    const output = createTempDir('craft-ios-siri-removal-')
     await init({ runtimeDir: null, name: 'WildLoop', bundleId: 'org.wildloop.app', output })
 
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
@@ -940,7 +943,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('returns completed video recordings as the documented base64 string', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-video-recording-'))
+    const output = createTempDir('craft-ios-video-recording-')
     await init({
       runtimeDir: null,
       name: 'WildLoop',
@@ -957,7 +960,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('generates a native Live Activity extension when enabled', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-live-activity-'))
+    const output = createTempDir('craft-ios-live-activity-')
     await init({
       runtimeDir: null,
       name: 'WildLoop',
@@ -985,7 +988,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('plays each haptic on the generator UIKit has for it, kept warm, and none on a tab tap', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-haptics-'))
+    const output = createTempDir('craft-ios-haptics-')
     await init({ runtimeDir: null, name: 'Haptics', bundleId: 'org.example.haptics', output })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const swift = readFileSync(join(output, 'Sources', 'HapticsApp.swift'), 'utf8')
@@ -1017,7 +1020,7 @@ describe('Craft iOS builder', () => {
     // recorded nothing about which load a call came from — so an answer owed
     // to a call made before a reload settled whichever call on the new page
     // drew the same number.
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-callback-ids-'))
+    const output = createTempDir('craft-ios-callback-ids-')
     await init({ name: 'WildLoop', bundleId: 'org.wildloop.app', output })
 
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
@@ -1034,7 +1037,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('installs the bridge at document start, with the coordinator wired before the first load', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-bridge-timing-'))
+    const output = createTempDir('craft-ios-bridge-timing-')
     await init({ runtimeDir: null, name: 'Timing', bundleId: 'org.example.timing', output })
     const swift = readFileSync(join(output, 'Sources', 'TimingApp.swift'), 'utf8')
 
@@ -1062,7 +1065,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('bundles an offline page in the app\'s colours, with a Retry that asks the shell', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-offline-'))
+    const output = createTempDir('craft-ios-offline-')
     await init({ runtimeDir: null, name: 'HQ.training', bundleId: 'training.hq.app', output, config: { backgroundColor: '#f8fafc', backgroundColorDark: '#020617' } })
     const page = readFileSync(join(output, 'dist', 'index.html'), 'utf8')
 
@@ -1130,7 +1133,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('keeps the splash until the page is ready or has painted, for splashMaxSeconds at most, and times out a dead load', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-launch-'))
+    const output = createTempDir('craft-ios-launch-')
     await init({ runtimeDir: null, name: 'Launch', bundleId: 'org.example.launch', output, config: { splashMaxSeconds: 2, requestTimeoutSeconds: 8 } })
     const swift = readFileSync(join(output, 'Sources', 'LaunchApp.swift'), 'utf8')
     const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
@@ -1153,7 +1156,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('shows the page\'s alerts natively and opens new windows where they can open', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-ui-delegate-'))
+    const output = createTempDir('craft-ios-ui-delegate-')
     await init({ runtimeDir: null, name: 'Dialogs', bundleId: 'org.example.dialogs', output })
     const swift = readFileSync(join(output, 'Sources', 'DialogsApp.swift'), 'utf8')
     const ui = readFileSync(join(output, 'Sources', 'CraftNativeUI.swift'), 'utf8')
@@ -1183,7 +1186,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('serves the native UI actions and lets the status bar follow the page', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-ui-'))
+    const output = createTempDir('craft-ios-native-ui-')
     await init({ runtimeDir: null, name: 'NativeUI', bundleId: 'org.example.nativeui', output, config: { enableShare: true } })
     const swift = readFileSync(join(output, 'Sources', 'NativeUIApp.swift'), 'utf8')
     const ui = readFileSync(join(output, 'Sources', 'CraftNativeUI.swift'), 'utf8')
@@ -1215,7 +1218,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('makes the web view feel like the app: no previews, no zoom, no keyboard bar, an app user agent', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-feel-'))
+    const output = createTempDir('craft-ios-feel-')
     await init({ runtimeDir: null, name: 'HQ.training', bundleId: 'training.hq.app', output })
     const swift = readFileSync(join(output, 'Sources', 'HQTrainingApp.swift'), 'utf8')
     const version = JSON.parse(readFileSync(join(import.meta.dir, '..', 'package.json'), 'utf8')).version
@@ -1235,7 +1238,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('tells the page the text size and motion settings, and sizes the tab bar with Dynamic Type', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-appearance-'))
+    const output = createTempDir('craft-ios-appearance-')
     await init({ runtimeDir: null, name: 'Appearance', bundleId: 'org.example.appearance', output })
     const swift = readFileSync(join(output, 'Sources', 'AppearanceApp.swift'), 'utf8')
 
@@ -1260,7 +1263,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('brings a dead page back on a budget, where the person left it, and tells the page about resumes and memory', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-recovery-'))
+    const output = createTempDir('craft-ios-recovery-')
     await init({ runtimeDir: null, name: 'Recovery', bundleId: 'org.example.recovery', output })
     const swift = readFileSync(join(output, 'Sources', 'RecoveryApp.swift'), 'utf8')
 
@@ -1295,7 +1298,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('gives the page background time for silent pushes and scheduled refreshes', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-background-'))
+    const output = createTempDir('craft-ios-background-')
     await init({ runtimeDir: null, name: 'Background', bundleId: 'training.hq.app', output, config: { enablePushNotifications: true, backgroundRefresh: { enabled: true, minimumIntervalMinutes: 30 } } })
     const swift = readFileSync(join(output, 'Sources', 'BackgroundApp.swift'), 'utf8')
     const plist = readFileSync(join(output, 'Info.plist'), 'utf8')
@@ -1319,7 +1322,7 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('if userActivity.activityType == NSUserActivityTypeBrowsingWeb, let url = userActivity.webpageURL {')
 
     // Off, nothing is declared.
-    const plain = mkdtempSync(join(tmpdir(), 'craft-ios-background-off-'))
+    const plain = createTempDir('craft-ios-background-off-')
     await init({ runtimeDir: null, name: 'Plain', bundleId: 'org.example.plain', output: plain })
     const plainPlist = readFileSync(join(plain, 'Info.plist'), 'utf8')
     expect(plainPlist).not.toContain('BGTaskSchedulerPermittedIdentifiers')
@@ -1427,7 +1430,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('gates native passkeys on an explicit webcredentials domain', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-passkeys-'))
+    const output = createTempDir('craft-ios-passkeys-')
     await init({
       runtimeDir: null,
       name: 'Passkeys',
@@ -1454,7 +1457,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('lets a native screen sign in: Apple, the web sign-in sheet, a session the page shares, and crypto', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-sign-in-'))
+    const output = createTempDir('craft-ios-native-sign-in-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableSocialAuth: true, nativeScreens: { '/m/login': 'Login' }, shareStorage: { auth_token: 'auth.token' } } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
@@ -1481,7 +1484,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('gives native screens speech, sound, push, links, sharing and streaming responses', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-services-'))
+    const output = createTempDir('craft-ios-native-services-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enablePushNotifications: true, enableShare: true, nativeScreens: { '/m': 'Today', '/m/messages': 'Messages' }, tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }] } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const services = readFileSync(join(output, 'Sources', 'CraftNativeServices.swift'), 'utf8')
@@ -1590,7 +1593,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('lends native screens the page\'s GPS recorder, keep awake, brightness and status bar', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-workout-'))
+    const output = createTempDir('craft-ios-native-workout-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableGeolocation: true, enableBackgroundLocation: true, enableKeepAwake: true, nativeScreens: { '/m/go/:id': 'Go' } } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
@@ -1610,7 +1613,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('gives native screens Web Audio, rendered on the screen\'s AVAudioEngine', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-web-audio-'))
+    const output = createTempDir('craft-ios-native-web-audio-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { nativeScreens: { '/m/relax/class/:id': 'BreathClass' } } as any })
     const audio = readFileSync(join(output, 'Sources', 'CraftWebAudio.swift'), 'utf8')
     const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
@@ -1646,7 +1649,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('runs an all-native app with the shell\'s tabs and paths, an app script and the web view\'s services', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-app-'))
+    const output = createTempDir('craft-ios-native-app-')
     const bundle = join(output, 'bundle.js')
     writeFileSync(bundle, '// screens\n')
     await init({
@@ -1708,7 +1711,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('lends native screens the page\'s Music app bridge', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-music-'))
+    const output = createTempDir('craft-ios-native-music-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableAppleMusic: true, nativeScreens: { '/m/go/:id': 'Go' } } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
@@ -1720,7 +1723,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('schedules Apple Watch workouts on the page and on native screens, linking WorkoutKit only when asked', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-scheduled-workouts-'))
+    const output = createTempDir('craft-ios-scheduled-workouts-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableScheduledWorkouts: true, nativeScreens: { '/m/plan': 'Plan' } } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
@@ -1734,7 +1737,7 @@ describe('Craft iOS builder', () => {
     // WorkoutKit is compiled in for this app only.
     expect(readFileSync(join(output, 'project.yml'), 'utf8')).toContain('      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) CRAFT_SCHEDULED_WORKOUTS"')
 
-    const plain = mkdtempSync(join(tmpdir(), 'craft-ios-no-scheduled-workouts-'))
+    const plain = createTempDir('craft-ios-no-scheduled-workouts-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output: plain })
     // Still copied, compiled to the stub that answers unsupported.
     expect(existsSync(join(plain, 'Sources', 'CraftScheduledWorkouts.swift'))).toBe(true)
@@ -1748,7 +1751,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('reads a heart-rate strap on the page and on native screens alike, with no web view needed', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-heart-rate-'))
+    const output = createTempDir('craft-ios-heart-rate-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableHeartRate: true, nativeScreens: { '/m/go/:id': 'Go' } } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
@@ -1765,7 +1768,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('keeps video on the phone for offline and plays the kept copy in a native Video', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-media-'))
+    const output = createTempDir('craft-ios-media-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { nativeScreens: { '/m/workout/:id': 'Workout' } } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const files = readFileSync(join(output, 'Sources', 'CraftNativeFiles.swift'), 'utf8')
@@ -1792,7 +1795,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('picks a photo, downloads a file and posts a form from a native screen, the bytes kept off the bridge', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-files-'))
+    const output = createTempDir('craft-ios-files-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableShare: true, nativeScreens: { '/m/workout/:id/share': 'WorkoutShare' } } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const files = readFileSync(join(output, 'Sources', 'CraftNativeFiles.swift'), 'utf8')
@@ -1862,7 +1865,7 @@ describe('Craft iOS builder', () => {
     // #224: each of these is answered only by Swift, on both runtimes, and
     // only by a framework callback no person is waiting on. Nothing settled
     // the page's promise if it never came — the shape #211 hit twice on CI.
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-swift-deadlines-'))
+    const output = createTempDir('craft-ios-swift-deadlines-')
     await init({ name: 'WildLoop', bundleId: 'org.wildloop.app', output })
 
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
@@ -1920,7 +1923,7 @@ describe('Craft iOS builder', () => {
     // copy for the rest of the process. The classifier's answers are run for
     // real by scripts/load-failure.ts; this pins that it is actually consulted,
     // and that the way back is wired.
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-load-failure-'))
+    const output = createTempDir('craft-ios-load-failure-')
     await init({ name: 'WildLoop', bundleId: 'org.wildloop.app', output })
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
 
@@ -1965,7 +1968,7 @@ describe('Craft iOS builder', () => {
     // nothing for an observer that does not exist yet, so the tap was lost.
     // CraftEventManager exists from process start and holds it, as it already
     // does for a home-screen shortcut.
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-notification-tap-'))
+    const output = createTempDir('craft-ios-notification-tap-')
     await init({ name: 'WildLoop', bundleId: 'org.wildloop.app', output })
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
 
@@ -1989,7 +1992,7 @@ describe('Craft iOS builder', () => {
   it('tells the page about a notification that arrives while the app is open', async () => {
     // willPresent used to show the banner and nothing else, so a page on
     // screen when a push landed heard about it only if someone tapped it.
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-notification-received-'))
+    const output = createTempDir('craft-ios-notification-received-')
     await init({ name: 'WildLoop', bundleId: 'org.wildloop.app', output })
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
 
@@ -2004,7 +2007,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('updates badges without replacing full notification authorization with a badge-only request', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-badge-authorization-'))
+    const output = createTempDir('craft-ios-badge-authorization-')
     await init({ name: 'WildLoop', bundleId: 'org.wildloop.app', output })
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
     const badge = swift.slice(swift.indexOf('private func setBadgeCount('), swift.indexOf('// MARK: - App Review'))
@@ -2015,7 +2018,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('gives native screens permission-free app badge controls', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-badge-'))
+    const output = createTempDir('craft-ios-native-badge-')
     await init({ name: 'NativeBadge', bundleId: 'org.example.nativebadge', output, config: { renderer: 'native' } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const badge = actions.slice(actions.indexOf('private static func setBadgeCount('))
@@ -2029,7 +2032,7 @@ describe('Craft iOS builder', () => {
   it('schedules a local notification with the data the page gave it', async () => {
     // #258: `data` never reached userInfo, so a tap on a scheduled
     // notification handed the page {} and it had nothing to route on.
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-notification-data-'))
+    const output = createTempDir('craft-ios-notification-data-')
     await init({ name: 'WildLoop', bundleId: 'org.wildloop.app', output, config: { enableLocalNotifications: true } })
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
 
@@ -2044,7 +2047,7 @@ describe('Craft iOS builder', () => {
     // #260: kCLErrorLocationUnknown rejected a getCurrentPosition whose fix
     // was seconds away. requestLocation gives up on it, so the one-shot asks
     // again while the same caller waits; its timeout still bounds the wait.
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-location-no-fix-'))
+    const output = createTempDir('craft-ios-location-no-fix-')
     await init({ name: 'WildLoop', bundleId: 'org.wildloop.app', output, config: { enableGeolocation: true } })
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
 
@@ -2062,7 +2065,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('settles calendar callbacks only after a real EventKit operation', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-calendar-'))
+    const output = createTempDir('craft-ios-calendar-')
     await init({
       runtimeDir: null,
       name: 'WildLoop',
@@ -2082,7 +2085,7 @@ describe('Craft iOS builder', () => {
   })
 
   it('settles contacts callbacks only after a real Contacts operation', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-contacts-'))
+    const output = createTempDir('craft-ios-contacts-')
     await init({
       runtimeDir: null,
       name: 'WildLoop',
@@ -2100,8 +2103,8 @@ describe('Craft iOS builder', () => {
   })
 
   it('generates an embedded watchOS companion when enabled', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-watch-'))
-    const iosOutput = mkdtempSync(join(tmpdir(), 'craft-ios-watch-sibling-'))
+    const output = createTempDir('craft-ios-watch-')
+    const iosOutput = createTempDir('craft-ios-watch-sibling-')
     await init({
       runtimeDir: null,
       name: 'WildLoop',
@@ -2233,7 +2236,7 @@ describe('Zig runtime installation', () => {
   // covered by building a real generated app, not from here. What these do
   // cover is everything around it: resolution, ordering, and the warning.
   function fakeRuntime(archives = ['libcraft-ios.a', 'libcraft-ios-simulator-arm64.a']): string {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-rt-'))
+    const dir = createTempDir('craft-rt-')
     for (const a of archives) writeFileSync(join(dir, a), 'stand-in for an archive')
     return dir
   }
@@ -2261,7 +2264,7 @@ describe('Zig runtime installation', () => {
   })
 
   it('writes one archive name per SDK, which is what a single -lcraft-ios needs', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-out-'))
+    const output = createTempDir('craft-out-')
     expect(await installRuntime(output, fakeRuntime())).toBe(true)
     expect(existsSync(join(output, 'Runtime', 'device', 'libcraft-ios.a'))).toBe(true)
     expect(existsSync(join(output, 'Runtime', 'simulator', 'libcraft-ios.a'))).toBe(true)
@@ -2272,7 +2275,7 @@ describe('Zig runtime installation', () => {
     const saved = console.warn
     console.warn = (...args: unknown[]) => void warnings.push(args.join(' '))
     try {
-      await installRuntime(mkdtempSync(join(tmpdir(), 'craft-out-')), fakeRuntime())
+      await installRuntime(createTempDir('craft-out-'), fakeRuntime())
     }
     finally {
       console.warn = saved
@@ -2286,12 +2289,12 @@ describe('Zig runtime installation', () => {
     // The ordering bug: validation ran after the wipe, so a bad runtime dir
     // destroyed the archives already in place and left project.yml linking
     // against a Runtime/ that no longer existed.
-    const output = mkdtempSync(join(tmpdir(), 'craft-out-'))
+    const output = createTempDir('craft-out-')
     await installRuntime(output, fakeRuntime())
     const installed = join(output, 'Runtime', 'device', 'libcraft-ios.a')
     expect(existsSync(installed)).toBe(true)
 
-    const empty = mkdtempSync(join(tmpdir(), 'craft-rt-empty-'))
+    const empty = createTempDir('craft-rt-empty-')
     await expect(installRuntime(output, empty)).rejects.toThrow(/has none of/)
     expect(existsSync(installed)).toBe(true)
   })
@@ -2310,7 +2313,7 @@ describe('Zig runtime installation', () => {
   })
 
   it('generates a project whose settings match whether a runtime was installed', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-app-'))
+    const output = createTempDir('craft-app-')
     await init({ runtimeDir: fakeRuntime(), name: 'HasRuntime', output })
     expect(readFileSync(join(output, 'project.yml'), 'utf8')).toContain('-lcraft-ios')
 
@@ -2323,7 +2326,7 @@ describe('Zig runtime installation', () => {
 
 describe('runtime staleness', () => {
   function runtimeWith(marker: string): string {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-rt-'))
+    const dir = createTempDir('craft-rt-')
     for (const a of ['libcraft-ios.a', 'libcraft-ios-simulator-arm64.a']) {
       writeFileSync(join(dir, a), marker)
     }
@@ -2331,7 +2334,7 @@ describe('runtime staleness', () => {
   }
 
   it('build picks up a rebuilt runtime instead of relinking the one init copied', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-app-'))
+    const output = createTempDir('craft-app-')
     await init({ runtimeDir: runtimeWith('first build'), name: 'Stale', output })
     const installed = join(output, 'Runtime', 'device', 'libcraft-ios.a')
     expect(readFileSync(installed, 'utf8')).toBe('first build')
@@ -2344,7 +2347,7 @@ describe('runtime staleness', () => {
   })
 
   it('build leaves a runtimeless project alone rather than installing one behind init', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-app-'))
+    const output = createTempDir('craft-app-')
     await init({ runtimeDir: null, name: 'NoRuntime', output })
     expect(existsSync(join(output, 'Runtime'))).toBe(false)
 
@@ -2355,7 +2358,7 @@ describe('runtime staleness', () => {
   })
 
   it('build keeps the installed runtime when no runtime directory is configured', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-app-'))
+    const output = createTempDir('craft-app-')
     await init({ runtimeDir: runtimeWith('from init'), name: 'Keep', output })
     // A shell that forgot the variable must not quietly turn the runtime off.
     await build({ output, runtimeDir: null, generateProject: false })
@@ -2365,7 +2368,7 @@ describe('runtime staleness', () => {
 
 describe('crash reporting (CraftCrashReporter.swift)', () => {
   it('copies the reporter into every shell, versioned, and starts it first at launch', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-ios-crash-'))
+    const output = createTempDir('craft-ios-crash-')
     await init({ name: 'Crash', bundleId: 'dev.craft.crash', output, runtimeDir: null, config: { crashReporting: { key: 'bughq_k' } } })
     const reporter = readFileSync(join(output, 'Sources', 'CraftCrashReporter.swift'), 'utf8')
     expect(reporter).not.toContain('{{CRAFT_VERSION}}')

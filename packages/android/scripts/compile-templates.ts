@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { init, type CraftAndroidConfig } from '../src/index'
+import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 interface CompileFixture {
   config?: Partial<CraftAndroidConfig>
@@ -22,7 +22,7 @@ const compileTestTemplates = readdirSync(compileFixtureDirectory, { withFileType
   }))
 const gradleExecutable = process.env.GRADLE_EXECUTABLE || 'gradle'
 const keepProjects = process.argv.includes('--keep')
-const workspace = mkdtempSync(join(tmpdir(), 'craft-android-templates-'))
+const workspace = createTempDir('craft-android-templates-')
 
 const fixtures: CompileFixture[] = [
   {
@@ -155,9 +155,10 @@ try {
 }
 finally {
   if (keepProjects) {
+    keepTempDir(workspace)
     console.log(`\nGenerated Android fixtures kept at ${workspace}`)
   }
   else {
-    rmSync(workspace, { force: true, recursive: true })
+    removeTempDir(workspace)
   }
 }

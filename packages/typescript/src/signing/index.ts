@@ -7,6 +7,7 @@ import { execFile, spawn } from 'child_process'
 import { existsSync, unlinkSync, writeFileSync } from 'fs'
 import { join, basename } from 'path'
 import { promisify } from 'util'
+import { createTempDir, removeTempDir } from '../temp-dir.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -208,15 +209,14 @@ export class CodeSigner {
       // so we can hand it the password via a 0600 temp file rather than
       // putting it on argv. The temp file is unlinked after the call,
       // even on failure (best effort).
+      let passDir: string | null = null
       try {
         const signedPath = `${path}.signed`
         const args: string[] = ['sign', '-pkcs12', certificate]
-        let passFile: string | null = null
         if (password) {
-          const { mkdtempSync, writeFileSync, chmodSync } = await import('node:fs')
-          const { tmpdir } = await import('node:os')
-          const dir = mkdtempSync(join(tmpdir(), 'craft-signing-'))
-          passFile = join(dir, 'pass')
+          const { writeFileSync, chmodSync } = await import('node:fs')
+          passDir = createTempDir('craft-signing-')
+          const passFile = join(passDir, 'pass')
           writeFileSync(passFile, password, { encoding: 'utf8', mode: 0o600 })
           // mode in the writeFileSync options is honoured on POSIX; on
           // Windows it's a best-effort hint. Chmod just to be sure.
@@ -230,14 +230,12 @@ export class CodeSigner {
           await execFileAsync('osslsigncode', args)
         }
         finally {
-          if (passFile) {
-            try {
-              const { unlinkSync, rmSync } = await import('node:fs')
-              unlinkSync(passFile)
-              rmSync(passFile.replace(/\/[^/\\]+$/, ''), { recursive: true, force: true })
-            }
-            catch {/* best effort */}
-          }
+          // The whole directory, by the path we made it at. This used to strip
+          // the file name with a `/`-only regex, which matched nothing in a
+          // backslash-separated Windows path, and a failed password write
+          // skipped it entirely; both left `craft-signing-*` behind.
+          if (passDir) removeTempDir(passDir)
+          passDir = null
         }
 
         // Atomic rename via fs API rather than shelling out to `mv`.
@@ -247,6 +245,7 @@ export class CodeSigner {
         return { success: true, path, signature: certificate }
       }
       catch (fallbackError) {
+        if (passDir) removeTempDir(passDir)
         return {
           success: false,
           path,

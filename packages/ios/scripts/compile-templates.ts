@@ -1,11 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Glob } from 'bun'
 import { bootSimulator, init, pickSimulator, type CraftConfig } from '../src/index'
 import { checkLoadFailureClassifier } from './load-failure'
 import { checkRecoveryBudget } from './recovery-budget'
 import { watchCompanionProblems } from './watch-bundle'
+import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 interface CompileFixture {
   bundleId: string
@@ -102,7 +101,7 @@ const pushFixture: CompileFixture = {
 }
 
 const keepProjects = process.argv.includes('--keep')
-const workspace = mkdtempSync(join(tmpdir(), 'craft-ios-templates-'))
+const workspace = createTempDir('craft-ios-templates-')
 
 function run(args: string[], cwd: string, label: string): void {
   console.log(`\n${label}`)
@@ -260,8 +259,11 @@ try {
   }
 }
 finally {
-  if (keepProjects)
+  if (keepProjects) {
+    keepTempDir(workspace)
     console.log(`\nGenerated iOS fixtures kept at ${workspace}`)
-  else
-    rmSync(workspace, { force: true, recursive: true })
+  }
+  else {
+    removeTempDir(workspace)
+  }
 }

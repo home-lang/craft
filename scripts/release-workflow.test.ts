@@ -1,8 +1,11 @@
-import { expect, test } from 'bun:test'
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { requiredReleaseAssets } from './release-manifest'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 type Job = {
   needs?: string | string[]
@@ -21,7 +24,7 @@ const steps = (job: Job) => job.steps?.map(step => step.run ?? '').join('\n') ??
 test('macOS signing reads credentials from the declared Stacks CLI, not the shared buddy binary', () => {
   const loader = release.jobs.pantry.steps?.find(step => step.name === 'Load macOS release credentials')?.run
   expect(loader).toBeTruthy()
-  const dir = mkdtempSync(join(tmpdir(), 'craft-signing-cli-'))
+  const dir = createTempDir('craft-signing-cli-')
   const executable = join(dir, 'bun')
   const output = join(dir, 'github-env')
   try {
@@ -238,7 +241,7 @@ test('the finalizer refuses a draft missing any required archive without publish
   const publish = release.jobs['publish-release'].steps!.find(step => step.name === 'Publish the complete draft')?.run
   expect(command).toBeDefined()
   expect(publish).toBeDefined()
-  const root = mkdtempSync(join(tmpdir(), 'craft-incomplete-draft-'))
+  const root = createTempDir('craft-incomplete-draft-')
   try {
     const gh = join(root, 'gh')
     const edits = join(root, 'release-edits')
@@ -293,7 +296,7 @@ exit 1
 test('a registry network failure remains a visible best-effort warning', () => {
   const command = steps(release.jobs['notify-registry'])
   expect(command).not.toBe('')
-  const root = mkdtempSync(join(tmpdir(), 'craft-registry-notify-'))
+  const root = createTempDir('craft-registry-notify-')
   try {
     const curl = join(root, 'curl')
     writeFileSync(curl, '#!/bin/sh\nexit 28\n')
@@ -311,7 +314,7 @@ test('a registry network failure remains a visible best-effort warning', () => {
 test('the post-publication Discord announcement names the complete release', () => {
   const command = release.jobs['notify-registry'].steps!.find(step => step.name === 'Announce only the complete public release')?.run
   expect(command).toBeDefined()
-  const root = mkdtempSync(join(tmpdir(), 'craft-release-announcement-'))
+  const root = createTempDir('craft-release-announcement-')
   try {
     const curl = join(root, 'curl')
     const calls = join(root, 'curl-args')

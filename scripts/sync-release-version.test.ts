@@ -1,12 +1,15 @@
 import { afterAll, describe, expect, it } from 'bun:test'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { checkReleaseVersion } from './release-version'
 import { syncReleaseVersion } from './sync-release-version'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const root = resolve(import.meta.dir, '..')
-const scratch = mkdtempSync(join(tmpdir(), 'craft-sync-version-'))
+const scratch = createTempDir('craft-sync-version-')
 afterAll(() => rmSync(scratch, { recursive: true, force: true }))
 
 describe('syncReleaseVersion', () => {

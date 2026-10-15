@@ -7,10 +7,9 @@
  */
 
 import { execFileSync } from 'child_process'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
-import { tmpdir } from 'os'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { AutoUpdater, DeltaGenerator } from '../updater/index'
 import {
   canReplaceBundle,
@@ -19,13 +18,17 @@ import {
   swapBundle,
   verifyBundleTrust,
 } from '../updater/macos-bundle'
+import { createTempDir, removeAllTempDirs } from '../temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const darwin = process.platform === 'darwin'
 
 let work: string
 
 beforeEach(() => {
-  work = mkdtempSync(join(tmpdir(), 'craft-bundle-test-'))
+  work = createTempDir('craft-bundle-test-')
 })
 
 afterEach(() => {
@@ -108,7 +111,7 @@ describe('swapBundle', () => {
     // a different volume from /Applications is the normal case, not the edge
     // one, so the copy fallback is what runs in production.
     const installed = makeBundle(join(work, 'App.app'), 'old')
-    const otherVolume = mkdtempSync(join(tmpdir(), 'craft-elsewhere-'))
+    const otherVolume = createTempDir('craft-elsewhere-')
     try {
       const staged = makeBundle(join(otherVolume, 'App.app'), 'new')
       await swapBundle(staged, installed)

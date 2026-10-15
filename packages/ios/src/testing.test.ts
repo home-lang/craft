@@ -1,14 +1,17 @@
-import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, afterEach, describe, expect, it } from 'bun:test'
+import { readFileSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { init, restoreShell } from './index'
 import type { SimulatorStep } from './testing'
 import { createNativeMutationValidator, initSimulatorDriver, serializeSimulatorSteps } from './testing'
+import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const folders: string[] = []
 function folder(): string {
-  const path = mkdtempSync(join(tmpdir(), 'craft-shell-test-'))
+  const path = createTempDir('craft-shell-test-')
   folders.push(path)
   return path
 }

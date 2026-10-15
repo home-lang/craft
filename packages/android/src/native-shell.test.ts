@@ -1,9 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import vm from 'node:vm'
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import { build, healthConnectPermissions, init, renderAndroidPermissions } from './index'
+import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const templates = join(import.meta.dir, '../templates')
 
@@ -126,7 +129,7 @@ describe('the native app shell in a generated project', () => {
   })
 
   it('writes the shell, its services and Health Connect for a native app', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-android-shell-'))
+    const root = createTempDir('craft-android-shell-')
     try {
       const services = join(root, 'google-services.json')
       writeFileSync(services, JSON.stringify({ client: [{ client_info: { android_client_info: { package_name: 'dev.craft.shell' } } }] }))

@@ -1,8 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import { ANDROID_MIN_SDK, build, init, installRuntime, renderAndroidDeepLinks, renderAndroidPermissions, resolveRuntimeDir, syncAndroidWebAssets } from './index'
+import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 function generatedFiles(path: string): string[] {
   return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
@@ -13,7 +16,7 @@ function generatedFiles(path: string): string[] {
 
 describe('Craft Android builder', () => {
   it('packages a compiled STX bundle only for native projects', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-android-native-bundle-'))
+    const root = createTempDir('craft-android-native-bundle-')
     try {
       const native = join(root, 'native')
       const web = join(root, 'web')
@@ -480,7 +483,7 @@ describe('Craft Android builder', () => {
   })
 
   it('keeps native route teardown and missing-bundle fallback explicit', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-native-lifecycle-'))
+    const output = createTempDir('craft-android-native-lifecycle-')
     await init({ name: 'NativeLifecycle', packageName: 'org.example.nativelifecycle', output, runtimeDir: null, config: { renderer: 'native' } })
 
     const native = readFileSync(join(output, 'app/src/main/java/org/example/nativelifecycle/MainActivity.kt'), 'utf8')
@@ -496,7 +499,7 @@ describe('Craft Android builder', () => {
   })
 
   it('floats a playing video, speaks in the best installed voice and animates a screen\'s next change', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-native-media-'))
+    const output = createTempDir('craft-android-native-media-')
     await init({ name: 'NativeMedia', packageName: 'org.example.nativemedia', output, runtimeDir: null, config: { renderer: 'native' } })
     const root = join(output, 'app/src/main/java/org/example/nativemedia')
     const native = readFileSync(join(root, 'MainActivity.kt'), 'utf8')
@@ -526,7 +529,7 @@ describe('Craft Android builder', () => {
   })
 
   it('generates a DayNight background resource for native screens', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-dark-background-'))
+    const output = createTempDir('craft-android-dark-background-')
     await init({
       name: 'NativeDarkBackground',
       output,
@@ -540,7 +543,7 @@ describe('Craft Android builder', () => {
   })
 
   it('pins Android appearance like the iOS host while keeping the system mode dynamic', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-appearance-'))
+    const output = createTempDir('craft-android-appearance-')
     try {
       await init({
         name: 'NativeAppearance',
@@ -559,14 +562,14 @@ describe('Craft Android builder', () => {
   })
 
   it('rejects unknown native renderers before creating a project', async () => {
-    const output = join(mkdtempSync(join(tmpdir(), 'craft-android-renderer-')), 'invalid')
+    const output = join(createTempDir('craft-android-renderer-'), 'invalid')
     await expect(init({ name: 'Invalid', output, config: { renderer: 'canvas' as 'web' } }))
       .rejects.toThrow('Unknown Android renderer: canvas')
     expect(existsSync(output)).toBe(false)
   })
 
   it('rejects Android API levels below the runtime floor before writing a project', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-android-sdk-floor-'))
+    const root = createTempDir('craft-android-sdk-floor-')
     try {
       for (const enableHealthConnect of [false, true]) {
         const output = join(root, String(enableHealthConnect))
@@ -579,7 +582,7 @@ describe('Craft Android builder', () => {
   })
 
   it('keeps the default and supported Android API levels aligned across generated metadata', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-android-sdk-supported-'))
+    const root = createTempDir('craft-android-sdk-supported-')
     try {
       for (const minSdk of [undefined, 26, 28]) {
         const output = join(root, String(minSdk))
@@ -602,7 +605,7 @@ describe('Craft Android builder', () => {
   })
 
   it('resolves every marker in a generated project', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-template-markers-'))
+    const output = createTempDir('craft-android-template-markers-')
     await init({ name: 'Marker Check', packageName: 'dev.craft.markers', output })
 
     const unresolved = generatedFiles(output).filter((path) => {
@@ -639,7 +642,7 @@ describe('Craft Android builder', () => {
   })
 
   it('normalizes deep links and remote origins to the runtime trust contract', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-network-config-'))
+    const output = createTempDir('craft-android-network-config-')
     await init({
       name: 'Remote App',
       output,
@@ -660,7 +663,7 @@ describe('Craft Android builder', () => {
   })
 
   it('rejects metadata that would produce an invalid Android project', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-invalid-'))
+    const output = createTempDir('craft-android-invalid-')
 
     await expect(init({ name: 'Bad Package', packageName: 'dev.when.app', output }))
       .rejects.toThrow('Invalid Android package name')
@@ -735,7 +738,7 @@ describe('Craft Android builder', () => {
   })
 
   it('escapes user-facing metadata without changing generator-owned identity', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-metadata-'))
+    const output = createTempDir('craft-android-metadata-')
     await init({
       name: 'Rock & "Roll" $Build',
       packageName: 'dev.craft.metadata',
@@ -762,7 +765,7 @@ describe('Craft Android builder', () => {
   })
 
   it('preserves a supported custom launcher icon format', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-android-icon-'))
+    const root = createTempDir('craft-android-icon-')
     const icon = join(root, 'launcher.webp')
     const output = join(root, 'android')
     writeFileSync(icon, 'fixture webp bytes')
@@ -782,7 +785,7 @@ describe('Craft Android builder', () => {
     // that does not depend on the app, and CraftBridge — which does — reaches
     // it by import. If this file ever moves under packagePath, registration
     // stops finding the class and every action silently stays on the shim.
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-native-'))
+    const output = createTempDir('craft-android-native-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const holder = join(output, 'app/src/main/java/com/craft/runtime/CraftNative.kt')
@@ -805,7 +808,7 @@ describe('Craft Android builder', () => {
   })
 
   it('copies a complete web distribution while preserving native configuration', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-android-assets-'))
+    const root = createTempDir('craft-android-assets-')
     const web = join(root, 'web')
     const output = join(root, 'android')
     Bun.spawnSync(['mkdir', '-p', join(web, 'assets')])
@@ -821,7 +824,7 @@ describe('Craft Android builder', () => {
   })
 
   it('rejects unsafe web asset sources before replacing generated assets', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-android-asset-guard-'))
+    const root = createTempDir('craft-android-asset-guard-')
     const output = join(root, 'android')
     const incompleteWeb = join(root, 'incomplete-web')
     mkdirSync(incompleteWeb)
@@ -843,7 +846,7 @@ describe('Craft Android builder', () => {
   })
 
   it('generates a least-privilege bridge contract and secure manifest', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-project-'))
+    const output = createTempDir('craft-android-project-')
     await init({
       name: 'WildLoop',
       packageName: 'org.wildloop.app',
@@ -881,7 +884,7 @@ describe('Craft Android builder', () => {
   })
 
   it('marks bundled assets as the remote-app recovery path', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-android-fallback-'))
+    const root = createTempDir('craft-android-fallback-')
     const web = join(root, 'web')
     const output = join(root, 'android')
     Bun.spawnSync(['mkdir', '-p', web])
@@ -918,7 +921,7 @@ describe('Craft Android builder', () => {
   })
 
   it('delivers shortcut activations and refuses impossible event streams', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-shortcut-events-'))
+    const output = createTempDir('craft-android-shortcut-events-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const sourceRoot = join(output, 'app/src/main/java/org/wildloop/app')
@@ -938,7 +941,7 @@ describe('Craft Android builder', () => {
   it('queues deep links until the bridge is injected, and marks only the launch link initial', async () => {
     // #215: the launch link used to go only to getInitialURL, and a warm link
     // replaced the launch link as getInitialURL's answer.
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-deep-links-'))
+    const output = createTempDir('craft-android-deep-links-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const sourceRoot = join(output, 'app/src/main/java/org/wildloop/app')
@@ -970,7 +973,7 @@ describe('Craft Android builder', () => {
   it('enforces the capability flags it reports, in the page and in Kotlin', async () => {
     // #209: the flags shaped the manifest and craft.capabilities, and then
     // every call was served anyway.
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-capability-gate-'))
+    const output = createTempDir('craft-android-capability-gate-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output, config: { enableShare: true } })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -988,7 +991,7 @@ describe('Craft Android builder', () => {
   it('answers the page from haptic, vibrate and the speech calls', async () => {
     // #219: all four returned Unit, so the page got undefined where iOS
     // returns a promise, and a grant of RECORD_AUDIO went nowhere.
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-feedback-answers-'))
+    const output = createTempDir('craft-android-feedback-answers-')
     await init({
       name: 'WildLoop',
       packageName: 'org.wildloop.app',
@@ -1028,7 +1031,7 @@ describe('Craft Android builder', () => {
     // queues into a document with no bridge. And onPageFinished arrives
     // without onPageStarted for a same-document navigation, so the script
     // could run twice in one document.
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-injection-'))
+    const output = createTempDir('craft-android-injection-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1053,7 +1056,7 @@ describe('Craft Android builder', () => {
     // what the bridge saved, not getIntent(), which onNewIntent replaces with
     // the latest warm link — that half landed with #232 and is pinned here so
     // it cannot quietly go back.
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-recents-'))
+    const output = createTempDir('craft-android-recents-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output, config: { enableDeepLinks: true, urlSchemes: ['wildloop'] } })
 
     const activity = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/MainActivity.kt'), 'utf8')
@@ -1082,7 +1085,7 @@ describe('Craft Android builder', () => {
   })
 
   it('routes external Activity results back to every pending media promise', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-activity-results-'))
+    const output = createTempDir('craft-android-activity-results-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1109,7 +1112,7 @@ describe('Craft Android builder', () => {
   })
 
   it('settles camera calls that need permission or cannot launch', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-camera-errors-'))
+    const output = createTempDir('craft-android-camera-errors-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1127,7 +1130,7 @@ describe('Craft Android builder', () => {
   })
 
   it('passes file filters and settles failed media launchers', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-media-errors-'))
+    const output = createTempDir('craft-android-media-errors-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1140,7 +1143,7 @@ describe('Craft Android builder', () => {
   })
 
   it('exposes native Android permission checks, requests, and settings', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-permissions-'))
+    const output = createTempDir('craft-android-permissions-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const sourceRoot = join(output, 'app/src/main/java/org/wildloop/app')
@@ -1181,7 +1184,7 @@ describe('Craft Android builder', () => {
   })
 
   it('generates a foreground service for durable background recording', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-location-'))
+    const output = createTempDir('craft-android-location-')
     await init({
       name: 'WildLoop',
       packageName: 'org.wildloop.app',
@@ -1205,7 +1208,7 @@ describe('Craft Android builder', () => {
   })
 
   it('uses Firebase Cloud Messaging instead of placeholder push tokens', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-android-push-'))
+    const root = createTempDir('craft-android-push-')
     const output = join(root, 'android')
     const googleServicesFile = join(root, 'google-services.json')
     writeFileSync(googleServicesFile, JSON.stringify({
@@ -1241,7 +1244,7 @@ describe('Craft Android builder', () => {
   })
 
   it('declares the libraries used by the generated bridge', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-dependencies-'))
+    const output = createTempDir('craft-android-dependencies-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
     const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
     expect(gradle).toContain('androidx.fragment:fragment-ktx')
@@ -1252,7 +1255,7 @@ describe('Craft Android builder', () => {
   })
 
   it('guards contacts, calendar, notification, and billing promise channels', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-promise-data-'))
+    const output = createTempDir('craft-android-promise-data-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1273,7 +1276,7 @@ describe('Craft Android builder', () => {
   })
 
   it('guards file, media, database, radio, and health promise channels', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-promise-device-'))
+    const output = createTempDir('craft-android-promise-device-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1300,7 +1303,7 @@ describe('Craft Android builder', () => {
   })
 
   it('guards lifecycle, utility, and update promise channels without ad hoc callback slots', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-promise-lifecycle-'))
+    const output = createTempDir('craft-android-promise-lifecycle-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1370,7 +1373,7 @@ describe('Craft Android builder', () => {
   })
 
   it('turns synchronous native-call failures into Promise rejections', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-promise-call-errors-'))
+    const output = createTempDir('craft-android-promise-call-errors-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1388,7 +1391,7 @@ describe('Craft Android builder', () => {
   })
 
   it('rejects Bluetooth scans that never reach the platform scanner', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-bluetooth-'))
+    const output = createTempDir('craft-android-bluetooth-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1411,7 +1414,7 @@ describe('Craft Android builder', () => {
   })
 
   it('keeps repeated network-monitoring starts idempotent', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-network-watch-'))
+    const output = createTempDir('craft-android-network-watch-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1426,7 +1429,7 @@ describe('Craft Android builder', () => {
   })
 
   it('keeps every location watch addressable by its returned id', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-location-watch-'))
+    const output = createTempDir('craft-android-location-watch-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1440,7 +1443,7 @@ describe('Craft Android builder', () => {
   })
 
   it('settles location calls when Play Services is unavailable or silent', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-location-failure-'))
+    const output = createTempDir('craft-android-location-failure-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const appSource = join(output, 'app/src/main/java')
@@ -1485,7 +1488,7 @@ describe('Craft Android builder', () => {
   })
 
   it('rejects background-task methods instead of fabricating success', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-background-tasks-'))
+    const output = createTempDir('craft-android-background-tasks-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1505,7 +1508,7 @@ describe('Craft Android builder', () => {
   })
 
   it('rejects malformed data URLs before resolving a saved-file path', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-save-file-'))
+    const output = createTempDir('craft-android-save-file-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1517,7 +1520,7 @@ describe('Craft Android builder', () => {
   })
 
   it('omits unreachable dynamic voice-action registration', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-voice-actions-'))
+    const output = createTempDir('craft-android-voice-actions-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1531,7 +1534,7 @@ describe('Craft Android builder', () => {
   })
 
   it('reports app badges unavailable instead of silently succeeding', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-app-badge-'))
+    const output = createTempDir('craft-android-app-badge-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1551,7 +1554,7 @@ describe('Craft Android builder', () => {
   })
 
   it('loads contacts with three projected provider queries', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-contacts-'))
+    const output = createTempDir('craft-android-contacts-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1573,7 +1576,7 @@ describe('Craft Android builder', () => {
   })
 
   it('settles contact-picker permission and launch failures', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-contact-picker-'))
+    const output = createTempDir('craft-android-contact-picker-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1607,7 +1610,7 @@ describe('Craft Android builder', () => {
   })
 
   it('persists local auth sessions in encrypted preferences', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-auth-persistence-'))
+    const output = createTempDir('craft-android-auth-persistence-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1625,7 +1628,7 @@ describe('Craft Android builder', () => {
   })
 
   it('releases long-lived bridge and native-holder resources on destroy', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-close-'))
+    const output = createTempDir('craft-android-close-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const sourceRoot = join(output, 'app/src/main/java')
@@ -1681,7 +1684,7 @@ describe('Craft Android builder', () => {
   })
 
   it('settles review and biometric callbacks once across activity teardown', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-interactive-callbacks-'))
+    const output = createTempDir('craft-android-interactive-callbacks-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const sourceRoot = join(output, 'app/src/main/java')
@@ -1719,7 +1722,7 @@ describe('Craft Android builder', () => {
   })
 
   it('settles ML task and serialization failures once and closes every client', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-ml-callbacks-'))
+    const output = createTempDir('craft-android-ml-callbacks-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const sourceRoot = join(output, 'app/src/main/java')
@@ -1748,7 +1751,7 @@ describe('Craft Android builder', () => {
   })
 
   it('invalidates queued screenshot and PDF replies during teardown', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-queued-replies-'))
+    const output = createTempDir('craft-android-queued-replies-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const sourceRoot = join(output, 'app/src/main/java')
@@ -1789,7 +1792,7 @@ describe('Craft Android builder', () => {
   })
 
   it('connects Play Billing for restores and settles failure paths', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-billing-errors-'))
+    const output = createTempDir('craft-android-billing-errors-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const sourceRoot = join(output, 'app/src/main/java')
@@ -1824,7 +1827,7 @@ describe('Craft Android builder', () => {
   })
 
   it('rejects calendar-provider failures instead of hanging the promise', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-calendar-errors-'))
+    const output = createTempDir('craft-android-calendar-errors-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1843,7 +1846,7 @@ describe('Craft Android builder', () => {
   })
 
   it('rejects widget reload failures instead of hanging the promise', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-widget-errors-'))
+    const output = createTempDir('craft-android-widget-errors-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1860,7 +1863,7 @@ describe('Craft Android builder', () => {
   })
 
   it('reports SQLite changed rows instead of a constant', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-database-count-'))
+    const output = createTempDir('craft-android-database-count-')
     await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -1879,7 +1882,7 @@ describe('Craft Android builder', () => {
   })
 
   it('generates Health Connect permissions, APIs, and workout write-back only when enabled', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-health-'))
+    const output = createTempDir('craft-android-health-')
     await init({
       name: 'WildLoop',
       packageName: 'org.wildloop.app',
@@ -1923,8 +1926,8 @@ describe('Craft Android builder', () => {
   })
 
   it('invalidates Health Connect replies in enabled and disabled builds', async () => {
-    const disabledOutput = mkdtempSync(join(tmpdir(), 'craft-android-health-disabled-close-'))
-    const enabledOutput = mkdtempSync(join(tmpdir(), 'craft-android-health-enabled-close-'))
+    const disabledOutput = createTempDir('craft-android-health-disabled-close-')
+    const enabledOutput = createTempDir('craft-android-health-enabled-close-')
     await init({ name: 'DisabledHealth', packageName: 'org.health.disabled', output: disabledOutput })
     await init({
       name: 'EnabledHealth',
@@ -1956,7 +1959,7 @@ describe('Craft Android builder', () => {
  * the installer depends on.
  */
 function fakeRuntime(abis: string[]): string {
-  const dir = mkdtempSync(join(tmpdir(), 'craft-android-runtime-'))
+  const dir = createTempDir('craft-android-runtime-')
   for (const abi of abis) {
     mkdirSync(join(dir, abi), { recursive: true })
     writeFileSync(join(dir, abi, 'libcraft.so'), `not-really-${abi}`)
@@ -1968,7 +1971,7 @@ describe('Zig runtime installation', () => {
   it('lands the library where AGP already looks for it', () => {
     // app/src/main/jniLibs is the default jniLibs.srcDirs, which is why no
     // Gradle template has to know this happened.
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-jnilibs-'))
+    const output = createTempDir('craft-android-jnilibs-')
     installRuntime(output, fakeRuntime(['arm64-v8a', 'x86_64']))
 
     expect(readFileSync(join(output, 'app/src/main/jniLibs/arm64-v8a/libcraft.so'), 'utf8')).toBe('not-really-arm64-v8a')
@@ -1978,7 +1981,7 @@ describe('Zig runtime installation', () => {
   it('installs what it has when an architecture is missing', () => {
     // A one-ABI dev loop is legitimate; it just cannot run on the other kind
     // of device, which the installer warns about rather than refusing.
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-one-abi-'))
+    const output = createTempDir('craft-android-one-abi-')
     expect(installRuntime(output, fakeRuntime(['x86_64']))).toBe(true)
 
     expect(existsSync(join(output, 'app/src/main/jniLibs/x86_64/libcraft.so'))).toBe(true)
@@ -1986,8 +1989,8 @@ describe('Zig runtime installation', () => {
   })
 
   it('refuses a directory with no library at all, and names the build step', () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-no-abi-'))
-    const empty = mkdtempSync(join(tmpdir(), 'craft-android-empty-'))
+    const output = createTempDir('craft-android-no-abi-')
+    const empty = createTempDir('craft-android-empty-')
 
     expect(() => installRuntime(output, empty)).toThrow(/zig build build-android-all/)
     // Nothing written on the way to throwing.
@@ -1997,7 +2000,7 @@ describe('Zig runtime installation', () => {
   it('does not leave an architecture behind that a later build dropped', () => {
     // A stale .so still ships in the APK and still loads, so the app would run
     // an architecture nobody built for this version.
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-stale-'))
+    const output = createTempDir('craft-android-stale-')
     installRuntime(output, fakeRuntime(['arm64-v8a', 'x86_64']))
     installRuntime(output, fakeRuntime(['x86_64']))
 
@@ -2008,14 +2011,14 @@ describe('Zig runtime installation', () => {
   it('generates a shim-only app when no runtime is configured', async () => {
     // The default, and the state every generated app was in before this
     // existed: System.loadLibrary throws, isAvailable is false, Kotlin serves.
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-shim-only-'))
+    const output = createTempDir('craft-android-shim-only-')
     await init({ name: 'ShimOnly', packageName: 'dev.craft.shimonly', output, runtimeDir: null })
 
     expect(existsSync(join(output, 'app/src/main/jniLibs'))).toBe(false)
   })
 
   it('installs the runtime from init when one is given', async () => {
-    const output = mkdtempSync(join(tmpdir(), 'craft-android-with-runtime-'))
+    const output = createTempDir('craft-android-with-runtime-')
     await init({
       name: 'WithRuntime',
       packageName: 'dev.craft.withruntime',
@@ -2081,7 +2084,7 @@ describe('the Zig library and the generated app agree on how old a device may be
 
 describe('crash reporting (CraftCrashReporter.kt)', () => {
   it('writes the reporter for both renderers and starts it from a content provider', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'craft-android-crash-'))
+    const root = createTempDir('craft-android-crash-')
     try {
       for (const renderer of ['web', 'native'] as const) {
         const output = join(root, renderer)
@@ -2114,7 +2117,7 @@ describe('crash reporting (CraftCrashReporter.kt)', () => {
 
 
 it('emits native Bluetooth GATT support and versioned permissions only when enabled', async () => {
-  const output = mkdtempSync(join(tmpdir(), 'craft-android-bluetooth-'))
+  const output = createTempDir('craft-android-bluetooth-')
   try {
     await init({ name: 'Bluetooth', output, packageName: 'dev.craft.bluetooth', config: { renderer: 'native', enableBluetooth: true } })
     const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')

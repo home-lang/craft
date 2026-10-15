@@ -1,12 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { build, init } from '../src/index'
+import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 // CraftNativeHealth against a real Health Connect: an Android 14+ emulator
 // or device (Health Connect is part of the platform there) with adb on PATH.
 // `--prepare-only` generates the project without running it.
-const workspace = mkdtempSync(join(tmpdir(), 'craft-android-native-health-'))
+const workspace = createTempDir('craft-android-native-health-')
 const output = join(workspace, 'NativeHealth')
 const packageName = 'dev.craft.healthtest'
 
@@ -61,6 +61,11 @@ try {
   console.log(process.argv.includes('--prepare-only') ? 'Android Health Connect fixture prepared' : 'Android Health Connect test passed')
 }
 finally {
-  if (process.env.CRAFT_KEEP_ANDROID_NATIVE_PROJECT === '1') console.log(`Kept generated test project: ${workspace}`)
-  else rmSync(workspace, { recursive: true, force: true })
+  if (process.env.CRAFT_KEEP_ANDROID_NATIVE_PROJECT === '1') {
+    keepTempDir(workspace)
+    console.log(`Kept generated test project: ${workspace}`)
+  }
+  else {
+    removeTempDir(workspace)
+  }
 }

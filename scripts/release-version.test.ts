@@ -1,8 +1,11 @@
-import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { checkReleaseVersion, validateReleaseVersion } from './release-version'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 test('accepts a matching tag, including a prerelease', () => {
   for (const version of ['0.0.93', '1.2.3-rc.1', '1.2.3+build.4'])
@@ -29,7 +32,7 @@ test('reports every mismatched manifest in one diagnostic', () => {
 })
 
 test('discovers public workspaces and Zig metadata, excluding private examples', () => {
-  const temp = mkdtempSync(join(tmpdir(), 'craft-release-version-'))
+  const temp = createTempDir('craft-release-version-')
   try {
     for (const name of ['sdk', 'example', 'zig']) mkdirSync(join(temp, 'packages', name), { recursive: true })
     writeFileSync(join(temp, 'package.json'), JSON.stringify({ version: '1.2.3' }))

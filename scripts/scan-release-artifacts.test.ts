@@ -1,15 +1,18 @@
-import { afterEach, expect, test } from 'bun:test'
+import { afterAll, afterEach, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { publishNpmArchives } from './publish-npm-archives'
 import { expectedNpmPackages, nativeInventory, readArchiveManifest, summarizeBunAudit } from './scan-release-artifacts'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 const fixture = () => {
-  const root = mkdtempSync(join(tmpdir(), 'craft-release-artifacts-test-'))
+  const root = createTempDir('craft-release-artifacts-test-')
   roots.push(root)
   return root
 }

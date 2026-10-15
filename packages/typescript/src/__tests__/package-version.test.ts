@@ -1,11 +1,14 @@
-import { expect, test } from 'bun:test'
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { chmodSync, cpSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { createTempDir, removeAllTempDirs } from '../temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 test('relocated ESM and CJS bundles retain their build-time SDK version', async () => {
   const packageRoot = resolve(import.meta.dir, '../..')
-  const temp = mkdtempSync(join(tmpdir(), 'craft-version-package-'))
+  const temp = createTempDir('craft-version-package-')
   try {
     const source = join(temp, 'source')
     mkdirSync(source)

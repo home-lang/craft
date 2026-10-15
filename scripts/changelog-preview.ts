@@ -1,7 +1,7 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
+import { createTempDir } from '../packages/typescript/src/temp-dir'
 
 function git(cwd: string, args: string[]): string {
   const result = Bun.spawnSync(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
@@ -25,7 +25,7 @@ export function previewChangelog(cwd: string, from?: string, to = 'HEAD'): strin
   // Resolve refs before invoking the generator, so only commit hashes reach it.
   const start = from ?? git(cwd, ['describe', '--tags', '--abbrev=0'])
   const commits = [start, to].map(ref => git(cwd, ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]))
-  const directory = mkdtempSync(join(tmpdir(), 'craft-changelog-preview-'))
+  const directory = createTempDir('craft-changelog-preview-')
   try {
     const output = join(directory, 'preview.md')
     // logsmith 0.2.3's --no-output writes CHANGELOG.md. An explicit temporary

@@ -82,6 +82,14 @@ async function main(): Promise<void> {
   catch (caught) {
     error = caught instanceof Error ? caught.stack || caught.message : String(caught)
   }
+  finally {
+    // The generated projects and their DerivedData / Gradle output run to
+    // gigabytes and are never uploaded (the workflow excludes work/**); the
+    // evidence beside them is what a failure is read from. Keep them only
+    // when asked (#357).
+    if (process.env.CRAFT_E2E_KEEP_WORK !== '1')
+      rmSync(workDir, { force: true, recursive: true })
+  }
 
   // A run with no legs is the shape the old workflow had, and it must not read
   // as success. Named here rather than left to the caller, because "zero

@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, afterEach, describe, expect, it } from 'bun:test'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pinCraftNativeDependency } from './scaffold-version'
+import { createTempDir, removeAllTempDirs } from './temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const temporaryDirectories: string[] = []
 
@@ -12,7 +15,7 @@ afterEach(() => {
 })
 
 function writeManifest(manifest: object): string {
-  const directory = mkdtempSync(join(tmpdir(), 'craft-scaffold-version-'))
+  const directory = createTempDir('craft-scaffold-version-')
   temporaryDirectories.push(directory)
   const packagePath = join(directory, 'package.json')
   writeFileSync(packagePath, JSON.stringify(manifest))

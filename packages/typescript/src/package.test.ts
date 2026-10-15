@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it } from 'bun:test'
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, afterEach, describe, expect, it } from 'bun:test'
+import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { candleArguments, codesignArguments, DEFAULT_DEB_DEPENDENCIES, dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, linuxDesktopEntry, macOSInfoPlist, notarytoolArguments, packageApp, pkgbuildArguments, pkgbuildComponentPlist, productbuildArguments, renderWixSource, shouldRetryHdiutil, urlTypesEntry, WINDOWS_NOTIFICATION_ID_FILE, windowsArchitecture, windowsExecutableName, windowsNotificationAppId } from './package.js'
+import { createTempDir, removeAllTempDirs } from './temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 describe('Linux DEB runtime dependencies', () => {
   it('installs the notify-send provider used by the desktop notification bridge', () => {
@@ -105,7 +108,7 @@ describe('Windows MSI packaging', () => {
   })
 
   it('includes companion files in a Windows ZIP and rejects ambiguous names', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-windows-zip-test-'))
+    const dir = createTempDir('craft-windows-zip-test-')
     try {
       const binary = join(dir, 'source.exe')
       const loader = join(dir, 'WebView2Loader.dll')
@@ -241,7 +244,7 @@ describe('macOS app bundle assembly', () => {
   })
 
   function workDir(): string {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-bundle-test-'))
+    const dir = createTempDir('craft-bundle-test-')
     workDirs.push(dir)
     return dir
   }

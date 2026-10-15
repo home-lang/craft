@@ -1,9 +1,12 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { manifestTargets, verifyArchiveTargets, verifyNpmPackages } from './npm-packages'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 test('rejects absent built entries even when the manifest advertises them', () => {
   const pkg = { name: '@craft-native/react', main: 'dist/index.js', exports: { '.': { import: './dist/index.mjs', types: './dist/index.d.ts' } } }
@@ -37,7 +40,7 @@ test('fails closed for targets that escape the package or need wildcard handling
 })
 
 test('exports every verified npm archive with its exact digest', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'craft-npm-archive-test-'))
+  const root = createTempDir('craft-npm-archive-test-')
   const output = join(root, 'archives')
   try {
     await verifyNpmPackages(false, output)

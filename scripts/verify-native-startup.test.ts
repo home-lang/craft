@@ -1,14 +1,17 @@
-import { afterEach, expect, test } from 'bun:test'
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, afterEach, expect, test } from 'bun:test'
+import { chmodSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { verifyNativeStartup } from './verify-native-startup'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
 function executable(body: string): string {
-  const root = mkdtempSync(join(tmpdir(), 'craft-native-startup-test-'))
+  const root = createTempDir('craft-native-startup-test-')
   roots.push(root)
   const path = join(root, 'craft')
   writeFileSync(path, `#!/bin/sh\n${body}\n`)

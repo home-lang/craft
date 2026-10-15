@@ -1,11 +1,14 @@
-import { expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { verifyMacosRelease } from './verify-macos-release'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 test.skipIf(process.platform !== 'darwin')('distribution entitlements allow a standalone signed CLI to start', () => {
-  const temp = mkdtempSync(join(tmpdir(), 'craft-cli-signing-'))
+  const temp = createTempDir('craft-cli-signing-')
   const run = (args: string[]): string => {
     const result = Bun.spawnSync(args, { cwd: temp, stdout: 'pipe', stderr: 'pipe' })
     expect({ exitCode: result.exitCode, signal: result.signalCode, stderr: result.stderr.toString() })

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
+import { createTempDir } from '../packages/typescript/src/temp-dir'
 
 type Manifest = {
   name: string
@@ -90,7 +90,7 @@ export async function verifyNpmPackages(buildOnly = false, archiveDir?: string):
     mkdirSync(output, { recursive: true })
     if (readdirSync(output).length) throw new Error('Archive output must be empty')
   }
-  const temp = mkdtempSync(join(tmpdir(), 'craft-npm-verify-'))
+  const temp = createTempDir('craft-npm-verify-')
   try {
     for (const { dir, pkg } of packages) {
       if (pkg.scripts?.build) {

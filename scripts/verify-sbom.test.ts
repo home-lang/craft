@@ -1,8 +1,11 @@
-import { expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, expect, test } from 'bun:test'
+import { rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { releaseSboms, verifySbomFiles } from './verify-sbom'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const documents = {
   'craft-sbom.json': { bomFormat: 'CycloneDX', specVersion: '1.5', metadata: { component: { name: 'craft', version: 'v0.0.93' } }, components: [{ name: 'dependency', version: '1.0.0' }] },
@@ -11,7 +14,7 @@ const documents = {
 }
 
 test('requires all three valid documents from the matching release', () => {
-  const directory = mkdtempSync(join(tmpdir(), 'craft-sbom-'))
+  const directory = createTempDir('craft-sbom-')
   try {
     for (const [name, value] of Object.entries(documents)) writeFileSync(join(directory, name), JSON.stringify(value))
     expect(() => verifySbomFiles(directory, 'v0.0.93')).not.toThrow()

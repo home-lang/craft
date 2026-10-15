@@ -3,10 +3,13 @@
  * item it locks in.
  */
 
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { createTempDir, removeAllTempDirs } from '../temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 // -------------------------------------------------------------------------
 // R2 Item 1: signing path refuses argv password by default.
@@ -346,7 +349,7 @@ import { fs as fsApi } from '../api/fs'
 
 describe('R2 Item 13: readDir filtering', () => {
   it('does not return `.` or `..` even from a host bridge that does', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-readdir-'))
+    const dir = createTempDir('craft-readdir-')
     try {
       const result = await fsApi.readDir(dir)
       expect(result).not.toContain('.')
@@ -415,7 +418,7 @@ import { HotReloadServer } from '../dev/hot-reload'
 
 describe('R2 Item 18: stop() is awaitable', () => {
   it('returns a Promise that resolves when servers are closed', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-hmr-'))
+    const dir = createTempDir('craft-hmr-')
     const server = new HotReloadServer({ watchDir: dir, port: 0 })
     server.start()
     const out = server.stop()

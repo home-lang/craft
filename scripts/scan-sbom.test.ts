@@ -1,8 +1,11 @@
-import { afterEach, expect, test } from 'bun:test'
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { afterAll, afterEach, expect, test } from 'bun:test'
+import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { enforceScanPolicy, scanSbom, summarizeVulnerabilities } from './scan-sbom'
+import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
@@ -28,7 +31,7 @@ test('High findings block release scans and Critical findings block every scan',
 })
 
 function fixture(source: string) {
-  const root = mkdtempSync(join(tmpdir(), 'craft-grype-test-'))
+  const root = createTempDir('craft-grype-test-')
   roots.push(root)
   const executable = join(root, 'grype')
   const sbom = join(root, 'sbom.json')

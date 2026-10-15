@@ -5,8 +5,8 @@
  * audit so failures map directly back to the change set.
  */
 
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -14,6 +14,10 @@ import { join } from 'node:path'
 // Item 1: HMR module endpoint must reject path traversal.
 // -------------------------------------------------------------------------
 import { HotReloadServer } from '../dev/hot-reload'
+import { createTempDir, removeAllTempDirs } from '../temp-dir'
+
+// Every scratch directory this file made goes when the file is done (#357).
+afterAll(removeAllTempDirs)
 
 describe('Item 1: HMR path traversal', () => {
   let workdir: string
@@ -21,7 +25,7 @@ describe('Item 1: HMR path traversal', () => {
   let port: number
 
   beforeEach(async () => {
-    workdir = mkdtempSync(join(tmpdir(), 'craft-hmr-'))
+    workdir = createTempDir('craft-hmr-')
     writeFileSync(join(workdir, 'safe.js'), 'export const hello = "world"')
     // The "secret" file lives OUTSIDE workdir — exactly what the bug used
     // to expose.
@@ -192,7 +196,7 @@ describe('Item 17: validateIdentifier reports correct kind', () => {
 // -------------------------------------------------------------------------
 describe('Item 7: HMR stop releases FSWatcher', () => {
   it('closes the FSWatcher and nulls the field', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'craft-hmr-'))
+    const dir = createTempDir('craft-hmr-')
     const s = new HotReloadServer({ watchDir: dir, port: 0 })
     s.start()
     // Wait briefly for watch() to finish initializing.

@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { enforceScanPolicy, scanSbom } from './scan-sbom'
+import { createTempDir } from '../packages/typescript/src/temp-dir'
 
 type Archive = { name: string, version: string, file: string, sha256: string }
 type Component = { name: string, version?: string, 'bom-ref'?: string, [key: string]: unknown }
@@ -72,7 +72,7 @@ export function summarizeBunAudit(report: unknown): { Critical: number, High: nu
 
 function scanNpm(directory: string, output: string, syft: string, grype: string) {
   const archives = readArchiveManifest(directory)
-  const consumer = mkdtempSync(join(tmpdir(), 'craft-release-consumer-'))
+  const consumer = createTempDir('craft-release-consumer-')
   try {
     const dependencies = Object.fromEntries(archives.map(({ name, file }) => [name, `file:${join(resolve(directory), file)}`]))
     writeFileSync(join(consumer, 'package.json'), `${JSON.stringify({ private: true, dependencies }, null, 2)}\n`)

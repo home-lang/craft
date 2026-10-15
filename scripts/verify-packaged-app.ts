@@ -1,13 +1,13 @@
 /** Install a package containing the real Craft binary, then launch it via the SDK. */
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { createApp, resolveCraftBinary } from '../packages/typescript/src/index'
 import { packageApp, type PackageResult, WINDOWS_NOTIFICATION_ID_FILE, windowsNotificationAppId } from '../packages/typescript/src/package'
 import { verifyNativeStartup } from './verify-native-startup'
+import { createTempDir } from '../packages/typescript/src/temp-dir'
 
 const [binaryArgument, version] = Bun.argv.slice(2)
 if (!binaryArgument || !version)
@@ -813,7 +813,7 @@ async function main(): Promise<void> {
     if (installedReceipt.exitCode === 0)
       throw new Error(`Refusing to reuse existing package receipt: ${receipt}`)
   }
-  const work = mkdtempSync(join(tmpdir(), 'craft-packaged-smoke-'))
+  const work = createTempDir('craft-packaged-smoke-')
   let installed = false
   let installer = ''
   let coldObserver: Awaited<ReturnType<typeof startColdDeepLinkObserver>> | undefined
