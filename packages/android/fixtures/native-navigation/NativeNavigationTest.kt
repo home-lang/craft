@@ -80,9 +80,28 @@ class NativeNavigationTest {
     }
 
     private fun awaitHorizontalScroller(activity: MainActivity, id: String): android.widget.HorizontalScrollView {
+        repeat(75) {
+            var matching: android.widget.HorizontalScrollView? = null
+            instrumentation.runOnMainSync {
+                val host = find(activity.window.decorView, id)
+                val scroller = host?.let { findType(it, android.widget.HorizontalScrollView::class.java) }
+                val child = scroller?.getChildAt(0)
+                if (scroller != null && child != null && scroller.width > 0 && scroller.height > 0 && child.width > 0) {
+                    matching = scroller
+                }
+            }
+            if (matching != null) return matching!!
+            SystemClock.sleep(100)
+        }
         val host = awaitView(activity, id)
-        return findType(host, android.widget.HorizontalScrollView::class.java)
+        val scroller = findType(host, android.widget.HorizontalScrollView::class.java)
             ?: throw AssertionError("$id did not contain an Android HorizontalScrollView")
+        val child = scroller.getChildAt(0)
+        throw AssertionError(
+            "$id horizontal scroller did not lay out " +
+                "(viewport=${scroller.width}x${scroller.height}, " +
+                "content=${child?.width ?: 0}x${child?.height ?: 0})"
+        )
     }
 
     private fun containsWebView(view: View): Boolean {
