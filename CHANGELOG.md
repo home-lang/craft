@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.192...v0.0.193)
+
+## 🐛 Bug Fixes
+
+- **mobile**: preserve indicator sizes when reconciling transforms ([8569b18](https://github.com/craft-native/craft/commit/8569b18)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: exercise stepped sliders using native positions ([b59f9ec](https://github.com/craft-native/craft/commit/b59f9ec)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.191...v0.0.192)
 
 ## 🚀 Features
