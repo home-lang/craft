@@ -18,3 +18,10 @@ describes what an app observing the legacy shim actually sees.
 These are intentional safety differences, not a request to weaken the Zig
 bridge or change successful reply shapes. Cases where the shim and Zig agree
 remain in the per-module tests and do not need a row here.
+
+The table uses the public native capability names (`notifications.cancel`,
+`background.schedule`, and so on). The checked-in conformance test maps those
+names to the legacy Swift dispatcher actions and verifies that every evidence
+path still exists; cases marked “No simulator required” are exercised by the
+host-neutral Zig tests, while the remaining rows still need an iOS runtime
+exercise for their native side effect.
