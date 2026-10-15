@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.182...v0.0.183)
+
+## 🐛 Bug Fixes
+
+- **ios**: a node keeps its own identity, and a hidden bar stays hidden ([5510c7e](https://github.com/craft-native/craft/commit/5510c7e)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.181...v0.0.182)
 
 ## 🚀 Features
