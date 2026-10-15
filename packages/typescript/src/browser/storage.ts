@@ -2,6 +2,8 @@ export interface BrowserStorageOptions {
   storage: Storage
   namespace: string
   tokenKey: string
+  /** Existing website identity keys to forget whenever its token changes. */
+  accountKeys?: string[]
   hash: (value: string) => Promise<string>
   changed: (name: string) => void
 }
@@ -45,6 +47,7 @@ export async function createBrowserStorage(options: BrowserStorageOptions): Prom
     // Remove only the previous account's data. An account change must never
     // expose its retained first frame to the next person, even in another tab.
     for (const name of keys(`${prefix}account:${previous}:`)) storage.removeItem(name)
+    for (const name of options.accountKeys ?? []) { if (name !== tokenKey) storage.removeItem(name) }
     token = next
     transition = (async () => {
       const nextScope = next ? await options.hash(next) : 'guest'

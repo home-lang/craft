@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.188...v0.0.189)
+
+## 🐛 Bug Fixes
+
+- **browser**: retire website identity caches when accounts change ([60ea542](https://github.com/craft-native/craft/commit/60ea542)) _(by Chris Breuer <chris@stacksjs.com>)_
+
+## Contributors
+
+- _Chris Breuer <chris@stacksjs.com>_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.187...v0.0.188)
 
 ## 🚀 Features

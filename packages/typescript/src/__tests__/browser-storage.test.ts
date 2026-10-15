@@ -8,7 +8,7 @@ function storage(): Storage {
 async function fixture() {
   const saved = storage()
   const changes: string[] = []
-  const browser = await createBrowserStorage({ storage: saved, namespace: 'app', tokenKey: 'auth_token', hash: async value => `hash-${value}`, changed: name => changes.push(name) })
+  const browser = await createBrowserStorage({ storage: saved, namespace: 'app', tokenKey: 'auth_token', accountKeys: ['auth_user'], hash: async value => `hash-${value}`, changed: name => changes.push(name) })
   return { saved, browser, changes }
 }
 describe('browser account persistence', () => {
@@ -20,7 +20,9 @@ describe('browser account persistence', () => {
     await browser.call('Storage', 'set', ['draft', { text: 'Private' }])
     expect(saved.getItem('auth_token')).toBe('ava')
     expect(browser.craft.storage.getSync('draft')).toEqual({ text: 'Private' })
+    saved.setItem('auth_user', JSON.stringify({ name: 'Ava' }))
     await browser.call('SecureStorage', 'set', ['auth.token', 'ben'])
+    expect(saved.getItem('auth_user')).toBeNull()
     expect(browser.craft.snapshots.get('today')).toBeNull()
     expect(browser.craft.storage.getSync('draft')).toBeNull()
     expect(browser.craft.snapshots.get('app')).toEqual({ apiBase: '/api' })

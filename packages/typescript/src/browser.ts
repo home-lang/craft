@@ -4,6 +4,7 @@ import { showBrowserDialog, type BrowserDialogOptions } from './browser/dialogs'
 export interface BrowserPlatformOptions {
   namespace?: string
   tokenKey?: string
+  accountKeys?: string[]
   /** App metadata shared with native hosts; no device capabilities are implied. */
   appURL?: string
   locale?: string
@@ -33,7 +34,7 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
   const listeners = new Set<(type: string, payload: unknown) => void>()
   const emit = (type: string, payload: unknown): void => { for (const listener of listeners) listener(type, payload) }
   const persistence = await createBrowserStorage({
-    storage: localStorage, namespace, tokenKey: options.tokenKey ?? 'craft.auth.token',
+    storage: localStorage, namespace, tokenKey: options.tokenKey ?? 'craft.auth.token', accountKeys: options.accountKeys,
     hash: async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))), byte => byte.toString(16).padStart(2, '0')).join(''),
     changed: name => emit('SNAPSHOT_CHANGED', { name }),
   })
