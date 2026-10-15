@@ -1549,6 +1549,12 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('case "ANIMATE_NEXT":')
     expect(screen).toContain('transitionIDs[ObjectIdentifier(result)] = transitionID')
     expect(screen).toContain('UIAccessibility.isReduceMotionEnabled')
+    // Live views animate on their layers only, from how they were: a value
+    // the screen sets meanwhile (the next second, a style patch) is kept.
+    expect(screen).toContain('animation.fromValue = from')
+    expect(screen).toContain('for (layer, key) in layers { layer.removeAnimation(forKey: key) }')
+    // A view that faded in the overlay goes back as it was.
+    expect(screen).toContain('going.alpha = record.alpha')
     expect(app).toContain('if body["interrupt"] as? Bool ?? true, self.cancelPendingSpeech() {')
     expect(app).toContain('private static let speechReleaseAfterSilence: TimeInterval = 1.5')
     expect(hybrid).toContain('!native.contentSwipeBack')

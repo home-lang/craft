@@ -6925,10 +6925,15 @@ final class CraftNativeAnimationRecord {
     let fontSize: CGFloat?
     let textColor: UIColor?
     let transitionID: String?
+    /// Where it sat in its parent, to be put back after it faded elsewhere.
+    let index: Int?
+    let arrangedIndex: Int?
 
     init(view: UIView, screen: UIView, transitionID: String?) {
         self.view = view
         superview = view.superview
+        index = view.superview?.subviews.firstIndex(of: view)
+        arrangedIndex = (view.superview as? UIStackView)?.arrangedSubviews.firstIndex(of: view)
         frame = view.frame
         frameOnScreen = view.superview?.convert(view.frame, to: screen) ?? view.frame
         alpha = view.alpha
@@ -6956,7 +6961,11 @@ final class CraftNativeAnimationTransaction {
 
 /// An animation under way: finished at once if another change comes first.
 final class CraftNativeRunningAnimation {
+    /// The Core Animation key every animation of a change goes under.
+    static let key = "craft.change"
     var animators: [UIViewPropertyAnimator] = []
+    /// Live layers carrying an animation of the change, under `key` + a suffix.
+    var layers: [(CALayer, String)] = []
     var cleanup: [() -> Void] = []
     private var done = false
 
@@ -6967,6 +6976,10 @@ final class CraftNativeRunningAnimation {
             animator.stopAnimation(false)
             animator.finishAnimation(at: .end)
         }
+        // A live view's own values were never touched: taking the animation
+        // off leaves it exactly as the screen last drew it.
+        for (layer, key) in layers { layer.removeAnimation(forKey: key) }
+        layers.removeAll()
         cleanup.forEach { $0() }
         cleanup.removeAll()
     }
@@ -7073,26 +7086,68 @@ extension CraftNativeScreenController {
         view.addSubview(overlay)
         running.cleanup.append { overlay.removeFromSuperview() }
 
-        let main = UIViewPropertyAnimator(duration: spec.duration, timingParameters: spec.timing)
-        // Fades take the first part, so nothing is half there for long.
+        // Views that are going are the change's own now: they move into the
+        // overlay where they were and fade there. Put back as they were
+        // afterwards, in case the screen shows them again.
         let fadeOut = UIViewPropertyAnimator(duration: spec.duration * 0.5, curve: .easeOut)
-        let fadeIn = UIViewPropertyAnimator(duration: spec.duration * 0.6, curve: .easeInOut)
-        running.animators = [main, fadeOut, fadeIn]
-
-        // Removed views fade where they were, over what replaced them.
-        for record in removedRoots {
+        let travel = UIViewPropertyAnimator(duration: spec.duration, timingParameters: spec.timing)
+        running.animators = [fadeOut, travel]
+        func adopt(_ record: CraftNativeAnimationRecord) {
             let going = record.view
+            let resizes = going.translatesAutoresizingMaskIntoConstraints
+            let base = going.transform
             going.translatesAutoresizingMaskIntoConstraints = true
             going.transform = .identity
             going.frame = record.frameOnScreen
+            going.alpha = record.alpha
             overlay.addSubview(going)
             fadeOut.addAnimations { going.alpha = 0 }
+            running.cleanup.append {
+                going.removeFromSuperview()
+                going.transform = base
+                going.alpha = record.alpha
+                going.translatesAutoresizingMaskIntoConstraints = resizes
+                going.frame = record.frame
+                // Back in a parent that went with it, as it was: a screen
+                // that shows that subtree again finds it whole.
+                if let parent = record.superview, parent.window == nil {
+                    if let stack = parent as? UIStackView, let at = record.arrangedIndex {
+                        stack.insertArrangedSubview(going, at: min(at, stack.arrangedSubviews.count))
+                    } else if let at = record.index {
+                        parent.insertSubview(going, at: min(at, parent.subviews.count))
+                    }
+                }
+            }
+        }
+        removedRoots.forEach(adopt)
+
+        // Live views are animated on their layers only, from how they were to
+        // how the screen draws them now: nothing the screen sets on them
+        // meanwhile (the next second on a timer, a style patch) is undone.
+        let fades = spec.duration * 0.6
+        func animate(_ layer: CALayer, _ keyPath: String, from: Any, duration: TimeInterval? = nil, spring: Bool = true) {
+            let animation: CABasicAnimation
+            if spring, duration == nil, spec.curve == "spring" {
+                let bouncy = CASpringAnimation(keyPath: keyPath)
+                bouncy.mass = 1
+                bouncy.stiffness = pow(2 * .pi / spec.duration, 2)
+                bouncy.damping = 2 * sqrt(bouncy.stiffness) * (1 - spec.bounce)
+                bouncy.duration = bouncy.settlingDuration
+                animation = bouncy
+            } else {
+                animation = CABasicAnimation(keyPath: keyPath)
+                animation.duration = duration ?? spec.duration
+                animation.timingFunction = CAMediaTimingFunction(name: spec.curve == "linear" ? .linear : .easeInEaseOut)
+            }
+            animation.fromValue = from
+            let key = "\(CraftNativeRunningAnimation.key).\(keyPath)"
+            layer.add(animation, forKey: key)
+            running.layers.append((layer, key))
         }
 
-        // The background, the screen's own included, goes from the old colour.
+        // The background, the screen's own included, comes from the old colour.
         if let before = transaction.screenBackground, let now = view.backgroundColor, !before.isEqual(now) {
-            view.backgroundColor = before
-            main.addAnimations { self.view.backgroundColor = now }
+            animate(view.layer, "backgroundColor", from: before.cgColor, spring: false)
         }
 
         // Shared elements: the new view starts where the old one was, at its
@@ -7100,58 +7155,54 @@ extension CraftNativeScreenController {
         for (old, new) in pairs {
             let target = new.superview?.convert(new.frame, to: view) ?? new.frame
             let move = morph(from: old.frameOnScreen, to: target, uniform: true)
-            let finalAlpha = new.alpha
-            let base = new.transform
-            new.transform = base.concatenating(move)
-            new.alpha = 0
-            main.addAnimations { new.transform = base }
-            fadeIn.addAnimations { new.alpha = finalAlpha }
+            animate(new.layer, "transform", from: CATransform3DMakeAffineTransform(new.transform.concatenating(move)))
+            animate(new.layer, "opacity", from: 0, duration: fades)
+            adopt(old)
             let going = old.view
-            going.translatesAutoresizingMaskIntoConstraints = true
-            going.transform = .identity
-            going.frame = old.frameOnScreen
-            going.alpha = old.alpha
-            overlay.addSubview(going)
-            main.addAnimations { going.transform = move.inverted() }
-            fadeOut.addAnimations { going.alpha = 0 }
-            running.cleanup.append { new.transform = base; new.alpha = finalAlpha }
+            travel.addAnimations { going.transform = move.inverted() }
         }
 
         // New views fade in. A new container holding a shared element keeps it
         // in sight: only the rest of it fades, and its colour comes up.
+        func fadeIn(_ added: UIView) {
+            if pairedNew.contains(ObjectIdentifier(added)) { return }
+            guard containsShared(added, pairedNew: pairedNew) else {
+                animate(added.layer, "opacity", from: 0, duration: fades)
+                return
+            }
+            if let colour = added.backgroundColor, colour != .clear {
+                animate(added.layer, "backgroundColor", from: colour.withAlphaComponent(0).cgColor, duration: fades)
+            }
+            added.subviews.forEach(fadeIn)
+        }
         for added in inserted where !(added.superview.map { insertedIds.contains(ObjectIdentifier($0)) } ?? false) {
-            fadeInInserted(added, pairedNew: pairedNew, animator: fadeIn, running: running)
+            fadeIn(added)
         }
 
         // Views that stay go to their new places and sizes.
         for record in records.values where present.contains(ObjectIdentifier(record.view)) {
             let stays = record.view
             if let label = stays as? UILabel, let before = record.fontSize, abs(before - label.font.pointSize) > 0.5 {
-                let base = label.transform
                 let target = label.superview?.convert(label.frame, to: view) ?? label.frame
-                label.transform = base.concatenating(morph(from: record.frameOnScreen, to: target, uniform: true))
-                main.addAnimations { label.transform = base }
-                running.cleanup.append { label.transform = base }
-            } else if record.superview === stays.superview, record.frame != stays.frame {
-                let final = stays.frame
-                stays.frame = record.frame
-                main.addAnimations { stays.frame = final }
+                let move = morph(from: record.frameOnScreen, to: target, uniform: true)
+                animate(label.layer, "transform", from: CATransform3DMakeAffineTransform(label.transform.concatenating(move)))
+            } else if record.superview === stays.superview, record.frame != stays.frame, stays.transform.isIdentity {
+                animate(stays.layer, "position", from: CGPoint(x: record.frame.midX, y: record.frame.midY))
+                if record.frame.size != stays.frame.size {
+                    animate(stays.layer, "bounds.size", from: record.frame.size)
+                }
             }
             if let before = record.backgroundColor, let now = stays.backgroundColor, !before.isEqual(now) {
-                stays.backgroundColor = before
-                main.addAnimations { stays.backgroundColor = now }
-            }
-            if let label = stays as? UILabel, let before = record.textColor, !before.isEqual(label.textColor) {
-                let now = label.textColor
-                label.textColor = before
-                UIView.transition(with: label, duration: spec.duration * 0.6, options: [.transitionCrossDissolve, .allowAnimatedContent]) { label.textColor = now }
+                animate(stays.layer, "backgroundColor", from: before.cgColor, spring: false)
             }
         }
 
-        main.addCompletion { _ in running.finish() }
+        travel.addCompletion { _ in running.finish() }
         fadeOut.startAnimation()
-        fadeIn.startAnimation()
-        main.startAnimation()
+        travel.startAnimation()
+        // The springs settle a little after `duration`; the views are already
+        // where the screen draws them, so finishing then changes nothing.
+        DispatchQueue.main.asyncAfter(deadline: .now() + spec.duration * 2) { running.finish() }
     }
 
     /// The transform that puts a view at `final` where `start` was: moved
@@ -7164,23 +7215,6 @@ extension CraftNativeScreenController {
         let dx = start.midX - final.midX
         let dy = start.midY - final.midY
         return CGAffineTransform(translationX: dx, y: dy).scaledBy(x: sx, y: sy)
-    }
-
-    private func fadeInInserted(_ view: UIView, pairedNew: Set<ObjectIdentifier>, animator: UIViewPropertyAnimator, running: CraftNativeRunningAnimation) {
-        if pairedNew.contains(ObjectIdentifier(view)) { return }
-        guard containsShared(view, pairedNew: pairedNew) else {
-            let finalAlpha = view.alpha
-            view.alpha = 0
-            animator.addAnimations { view.alpha = finalAlpha }
-            running.cleanup.append { view.alpha = finalAlpha }
-            return
-        }
-        if let colour = view.backgroundColor, colour != .clear {
-            view.backgroundColor = colour.withAlphaComponent(0)
-            animator.addAnimations { view.backgroundColor = colour }
-            running.cleanup.append { view.backgroundColor = colour }
-        }
-        for child in view.subviews { fadeInInserted(child, pairedNew: pairedNew, animator: animator, running: running) }
     }
 
     private func containsShared(_ view: UIView, pairedNew: Set<ObjectIdentifier>) -> Bool {
