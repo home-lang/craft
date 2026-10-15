@@ -478,6 +478,28 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(controller.navigationItem.title, "Today")
     }
 
+    func testNavigationBarSolidUsesTheScreenColourAndCanReset() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let navigation = UINavigationController(rootViewController: controller)
+        navigation.loadViewIfNeeded()
+        controller.loadViewIfNeeded()
+
+        controller.evaluateScript("craft.navigation.setOptions({ backgroundColor: '#123456', navigationBarSolid: true })")
+        let solid = try XCTUnwrap(controller.navigationItem.standardAppearance)
+        XCTAssertNil(solid.backgroundEffect)
+        XCTAssertEqual(solid.shadowColor, .clear)
+        XCTAssertTrue(solid.backgroundColor?.isEqual(UIColor(red: 0x12 / 255, green: 0x34 / 255, blue: 0x56 / 255, alpha: 1)) == true)
+        XCTAssertNotNil(controller.navigationItem.scrollEdgeAppearance)
+        XCTAssertNotNil(controller.navigationItem.compactAppearance)
+        XCTAssertNotNil(controller.navigationItem.compactScrollEdgeAppearance)
+
+        controller.evaluateScript("craft.navigation.setOptions({ navigationBarSolid: false })")
+        XCTAssertNil(controller.navigationItem.standardAppearance)
+        XCTAssertNil(controller.navigationItem.scrollEdgeAppearance)
+        XCTAssertNil(controller.navigationItem.compactAppearance)
+        XCTAssertNil(controller.navigationItem.compactScrollEdgeAppearance)
+    }
+
     func testAProgressFillTakesItsShareOnceItsGrowArrives() throws {
         // HQ's week bar: the shares arrive as a style binding after the first
         // render, 78 to the fill and 22 to the rest of the track.

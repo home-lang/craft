@@ -1532,7 +1532,12 @@ describe('Craft iOS builder', () => {
     // A screen's own colour reaches under the status bar and home indicator,
     // and survives a change of appearance.
     expect(screen).toContain('screenBackgroundColor = color(options["backgroundColor"])')
-    expect(screen).toContain('view.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor\n        if let document')
+    expect(screen).toContain('view.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor')
+    expect(screen).toContain('if let document = mutationDocument.node("root")')
+    expect(screen).toContain('if let solid = options["navigationBarSolid"] as? Bool {')
+    expect(screen).toContain('appearance.configureWithOpaqueBackground()')
+    expect(screen).toContain('appearance.shadowColor = .clear')
+    expect(screen).toContain('navigationItem.compactScrollEdgeAppearance = appearance')
     // A screen that starts with its scroll view runs edge to edge, so what
     // scrolls up goes under the bar, not over its back button; the bottom
     // stays unclipped, under the floating tab bar.

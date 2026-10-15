@@ -3740,6 +3740,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             // a screen that hid its own.
             navigationController?.setNavigationBarHidden(false, animated: animated)
         }
+        applyNavigationBarAppearance()
         // Each screen says whether it wants the tab bar, so one that hid it
         // never leaves it hidden for the next.
         CraftChrome.shared.setHiddenByScreen(tabBarHidden)
@@ -3825,6 +3826,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func refreshTraitDefaults() {
         view.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor
+        applyNavigationBarAppearance()
         if let document = mutationDocument.node("root") {
             renderCommitted(document)
         } else {
@@ -4056,7 +4058,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// - `craft.secureStorage.getSync(key)`: the Keychain item the web page's
     ///   `craft.secureStorage.set` wrote.
     /// - `craft.navigation.setOptions({ title, largeTitle, hidden, backTitle,
-    ///   tabBarHidden, swipeBack, contentSwipeBack, tabSwipeEnabled, backgroundColor, rightButtons })`;
+    ///   tabBarHidden, swipeBack, contentSwipeBack, tabSwipeEnabled,
+    ///   backgroundColor, navigationBarSolid, rightButtons })`;
     ///   a right button's tap is the event `navButton`.
     ///
     /// A runtime that assigns `craft.storage` (or the others) afterwards keeps
@@ -4324,6 +4327,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// own horizontal pager or chart gesture.
     private(set) var tabSwipeEnabled = true
     private var prefersLargeTitle: Bool?
+    /// Whether this screen opts into an opaque navigation bar filled with its
+    /// own background colour. The default keeps UIKit's material appearance.
+    private var navigationBarSolid = false
     /// The screen's own colour (`backgroundColor`), under the status bar and
     /// the home indicator too, where its content never reaches: a black
     /// full-screen timer is black edge to edge. nil is the app's.
@@ -4383,6 +4389,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             screenBackgroundColor = color(options["backgroundColor"])
             view.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor
         }
+        if let solid = options["navigationBarSolid"] as? Bool {
+            navigationBarSolid = solid
+        }
         if let hidden = options["hidden"] as? Bool {
             navigationBarHidden = hidden
             if navigationController?.topViewController === self {
@@ -4393,11 +4402,34 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let buttons = (options["rightButtons"] as? [[String: Any]]) ?? []
             navigationItem.rightBarButtonItems = buttons.compactMap(navigationButton).reversed()
         }
+        if options.keys.contains("backgroundColor") || options.keys.contains("navigationBarSolid") {
+            applyNavigationBarAppearance()
+        }
         // Asked for after the bar was hidden for a bare root screen.
         if navigationBarHidden == nil, wantsNavigationBar, navigationController?.topViewController === self,
            navigationController?.isNavigationBarHidden == true {
             navigationController?.setNavigationBarHidden(false, animated: view.window != nil)
         }
+    }
+
+    /// Applies the screen's optional opaque bar without changing the default
+    /// UIKit material when the screen did not opt in.
+    private func applyNavigationBarAppearance() {
+        guard navigationBarSolid else {
+            navigationItem.standardAppearance = nil
+            navigationItem.scrollEdgeAppearance = nil
+            navigationItem.compactAppearance = nil
+            navigationItem.compactScrollEdgeAppearance = nil
+            return
+        }
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor
+        appearance.shadowColor = .clear
+        navigationItem.standardAppearance = appearance
+        navigationItem.scrollEdgeAppearance = appearance
+        navigationItem.compactAppearance = appearance
+        navigationItem.compactScrollEdgeAppearance = appearance
     }
 
     private func applyStatusBar(_ props: [String: Any]) {
