@@ -119,6 +119,26 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
     }
 
+    func testMultipleFloatingNavigationButtonsStayIndependent() {
+        let app = XCUIApplication()
+        app.launch()
+        let messages = app.buttons["fixture-messages"]
+        let account = app.buttons["fixture-account"]
+        XCTAssertTrue(messages.waitForExistence(timeout: 10))
+        XCTAssertTrue(account.waitForExistence(timeout: 10))
+
+        let window = app.windows.firstMatch.frame
+        for button in [messages, account] {
+            XCTAssertGreaterThanOrEqual(button.frame.width, 36, "navigation button became too narrow")
+            XCTAssertLessThanOrEqual(button.frame.width, 52, "navigation button grew into a shared slab")
+            XCTAssertGreaterThanOrEqual(button.frame.height, 36, "navigation button became too short")
+            XCTAssertLessThanOrEqual(button.frame.height, 52, "navigation button grew vertically")
+            XCTAssertGreaterThanOrEqual(button.frame.minX, window.minX - 1)
+            XCTAssertLessThanOrEqual(button.frame.maxX, window.maxX + 1, "navigation button ran past the screen edge")
+        }
+        XCTAssertNotEqual(messages.frame, account.frame, "adjacent buttons collapsed into one surface")
+    }
+
     func testNativeLinkOpensRoute() {
         let app = XCUIApplication()
         app.launch()

@@ -63,6 +63,14 @@ const navigationRowsReordered = state(false)
 const sectionScrolls = state(0)
 
 globalThis.craft.storage.remove('native-navigation-details-destroyed')
+globalThis.craft.navigation.setOptions({
+  title: 'Home',
+  largeTitle: true,
+  rightButtons: [
+    { id: 'fixture-messages', symbol: 'bubble.left', variant: 'accent', badge: 3, accessibilityLabel: 'Messages' },
+    { id: 'fixture-account', title: 'CB', variant: 'account', badge: 1, badgeStyle: 'dot', accessibilityLabel: 'Account' },
+  ],
+})
 
 function incrementNavigation() {
   navigationCount.update(value => value + 1)

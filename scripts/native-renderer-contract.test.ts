@@ -1839,6 +1839,14 @@ describe('native renderer component contract', () => {
     expect(navigationDetails).toContain('testID="load-more-people"')
   })
 
+  it('exercises independent floating iOS navigation buttons in the maintained fixture', () => {
+    expect(navigationHome).toContain("id: 'fixture-messages'")
+    expect(navigationHome).toContain("id: 'fixture-account'")
+    expect(iosNavigationTest).toContain('testMultipleFloatingNavigationButtonsStayIndependent')
+    expect(iosNavigationTest).toContain('navigation button grew into a shared slab')
+    expect(iosNavigationTest).toContain('navigation button ran past the screen edge')
+  })
+
   it('keeps SectionList on the maintained native scroll path', () => {
     expect(navigationHome).toContain('<SectionList testID="native-section-list"')
     expect(ios).toContain('case "ScrollView", "SectionList":')
