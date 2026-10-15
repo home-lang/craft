@@ -577,8 +577,18 @@ class NativeNavigationTest {
             val independentGapFirst = awaitView(activity, "independent-gap-first")
             val independentGapSecond = awaitView(activity, "independent-gap-second")
             val independentGapThird = awaitView(activity, "independent-gap-third")
-            assertEquals("column gap was not shared through the native layout ABI", (50 * density).toInt(), independentGapSecond.left - independentGapFirst.left)
-            assertEquals("row gap was not shared through the native layout ABI", (22 * density).toInt(), independentGapThird.top - independentGapFirst.top)
+            assertEquals(
+                "column gap was not shared through the native layout ABI",
+                50.0 * density,
+                (independentGapSecond.left - independentGapFirst.left).toDouble(),
+                1.0,
+            )
+            assertEquals(
+                "row gap was not shared through the native layout ABI",
+                22.0 * density,
+                (independentGapThird.top - independentGapFirst.top).toDouble(),
+                1.0,
+            )
             val nestedSharedColumn = awaitView(activity, "nested-shared-column")
             val nestedSharedFirst = awaitView(activity, "nested-shared-first")
             val nestedSharedSecond = awaitView(activity, "nested-shared-second")

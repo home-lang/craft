@@ -53,6 +53,9 @@ pull-to-refresh interception is disabled, so nested horizontal carousels still
 receive their own gestures.
 The root overflow assertion also resolves the underlying `ScrollView` through
 the wrapper rather than casting the `CraftNativeScrollView` test-ID host.
+Pixel-sensitive gap assertions compare density-scaled points with a one-pixel
+tolerance, so fractional Android densities do not turn correct native rounding
+into a fixture failure.
 The Android tab shell also defers swipe tracking at touch-down over a native
 horizontal scroller and disallows ancestor interception for that sequence,
 letting that child receive the complete gesture.

@@ -1222,6 +1222,8 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('chrome.onTabSwipeEnd?.invoke(deltaX, false)')
     expect(androidNavigationTest).toContain('val rootScroll = findType(rootHost, ScrollView::class.java)')
     expect(androidNavigationReadme).toContain('resolves the underlying `ScrollView` through')
+    expect(androidNavigationTest).toContain('22.0 * density')
+    expect(androidNavigationReadme).toContain('fractional Android densities')
     expect(navigationHome).toContain('testID="nested-shared-column"')
     expect(navigationHome).toContain('testID="nested-percent-child"')
     expect(navigationHome).toContain('testID="nested-grid"')
