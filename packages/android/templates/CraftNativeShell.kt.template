@@ -571,6 +571,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     val content = FrameLayout(context)
     private val bar = LinearLayout(context)
     private val backButton = ImageView(context)
+    private val leadingButtons = LinearLayout(context)
     private val titleView = TextView(context)
     private val largeTitleView = TextView(context)
     private val buttons = LinearLayout(context)
@@ -609,6 +610,9 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         backButton.background = rippleBackground()
         backButton.setOnClickListener { onBack?.invoke() }
         bar.addView(backButton, LayoutParams(dp(48), dp(48)))
+        leadingButtons.orientation = HORIZONTAL
+        leadingButtons.gravity = Gravity.CENTER_VERTICAL
+        bar.addView(leadingButtons, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(56)))
         titleView.textSize = 20f
         titleView.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         titleView.isSingleLine = true
@@ -717,6 +721,12 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         largeTitleView.text = title
         largeTitleView.visibility = if (!hidden && large && title.isNotBlank()) View.VISIBLE else View.GONE
         buttons.removeAllViews()
+        leadingButtons.removeAllViews()
+        val leading = options.optJSONArray("leftButtons") ?: JSONArray()
+        for (index in 0 until leading.length()) {
+            val button = leading.optJSONObject(index) ?: continue
+            leadingButtons.addView(navButton(button))
+        }
         val list = options.optJSONArray("rightButtons") ?: JSONArray()
         for (index in 0 until list.length()) {
             val button = list.optJSONObject(index) ?: continue
@@ -796,7 +806,6 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             icon.foreground = vector
             icon.text = if (vector != null) "" else number ?: CraftNativeSymbols.glyph(tabs[index].symbol)
         }
-        for (index in 0 until buttons.childCount) (buttons.getChildAt(index) as? TextView)?.setTextColor(accent)
     }
 
     private fun navButton(button: JSONObject): View {
@@ -805,7 +814,8 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         val symbol = button.optString("symbol")
         val view = TextView(context)
         val dark = Color.luminance(ContextCompat.getColor(context, R.color.background)) < 0.5
-        val tint = button.optString("color").takeIf { it.isNotBlank() }?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: accentColor(dark)
+        val defaultTint = if (button.optString("variant") == "neutral") { if (dark) Color.WHITE else Color.parseColor("#1C1C1E") } else accentColor(dark)
+        val tint = button.optString("color").takeIf { it.isNotBlank() }?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: defaultTint
         val vector = if (symbol.isNotBlank()) CraftNativeIcons.drawable(context, null, symbol, tint) else null
         view.text = if (vector != null) "" else if (symbol.isNotBlank()) CraftNativeSymbols.glyph(symbol) else title
         view.textSize = if (symbol.isNotBlank()) 22f else 16f
