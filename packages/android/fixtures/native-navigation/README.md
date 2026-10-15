@@ -41,6 +41,9 @@ keeping malformed calls consistent across both native hosts.
 The shared Home route uses the STX signal and lifecycle APIs supplied by the
 shared runtime. Mutable values use `state()`, and `onDestroy` records route
 teardown when Android Back or replace closes a screen.
+Home also supplies the same two right navigation buttons as the iOS fixture,
+so the native shell exercises the shared `rightButtons` contract while the
+platform-specific iOS UI gate checks their floating geometry.
 The native form coverage also keeps a keyed input's draft while changing its
 single-line/multiline mode, recreating the incompatible platform control, and
 the iOS fixture runs the same mode-transition and recycled-row assertions.
