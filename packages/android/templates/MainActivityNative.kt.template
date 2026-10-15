@@ -3320,7 +3320,7 @@ class MainActivity : AppCompatActivity() {
         val target = ensureTabRoot(targetIndex) ?: return false
         val host = chrome?.content ?: return false
         if (target === current || host.width <= 0) return false
-        if (horizontalScrollCanConsume(current.view, host, x, y, dx)) return false
+        if (horizontalScrollCanConsume(current.view, x - current.view.left, y - host.top - current.view.top, dx)) return false
         (target.view.parent as? ViewGroup)?.removeView(target.view)
         host.addView(target.view, FrameLayout.LayoutParams(-1, -1))
         target.view.translationX = if (direction > 0) host.width.toFloat() else -host.width.toFloat()
@@ -3375,15 +3375,18 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun horizontalScrollCanConsume(view: View, host: ViewGroup, x: Float, y: Float, dx: Float): Boolean {
-        val localX = x - view.left
-        val localY = y - host.top - view.top
-        if (view !is ViewGroup || localX < 0 || localY < 0 || localX > view.width || localY > view.height) return false
+    /**
+     * Returns true when the exact gesture point is over a horizontal child
+     * that still has room in the gesture's direction. Coordinates are local
+     * to `view`; recursive calls must not re-apply the chrome/content offset.
+     */
+    private fun horizontalScrollCanConsume(view: View, x: Float, y: Float, dx: Float): Boolean {
+        if (view !is ViewGroup || x < 0 || y < 0 || x > view.width || y > view.height) return false
         for (index in view.childCount - 1 downTo 0) {
             val child = view.getChildAt(index)
-            if (!child.isShown || localX < child.left || localX > child.right || localY < child.top || localY > child.bottom) continue
+            if (!child.isShown || x < child.left || x > child.right || y < child.top || y > child.bottom) continue
             if (child is android.widget.HorizontalScrollView && child.canScrollHorizontally(if (dx < 0) 1 else -1)) return true
-            if (horizontalScrollCanConsume(child, host, localX - child.left, localY - child.top, dx)) return true
+            if (horizontalScrollCanConsume(child, x - child.left, y - child.top, dx)) return true
         }
         return false
     }

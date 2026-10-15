@@ -138,7 +138,11 @@ class NativeNavigationTest {
         val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
             ?: throw AssertionError("native chrome did not mount")
         val downTime = SystemClock.uptimeMillis()
-        val y = chrome.content.top + chrome.content.height / 2f
+        // Keep the tab gesture outside the fixture's horizontal carousel. The
+        // renderer must let a nested carousel consume its own swipe, so using
+        // a generic midpoint here makes the follow-up tab assertion depend on
+        // the screen's measured content distribution.
+        val y = chrome.content.top + chrome.content.height * 0.85f
         val startX = if (left) chrome.width * 0.8f else chrome.width * 0.2f
         val endX = if (left) chrome.width * 0.2f else chrome.width * 0.8f
         instrumentation.runOnMainSync {
