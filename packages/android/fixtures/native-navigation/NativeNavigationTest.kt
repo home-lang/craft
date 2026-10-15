@@ -184,38 +184,27 @@ class NativeNavigationTest {
     }
 
     private fun swipeHorizontalCarousel(activity: MainActivity, left: Boolean) {
-        val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
-            ?: throw AssertionError("native chrome did not mount")
         val carousel = awaitHorizontalScroller(activity, "tab-swipe-carousel")
-        val chromeLocation = IntArray(2)
         val carouselLocation = IntArray(2)
-        chrome.getLocationOnScreen(chromeLocation)
         carousel.getLocationOnScreen(carouselLocation)
-        val y = carouselLocation[1] - chromeLocation[1] + carousel.height / 2f
-        val startX = carouselLocation[0] - chromeLocation[0] + if (left) carousel.width * 0.8f else carousel.width * 0.2f
-        val endX = carouselLocation[0] - chromeLocation[0] + if (left) carousel.width * 0.2f else carousel.width * 0.8f
+        val y = carouselLocation[1] + carousel.height / 2f
+        val startX = carouselLocation[0] + if (left) carousel.width * 0.8f else carousel.width * 0.2f
+        val endX = carouselLocation[0] + if (left) carousel.width * 0.2f else carousel.width * 0.8f
         val downTime = SystemClock.uptimeMillis()
-        instrumentation.runOnMainSync {
-            val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, startX, y, 0)
-            chrome.dispatchTouchEvent(down)
-            down.recycle()
-            repeat(8) { step ->
-                val progress = (step + 1) / 8f
-                val move = MotionEvent.obtain(
-                    downTime,
-                    downTime + (step + 1) * 16L,
-                    MotionEvent.ACTION_MOVE,
-                    startX + (endX - startX) * progress,
-                    y,
-                    0,
-                )
-                chrome.dispatchTouchEvent(move)
-                move.recycle()
+        fun send(action: Int, eventTime: Long, x: Float) {
+            val event = MotionEvent.obtain(downTime, eventTime, action, x, y, 0).apply {
+                source = android.view.InputDevice.SOURCE_TOUCHSCREEN
             }
-            val up = MotionEvent.obtain(downTime, downTime + 144, MotionEvent.ACTION_UP, endX, y, 0)
-            chrome.dispatchTouchEvent(up)
-            up.recycle()
+            instrumentation.sendPointerSync(event)
+            event.recycle()
         }
+        send(MotionEvent.ACTION_DOWN, downTime, startX)
+        repeat(8) { step ->
+            SystemClock.sleep(16)
+            val progress = (step + 1) / 8f
+            send(MotionEvent.ACTION_MOVE, SystemClock.uptimeMillis(), startX + (endX - startX) * progress)
+        }
+        send(MotionEvent.ACTION_UP, SystemClock.uptimeMillis(), endX)
     }
 
     private fun awaitText(activity: MainActivity, id: String, expected: String): TextView {
