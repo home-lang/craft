@@ -56,8 +56,8 @@ the wrapper rather than casting the `CraftNativeScrollView` test-ID host.
 Pixel-sensitive gap assertions compare density-scaled points with a one-pixel
 tolerance, so fractional Android densities do not turn correct native rounding
 into a fixture failure.
-That tolerance covers both the direct wrapped-line gaps and the nested flex
-container measurements in the shared-layout fixture.
+That tolerance covers direct wrapped-line gaps, nested flex-container
+measurements, and percentage child sizes in the shared-layout fixture.
 The Android tab shell also defers swipe tracking at touch-down over a native
 horizontal scroller and disallows ancestor interception for that sequence,
 letting that child receive the complete gesture.

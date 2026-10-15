@@ -608,8 +608,18 @@ class NativeNavigationTest {
             val nestedPercentParent = awaitView(activity, "nested-percent-parent")
             val nestedPercentChild = awaitView(activity, "nested-percent-child")
             assertEquals((80 * density).toInt(), nestedPercentParent.width)
-            assertEquals("nested percentage width used the outer parent", (36 * density).toInt(), nestedPercentChild.width)
-            assertEquals("nested percentage height used the outer parent", (26 * density).toInt(), nestedPercentChild.height)
+            assertEquals(
+                "nested percentage width used the outer parent",
+                36.0 * density,
+                nestedPercentChild.width.toDouble(),
+                1.0,
+            )
+            assertEquals(
+                "nested percentage height used the outer parent",
+                26.0 * density,
+                nestedPercentChild.height.toDouble(),
+                1.0,
+            )
             val nestedGrid = awaitView(activity, "nested-grid")
             val nestedGridFirst = awaitView(activity, "nested-grid-first")
             val nestedGridSecond = awaitView(activity, "nested-grid-second")

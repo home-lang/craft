@@ -1224,6 +1224,8 @@ describe('native renderer component contract', () => {
     expect(androidNavigationReadme).toContain('resolves the underlying `ScrollView` through')
     expect(androidNavigationTest).toContain('22.0 * density')
     expect(androidNavigationTest).toContain('18.0 * density')
+    expect(androidNavigationTest).toContain('36.0 * density')
+    expect(androidNavigationTest).toContain('26.0 * density')
     expect(androidNavigationReadme).toContain('fractional Android densities')
     expect(navigationHome).toContain('testID="nested-shared-column"')
     expect(navigationHome).toContain('testID="nested-percent-child"')
