@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.183...v0.0.184)
+
+## 🐛 Bug Fixes
+
+- **ios**: a labelled scroll view or group keeps its content for VoiceOver ([5e1c1d9](https://github.com/craft-native/craft/commit/5e1c1d9)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.182...v0.0.183)
 
 ## 🐛 Bug Fixes
