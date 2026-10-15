@@ -193,6 +193,23 @@ class NativeNavigationTest {
         throw AssertionError("Timed out waiting for $id to read $expected")
     }
 
+    private fun awaitLayoutWidth(activity: MainActivity, id: String, expected: Double): Double {
+        val density = activity.resources.displayMetrics.density.toDouble()
+        var actual = ""
+        repeat(75) {
+            var reported: Double? = null
+            instrumentation.runOnMainSync {
+                actual = (find(activity.window.decorView, id) as? TextView)?.text?.toString().orEmpty()
+                reported = actual.removePrefix("Layout width: ").toDoubleOrNull()
+            }
+            // Native layout uses whole physical pixels. At fractional display
+            // densities, a logical 180dp need not report the integer 180.
+            if (reported != null && kotlin.math.abs(reported!! - expected) < 1.0 / density) return reported!!
+            SystemClock.sleep(100)
+        }
+        throw AssertionError("Timed out waiting for $id near $expected dp; got '$actual' at density $density")
+    }
+
     private fun awaitProgressBar(
         activity: MainActivity,
         id: String,
@@ -787,9 +804,11 @@ class NativeNavigationTest {
             val displayNoneIndicator = awaitProgressBar(activity, "display-none-indicator", "hidden") { it.visibility == View.GONE }
             assertEquals("display:none should hide an activity indicator", View.GONE, displayNoneIndicator.visibility)
             val wrapped = awaitView(activity, "layout-wrap") as LinearLayout
-            assertEquals("Layout width: 240", (awaitView(activity, "layout-status") as TextView).text.toString())
+            awaitLayoutWidth(activity, "layout-status", 240.0)
             click(activity, "toggle-layout-width")
-            awaitText(activity, "layout-status", "Layout width: 180")
+            val reportedWidth = awaitLayoutWidth(activity, "layout-status", 180.0)
+            assertEquals("layout event must describe the actual native frame", wrapped.width.toDouble() / density.toDouble(), reportedWidth, 0.000001)
+            assertEquals("native frame must resize within one physical pixel", 180.0 * density.toDouble(), wrapped.width.toDouble(), 1.0)
             awaitText(activity, "hidden-layout-status", "Hidden layout events: 0")
             val bounded = awaitView(activity, "layout-min")
             val absolute = awaitView(activity, "layout-absolute")
