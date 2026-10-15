@@ -3320,7 +3320,9 @@ class MainActivity : AppCompatActivity() {
         val target = ensureTabRoot(targetIndex) ?: return false
         val host = chrome?.content ?: return false
         if (target === current || host.width <= 0) return false
-        if (horizontalScrollCanConsume(current.view, x - current.view.left, y - host.top - current.view.top, dx)) return false
+        val chromeLocation = IntArray(2)
+        chrome?.getLocationOnScreen(chromeLocation)
+        if (horizontalScrollCanConsume(current.view, chromeLocation[0] + x, chromeLocation[1] + y, dx)) return false
         (target.view.parent as? ViewGroup)?.removeView(target.view)
         host.addView(target.view, FrameLayout.LayoutParams(-1, -1))
         target.view.translationX = if (direction > 0) host.width.toFloat() else -host.width.toFloat()
@@ -3376,17 +3378,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Returns true when the exact gesture point is over a horizontal child
-     * that still has room in the gesture's direction. Coordinates are local
-     * to `view`; recursive calls must not re-apply the chrome/content offset.
+     * Returns true when the exact screen gesture point is over a horizontal
+     * child that still has room in the gesture's direction. Screen coordinates
+     * keep nested scroll offsets and translated parents out of the calculation.
      */
-    private fun horizontalScrollCanConsume(view: View, x: Float, y: Float, dx: Float): Boolean {
-        if (view !is ViewGroup || x < 0 || y < 0 || x > view.width || y > view.height) return false
+    private fun horizontalScrollCanConsume(view: View, screenX: Float, screenY: Float, dx: Float): Boolean {
+        if (!view.isShown) return false
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        if (screenX < location[0] || screenY < location[1]
+            || screenX > location[0] + view.width || screenY > location[1] + view.height) return false
+        if (view is android.widget.HorizontalScrollView && view.canScrollHorizontally(if (dx < 0) 1 else -1)) return true
+        if (view !is ViewGroup) return false
         for (index in view.childCount - 1 downTo 0) {
-            val child = view.getChildAt(index)
-            if (!child.isShown || x < child.left || x > child.right || y < child.top || y > child.bottom) continue
-            if (child is android.widget.HorizontalScrollView && child.canScrollHorizontally(if (dx < 0) 1 else -1)) return true
-            if (horizontalScrollCanConsume(child, x - child.left, y - child.top, dx)) return true
+            if (horizontalScrollCanConsume(view.getChildAt(index), screenX, screenY, dx)) return true
         }
         return false
     }
