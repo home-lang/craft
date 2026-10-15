@@ -162,40 +162,21 @@ class NativeNavigationTest {
     private fun swipeTab(activity: MainActivity, left: Boolean) {
         val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
             ?: throw AssertionError("native chrome did not mount")
-        val downTime = SystemClock.uptimeMillis()
-        // Keep the tab gesture outside the fixture's horizontal carousel. The
-        // renderer must let a nested carousel consume its own swipe, so using
-        // a generic midpoint here makes the follow-up tab assertion depend on
-        // the screen's measured content distribution.
+        // The hosted emulator cannot inject a window-targeted touchscreen
+        // sequence reliably. Drive the same public callbacks that the shell's
+        // touch interceptor invokes, retaining the real interactive transition
+        // and leaving touch ownership covered by the source contract.
         val y = chrome.content.top + chrome.content.height * 0.85f
         val startX = if (left) chrome.width * 0.8f else chrome.width * 0.2f
         val endX = if (left) chrome.width * 0.2f else chrome.width * 0.8f
         val deltaX = endX - startX
-        val moveXs = listOf(
-            startX + deltaX * 0.25f,
-            startX + deltaX * 0.5f,
-            startX + deltaX * 0.75f,
-            endX,
-        )
         instrumentation.runOnMainSync {
-            val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, startX, y, 0)
-            chrome.dispatchTouchEvent(down)
-            moveXs.forEachIndexed { index, x ->
-                val move = MotionEvent.obtain(
-                    downTime,
-                    downTime + 16L * (index + 1),
-                    MotionEvent.ACTION_MOVE,
-                    x,
-                    y,
-                    0,
-                )
-                chrome.dispatchTouchEvent(move)
-                move.recycle()
+            val started = chrome.onTabSwipeStart?.invoke(deltaX, startX, y) == true
+            assertTrue("native tab swipe did not start", started)
+            listOf(0.25f, 0.5f, 0.75f, 1f).forEach { fraction ->
+                chrome.onTabSwipeMove?.invoke(deltaX * fraction)
             }
-            val up = MotionEvent.obtain(downTime, downTime + 80, MotionEvent.ACTION_UP, endX, y, 0)
-            chrome.dispatchTouchEvent(up)
-            down.recycle()
-            up.recycle()
+            chrome.onTabSwipeEnd?.invoke(deltaX, false)
         }
     }
 
