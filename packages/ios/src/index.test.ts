@@ -1539,6 +1539,7 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('appearance.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor')
     expect(screen).toContain('appearance.shadowColor = .clear')
     expect(screen).toContain('navigationItem.compactScrollEdgeAppearance = appearance')
+    expect(readFileSync(join(import.meta.dir, '..', 'fixtures/native-screen/NativeLayoutUnitTests.swift'), 'utf8')).toContain('light.isEqual(UIColor.white)')
     // A screen that starts with its scroll view runs edge to edge, so what
     // scrolls up goes under the bar, not over its back button; the bottom
     // stays unclipped, under the floating tab bar.

@@ -513,7 +513,7 @@ final class NativeLayoutUnitTests: XCTestCase {
         let appearance = try XCTUnwrap(controller.navigationItem.standardAppearance)
         let light = try XCTUnwrap(appearance.backgroundColor).resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
         let dark = try XCTUnwrap(appearance.backgroundColor).resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
-        XCTAssertTrue(light.isEqual(.white))
+        XCTAssertTrue(light.isEqual(UIColor.white))
         XCTAssertTrue(dark.isEqual(UIColor(red: 0x10 / 255, green: 0x18 / 255, blue: 0x20 / 255, alpha: 1)))
     }
 

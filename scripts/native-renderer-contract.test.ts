@@ -2295,6 +2295,7 @@ describe('native renderer component contract', () => {
     expect(nativeScreen).toContain('if let tabSwipeEnabled = options["tabSwipeEnabled"] as? Bool {')
     expect(nativeScreen).toContain('private var navigationBarSolid = false')
     expect(nativeScreen).toContain('appearance.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor')
+    expect(iosLayoutUnitTests).toContain('light.isEqual(UIColor.white)')
     expect(hybrid).toContain('let recognizer = UIPanGestureRecognizer(target: self, action: #selector(tabSwipeRecognized(_:)))')
     expect(hybrid).toContain('beginInteractiveTabSwipe(to: tabs[next], direction: direction < 0 ? -1 : 1)')
     expect(hybrid).toContain('updateInteractiveTabSwipe(translation: translation)')
