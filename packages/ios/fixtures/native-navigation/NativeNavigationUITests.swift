@@ -640,6 +640,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(nestedReverseSecond.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(nestedReverseFirst.frame.minY, nestedReverseSecond.frame.minY, "nested reverse flow did not use the shared v2 tree ABI")
         XCTAssertEqual(nestedReverseSibling.frame.minX - app.otherElements["nested-reverse"].frame.minX, 56, accuracy: 2, "nested reverse parent placement was not preserved")
+        let nestedWrapReverseFirst = app.staticTexts["nested-wrap-reverse-first"]
+        let nestedWrapReverseSecond = app.staticTexts["nested-wrap-reverse-second"]
+        let nestedWrapReverseSibling = app.otherElements["nested-wrap-reverse-sibling"]
+        XCTAssertTrue(nestedWrapReverseSecond.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(nestedWrapReverseFirst.frame.minY, nestedWrapReverseSecond.frame.minY, "nested wrap-reverse flow did not use the shared v3 tree ABI")
+        XCTAssertEqual(nestedWrapReverseSibling.frame.minX - app.otherElements["nested-wrap-reverse"].frame.minX, 56, accuracy: 2, "nested wrap-reverse parent placement was not preserved")
         let absolute = app.otherElements["layout-absolute"]
         XCTAssertTrue(absolute.exists)
         XCTAssertLessThanOrEqual(absolute.frame.maxX, wrapped.frame.maxX - 8)

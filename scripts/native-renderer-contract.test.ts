@@ -1219,6 +1219,8 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="nested-grid-third"')
     expect(navigationHome).toContain('testID="nested-reverse-parent"')
     expect(navigationHome).toContain('flexDirection":"column-reverse"')
+    expect(navigationHome).toContain('testID="nested-wrap-reverse-parent"')
+    expect(navigationHome).toContain('flexWrap":"wrap-reverse"')
     expect(iosNavigationTest).toContain('nested percentage width used the outer parent')
     expect(androidNavigationTest).toContain('nested percentage height used the outer parent')
     expect(iosNavigationTest).toContain('nested column gap was not preserved')
@@ -1227,6 +1229,8 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('nested grid rows were not shared through the tree ABI')
     expect(iosNavigationTest).toContain('nested reverse flow did not use the shared v2 tree ABI')
     expect(androidNavigationTest).toContain('nested reverse flow did not use the shared v2 tree ABI')
+    expect(iosNavigationTest).toContain('nested wrap-reverse flow did not use the shared v3 tree ABI')
+    expect(androidNavigationTest).toContain('nested wrap-reverse flow did not use the shared v3 tree ABI')
   })
 
   it('sanitizes keyboard avoidance offsets before applying host geometry', () => {

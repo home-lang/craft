@@ -605,6 +605,12 @@ class NativeNavigationTest {
             val nestedReverseSibling = awaitView(activity, "nested-reverse-sibling")
             assertTrue("nested reverse flow did not use the shared v2 tree ABI", nestedReverseFirst.top > nestedReverseSecond.top)
             assertEquals("nested reverse parent placement was not preserved", (56 * density).toInt(), nestedReverseSibling.left - nestedReverse.left)
+            val nestedWrapReverse = awaitView(activity, "nested-wrap-reverse")
+            val nestedWrapReverseFirst = awaitView(activity, "nested-wrap-reverse-first")
+            val nestedWrapReverseSecond = awaitView(activity, "nested-wrap-reverse-second")
+            val nestedWrapReverseSibling = awaitView(activity, "nested-wrap-reverse-sibling")
+            assertTrue("nested wrap-reverse flow did not use the shared v3 tree ABI", nestedWrapReverseFirst.top > nestedWrapReverseSecond.top)
+            assertEquals("nested wrap-reverse parent placement was not preserved", (56 * density).toInt(), nestedWrapReverseSibling.left - nestedWrapReverse.left)
             val toggle = awaitView(activity, "native-switch")
             assertTrue("native switch should be an Android Switch", toggle is Switch)
             val nativeSwitch = toggle as Switch

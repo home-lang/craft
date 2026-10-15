@@ -714,6 +714,13 @@ function captureSectionScroll() {
       </View>
       <View testID="nested-reverse-sibling" style={{"width":24,"height":20,"backgroundColor":"#a8c0d8"}} />
     </View>
+    <View testID="nested-wrap-reverse-parent" style={{"width":100,"height":60,"flexDirection":"row","gap":8,"backgroundColor":"#3f5368"}}>
+      <View testID="nested-wrap-reverse" style={{"flexDirection":"row","flexWrap":"wrap-reverse","width":48,"height":44,"backgroundColor":"#5c7893"}}>
+        <Text testID="nested-wrap-reverse-first" style={{"width":40,"height":12}}>wrap first</Text>
+        <Text testID="nested-wrap-reverse-second" style={{"width":40,"height":12}}>wrap second</Text>
+      </View>
+      <View testID="nested-wrap-reverse-sibling" style={{"width":24,"height":20,"backgroundColor":"#b9cee2"}} />
+    </View>
     <Text testID="layout-status" :text="layoutWidth > 0 ? 'Layout width: ' + layoutWidth : 'layout pending'" />
     <View testID="hidden-layout-parent" style={{"display":"none"}}>
       <Text testID="hidden-layout-child" @layout="captureHiddenLayout()">Hidden child</Text>
