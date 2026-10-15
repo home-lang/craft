@@ -174,6 +174,12 @@ reversing each line's main-axis children, matching Android's native host.
 
 For multiple native screens, configure named `.stx` routes and an initial screen in `native.config.json` (see [`fixtures/native-navigation`](./fixtures/native-navigation)). Compile without a positional file: `stx native compile --format bundle --output ./screen.js`. A screen can call `craft.navigation.push('details', { id: 7 })`, `.replace('home')`, or `.back()`; the destination reads `craft.route.params`. Craft uses a native navigation stack, so the back button and edge-swipe reveal the existing controller and retain its JavaScript and input state. `bun packages/ios/scripts/test-native-navigation.ts` compiles the fixture and runs its simulator test; the default WebView renderer is unchanged.
 
+Hybrid web-to-web pushes use the same shared WebView across stack entries. The maintained [`fixtures/hybrid-navigation`](./fixtures/hybrid-navigation) fixture samples the outgoing page during the UIKit transition and is run by CI with:
+
+```bash
+bun packages/ios/scripts/test-hybrid-navigation.ts
+```
+
 Hybrid apps also get the shell's completed left/right tab swipe over the
 WebView. Disable that page-wide gesture with
 `craft.tabBar.set(tabs, { swipeEnabled: false })`; a native screen can still

@@ -35,6 +35,7 @@ const iosNavigationTest = readFileSync(join(root, 'packages/ios/fixtures/native-
 const navigationHome = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/Home.stx'), 'utf8')
 const navigationDetails = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/Details.stx'), 'utf8')
 const iosNavigationScript = readFileSync(join(root, 'packages/ios/scripts/test-native-navigation.ts'), 'utf8')
+const hybridNavigationScript = readFileSync(join(root, 'packages/ios/scripts/test-hybrid-navigation.ts'), 'utf8')
 const androidNavigationScript = readFileSync(join(root, 'packages/android/scripts/test-native-navigation.ts'), 'utf8')
 const iosNativeUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeRenderUnitTests.swift'), 'utf8')
 const iosMutation = readFileSync(join(root, 'packages/ios/templates/CraftNativeMutation.swift'), 'utf8')
@@ -49,6 +50,7 @@ const componentTypes = readFileSync(join(root, 'packages/typescript/src/componen
 const iosReadme = readFileSync(join(root, 'packages/ios/README.md'), 'utf8')
 const androidReadme = readFileSync(join(root, 'packages/android/README.md'), 'utf8')
 const iosNavigationReadme = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/README.md'), 'utf8')
+const hybridNavigationReadme = readFileSync(join(root, 'packages/ios/fixtures/hybrid-navigation/README.md'), 'utf8')
 const androidNavigationReadme = readFileSync(join(root, 'packages/android/fixtures/native-navigation/README.md'), 'utf8')
 const iosScreenReadme = readFileSync(join(root, 'packages/ios/fixtures/native-screen/README.md'), 'utf8')
 const mobileE2EWorkflow = readFileSync(join(root, '.github/workflows/mobile-e2e.yml'), 'utf8')
@@ -1909,6 +1911,15 @@ describe('native renderer component contract', () => {
     expect(androidTests).not.toContain('Rows laid out: ${initialRowLayouts + 1}')
     expect(iosNavigationScript).toContain("const prepareOnly = process.argv.includes('--prepare-only')")
     expect(iosNavigationScript).toContain("console.log('iOS native navigation fixture prepared')")
+  })
+
+  it('keeps the hybrid web transition fixture wired into iOS mobile E2E', () => {
+    expect(hybridNavigationScript).toContain("'HybridNative.stx'")
+    expect(hybridNavigationScript).toContain("'HybridNavigationUITests.swift'")
+    expect(hybridNavigationScript).toContain("console.log('Hybrid navigation simulator tests passed')")
+    expect(hybridNavigationReadme).toContain('outgoing page during the UIKit transition')
+    expect(mobileE2EWorkflow).toContain('Test hybrid web navigation transitions')
+    expect(mobileE2EWorkflow).toContain('packages/ios/scripts/test-hybrid-navigation.ts')
   })
 
   it('keeps variable FlatList row heights intrinsic on both hosts', () => {
