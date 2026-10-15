@@ -6332,9 +6332,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             view.accessibilityValue = nil
         }
         let role = props["accessibilityRole"] as? String
-        view.isAccessibilityElement = role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "DatePicker", "Switch", "Slider"].contains(type))
+        // A scroll view, a list or a group of controls holds what VoiceOver
+        // reads: its label names the group, as a tab strip or a pager's
+        // name, and never stands in for its content. As an element of its
+        // own, a labelled pager hid every page from VoiceOver.
+        let container = ["ScrollView", "FlatList", "SectionList"].contains(type)
+            || ["tablist", "radiogroup", "list", "menu", "menubar", "toolbar"].contains(role ?? "")
+        view.isAccessibilityElement = !container && role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "DatePicker", "Switch", "Slider"].contains(type))
+        view.accessibilityContainerType = container && view.accessibilityLabel != nil ? .semanticGroup : .none
         var traits: UIAccessibilityTraits = []
         switch role ?? type.lowercased() {
+        case "tablist": traits.insert(.tabBar)
         case "button", "checkbox": traits.insert(.button)
         case "image": traits.insert(.image)
         case "header": traits.insert(.header)
