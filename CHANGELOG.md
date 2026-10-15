@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.193...v0.0.194)
+
+## 🚀 Features
+
+- **android**: support leading neutral toolbar actions ([be29a1c](https://github.com/craft-native/craft/commit/be29a1c)) _(by Chris Breuer)_
+- **ios**: add leading and neutral native toolbar buttons ([9c6d536](https://github.com/craft-native/craft/commit/9c6d536)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.192...v0.0.193)
 
 ## 🐛 Bug Fixes
