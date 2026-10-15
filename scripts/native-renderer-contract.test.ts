@@ -1913,6 +1913,14 @@ describe('native renderer component contract', () => {
     expect(iosNavigationScript).toContain("console.log('iOS native navigation fixture prepared')")
   })
 
+  it('finds Android scroll controls through the native wrapper', () => {
+    expect(androidNavigationTest).toContain('private fun awaitHorizontalScroller(activity: MainActivity, id: String)')
+    expect(androidNavigationTest).toContain('findType(host, android.widget.HorizontalScrollView::class.java)')
+    expect(androidNavigationTest).not.toContain('awaitView(activity, "tab-swipe-carousel") as android.widget.HorizontalScrollView')
+    expect(android).toContain('private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context)')
+    expect(android).toContain('private val horizontal = HorizontalScrollView(context)')
+  })
+
   it('keeps the hybrid web transition fixture wired into iOS mobile E2E', () => {
     expect(hybridNavigationScript).toContain("'HybridNative.stx'")
     expect(hybridNavigationScript).toContain("'HybridNavigationUITests.swift'")

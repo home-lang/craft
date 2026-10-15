@@ -79,6 +79,12 @@ class NativeNavigationTest {
         return null
     }
 
+    private fun awaitHorizontalScroller(activity: MainActivity, id: String): android.widget.HorizontalScrollView {
+        val host = awaitView(activity, id)
+        return findType(host, android.widget.HorizontalScrollView::class.java)
+            ?: throw AssertionError("$id did not contain an Android HorizontalScrollView")
+    }
+
     private fun containsWebView(view: View): Boolean {
         if (view is WebView) return true
         if (view is ViewGroup) {
@@ -161,7 +167,7 @@ class NativeNavigationTest {
     private fun swipeHorizontalCarousel(activity: MainActivity, left: Boolean) {
         val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
             ?: throw AssertionError("native chrome did not mount")
-        val carousel = awaitView(activity, "tab-swipe-carousel")
+        val carousel = awaitHorizontalScroller(activity, "tab-swipe-carousel")
         val chromeLocation = IntArray(2)
         val carouselLocation = IntArray(2)
         chrome.getLocationOnScreen(chromeLocation)
@@ -303,7 +309,7 @@ class NativeNavigationTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
         try {
-            val carousel = awaitView(activity, "tab-swipe-carousel") as android.widget.HorizontalScrollView
+            val carousel = awaitHorizontalScroller(activity, "tab-swipe-carousel")
             swipeHorizontalCarousel(activity, left = true)
             assertFalse("carousel swipe was claimed by the tab shell", find(activity.window.decorView, "details-title") != null)
             repeat(25) {
