@@ -580,6 +580,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     private var selectedTab = 0
     private var swipeTracking = false
     private var swipeIntercepted = false
+    private var horizontalScrollDeferred = false
     private var swipeDownX = 0f
     private var swipeDownY = 0f
     private val swipeSlop = ViewConfiguration.get(context).scaledTouchSlop
@@ -657,6 +658,8 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 val overHorizontalScroll = onTabSwipeShouldDefer?.invoke(event.x, event.y) == true
+                horizontalScrollDeferred = overHorizontalScroll
+                if (overHorizontalScroll) parent?.requestDisallowInterceptTouchEvent(true)
                 swipeTracking = tabs.size > 1 && tabSwipeEnabled && !overHorizontalScroll && tabBar.visibility == View.VISIBLE && event.y < tabBar.top
                 swipeIntercepted = false
                 swipeDownX = event.x
@@ -671,7 +674,13 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
                     return swipeIntercepted
                 }
             }
-            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> swipeTracking = false
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> {
+                swipeTracking = false
+                if (horizontalScrollDeferred) {
+                    horizontalScrollDeferred = false
+                    parent?.requestDisallowInterceptTouchEvent(false)
+                }
+            }
         }
         return swipeIntercepted
     }

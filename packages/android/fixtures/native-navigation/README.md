@@ -48,7 +48,8 @@ The scroll wrapper remains touch-enabled without a refresh handler; only its
 pull-to-refresh interception is disabled, so nested horizontal carousels still
 receive their own gestures.
 The Android tab shell also defers swipe tracking at touch-down over a native
-horizontal scroller, letting that child receive the complete gesture sequence.
+horizontal scroller and disallows ancestor interception for that sequence,
+letting that child receive the complete gesture.
 Horizontal scroll content is measured on an unbounded width axis, so an
 explicitly wider carousel remains scrollable instead of collapsing to its
 viewport width.
