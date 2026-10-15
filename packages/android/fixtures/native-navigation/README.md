@@ -51,6 +51,8 @@ platform-specific iOS UI gate checks their floating geometry.
 The scroll wrapper remains touch-enabled without a refresh handler; only its
 pull-to-refresh interception is disabled, so nested horizontal carousels still
 receive their own gestures.
+The root overflow assertion also resolves the underlying `ScrollView` through
+the wrapper rather than casting the `CraftNativeScrollView` test-ID host.
 The Android tab shell also defers swipe tracking at touch-down over a native
 horizontal scroller and disallows ancestor interception for that sequence,
 letting that child receive the complete gesture.

@@ -323,7 +323,9 @@ class NativeNavigationTest {
             val name = awaitView(activity, "name-input")
             val root = awaitView(activity, "root")
             assertTrue("View did not render as LinearLayout", root is LinearLayout)
-            val rootScroll = awaitView(activity, "native-root-scroll") as ScrollView
+            val rootHost = awaitView(activity, "native-root-scroll")
+            val rootScroll = findType(rootHost, ScrollView::class.java)
+                ?: throw AssertionError("native-root-scroll did not contain an Android ScrollView")
             val rootOverlay = awaitView(activity, "native-root-overlay")
             val overlayTopBeforeScroll = rootOverlay.top
             val overlayRightBeforeScroll = rootOverlay.right
