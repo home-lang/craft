@@ -34,9 +34,15 @@
         screens: function () { return [{ active: true, depth: history.length }]; },
         navigate: function (path) {
           var next = new URL(path, location.href).pathname;
-          history.pushState({}, '', next);
-          render(next);
-          window.dispatchEvent(new CustomEvent('stx:navigate', { detail: { direction: 'push' } }));
+          // Deliberately arrive after CraftHybrid's 0.35-second wait. This
+          // exercises the real slow-page path: the shell starts the push with
+          // the incoming WebView hidden while the outgoing slot still needs
+          // its visual snapshot.
+          setTimeout(function () {
+            history.pushState({}, '', next);
+            render(next);
+            window.dispatchEvent(new CustomEvent('stx:navigate', { detail: { direction: 'push' } }));
+          }, 650);
           return Promise.resolve(true);
         },
       };

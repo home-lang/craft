@@ -27,8 +27,14 @@ final class HybridNavigationUITests: XCTestCase {
         XCTAssertTrue(open.waitForExistence(timeout: 15))
 
         open.tap()
+        // CraftHybrid waits 0.35s for the page before pushing a slow route;
+        // sample after that deadline, while UIKit is animating the slot.
+        let transition = Date().addingTimeInterval(0.45)
+        while Date() < transition {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
         var sawOutgoingPage = false
-        let deadline = Date().addingTimeInterval(2)
+        let deadline = Date().addingTimeInterval(0.45)
         while Date() < deadline {
             if redPageIsVisible(XCUIScreen.main.screenshot()) {
                 sawOutgoingPage = true
