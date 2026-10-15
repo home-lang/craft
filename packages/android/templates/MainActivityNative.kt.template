@@ -4797,7 +4797,7 @@ class MainActivity : AppCompatActivity() {
                     )
                 } ?: run { trackTintList = null }
                 craftNativeOptionalString(props.opt("thumbColor"))
-                    ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
+                    ?.let { thumbTintList = ColorStateList.valueOf(color(it, Color.WHITE)) }
                     ?: run { thumbTintList = null }
                 val handler = craftNativeEventName(events, "onValueChange", "onChange")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)

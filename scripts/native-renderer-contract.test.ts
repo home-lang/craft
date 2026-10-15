@@ -746,6 +746,12 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`Slider` accepts `minimumTrackTintColor`')
   })
 
+  it('applies native switch thumb colors on Android', () => {
+    expect(android).toContain('craftNativeOptionalString(props.opt("thumbColor"))')
+    expect(android).toContain('?.let { thumbTintList = ColorStateList.valueOf(color(it, Color.WHITE)) }')
+    expect(androidNavigationTest).toContain('native switch should apply thumb tint')
+  })
+
   it('keeps Picker option selection aligned across hosts and fixtures', () => {
     expect(ios).toContain('UIPickerViewDataSource, UIPickerViewDelegate')
     expect(ios).toContain('picker.selectRow(row, inComponent: 0, animated: false)')

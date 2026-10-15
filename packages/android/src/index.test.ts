@@ -338,6 +338,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('val tint = craftNativeOptionalString(props.opt("tintColor"))')
       expect(nativeActivity).toContain('val background = craftNativeOptionalString(props.opt("progressBackgroundColor"))')
       expect(nativeActivity).toContain('craftNativeOptionalString(props.opt("thumbColor"))')
+      expect(nativeActivity).toContain('?.let { thumbTintList = ColorStateList.valueOf(color(it, Color.WHITE)) }')
       expect(nativeActivity).toContain('craftNativeOptionalString(props.opt("minimumTrackTintColor"))')
       expect(nativeActivity).toContain('?: run { progressTintList = null }')
       expect(nativeActivity).toContain('?: run { progressBackgroundTintList = null }')
