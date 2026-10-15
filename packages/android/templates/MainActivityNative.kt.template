@@ -1245,6 +1245,161 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
 
     private fun sharedLength(value: CraftNativeLength?, base: Int?): Float = value?.resolve(base)?.toFloat() ?: Float.NaN
 
+    /** A measured node in the host-neutral tree ABI, retaining its native view
+     * so the returned absolute frames can be mounted back into the hierarchy. */
+    private data class SharedTreeNode(
+        val view: View?,
+        val style: CraftNativeLayoutStyle,
+        val intrinsicWidth: Float,
+        val intrinsicHeight: Float,
+        val baseline: Float,
+        val direction: Int,
+        val gap: Float,
+        val rowGap: Float,
+        val columnGap: Float,
+        val wrap: Boolean,
+        val justify: String,
+        val alignItems: String,
+        val alignContent: String,
+        val padding: IntArray,
+        val margins: IntArray,
+        val children: List<SharedTreeNode>,
+    )
+
+    private data class SharedTreeResult(
+        val nodes: List<SharedTreeNode>,
+        val parents: IntArray,
+        val frames: FloatArray,
+    )
+
+    /**
+     * Flatten a simple flex subtree for the shared ABI. The local layout stays
+     * authoritative for grids, reverse flows, absolute/modal children, and
+     * scroll hosts; those cases cannot be represented without changing their
+     * native measurement contract.
+     */
+    private fun sharedTreeChildren(width: Int, height: Int): List<Entry>? {
+        if (grid || reverse || wrapReverse) return null
+        val (lines, absolute) = entries(width, height)
+        if (absolute.isNotEmpty()) return null
+        return lines.flatten()
+    }
+
+    private fun sharedTreeNode(entry: Entry): SharedTreeNode? {
+        val nested = entry.view as? CraftNativeFlexLayout
+        val children = if (nested == null) {
+            emptyList()
+        } else {
+            nested.sharedTreeChildren(entry.width, entry.height) ?: return null
+        }
+        val lp = entry.view.layoutParams as? MarginLayoutParams
+        return SharedTreeNode(
+            view = entry.view,
+            style = entry.style,
+            intrinsicWidth = entry.width.toFloat(),
+            intrinsicHeight = entry.height.toFloat(),
+            baseline = baselineOffset(entry.view, entry.height).toFloat(),
+            direction = nested?.let { if (it.orientation == HORIZONTAL) 0 else 1 } ?: 0,
+            gap = nested?.let { if (it.orientation == HORIZONTAL) it.columnGap else it.rowGap } ?: 0f,
+            rowGap = nested?.rowGap ?: 0f,
+            columnGap = nested?.columnGap ?: 0f,
+            wrap = nested?.wrap ?: false,
+            justify = nested?.justifyContent ?: "flex-start",
+            alignItems = nested?.alignItems ?: "stretch",
+            alignContent = nested?.alignContent ?: "flex-start",
+            padding = nested?.let { intArrayOf(it.paddingLeft, it.paddingRight, it.paddingTop, it.paddingBottom) }
+                ?: intArrayOf(0, 0, 0, 0),
+            margins = intArrayOf(lp?.leftMargin ?: 0, lp?.rightMargin ?: 0, lp?.topMargin ?: 0, lp?.bottomMargin ?: 0),
+            children = children.map { child -> sharedTreeNode(child) ?: return null },
+        )
+    }
+
+    private fun sharedTreeFrames(entries: List<Entry>, width: Int, height: Int): SharedTreeResult? {
+        if (entries.isEmpty() || width < 0 || height < 0 || grid || reverse || wrapReverse) return null
+        val children = entries.map { sharedTreeNode(it) ?: return null }
+        val root = SharedTreeNode(
+            view = null,
+            style = CraftNativeLayoutStyle(),
+            intrinsicWidth = 0f,
+            intrinsicHeight = 0f,
+            baseline = 0f,
+            direction = if (orientation == HORIZONTAL) 0 else 1,
+            gap = if (orientation == HORIZONTAL) columnGap else rowGap,
+            rowGap = rowGap,
+            columnGap = columnGap,
+            wrap = wrap,
+            justify = justifyContent,
+            alignItems = alignItems,
+            alignContent = alignContent,
+            padding = intArrayOf(paddingLeft, paddingRight, paddingTop, paddingBottom),
+            margins = intArrayOf(0, 0, 0, 0),
+            children = children,
+        )
+        val nodes = mutableListOf<SharedTreeNode>()
+        val parents = mutableListOf<Int>()
+        fun append(node: SharedTreeNode, parent: Int) {
+            val index = nodes.size
+            nodes += node
+            parents += parent
+            node.children.forEach { child -> append(child, index) }
+        }
+        append(root, -1)
+        val fields = 32
+        val nodeData = FloatArray(nodes.size * fields) { Float.NaN }
+        val treeMeta = FloatArray(nodes.size * 2)
+        fun enumBits(value: Int): Float = Float.fromBits(value)
+        fun put(base: Int, index: Int, value: Float) { nodeData[base + index] = value }
+        fun putEnum(base: Int, index: Int, value: Int) { put(base, index, enumBits(value)) }
+        var cursor = 0
+        fun write(node: SharedTreeNode, parentWidth: Int, parentHeight: Int, rootNode: Boolean) {
+            val index = cursor++
+            val base = index * fields
+            val measuredWidth = if (rootNode) width else node.style.width?.resolve(parentWidth) ?: node.intrinsicWidth.roundToInt()
+            val measuredHeight = if (rootNode) height else node.style.height?.resolve(parentHeight) ?: node.intrinsicHeight.roundToInt()
+            val contentWidth = max(0, measuredWidth - node.padding[0] - node.padding[1])
+            val contentHeight = max(0, measuredHeight - node.padding[2] - node.padding[3])
+            val mainSize = if (node.direction == 0) contentWidth else contentHeight
+            putEnum(base, 0, node.direction)
+            put(base, 1, if (rootNode) width.toFloat() else sharedLength(node.style.width, parentWidth))
+            put(base, 2, if (rootNode) height.toFloat() else sharedLength(node.style.height, parentHeight))
+            put(base, 3, if (rootNode) Float.NaN else node.intrinsicWidth)
+            put(base, 4, if (rootNode) Float.NaN else node.intrinsicHeight)
+            put(base, 5, if (rootNode) Float.NaN else node.baseline)
+            put(base, 6, node.style.aspectRatio?.toFloat() ?: Float.NaN)
+            put(base, 7, sharedLength(node.style.flexBasis, mainSize))
+            put(base, 8, if (rootNode) 0f else node.style.flexGrow.toFloat().coerceAtLeast(0f))
+            put(base, 9, if (rootNode) 0f else (node.style.flexShrink ?: 0.0).toFloat().coerceAtLeast(0f))
+            put(base, 10, sharedLength(node.style.minWidth, contentWidth))
+            put(base, 11, sharedLength(node.style.maxWidth, contentWidth))
+            put(base, 12, sharedLength(node.style.minHeight, contentHeight))
+            put(base, 13, sharedLength(node.style.maxHeight, contentHeight))
+            put(base, 14, node.gap)
+            putEnum(base, 15, sharedJustifyCode(node.justify))
+            putEnum(base, 16, sharedAlignItemsCode(node.alignItems))
+            putEnum(base, 17, if (rootNode) 0 else sharedAlignSelfCode(node.style.alignSelf))
+            putEnum(base, 18, if (node.wrap) 1 else 0)
+            putEnum(base, 19, sharedAlignContentCode(node.alignContent))
+            put(base, 20, node.margins[2].toFloat())
+            put(base, 21, node.margins[1].toFloat())
+            put(base, 22, node.margins[3].toFloat())
+            put(base, 23, node.margins[0].toFloat())
+            put(base, 24, node.padding[2].toFloat())
+            put(base, 25, node.padding[1].toFloat())
+            put(base, 26, node.padding[3].toFloat())
+            put(base, 27, node.padding[0].toFloat())
+            putEnum(base, 28, 0)
+            putEnum(base, 29, 1)
+            put(base, 30, node.rowGap)
+            put(base, 31, node.columnGap)
+            val firstChild = cursor
+            node.children.forEach { child -> write(child, contentWidth, contentHeight, false) }
+            treeMeta[index * 2] = firstChild.toFloat()
+            treeMeta[index * 2 + 1] = (cursor - firstChild).toFloat()
+        }
+        write(root, width, height, true)
+        return SharedTreeResult(nodes, parents.toIntArray(), CraftNative.layoutTree(width.toFloat(), height.toFloat(), nodeData, treeMeta))
+    }
+
     /**
      * Use the host-neutral tree ABI when platform measurements are complete:
      * definite, non-grid direct-child containers, including wrapped flows with
@@ -1345,7 +1500,26 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         else -> 0
     }
 
+    private fun sharedJustifyCode(value: String): Int = when (value) {
+        "center" -> 1
+        "flex-end" -> 2
+        "space-between" -> 3
+        "space-around" -> 4
+        "space-evenly" -> 5
+        else -> 0
+    }
+
     private fun alignContentCode(): Int = when (alignContent) {
+        "center" -> 1
+        "flex-end" -> 2
+        "space-between" -> 3
+        "space-around" -> 4
+        "stretch" -> 5
+        "space-evenly" -> 6
+        else -> 0
+    }
+
+    private fun sharedAlignContentCode(value: String): Int = when (value) {
         "center" -> 1
         "flex-end" -> 2
         "space-between" -> 3
@@ -1557,6 +1731,23 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val (lines, absolute) = entries(width, height)
         if (absolute.isEmpty() && lines.isNotEmpty() && (lines.size == 1 || wrap)) {
             val sharedEntries = if (wrap) lines.flatMap { it.entries } else lines[0].entries
+            val sharedTree = sharedTreeFrames(sharedEntries, width, height)
+            if (sharedTree != null && sharedTree.nodes.size > sharedEntries.size + 1) {
+                for (index in 1 until sharedTree.nodes.size) {
+                    val view = sharedTree.nodes[index].view ?: continue
+                    val offset = index * 4
+                    val parentOffset = sharedTree.parents[index] * 4
+                    val parentX = sharedTree.frames[parentOffset]
+                    val parentY = sharedTree.frames[parentOffset + 1]
+                    val x = (sharedTree.frames[offset] - parentX).roundToInt()
+                    val y = (sharedTree.frames[offset + 1] - parentY).roundToInt()
+                    val childWidth = sharedTree.frames[offset + 2].roundToInt()
+                    val childHeight = sharedTree.frames[offset + 3].roundToInt()
+                    place(view, x, y, x + childWidth, y + childHeight)
+                }
+                onLayoutChanged?.invoke()
+                return
+            }
             val sharedFrames = sharedDirectFrames(sharedEntries, width, height)
             if (sharedFrames != null) {
                 for ((index, entry) in sharedEntries.withIndex()) {
