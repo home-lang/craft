@@ -10,6 +10,26 @@ const workspace = createTempDir('craft-hybrid-navigation-')
 const output = join(workspace, 'HybridNavigation')
 const bundle = join(workspace, 'native-screen.js')
 const prepareOnly = process.argv.includes('--prepare-only')
+const page = readFileSync(join(fixture, 'index.html'))
+
+function servePage(body: Buffer) {
+  const firstPort = 38000 + (process.pid % 1000)
+  for (let offset = 0; offset < 32; offset++) {
+    try {
+      return Bun.serve({
+        port: firstPort + offset,
+        fetch: () => new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+      })
+    }
+    catch (error) {
+      if (offset === 31) throw error
+    }
+  }
+  throw new Error('could not allocate a local hybrid fixture port')
+}
+
+const server = prepareOnly ? undefined : servePage(page)
+const devServerURL = server?.url.toString() ?? 'http://127.0.0.1:38000/'
 
 function run(args: string[], cwd: string): void {
   console.log(args.join(' '))
@@ -61,6 +81,7 @@ try {
     config: {
       renderer: 'web',
       nativeScreens: { '/native': 'HybridNative' },
+      devServerURL,
       backgroundColor: '#000000',
       backgroundColorDark: '#000000',
     },
@@ -113,6 +134,7 @@ try {
   }
 }
 finally {
+  server?.stop()
   if (process.env.CRAFT_KEEP_HYBRID_NAVIGATION_PROJECT === '1') {
     keepTempDir(workspace)
     console.log(`Kept generated test project: ${workspace}`)

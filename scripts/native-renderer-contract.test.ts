@@ -1916,6 +1916,9 @@ describe('native renderer component contract', () => {
   it('keeps the hybrid web transition fixture wired into iOS mobile E2E', () => {
     expect(hybridNavigationScript).toContain("'HybridNative.stx'")
     expect(hybridNavigationScript).toContain("'HybridNavigationUITests.swift'")
+    expect(hybridNavigationScript).toContain('Bun.serve')
+    expect(hybridNavigationScript).toContain('const firstPort = 38000 + (process.pid % 1000)')
+    expect(hybridNavigationScript).toContain("const devServerURL = server?.url.toString() ?? 'http://127.0.0.1:38000/'")
     expect(hybridNavigationScript).toContain("console.log('Hybrid navigation simulator tests passed')")
     expect(hybridNavigationReadme).toContain('outgoing page during the UIKit transition')
     expect(mobileE2EWorkflow).toContain('Test hybrid web navigation transitions')

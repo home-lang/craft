@@ -6,4 +6,7 @@ test samples the outgoing page during the UIKit transition: a blank source
 slot fails the assertion, while the transition snapshot keeps the red page
 visible until the destination is shown. The fixture deliberately delays the
 route report past the shell's page-wait deadline so it exercises the slow-page
-path rather than passing on an already-updated WebView.
+path rather than passing on an already-updated WebView. The harness serves the
+page from a local HTTP origin, matching the trusted remote-page path used by
+hybrid apps, and chooses a bounded process-derived port so parallel harnesses
+do not depend on Bun's ephemeral-port allocator.
