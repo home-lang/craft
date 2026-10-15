@@ -2205,6 +2205,7 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('testHorizontalCarouselKeepsItsSwipe')
     expect(androidNavigationTest).toContain('private fun swipeTab(activity: MainActivity, left: Boolean)')
     expect(androidNavigationTest).toContain('private fun swipeHorizontalCarousel(activity: MainActivity, left: Boolean)')
+    expect(androidNavigationTest).toContain('carousel swipe did not move the nested horizontal scroll')
     expect(androidNavigationTest).toContain('assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())')
   })
 

@@ -303,8 +303,14 @@ class NativeNavigationTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
         try {
+            val carousel = awaitView(activity, "tab-swipe-carousel") as android.widget.HorizontalScrollView
             swipeHorizontalCarousel(activity, left = true)
             assertFalse("carousel swipe was claimed by the tab shell", find(activity.window.decorView, "details-title") != null)
+            repeat(25) {
+                if (carousel.scrollX > 0) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertTrue("carousel swipe did not move the nested horizontal scroll", carousel.scrollX > 0)
             swipeTab(activity, left = true)
             assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())
             swipeTab(activity, left = false)
