@@ -1030,3 +1030,31 @@ capability persistence across relaunch, and notification cancellation.
 When a style or color prop is removed during reconciliation, reused native
 controls reset that value to the platform default instead of retaining stale
 state.
+
+## The browser service host
+
+Use `craft-native/browser` with stx’s `compileBrowserScreen` or
+`renderBrowserScreen` to run the same portable screen in a browser. The entrypoint
+exports `createBrowserPlatform(options)` and contains no desktop packaging APIs.
+
+Options include `namespace`, `tokenKey`, `locale` and application `urlSchemes`.
+The configured token key can match an existing website session. Snapshots and
+ordinary storage are scoped by a SHA-256 account identifier; an account change
+clears the previous account’s retained data, files and media. Cross-tab account
+changes reload the screen so old controllers cannot continue under a new login.
+Browser storage retains browser security semantics; it does not become Keychain
+or Android encrypted storage.
+
+The adapter provides real HTML dialogs, file pickers, multipart-capable File
+objects, downloads, image/file sharing and saving, clipboard, speech, wake locks,
+audio with fades, and account-scoped CacheStorage media where available. File
+descriptors cross the stx JSON protocol and materialize back into File objects
+before they reach application FormData. Disposal aborts service work and releases
+object URLs, media and listeners.
+
+Capabilities describe actual browser support. Health stores, push registration,
+Bluetooth services and background recording are not advertised by this adapter.
+Wi-Fi-only media downloads wait when the browser cannot identify its network;
+applications may let the account explicitly allow other networks. Website
+updates replace the browser bundle; installed native bundles still require an
+app release.
