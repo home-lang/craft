@@ -197,13 +197,23 @@ class NativeNavigationTest {
         val downTime = SystemClock.uptimeMillis()
         instrumentation.runOnMainSync {
             val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, startX, y, 0)
-            val move = MotionEvent.obtain(downTime, downTime + 16, MotionEvent.ACTION_MOVE, endX, y, 0)
-            val up = MotionEvent.obtain(downTime, downTime + 32, MotionEvent.ACTION_UP, endX, y, 0)
             chrome.dispatchTouchEvent(down)
-            chrome.dispatchTouchEvent(move)
-            chrome.dispatchTouchEvent(up)
             down.recycle()
-            move.recycle()
+            repeat(8) { step ->
+                val progress = (step + 1) / 8f
+                val move = MotionEvent.obtain(
+                    downTime,
+                    downTime + (step + 1) * 16L,
+                    MotionEvent.ACTION_MOVE,
+                    startX + (endX - startX) * progress,
+                    y,
+                    0,
+                )
+                chrome.dispatchTouchEvent(move)
+                move.recycle()
+            }
+            val up = MotionEvent.obtain(downTime, downTime + 144, MotionEvent.ACTION_UP, endX, y, 0)
+            chrome.dispatchTouchEvent(up)
             up.recycle()
         }
     }
