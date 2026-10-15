@@ -1218,6 +1218,16 @@ describe('Craft iOS builder', () => {
     // and nothing presents from the first window's root any more.
     expect(swift).toContain('CraftPresenter.present(activityVC, from: webView, anchor: CraftPresenter.rect(options["anchor"]))')
     expect(swift).not.toContain('windows.first?.rootViewController')
+    const services = readFileSync(join(output, 'Sources', 'CraftNativeServices.swift'), 'utf8')
+    expect(services).toContain('final class CraftShareLink: NSObject, UIActivityItemSource')
+    expect(services).toContain('metadata.originalURL = url')
+    expect(services).toContain('metadata.title = title')
+    expect(services).toContain('subjectForActivityType activityType: UIActivity.ActivityType?) -> String { title }')
+    for (const source of [swift, services]) {
+      expect(source).toContain('items.append(CraftShareLink(url: url, title: title))')
+      expect(source).not.toContain('if let title = options["title"] as? String, !title.isEmpty { items.append(title) }')
+    }
+    expect(services).toContain('CraftPresenter.present(sheet, from: nil, anchor: CraftPresenter.rect(options["anchor"]))')
   })
 
   it('makes the web view feel like the app: no previews, no zoom, no keyboard bar, an app user agent', async () => {

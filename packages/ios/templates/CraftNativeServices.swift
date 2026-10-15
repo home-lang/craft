@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import LinkPresentation
 import UIKit
 import UserNotifications
 
@@ -687,6 +688,32 @@ enum CraftNativePush {
 
 // MARK: - Share sheet
 
+/// A URL stays a URL in Messages, AirDrop and Copy. Its title belongs in the
+/// system preview and mail subject, rather than becoming a second text item.
+final class CraftShareLink: NSObject, UIActivityItemSource {
+    let url: URL
+    let title: String
+
+    init(url: URL, title: String) {
+        self.url = url
+        self.title = title
+    }
+
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any { url }
+
+    func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? { url }
+
+    func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String { title }
+
+    func activityViewControllerLinkMetadata(_ activityViewController: UIActivityViewController) -> LPLinkMetadata? {
+        let metadata = LPLinkMetadata()
+        metadata.originalURL = url
+        metadata.url = url
+        if !title.isEmpty { metadata.title = title }
+        return metadata
+    }
+}
+
 /// `craft.share` on a native screen: the system share sheet with the page's
 /// options (`title`, `text`, `url`, `files`), plus `image`, a picture by URL
 /// that is shared as the picture rather than as its address. Answers true
@@ -694,9 +721,11 @@ enum CraftNativePush {
 enum CraftNativeShare {
     static func share(_ options: [String: Any], done: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
         var items: [Any] = []
-        if let title = options["title"] as? String, !title.isEmpty { items.append(title) }
+        let title = options["title"] as? String ?? ""
         if let text = options["text"] as? String, !text.isEmpty { items.append(text) }
-        if let address = options["url"] as? String, let url = URL(string: address) { items.append(url) }
+        if let address = options["url"] as? String, let url = URL(string: address) {
+            items.append(CraftShareLink(url: url, title: title))
+        } else if !title.isEmpty { items.append(title) }
         // A path or file URL, or a file craft.files made (`{ path, name }`).
         let files = (options["files"] as? [Any] ?? []).compactMap { item -> String? in
             item as? String ?? (item as? [String: Any])?["path"] as? String
@@ -715,7 +744,7 @@ enum CraftNativeShare {
                 if let error { done(.failure(CraftNativeActionError(code: "SHARE_ERROR", message: error.localizedDescription))) }
                 else { done(.success(completed)) }
             }
-            if !CraftPresenter.present(sheet, from: nil, anchor: nil) {
+            if !CraftPresenter.present(sheet, from: nil, anchor: CraftPresenter.rect(options["anchor"])) {
                 done(.failure(CraftNativeActionError(code: "SHARE_ERROR", message: "Unable to present the share sheet")))
             }
         }

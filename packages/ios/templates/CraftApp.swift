@@ -5748,9 +5748,11 @@ struct CraftWebView: UIViewRepresentable {
                 return
             }
             var items: [Any] = []
-            if let title = options["title"] as? String, !title.isEmpty { items.append(title) }
+            let title = options["title"] as? String ?? ""
             if let text = options["text"] as? String, !text.isEmpty { items.append(text) }
-            if let urlString = options["url"] as? String, let url = URL(string: urlString) { items.append(url) }
+            if let urlString = options["url"] as? String, let url = URL(string: urlString) {
+                items.append(CraftShareLink(url: url, title: title))
+            } else if !title.isEmpty { items.append(title) }
             if let files = options["files"] as? [String] {
                 for file in files {
                     if let url = URL(string: file), url.isFileURL { items.append(url) }
