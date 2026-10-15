@@ -222,11 +222,15 @@ function toggleImageTint() {
 }
 
 function captureIntrinsicImageLayout(event) {
-  const width = Math.round(event.layout.width)
-  const height = Math.round(event.layout.height)
+  // A one-pixel image can be smaller than one logical point on dense displays.
+  const width = event.layout.width
+  const height = event.layout.height
   if (width <= 0 || height <= 0) return
   if (intrinsicImageWide() && (width !== intrinsicImageWidth() || height !== intrinsicImageHeight())) {
     intrinsicImageStatus.set('intrinsic image resized')
+  }
+  else if (!intrinsicImageWide()) {
+    intrinsicImageStatus.set('intrinsic image ready')
   }
   intrinsicImageWidth.set(width)
   intrinsicImageHeight.set(height)

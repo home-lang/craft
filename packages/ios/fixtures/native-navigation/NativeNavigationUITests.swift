@@ -286,6 +286,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(image.waitForExistence(timeout: 10))
         let intrinsicImage = app.images["intrinsic-image"]
         XCTAssertTrue(intrinsicImage.waitForExistence(timeout: 10), "intrinsic image did not mount")
+        XCTAssertTrue(app.staticTexts["intrinsic image ready"].waitForExistence(timeout: 5), "intrinsic image did not receive its initial measurement")
         let intrinsicImageToggle = app.buttons["toggle-intrinsic-image"]
         reveal(intrinsicImageToggle, in: scroll, within: rootScroll)
         intrinsicImageToggle.tap()

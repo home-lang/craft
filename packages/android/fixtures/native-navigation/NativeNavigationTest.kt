@@ -821,6 +821,7 @@ class NativeNavigationTest {
             val scroll = awaitView(activity, "native-scroll")
             val image = awaitView(activity, "native-image")
             assertTrue("Intrinsic image did not mount", awaitView(activity, "intrinsic-image") is ImageView)
+            awaitText(activity, "intrinsic-image-status", "intrinsic image ready")
             click(activity, "toggle-intrinsic-image")
             awaitText(activity, "intrinsic-image-status", "intrinsic image resized")
             val imageBackground = awaitView(activity, "native-image-background")
