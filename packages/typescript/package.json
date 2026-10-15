@@ -44,6 +44,11 @@
       "import": "./dist/mobile.js",
       "default": "./dist/mobile.js"
     },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js",
+      "default": "./dist/browser.js"
+    },
     "./ios": {
       "browser": null,
       "types": "./dist/ios/src/index.d.ts",
@@ -64,6 +69,9 @@
     "*": {
       "mobile": [
         "./dist/mobile.d.ts"
+      ],
+      "browser": [
+        "./dist/browser.d.ts"
       ],
       "ios": [
         "./dist/ios/src/index.d.ts"

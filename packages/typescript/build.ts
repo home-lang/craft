@@ -41,7 +41,7 @@ await cp(resolve(root, '../../templates/projects'), resolve(dist, 'templates/pro
 
 await build(['src/index.ts'], 'dist')
 const mobileResult = await Bun.build({
-  entrypoints: [resolve(root, 'src/mobile.ts')],
+  entrypoints: [resolve(root, 'src/mobile.ts'), resolve(root, 'src/browser.ts')],
   outdir: dist,
   target: 'browser',
   format: 'esm',
