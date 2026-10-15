@@ -500,6 +500,23 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertNil(controller.navigationItem.compactScrollEdgeAppearance)
     }
 
+    func testNavigationBarSolidTracksDynamicConfigColours() throws {
+        var config = CraftConfig()
+        config.backgroundColor = "#ffffff"
+        config.backgroundColorDark = "#101820"
+        let controller = CraftNativeScreenController(config: config)
+        let navigation = UINavigationController(rootViewController: controller)
+        navigation.loadViewIfNeeded()
+        controller.loadViewIfNeeded()
+
+        controller.evaluateScript("craft.navigation.setOptions({ navigationBarSolid: true })")
+        let appearance = try XCTUnwrap(controller.navigationItem.standardAppearance)
+        let light = try XCTUnwrap(appearance.backgroundColor).resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+        let dark = try XCTUnwrap(appearance.backgroundColor).resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+        XCTAssertTrue(light.isEqual(.white))
+        XCTAssertTrue(dark.isEqual(UIColor(red: 0x10 / 255, green: 0x18 / 255, blue: 0x20 / 255, alpha: 1)))
+    }
+
     func testAProgressFillTakesItsShareOnceItsGrowArrives() throws {
         // HQ's week bar: the shares arrive as a style binding after the first
         // render, 78 to the fill and 22 to the rest of the track.

@@ -1536,6 +1536,7 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('if let document = mutationDocument.node("root")')
     expect(screen).toContain('if let solid = options["navigationBarSolid"] as? Bool {')
     expect(screen).toContain('appearance.configureWithOpaqueBackground()')
+    expect(screen).toContain('appearance.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor')
     expect(screen).toContain('appearance.shadowColor = .clear')
     expect(screen).toContain('navigationItem.compactScrollEdgeAppearance = appearance')
     // A screen that starts with its scroll view runs edge to edge, so what
