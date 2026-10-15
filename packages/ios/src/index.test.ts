@@ -125,7 +125,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('shouldChangeCharactersIn range: NSRange')
     expect(nativeSwift).toContain('let desiredReturnKeyType = returnKeyType(props["returnKeyType"])')
     expect(nativeSwift).toContain('case "ActivityIndicator":')
-    expect(nativeSwift).toContain('UIActivityIndicatorView(style: .medium)')
+    expect(nativeSwift).toContain('CraftNativeActivityIndicatorView(style: .medium)')
     expect(nativeSwift).toContain('case "Slider":')
     expect(nativeSwift).toContain('slider.value = snappedSliderValue(value, for: slider)')
     expect(nativeSwift).toContain('events["onSlidingComplete"]')
@@ -1408,6 +1408,14 @@ describe('Craft iOS builder', () => {
     const body = insert.slice(0, insert.indexOf('invalidateMeasurements()'))
     expect(body).toContain('if let next = flowChildren[(index + 1)...].first(where: { $0.superview === self })')
     expect(body).toContain('insertSubview(view, belowSubview: next)')
+  })
+
+  it('supports leading native actions beside Back and adaptive neutral toolbar symbols', () => {
+    const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    expect(swift).toContain('options.keys.contains("leftButtons")')
+    expect(swift).toContain('navigationItem.leftItemsSupplementBackButton = true')
+    expect(swift).toContain('navigationItem.leftBarButtonItems = buttons.compactMap(navigationButton)')
+    expect(swift).toContain('if spec["variant"] as? String == "neutral" { item.tintColor = .label }')
   })
 
   it('floats a native bar\'s round buttons, as the tab bar floats: glass, else the thin material', () => {

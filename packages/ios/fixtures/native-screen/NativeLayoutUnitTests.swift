@@ -483,6 +483,7 @@ final class NativeLayoutUnitTests: XCTestCase {
             craft.navigation = { push: function() {} };
             craft.navigation.setOptions({
                 title: 'Today', largeTitle: true, backTitle: 'Back',
+                leftButtons: [{ id: 'calendar', symbol: 'calendar', variant: 'neutral', accessibilityLabel: 'Calendar' }],
                 rightButtons: [{ id: 'add', symbol: 'plus' }, { id: 'edit', title: 'Edit' }]
             });
         """)
@@ -493,6 +494,11 @@ final class NativeLayoutUnitTests: XCTestCase {
         let buttons = controller.navigationItem.rightBarButtonItems ?? []
         XCTAssertEqual(buttons.count, 2)
         XCTAssertEqual(Set(buttons.compactMap(\.accessibilityIdentifier)), ["nav-add", "nav-edit"])
+        let calendar = try XCTUnwrap(controller.navigationItem.leftBarButtonItems?.first)
+        XCTAssertEqual(calendar.accessibilityIdentifier, "nav-calendar")
+        XCTAssertEqual(calendar.accessibilityLabel, "Calendar")
+        XCTAssertEqual(calendar.tintColor, UIColor.label)
+        XCTAssertTrue(controller.navigationItem.leftItemsSupplementBackButton)
 
         controller.evaluateScript("craft.navigation.setOptions({ hidden: true, rightButtons: [] })")
         XCTAssertTrue(navigation.isNavigationBarHidden)

@@ -4406,6 +4406,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 navigationController?.setNavigationBarHidden(hidden, animated: view.window != nil)
             }
         }
+        if options.keys.contains("leftButtons") {
+            let buttons = (options["leftButtons"] as? [[String: Any]]) ?? []
+            navigationItem.leftItemsSupplementBackButton = true
+            navigationItem.leftBarButtonItems = buttons.compactMap(navigationButton)
+        }
         if options.keys.contains("rightButtons") {
             let buttons = (options["rightButtons"] as? [[String: Any]]) ?? []
             navigationItem.rightBarButtonItems = buttons.compactMap(navigationButton).reversed()
@@ -4480,6 +4485,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         } else {
             item.accessibilityLabel = id
         }
+        if spec["variant"] as? String == "neutral" { item.tintColor = .label }
         if let tint = (spec["color"] as? String).flatMap({ UIColor(hex: $0) }) { item.tintColor = tint }
         // `image`: a picture (an https URL, the account's own photo), drawn
         // round as iOS draws an account button. The symbol or title shows
