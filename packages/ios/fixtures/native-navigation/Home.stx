@@ -699,6 +699,14 @@ function captureSectionScroll() {
     <View testID="nested-percent-parent" style={{"width":80,"height":60,"padding":4,"backgroundColor":"#604f2f"}}>
       <View testID="nested-percent-child" style={{"width":"50%","height":"50%","backgroundColor":"#fbbf24"}} />
     </View>
+    <View testID="nested-grid-parent" style={{"width":150,"height":76,"flexDirection":"row","gap":10,"backgroundColor":"#3b4a5a"}}>
+      <View testID="nested-grid" style={{"display":"grid","gridTemplateColumns":"repeat(2, 1fr)","columnGap":4,"rowGap":6,"width":100,"height":60,"backgroundColor":"#465d73"}}>
+        <View testID="nested-grid-first" style={{"height":20,"backgroundColor":"#7dd3fc"}} />
+        <View testID="nested-grid-second" style={{"height":20,"backgroundColor":"#38bdf8"}} />
+        <View testID="nested-grid-third" style={{"height":20,"backgroundColor":"#0ea5e9"}} />
+      </View>
+      <View testID="nested-grid-sibling" style={{"width":30,"height":20,"backgroundColor":"#94a3b8"}} />
+    </View>
     <Text testID="layout-status" :text="layoutWidth > 0 ? 'Layout width: ' + layoutWidth : 'layout pending'" />
     <View testID="hidden-layout-parent" style={{"display":"none"}}>
       <Text testID="hidden-layout-child" @layout="captureHiddenLayout()">Hidden child</Text>

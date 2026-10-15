@@ -626,6 +626,14 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(nestedPercentParent.frame.width, 80, accuracy: 2)
         XCTAssertEqual(nestedPercentChild.frame.width, 36, accuracy: 2, "nested percentage width used the outer parent")
         XCTAssertEqual(nestedPercentChild.frame.height, 26, accuracy: 2, "nested percentage height used the outer parent")
+        let nestedGridFirst = app.otherElements["nested-grid-first"]
+        let nestedGridSecond = app.otherElements["nested-grid-second"]
+        let nestedGridThird = app.otherElements["nested-grid-third"]
+        let nestedGridSibling = app.otherElements["nested-grid-sibling"]
+        XCTAssertTrue(nestedGridThird.waitForExistence(timeout: 5))
+        XCTAssertEqual(nestedGridSecond.frame.minX - nestedGridFirst.frame.minX, 52, accuracy: 2, "nested grid columns were not shared through the tree ABI")
+        XCTAssertEqual(nestedGridThird.frame.minY - nestedGridFirst.frame.minY, 26, accuracy: 2, "nested grid rows were not shared through the tree ABI")
+        XCTAssertEqual(nestedGridSibling.frame.minX - app.otherElements["nested-grid"].frame.minX, 110, accuracy: 2, "nested grid parent placement was not preserved")
         let absolute = app.otherElements["layout-absolute"]
         XCTAssertTrue(absolute.exists)
         XCTAssertLessThanOrEqual(absolute.frame.maxX, wrapped.frame.maxX - 8)

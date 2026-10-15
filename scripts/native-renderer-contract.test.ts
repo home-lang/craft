@@ -1197,10 +1197,14 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('row gap was not shared through the native layout ABI')
     expect(navigationHome).toContain('testID="nested-shared-column"')
     expect(navigationHome).toContain('testID="nested-percent-child"')
+    expect(navigationHome).toContain('testID="nested-grid"')
+    expect(navigationHome).toContain('testID="nested-grid-third"')
     expect(iosNavigationTest).toContain('nested percentage width used the outer parent')
     expect(androidNavigationTest).toContain('nested percentage height used the outer parent')
     expect(iosNavigationTest).toContain('nested column gap was not preserved')
     expect(androidNavigationTest).toContain('nested row gap was not preserved')
+    expect(iosNavigationTest).toContain('nested grid columns were not shared through the tree ABI')
+    expect(androidNavigationTest).toContain('nested grid rows were not shared through the tree ABI')
   })
 
   it('sanitizes keyboard avoidance offsets before applying host geometry', () => {
