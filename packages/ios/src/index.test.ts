@@ -1592,6 +1592,8 @@ describe('Craft iOS builder', () => {
     expect(hybrid).toContain('hit.isDescendant(of: webView) || webView.isDescendant(of: hit)')
     expect(hybrid).toContain('adoptWeb(into: slot, allowHiddenStack: true)')
     expect(hybrid).toContain('hybrid.navigatePage(slot.path)')
+    expect(hybrid).toContain('tabSwipeFrom = -direction * width')
+    expect(hybrid).toContain('target.view.frame.origin.x = tabSwipeFrom + offset')
     expect(hybrid).toContain('current.topViewController is CraftNativeScreenController')
     expect(hybrid).toContain('scroll.contentSize.width > scroll.bounds.width + 1')
     expect(app).toContain('func swipe(to id: String)')

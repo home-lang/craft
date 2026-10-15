@@ -1022,6 +1022,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     private var tabBarHeight: CGFloat = 0
     private var tabSwipeRecognizers: [UIGestureRecognizer] = []
     private var activeTabSwipeTarget: String?
+    /// The edge the incoming tab started from for the current gesture. Keep
+    /// this separate from the live frame: deriving it after the drag begins
+    /// makes the target jump when the translation crosses the midpoint.
+    private var tabSwipeFrom: CGFloat = 0
 
     init(config: CraftConfig) {
         self.config = config
@@ -1140,7 +1144,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         }
         target.view.isHidden = false
         let width = view.bounds.width
-        target.view.frame = view.bounds.offsetBy(dx: direction * width, dy: 0)
+        tabSwipeFrom = -direction * width
+        target.view.frame = view.bounds.offsetBy(dx: tabSwipeFrom, dy: 0)
         view.bringSubviewToFront(target.view)
         CraftChrome.shared.beginTabSwipe(to: id)
         return true
@@ -1150,9 +1155,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         guard let targetId = activeTabSwipeTarget, let current = visibleStack,
               let target = stacks[targetId] else { return }
         let width = max(1, view.bounds.width)
-        let start = target.view.frame.minX >= width * 0.5 ? width : -width
         let offset = min(width, max(-width, translation))
-        target.view.frame.origin.x = start + offset
+        target.view.frame.origin.x = tabSwipeFrom + offset
         current.view.frame.origin.x = offset
     }
 

@@ -2297,6 +2297,10 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('beginInteractiveTabSwipe(to: tabs[next], direction: direction < 0 ? -1 : 1)')
     expect(hybrid).toContain('updateInteractiveTabSwipe(translation: translation)')
     expect(hybrid).toContain('finishInteractiveTabSwipe(completed: complete)')
+    // The incoming root starts opposite the finger and keeps that edge for
+    // the whole gesture; recomputing it from the moving frame makes it jump.
+    expect(hybrid).toContain('tabSwipeFrom = -direction * width')
+    expect(hybrid).toContain('target.view.frame.origin.x = tabSwipeFrom + offset')
     expect(chrome).toContain('func beginTabSwipe(to id: String)')
     expect(chrome).toContain('func commitTabSwipe(to id: String)')
     expect(chrome).toContain('func cancelTabSwipe()')
