@@ -2299,6 +2299,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('content.setUnboundedWidth(horizontal)')
   })
 
+  it('measures exact horizontal scroll viewports without clamping their content', () => {
+    expect(android).toContain('Even when the viewport itself is exact')
+    expect(android).toContain('content.measure(')
+    expect(android).toContain('if (sideways || widthMode == MeasureSpec.UNSPECIFIED) unspecified')
+    expect(androidNavigationTest).toContain('carousel content was not wider than its viewport')
+  })
+
   it('documents the hybrid tab-swipe opt-out', () => {
     expect(guide).toContain('craft.tabBar.set(tabs, { swipeEnabled: false })')
     expect(iosReadme).toContain('craft.tabBar.set(tabs, { swipeEnabled: false })')

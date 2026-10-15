@@ -1842,10 +1842,11 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         val heightMode = MeasureSpec.getMode(heightMeasureSpec)
         val widthSize = MeasureSpec.getSize(widthMeasureSpec)
         val heightSize = MeasureSpec.getSize(heightMeasureSpec)
-        if (widthMode == MeasureSpec.EXACTLY && heightMode == MeasureSpec.EXACTLY) {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-            return
-        }
+        // Even when the viewport itself is exact, a horizontal scroll must
+        // measure its content with an unspecified width. Returning straight
+        // to SwipeRefreshLayout here makes HorizontalScrollView remeasure the
+        // content at the viewport width, erasing overflow and disabling the
+        // nested carousel gesture.
         val sideways = horizontalMode == true
         val unspecified = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
         val horizontalPadding = paddingLeft + paddingRight
