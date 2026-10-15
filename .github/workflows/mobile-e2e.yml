@@ -146,6 +146,11 @@ jobs:
           STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
         run: bun packages/ios/scripts/test-native-navigation.ts
 
+      - name: Test hybrid web navigation transitions
+        env:
+          STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
+        run: bun packages/ios/scripts/test-hybrid-navigation.ts
+
       - name: Cache Zig artifacts
         uses: actions/cache@v5
         with:

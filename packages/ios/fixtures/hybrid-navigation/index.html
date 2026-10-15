@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+    body { font: -apple-system-body; }
+    #page { box-sizing: border-box; width: 100%; height: 100%; padding: 56px 24px 32px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; color: white; }
+    #page.home { background: #d94141; }
+    #page.second { background: #3269d1; }
+    h1 { margin: 0; font-size: 32px; }
+    button { border: 0; border-radius: 12px; padding: 14px 20px; font: inherit; color: #1a1a1a; background: white; }
+  </style>
+</head>
+<body>
+  <main id="page" class="home">
+    <h1 id="title">Hybrid home</h1>
+    <button id="open-second" type="button">Open second</button>
+  </main>
+  <script>
+    (function () {
+      var page = document.getElementById('page');
+      var title = document.getElementById('title');
+      var open = document.getElementById('open-second');
+
+      function render(path) {
+        var second = path === '/second';
+        page.className = second ? 'second' : 'home';
+        title.textContent = second ? 'Hybrid second' : 'Hybrid home';
+        open.textContent = second ? 'Back home' : 'Open second';
+      }
+
+      window.stxRouter = {
+        screens: function () { return [{ active: true, depth: history.length }]; },
+        navigate: function (path) {
+          var next = new URL(path, location.href).pathname;
+          history.pushState({}, '', next);
+          render(next);
+          window.dispatchEvent(new CustomEvent('stx:navigate', { detail: { direction: 'push' } }));
+          return Promise.resolve(true);
+        },
+      };
+
+      open.addEventListener('click', function () {
+        var path = location.pathname === '/second' ? '/' : '/second';
+        var handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.craftHybrid;
+        if (handler) handler.postMessage({ type: 'open', path: path });
+      });
+      window.addEventListener('popstate', function () { render(location.pathname); });
+      render(location.pathname);
+    })();
+  </script>
+</body>
+</html>

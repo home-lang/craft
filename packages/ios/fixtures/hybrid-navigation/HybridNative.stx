@@ -1,0 +1,5 @@
+<template>
+  <View>
+    <Text testID="hybrid-native-marker">Native fallback</Text>
+  </View>
+</template>
