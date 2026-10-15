@@ -156,6 +156,8 @@ private enum CraftNativeTreeLayoutBridge {
         let alignItems: String
         let alignContent: String
         let padding: UIEdgeInsets
+        let grid: Bool
+        let gridColumns: Int
         let children: [TreeNode]
     }
 
@@ -329,8 +331,8 @@ private enum CraftNativeTreeLayoutBridge {
             input.paddingRight = Float(max(0, node.padding.right))
             input.paddingBottom = Float(max(0, node.padding.bottom))
             input.paddingLeft = Float(max(0, node.padding.left))
-            input.grid = 0
-            input.gridColumns = 1
+            input.grid = node.grid ? 1 : 0
+            input.gridColumns = UInt32(max(1, node.gridColumns))
             input.rowGap = Float(max(0, node.rowGap))
             input.columnGap = Float(max(0, node.columnGap))
         }
@@ -1661,11 +1663,11 @@ private class CraftNativeFlowView: UIStackView {
     }
 
     /// Builds the eligible portion of this container for the host-neutral
-    /// tree ABI. The local algorithm remains authoritative for grids, reverse
-    /// flows, absolute children, and any subtree whose measurement cannot be
-    /// represented by the shared contract.
+    /// tree ABI. The local algorithm remains authoritative for reverse flows,
+    /// grid-auto-rows, absolute children, and any subtree whose measurement
+    /// cannot be represented by the shared contract.
     fileprivate func sharedTreeNode(parentWidth: CGFloat, parentHeight: CGFloat) -> CraftNativeTreeLayoutBridge.TreeNode? {
-        guard !grid, !reverse, !wrapReverse else { return nil }
+        guard !reverse, !wrapReverse, gridAutoRows == nil else { return nil }
         let children = visibleChildren
         let flow = children.filter { $0.craftLayoutStyle.position != "absolute" }
         guard flow.count == children.count else { return nil }
@@ -1707,6 +1709,8 @@ private class CraftNativeFlowView: UIStackView {
                 alignItems: nested?.alignItems ?? "stretch",
                 alignContent: nested?.alignContent ?? "flex-start",
                 padding: nested?.effectivePadding ?? .zero,
+                grid: nested?.grid ?? false,
+                gridColumns: nested?.gridColumns ?? 1,
                 children: nestedNode?.children ?? []
             )
         }
@@ -1725,12 +1729,14 @@ private class CraftNativeFlowView: UIStackView {
             alignItems: alignItems,
             alignContent: alignContent,
             padding: effectivePadding,
+            grid: grid,
+            gridColumns: gridColumns,
             children: nodes.compactMap { $0 }
         )
     }
 
     private func sharedTreeFrames(_ children: [UIView], width: CGFloat?, height: CGFloat?) -> CraftNativeTreeLayoutBridge.TreeResult? {
-        guard let width, let height, !grid, !reverse, !wrapReverse,
+        guard let width, let height, !reverse, !wrapReverse, gridAutoRows == nil,
               width.isFinite, height.isFinite, width >= 0, height >= 0 else { return nil }
         let nodes = children.map { child -> CraftNativeTreeLayoutBridge.TreeNode? in
             let style = child.craftLayoutStyle
@@ -1752,6 +1758,8 @@ private class CraftNativeFlowView: UIStackView {
                 alignItems: nested?.alignItems ?? "stretch",
                 alignContent: nested?.alignContent ?? "flex-start",
                 padding: nested?.effectivePadding ?? .zero,
+                grid: nested?.grid ?? false,
+                gridColumns: nested?.gridColumns ?? 1,
                 children: nestedNode?.children ?? []
             )
         }
@@ -1770,6 +1778,8 @@ private class CraftNativeFlowView: UIStackView {
             alignItems: alignItems,
             alignContent: alignContent,
             padding: effectivePadding,
+            grid: grid,
+            gridColumns: gridColumns,
             children: nodes.compactMap { $0 }
         )
         return CraftNativeTreeLayoutBridge.treeFrames(root: root, width: width, height: height)
@@ -1836,7 +1846,7 @@ private class CraftNativeFlowView: UIStackView {
                 frames: &frames
             )
         }
-        if place, flow.count == children.count, let sharedTree = sharedTreeFrames(flow, width: width, height: height), sharedTree.nodes.count > flow.count + 1 {
+        if place, flow.count == children.count, let sharedTree = sharedTreeFrames(flow, width: width, height: height), (sharedTree.nodes.count > flow.count + 1 || grid) {
             frames = []
             for index in 1..<sharedTree.nodes.count {
                 guard let view = sharedTree.nodes[index].view else { continue }

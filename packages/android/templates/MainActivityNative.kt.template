@@ -1263,6 +1263,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val alignContent: String,
         val padding: IntArray,
         val margins: IntArray,
+        val grid: Boolean,
+        val gridColumns: Int,
         val children: List<SharedTreeNode>,
     )
 
@@ -1273,13 +1275,18 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     )
 
     /**
-     * Flatten a simple flex subtree for the shared ABI. The local layout stays
-     * authoritative for grids, reverse flows, absolute/modal children, and
-     * scroll hosts; those cases cannot be represented without changing their
-     * native measurement contract.
+     * Flatten a flex or equal-track grid subtree for the shared ABI. The local
+     * layout stays authoritative for reverse flows, grid-auto-rows,
+     * absolute/modal children, and scroll hosts; those cases cannot be
+     * represented without changing their native measurement contract.
      */
     private fun sharedTreeChildren(width: Int, height: Int): List<Entry>? {
-        if (grid || reverse || wrapReverse) return null
+        if (reverse || wrapReverse || gridAutoRows != null) return null
+        if (grid) {
+            val layout = gridLayout(width, height)
+            if (layout.absolute.isNotEmpty()) return null
+            return layout.rows.flatten()
+        }
         val (lines, absolute) = entries(width, height)
         if (absolute.isNotEmpty()) return null
         return lines.flatten()
@@ -1310,12 +1317,14 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             padding = nested?.let { intArrayOf(it.paddingLeft, it.paddingRight, it.paddingTop, it.paddingBottom) }
                 ?: intArrayOf(0, 0, 0, 0),
             margins = intArrayOf(lp?.leftMargin ?: 0, lp?.rightMargin ?: 0, lp?.topMargin ?: 0, lp?.bottomMargin ?: 0),
+            grid = nested?.grid ?: false,
+            gridColumns = nested?.gridColumns ?: 1,
             children = children.map { child -> sharedTreeNode(child) ?: return null },
         )
     }
 
     private fun sharedTreeFrames(entries: List<Entry>, width: Int, height: Int): SharedTreeResult? {
-        if (entries.isEmpty() || width < 0 || height < 0 || grid || reverse || wrapReverse) return null
+        if (entries.isEmpty() || width < 0 || height < 0 || reverse || wrapReverse || gridAutoRows != null) return null
         val children = entries.map { sharedTreeNode(it) ?: return null }
         val root = SharedTreeNode(
             view = null,
@@ -1333,6 +1342,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             alignContent = alignContent,
             padding = intArrayOf(paddingLeft, paddingRight, paddingTop, paddingBottom),
             margins = intArrayOf(0, 0, 0, 0),
+            grid = grid,
+            gridColumns = gridColumns,
             children = children,
         )
         val nodes = mutableListOf<SharedTreeNode>()
@@ -1387,8 +1398,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             put(base, 25, node.padding[1].toFloat())
             put(base, 26, node.padding[3].toFloat())
             put(base, 27, node.padding[0].toFloat())
-            putEnum(base, 28, 0)
-            putEnum(base, 29, 1)
+            putEnum(base, 28, if (node.grid) 1 else 0)
+            put(base, 29, node.gridColumns.toFloat())
             put(base, 30, node.rowGap)
             put(base, 31, node.columnGap)
             val firstChild = cursor
@@ -1402,13 +1413,13 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
 
     /**
      * Use the host-neutral tree ABI when platform measurements are complete:
-     * definite, non-grid direct-child containers, including wrapped flows with
-     * independent row and column gaps. Reverse flows, absolute children,
-     * missing runtimes, and malformed results deliberately fall through to
-     * the established Kotlin layout below.
+     * definite direct-child containers, including wrapped flows, equal-track
+     * grids, and independent row and column gaps. Reverse flows, grid
+     * auto-rows, absolute children, missing runtimes, and malformed results
+     * deliberately fall through to the established Kotlin layout below.
      */
     private fun sharedDirectFrames(entries: List<Entry>, width: Int, height: Int): FloatArray? {
-        if (entries.isEmpty() || width < 0 || height < 0 || grid || reverse || wrapReverse) return null
+        if (entries.isEmpty() || width < 0 || height < 0 || grid || reverse || wrapReverse || gridAutoRows != null) return null
         val count = entries.size + 1
         val fields = 32
         val nodeData = FloatArray(count * fields) { Float.NaN }
@@ -1463,7 +1474,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             put(base, 26, padding[3].toFloat())
             put(base, 27, padding[0].toFloat())
             putEnum(base, 28, 0)
-            putEnum(base, 29, 1)
+            put(base, 29, 1f)
             put(base, 30, if (root) rowGapValue else 0f)
             put(base, 31, if (root) columnGapValue else 0f)
         }
@@ -1732,7 +1743,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         if (absolute.isEmpty() && lines.isNotEmpty() && (lines.size == 1 || wrap)) {
             val sharedEntries = if (wrap) lines.flatMap { it.entries } else lines[0].entries
             val sharedTree = sharedTreeFrames(sharedEntries, width, height)
-            if (sharedTree != null && sharedTree.nodes.size > sharedEntries.size + 1) {
+            if (sharedTree != null && (sharedTree.nodes.size > sharedEntries.size + 1 || grid)) {
                 for (index in 1 until sharedTree.nodes.size) {
                     val view = sharedTree.nodes[index].view ?: continue
                     val offset = index * 4
