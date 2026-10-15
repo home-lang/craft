@@ -2,6 +2,47 @@
 
 This document describes Craft's mobile platform architecture for iOS and Android.
 
+## Renderer modes and ownership
+
+Craft supports web, hybrid and native applications. The default is the web
+renderer; native rendering is an explicit application configuration. A native
+application is not a wrapper that reloads its website on every launch.
+
+| Mode | UI source | Platform rendering |
+|---|---|---|
+| Web (`renderer: 'web'`) | Remote URL or bundled web assets | WKWebView on iOS, WebView on Android |
+| Hybrid | Web renderer plus `nativeScreens` and a native bundle | Native controls on mapped routes, web view on other app routes |
+| Native (`renderer: 'native'`) | Bundled stx screens and client setup | UIKit on iOS, Android views on Android; no application web view |
+
+In native mode, stx owns component composition, slots, signals, bindings and
+translation to native IR. Craft owns platform controls, navigation, permissions,
+device services and bridge execution. The same compiled stx route bundle can be
+used by both native hosts. Shared authoring does not imply that arbitrary browser
+DOM APIs or CSS translate to native controls; inspect compiler diagnostics and
+test interactions on each host.
+
+```mermaid
+flowchart LR
+    STX[Shared stx components and client setup] --> WEB[HTML and browser runtime]
+    STX --> IR[Native IR and shared signals runtime]
+    IR --> IOS[Craft UIKit host]
+    IR --> ANDROID[Craft Android host]
+    IOS --> SERVICES[Native device services]
+    ANDROID --> SERVICES
+```
+
+Native screen code and imported helpers are installed with the app. Updating
+them, the Craft host or declared capabilities requires an app rebuild and
+release. API data can refresh independently. A native config's site URL supplies
+the API and navigation origin; it does not replace the bundled UI with a remote
+website. Unmapped native-mode routes open in the platform's in-app browser or
+Custom Tab, which has its own authentication context.
+
+See [Native STX on iOS and Android](../guides/native-stx.md) for the native build
+and verification contract. The web-view diagrams and integrations below describe
+the web renderer and hybrid web routes; they are not the execution path for
+native-only screens.
+
 ## Overview
 
 Craft provides a unified mobile API through `mobile.zig` that abstracts iOS and Android platform differences while exposing platform-specific features when needed.
@@ -66,7 +107,7 @@ stateDiagram-v2
     Inactive --> NotRunning: Terminate
 ```
 
-### WKWebView Integration
+### WKWebView Integration (web and hybrid routes)
 
 ```mermaid
 graph TB
@@ -126,7 +167,7 @@ stateDiagram-v2
     Stopped --> Started: onRestart
 ```
 
-### WebView Integration
+### WebView Integration (web and hybrid routes)
 
 ```mermaid
 graph TB

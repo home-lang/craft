@@ -9,6 +9,26 @@ fails visibly when its bundle or JavaScript runtime is unavailable.
 The default renderer remains `web`. Opting into native mode does not change an
 existing web-rendered application.
 
+## Shared components and release boundaries
+
+Author common UI, state and handlers as stx components and typed TypeScript
+composables. stx performs template composition, native IR translation and reactive
+bindings; Craft supplies the UIKit and Android controls and device capabilities.
+Do not copy native host source into an application to compensate for an unsupported
+translation. Fix the reusable behavior in stx or Craft and consume the package.
+
+The same source and signals model make reuse possible; they do not automatically
+merge an application's separately written browser and native screen files. Check
+both targets with the same route and data, and review compiler diagnostics for
+unsupported utilities, elements, styles and events. Browser screenshots cannot
+verify native controls, navigation, permissions or background work.
+
+Native screens, imported client helpers and the host ship in the installed app.
+Code or capability changes need a new build and release. A website deployment
+updates web-rendered pages and server behavior; it does not replace the native
+bundle. A native app's configured site URL is its API and navigation origin,
+not a remote source for its native UI.
+
 ## Build the same bundle for both platforms
 
 Configure routes in `native.config.json`, then compile from the directory that
