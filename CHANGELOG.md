@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.186...v0.0.187)
+
+## 🐛 Bug Fixes
+
+- builds and tests no longer leave craft-* directories in temp (#357) ([8e48f41](https://github.com/craft-native/craft/commit/8e48f41)) _(by Chris Breuer)_ ([#357](https://github.com/craft-native/craft/issues/357))
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.185...v0.0.186)
 
 ## 🐛 Bug Fixes
