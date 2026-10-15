@@ -1184,6 +1184,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('containsWrapReverse')
     expect(ios).toContain('let frameCount = output.count')
     expect(ios).toContain('childFrames.allSatisfy')
+    expect(ios).toContain('function(\n                        Float(width), Float(height)')
     // Older runtimes and unsupported styles must retain the host algorithm.
     expect(ios).toContain('guard let function')
     expect(ios).toContain('return nil')
@@ -1196,6 +1197,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('CraftNative.layoutTree(width.toFloat(), height.toFloat(), nodeData, treeMeta)')
     expect(android).toContain('CraftNative.layoutTreeV2(width.toFloat(), height.toFloat(), nodeData, treeMeta)')
     expect(android).toContain('CraftNative.layoutTreeV3(width.toFloat(), height.toFloat(), nodeData, treeMeta)')
+    expect(android).toContain('} ?: return null')
     expect(android).toContain('val fields = if (reverseAware) 33 else 32')
     expect(android).toContain('if (reverseAware) putEnum(base, 32, (if (node.reverse) 1 else 0) or (if (node.wrapReverse) 2 else 0))')
     expect(android).toContain('if (sharedTree != null && (sharedTree.nodes.size > sharedEntries.size + 1 || grid))')

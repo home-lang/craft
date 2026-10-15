@@ -1423,7 +1423,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             CraftNative.layoutTreeV2(width.toFloat(), height.toFloat(), nodeData, treeMeta)
         } else {
             CraftNative.layoutTree(width.toFloat(), height.toFloat(), nodeData, treeMeta)
-        }
+        } ?: return null
         return SharedTreeResult(nodes, parents.toIntArray(), frames)
     }
 
