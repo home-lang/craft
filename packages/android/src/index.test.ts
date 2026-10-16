@@ -653,6 +653,17 @@ describe('Craft Android builder', () => {
     expect(activity).toContain('if (payload.has("backgroundColor")) applyScreenBackground(screen)')
   })
 
+  it('keeps Android navigation chrome aligned with the visible screen background', async () => {
+    const output = createTempDir('craft-android-native-chrome-background-')
+    await init({ name: 'NativeChromeBackground', packageName: 'org.example.nativechromebackground', output, runtimeDir: null, config: { renderer: 'native' } })
+    const shell = readFileSync(join(output, 'app/src/main/java/org/example/nativechromebackground/CraftNativeShell.kt'), 'utf8')
+    expect(shell).toContain('private var screenBackgroundColor: Int? = null')
+    expect(shell).toContain('screenBackgroundColor = options.opt("backgroundColor")')
+    expect(shell).toContain('val background = screenBackgroundColor ?: ContextCompat.getColor(context, R.color.background)')
+    expect(shell).toContain('largeTitleView.setBackgroundColor(background)')
+    expect(shell).toContain('refreshColors()\n    }\n\n    fun selectTab')
+  })
+
   it('rejects Android API levels below the runtime floor before writing a project', async () => {
     const root = createTempDir('craft-android-sdk-floor-')
     try {

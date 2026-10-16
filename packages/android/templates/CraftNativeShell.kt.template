@@ -584,6 +584,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     private val tabImages = mutableMapOf<String, android.graphics.drawable.Drawable>()
     private val navButtonSpecs = mutableMapOf<TextView, JSONObject>()
     private val density = resources.displayMetrics.density
+    private var screenBackgroundColor: Int? = null
     private var selectedTab = 0
     private var swipeTracking = false
     private var swipeIntercepted = false
@@ -713,6 +714,10 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
 
     /** Draws `options` (a screen's `setOptions`) for a screen `depth` deep in its stack. */
     fun apply(options: JSONObject, depth: Int, fallbackTitle: String?) {
+        screenBackgroundColor = options.opt("backgroundColor")
+            ?.takeUnless { it == JSONObject.NULL }
+            ?.let { craftNativeOptionalString(it) }
+            ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
         options.optJSONObject("tabItem")?.let(::updateTab)
         val hidden = options.optBoolean("hidden", false)
         val large = options.optBoolean("largeTitle", false) && depth == 0
@@ -739,6 +744,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         val tabBarHidden = options.optBoolean("tabBarHidden", false) || depth > 0 && options.optBoolean("tabBarHiddenWhenPushed", false)
         tabBar.visibility = if (tabs.isEmpty() || tabBarHidden) View.GONE else View.VISIBLE
         tabSwipeEnabled = options.optBoolean("tabSwipeEnabled", true)
+        refreshColors()
     }
 
     fun selectTab(index: Int) {
@@ -784,13 +790,14 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
 
     /** Light or dark changed: the bars follow the screen's background. */
     fun refreshColors() {
-        val background = ContextCompat.getColor(context, R.color.background)
+        val background = screenBackgroundColor ?: ContextCompat.getColor(context, R.color.background)
         val dark = Color.luminance(background) < 0.5
         val text = if (dark) Color.WHITE else Color.BLACK
         val muted = if (dark) Color.parseColor("#8E8E93") else Color.parseColor("#6C6C70")
         val accent = accentColor(dark)
         setBackgroundColor(background)
         bar.setBackgroundColor(background)
+        largeTitleView.setBackgroundColor(background)
         titleView.setTextColor(text)
         largeTitleView.setTextColor(text)
         backButton.imageTintList = ColorStateList.valueOf(accent)

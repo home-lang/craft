@@ -303,6 +303,11 @@ class NativeNavigationTest {
         else -> null
     }
 
+    private fun chromeBackgroundColor(activity: MainActivity, childIndex: Int): Int? =
+        findType(activity.window.decorView, CraftNativeChrome::class.java)
+            ?.getChildAt(childIndex)
+            ?.let(::backgroundColor)
+
     private fun awaitBackgroundColor(view: View, previous: Int?): Int {
         repeat(75) {
             var current: Int? = null
@@ -1166,17 +1171,25 @@ class NativeNavigationTest {
                 ?: throw AssertionError("native root is not attached to a screen host")
             val initial = backgroundColor(screen)
             assertTrue("screen host did not receive a dynamic background", initial != null)
+            assertEquals(initial, chromeBackgroundColor(activity, 0))
 
             click(activity, "toggle-screen-background")
             repeat(75) {
-                if (backgroundColor(screen) == Color.rgb(0x12, 0x34, 0x56)) return@repeat
+                if (backgroundColor(screen) == Color.rgb(0x12, 0x34, 0x56)
+                    && chromeBackgroundColor(activity, 0) == Color.rgb(0x12, 0x34, 0x56)
+                    && chromeBackgroundColor(activity, 1) == Color.rgb(0x12, 0x34, 0x56)
+                ) return@repeat
                 SystemClock.sleep(100)
             }
             assertEquals(Color.rgb(0x12, 0x34, 0x56), backgroundColor(screen))
+            assertEquals(Color.rgb(0x12, 0x34, 0x56), chromeBackgroundColor(activity, 0))
+            assertEquals(Color.rgb(0x12, 0x34, 0x56), chromeBackgroundColor(activity, 1))
 
             click(activity, "toggle-screen-background")
             awaitBackgroundColor(screen, Color.rgb(0x12, 0x34, 0x56))
             assertEquals(initial, backgroundColor(screen))
+            assertEquals(initial, chromeBackgroundColor(activity, 0))
+            assertEquals(initial, chromeBackgroundColor(activity, 1))
         } finally {
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
             instrumentation.waitForIdleSync()
