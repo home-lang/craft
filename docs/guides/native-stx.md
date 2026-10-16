@@ -438,7 +438,7 @@ type:
 - numeric or percentage `width`, `height`, `minWidth`, `maxWidth`, `minHeight`,
   and `maxHeight` (percentages resolve against the parent's content box);
 - `flexDirection` (`row`, `column`, and their reverse forms), `alignItems`,
-  `alignSelf`, `justifyContent`, `flexWrap: 'wrap'`, `gap`, `rowGap`, and
+  `alignSelf`, `justifyContent`, `flexWrap: 'wrap' | 'wrap-reverse'`, `gap`, `rowGap`, and
   `columnGap`;
 
 - baseline alignment uses each text view's first baseline; non-text views use
@@ -489,7 +489,9 @@ pin the native screen root to the platform safe-area insets. View transforms
 (`translateX/Y`, `scale`, `rotate`, and `skew`) and z-order (`zIndex`) are
 applied by both hosts. View shadows use `shadowColor`, `shadowOpacity`,
 `shadowRadius`, and `shadowOffset`; Android also maps `elevation` to its native
-outline/elevation model. Unsupported values are ignored rather than interpreted
+outline/elevation model. Every native component's `style` accepts a nested
+`StyleValue` array, so conditional entries can be composed and flattened before
+rendering; `null`, `false`, and `undefined` entries are ignored. Unsupported values are ignored rather than interpreted
 as CSS. Explicit `null`
 layout values, including `alignSelf` and `position`, clear the previous value
 and restore the host default during reconciliation.
@@ -542,7 +544,7 @@ as the keyboard animates and returns to the original inset when it hides.
 
 ## Images and scrolling
 
-Use `{ uri: value }` for an image source. Dimensions belong in the `Image`
+Use either a URI string or `{ uri: value }` for an image source. Dimensions belong in the `Image`
 style/layout rather than the source object. `headers` on an object source are
 forwarded to HTTPS requests on both hosts. Data-image URIs and HTTPS URLs work on
 both platforms. Local development may also use HTTP from loopback hosts

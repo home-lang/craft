@@ -153,10 +153,13 @@ describe('native renderer component contract', () => {
 
   it('keeps composed native styles recursively flattenable', () => {
     expect(componentTypes).toContain('export type StyleValue<T> =')
+    expect(componentTypes).toContain('in any component\'s `style` prop')
     expect(componentTypes).toContain('style?: StyleValue<ViewStyle>')
     expect(componentTypes).toContain('const merge = (value: unknown): void =>')
     expect(componentTypes).toContain('value.forEach(merge)')
     expect(componentTypes).toContain('if (!value) return')
+    expect(guide).toContain("flexWrap: 'wrap' | 'wrap-reverse'")
+    expect(guide).toContain('Every native component\'s `style` accepts a nested')
   })
 
   it('exposes the semantic accessibility roles handled by both hosts', () => {

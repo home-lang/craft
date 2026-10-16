@@ -384,7 +384,7 @@ export interface ImageStyleProps {
  */
 export type ImageStyle = ViewStyle & ImageStyleProps
 
-/** A style value may be nested or conditionally omitted. */
+/** A native style may be nested or conditionally omitted in any component's `style` prop. */
 export type StyleValue<T> = T | StyleValue<T>[] | null | false | undefined
 
 // ============================================================================
