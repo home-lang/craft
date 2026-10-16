@@ -5755,7 +5755,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             field.tintColor = color(props["selectionColor"])
             let fieldId = ObjectIdentifier(field)
             inputIdentities[fieldId] = current.identity
-            if let maxLength = (props["maxLength"] as? NSNumber)?.intValue, maxLength > 0 {
+            let maxLength = Int(number(props["maxLength"]) ?? 0)
+            if maxLength > 0 {
                 textMaxLengths[fieldId] = maxLength
             } else {
                 textMaxLengths.removeValue(forKey: fieldId)
@@ -6753,7 +6754,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         } else {
             textView.textContainer.maximumNumberOfLines = 0
         }
-        if let maxLength = (props["maxLength"] as? NSNumber)?.intValue, maxLength > 0 {
+        let maxLength = Int(number(props["maxLength"]) ?? 0)
+        if maxLength > 0 {
             textMaxLengths[id] = maxLength
         } else {
             textMaxLengths.removeValue(forKey: id)

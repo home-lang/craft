@@ -458,6 +458,9 @@ class NativeNavigationTest {
             assertEquals("Draft", (notes as EditText).text.toString())
             assertEquals("Notes", notes.hint.toString())
             assertEquals(Color.rgb(0x22, 0xc5, 0x5e), notes.highlightColor)
+            val booleanMaxLength = awaitView(activity, "boolean-max-length") as EditText
+            instrumentation.runOnMainSync { booleanMaxLength.setText("AB") }
+            assertEquals("AB", booleanMaxLength.text.toString(), "Boolean maxLength was treated as numeric")
             val readonly = awaitView(activity, "readonly-input") as EditText
             assertTrue("editable=false should disable the native input", !readonly.isEnabled)
             assertEquals("Read only", readonly.text.toString())
