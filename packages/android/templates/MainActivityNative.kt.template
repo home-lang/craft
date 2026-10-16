@@ -4990,11 +4990,11 @@ class MainActivity : AppCompatActivity() {
             "Checkbox" -> (previous as? CheckBox ?: CheckBox(this)).apply {
                 text = craftNativeOptionalString(props.opt("label")) ?: childText(children)
                 configureText(this, text.toString(), style)
-                val requested = props.opt("checked") ?: props.opt("value")
-                val checked = when (requested) {
-                    is Boolean -> requested
-                    is Number -> requested.toDouble() != 0.0
-                    is String -> requested.equals("true", ignoreCase = true) || requested == "1"
+                val checkboxChecked = props.opt("checked")
+                val checkboxValue = props.opt("value")
+                val checked = when {
+                    checkboxChecked is Boolean -> checkboxChecked
+                    checkboxValue is Boolean -> checkboxValue
                     else -> false
                 }
                 setOnCheckedChangeListener(null)

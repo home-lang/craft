@@ -97,6 +97,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('A reused View may still carry a')
       expect(nativeActivity).toContain('val requestedChecked = props.opt("checked")')
       expect(nativeActivity).toContain('requestedChecked is Boolean -> requestedChecked')
+      expect(nativeActivity).toContain('val checkboxChecked = props.opt("checked")')
+      expect(nativeActivity).toContain('checkboxValue is Boolean -> checkboxValue')
       expect(nativeActivity).not.toContain('(child.layoutParams?.width ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
       expect(nativeActivity).not.toContain('(child.layoutParams?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
       const mutation = readFileSync(join(native, 'app/src/main/java/com/craft/native/CraftNativeMutation.kt'), 'utf8')

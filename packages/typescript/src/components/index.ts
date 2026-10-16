@@ -828,6 +828,7 @@ export interface SwitchProps extends BaseProps {
 }
 
 export interface CheckboxProps extends BaseProps {
+  /** Controlled boolean state; malformed native bridge values stay off. */
   value?: boolean
   checked?: boolean
   indeterminate?: boolean

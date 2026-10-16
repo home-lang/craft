@@ -2817,6 +2817,14 @@ describe('native renderer component contract', () => {
     expect(android).not.toContain('requestedChecked.isBlank()')
   })
 
+  it('keeps malformed Checkbox state deterministic across native hosts', () => {
+    expect(ios).toContain('let checked = (props["checked"] as? Bool) ?? (props["value"] as? Bool) ?? false')
+    expect(android).toContain('val checkboxChecked = props.opt("checked")')
+    expect(android).toContain('checkboxChecked is Boolean -> checkboxChecked')
+    expect(android).toContain('checkboxValue is Boolean -> checkboxValue')
+    expect(android).not.toContain('requested.toDouble() != 0.0')
+  })
+
   it('keeps malformed Android refresh colors from crashing or inventing a tint', () => {
     expect(android).toContain('setColorSchemeColors(tint?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: fallback)')
     expect(android).toContain('background?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: Color.TRANSPARENT')
