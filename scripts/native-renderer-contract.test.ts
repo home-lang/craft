@@ -1348,6 +1348,11 @@ describe('native renderer component contract', () => {
     expect(androidBuilder).toContain('the app must start on a native screen')
   })
 
+  it('preserves plus signs in Android native path parameters', () => {
+    expect(androidShell).toContain('params.put(expected.removePrefix(":"), Uri.decode(parts[index]))')
+    expect(androidShell).toContain('decode(pair.substringAfter(\'=\', "").replace(\'+\', \' \'))')
+  })
+
   it('does not recenter native maps on every reconciliation', () => {
     expect(ios).toContain('private var initialCameraKey: String?')
     expect(ios).toContain('if let region = Self.region(props["region"])')

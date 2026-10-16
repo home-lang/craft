@@ -183,7 +183,7 @@ internal class CraftNativeRoutes(config: JSONObject) {
             if (index >= parts.size) return null
             if (expected.startsWith(":")) {
                 if (parts[index].isBlank()) return null
-                params.put(expected.removePrefix(":"), decode(parts[index]))
+                params.put(expected.removePrefix(":"), Uri.decode(parts[index]))
             } else if (expected != parts[index]) return null
         }
         return if (pattern.size == parts.size) params else null

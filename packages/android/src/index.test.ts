@@ -628,6 +628,13 @@ describe('Craft Android builder', () => {
     })).rejects.toThrow('start path "/settings"')
   })
 
+  it('keeps plus signs in generated native path parameters', async () => {
+    const output = createTempDir('craft-android-native-route-encoding-')
+    await init({ name: 'NativeRouteEncoding', packageName: 'org.example.nativerouteencoding', output, runtimeDir: null, config: { renderer: 'native' } })
+    const shell = readFileSync(join(output, 'app/src/main/java/org/example/nativerouteencoding/CraftNativeShell.kt'), 'utf8')
+    expect(shell).toContain('params.put(expected.removePrefix(":"), Uri.decode(parts[index]))')
+  })
+
   it('rejects Android API levels below the runtime floor before writing a project', async () => {
     const root = createTempDir('craft-android-sdk-floor-')
     try {
