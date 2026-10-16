@@ -354,6 +354,20 @@ describe('Craft iOS builder', () => {
     expect(hybrid).toContain('if hybrid.isEnabled, let match = hybrid.routes.match(path)')
   })
 
+  it('keeps hybrid external links on the configured scheme and port', async () => {
+    const output = createTempDir('craft-ios-hybrid-site-origin-')
+    await init({
+      runtimeDir: null,
+      name: 'HybridSiteOrigin',
+      output,
+      config: { renderer: 'web', devServerURL: 'https://example.com:8443/home' },
+    })
+
+    const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
+    expect(hybrid).toContain('let siteScheme = site?.scheme?.lowercased(), scheme == siteScheme')
+    expect(hybrid).toContain('url.port == site?.port')
+  })
+
   it('renders only metadata for enabled native capabilities', () => {
     const config = {
       appName: 'WildLoop',

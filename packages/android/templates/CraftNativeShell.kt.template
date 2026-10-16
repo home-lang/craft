@@ -115,7 +115,7 @@ internal class CraftNativeRoutes(config: JSONObject) {
     val site: Uri? = config.optString("devServerURL").takeIf { it.isNotBlank() }?.let(Uri::parse)
     val siteOrigin: String? = site?.let { uri ->
         val port = if (uri.port > 0) ":${uri.port}" else ""
-        "${uri.scheme}://${uri.host}$port"
+        "${uri.scheme?.lowercase()}://${uri.host?.lowercase()}$port"
     }
 
     /** Where the app opens: the site's path when a screen draws it, else the first tab. */
@@ -150,7 +150,7 @@ internal class CraftNativeRoutes(config: JSONObject) {
         }
         val origin = siteOrigin ?: return null
         val port = if (uri.port > 0) ":${uri.port}" else ""
-        if ("${uri.scheme}://${uri.host}$port" != origin) return null
+        if ("${scheme}://${uri.host?.lowercase()}$port" != origin) return null
         return (uri.encodedPath ?: "/") + (uri.encodedQuery?.let { "?$it" } ?: "")
     }
 

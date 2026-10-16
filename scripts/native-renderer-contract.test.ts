@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 
 const root = join(import.meta.dir, '..')
 const ios = readFileSync(join(root, 'packages/ios/templates/CraftNativeScreen.swift'), 'utf8')
+const iosHybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
 const iosActions = readFileSync(join(root, 'packages/ios/templates/CraftNativeActions.swift'), 'utf8')
 const iosHealth = readFileSync(join(root, 'packages/ios/templates/CraftHealth.swift'), 'utf8')
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
@@ -1324,6 +1325,13 @@ describe('native renderer component contract', () => {
     expect(androidShell).toContain('val path = uri.encodedPath?.takeIf { it.isNotBlank() } ?: "/"')
     expect(androidShell).toContain('val query = uri.encodedQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""')
     expect(androidShell).toContain('(path + query).takeIf { match(it) != null }')
+  })
+
+  it('keeps native deep links inside the exact configured site origin', () => {
+    expect(iosHybrid).toContain('let siteScheme = site?.scheme?.lowercased(), scheme == siteScheme')
+    expect(iosHybrid).toContain('url.port == site?.port')
+    expect(androidShell).toContain('"${uri.scheme?.lowercase()}://${uri.host?.lowercase()}$port"')
+    expect(androidShell).toContain('"${scheme}://${uri.host?.lowercase()}$port" != origin')
   })
 
   it('does not recenter native maps on every reconciliation', () => {

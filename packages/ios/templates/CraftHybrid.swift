@@ -146,8 +146,10 @@ struct CraftHybridRoutes {
         let scheme = (url.scheme ?? "").lowercased()
         guard scheme == "http" || scheme == "https",
               let host = url.host?.lowercased(), !host.isEmpty,
-              let siteHost = site?.host?.lowercased() else { return false }
-        return host == siteHost
+              let siteScheme = site?.scheme?.lowercased(), scheme == siteScheme,
+              let siteHost = site?.host?.lowercased(), host == siteHost,
+              url.port == site?.port else { return false }
+        return true
     }
 
     /// Where a path no native screen draws opens in an app with no web view:
