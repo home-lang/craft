@@ -279,7 +279,8 @@ string or `{ uri }`, while `autoplay`/`autoPlay`, `paused`, `loop`, `muted`,
 element. The native player is stopped when its node is removed or replaced;
 unsupported or empty sources remain inert instead of falling back to a WebView.
 `@play`, `@pause`, `@timeupdate`, `@ended`, `@load` and `@error` reach the screen
-on both platforms, from the system controls as well as from props. A video with sound
+on both platforms, from the system controls as well as from props; `@play` waits
+for the native player to report active playback. A video with sound
 plays mixed with the person's music (iOS: the playback session, shared with
 speech and sounds; Android: no audio focus). With `pictureInPicture` it carries
 on in a floating window when the person leaves the app while it plays, and

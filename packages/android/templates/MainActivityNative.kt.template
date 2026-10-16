@@ -3019,7 +3019,10 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
 
     override fun start() {
         super.start()
-        setPlaying(true)
+        // VideoView accepts start() before its MediaPlayer is prepared. Do
+        // not announce playback until the player reports that it is actually
+        // running; iOS follows the same rule through AVPlayer's time status.
+        if (runCatching { isPlaying }.getOrDefault(false)) setPlaying(true)
     }
 
     override fun pause() {

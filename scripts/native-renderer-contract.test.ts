@@ -630,6 +630,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('fire("onProgress", JSONObject()')
     expect(android).toContain('progressHandler.postDelayed(this, 500L)')
     expect(android).toContain('progressHandler.removeCallbacks(progressTick)')
+    expect(android).toContain('if (runCatching { isPlaying }.getOrDefault(false)) setPlaying(true)')
     expect(android).toContain('notifyPictureInPicture(active: Boolean)')
     expect(android).toContain('fire(if (active) "onPictureInPictureStart" else "onPictureInPictureStop")')
     expect(android).toContain('pictureInPictureVideo?.notifyPictureInPicture(false)')
