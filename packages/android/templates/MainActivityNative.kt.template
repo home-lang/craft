@@ -4945,7 +4945,7 @@ class MainActivity : AppCompatActivity() {
             "Text" -> ((previous as? TextView)?.takeUnless { it is Button || it is EditText } ?: TextView(this)).apply {
                 includeFontPadding = false
                 maxLines = craftNativeInt(props.opt("numberOfLines"), 0).takeIf { it > 0 } ?: Int.MAX_VALUE
-                ellipsize = when (props.optString("ellipsizeMode")) {
+                ellipsize = when (craftNativeOptionalString(props.opt("ellipsizeMode"))) {
                     "head" -> TextUtils.TruncateAt.START
                     "middle" -> TextUtils.TruncateAt.MIDDLE
                     "tail" -> TextUtils.TruncateAt.END
@@ -5480,7 +5480,7 @@ class MainActivity : AppCompatActivity() {
                 drawing = node
             }
             "ScrollView", "SectionList" -> (previous as? CraftNativeScrollView ?: CraftNativeScrollView(this)).apply {
-                val horizontal = craftNativeBoolean(props.opt("horizontal")) || style.optString("flexDirection") in setOf("row", "row-reverse")
+                val horizontal = craftNativeBoolean(props.opt("horizontal")) || craftNativeOptionalString(style.opt("flexDirection")) in setOf("row", "row-reverse")
                 setHorizontal(horizontal)
                 setNativeNestedScrollingEnabled(true)
                 setScrollIndicators(
@@ -5488,7 +5488,7 @@ class MainActivity : AppCompatActivity() {
                     craftNativeBoolean(props.opt("showsHorizontalScrollIndicator"), true),
                 )
                 setScrollEnabled(craftNativeBoolean(props.opt("scrollEnabled"), true))
-                setKeyboardShouldPersistTaps(props.optString("keyboardShouldPersistTaps", "never"))
+                setKeyboardShouldPersistTaps(craftNativeOptionalString(props.opt("keyboardShouldPersistTaps")) ?: "never")
                 setBounces(craftNativeBoolean(props.opt("bounces"), true))
                 setAlwaysBounce(
                     craftNativeBoolean(props.opt("alwaysBounceVertical"), !horizontal),
@@ -5550,7 +5550,7 @@ class MainActivity : AppCompatActivity() {
                             send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject()))
                         }
                     },
-                    keyboardDismissMode = props.optString("keyboardDismissMode"),
+                    keyboardDismissMode = craftNativeOptionalString(props.opt("keyboardDismissMode")).orEmpty(),
                     dismissKeyboard = {
                         (getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
                             ?.hideSoftInputFromWindow(nativeScroll.windowToken, 0)
@@ -5587,9 +5587,9 @@ class MainActivity : AppCompatActivity() {
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
                 }, craftNativeBoolean(propRefresh.opt("refreshing"), craftNativeBoolean(props.opt("refreshing"))))
                 setRefreshAppearance(propRefresh, refreshTintFallback(screen))
-                nativeList.setKeyboardShouldPersistTaps(props.optString("keyboardShouldPersistTaps", "never"))
+                nativeList.setKeyboardShouldPersistTaps(craftNativeOptionalString(props.opt("keyboardShouldPersistTaps")) ?: "never")
                 nativeList.setContentContainerStyle(props.optJSONObject("contentContainerStyle"), resources.displayMetrics.density)
-                nativeList.setKeyboardDismissMode(props.optString("keyboardDismissMode")) {
+                nativeList.setKeyboardDismissMode(craftNativeOptionalString(props.opt("keyboardDismissMode")).orEmpty()) {
                     (getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
                         ?.hideSoftInputFromWindow(windowToken, 0)
                 }
