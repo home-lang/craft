@@ -755,6 +755,25 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(list.alwaysBounceHorizontal)
     }
 
+    func testFlatListPagingFollowsProps() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([[
+            "type": "FlatList",
+            "props": ["key": "list", "pagingEnabled": true],
+            "children": [["id": "row", "type": "Text", "children": ["Row"]]],
+        ]]))
+        let list = try XCTUnwrap(find(CraftNativeFlatList.self, key: "list", below: controller.view))
+        XCTAssertTrue(list.isPagingEnabled)
+
+        controller.render(document([[
+            "type": "FlatList",
+            "props": ["key": "list"],
+            "children": [["id": "row", "type": "Text", "children": ["Row"]]],
+        ]]))
+        XCTAssertFalse(list.isPagingEnabled)
+    }
+
     func testFlatListRefreshControlForwardsAndTracksControlledState() {
         let list = CraftNativeFlatList()
         // A refresh control only begins refreshing inside a window.

@@ -219,6 +219,15 @@ class NativeFlatListTest {
     }
 
     @Test
+    fun appliesPagingToNativeList() {
+        val list = CraftNativeFlatList(instrumentation.targetContext)
+        list.setPagingEnabled(true)
+        assertTrue("paging should be enabled", list.isPagingEnabledForTest)
+        list.setPagingEnabled(false)
+        assertTrue("paging should be disabled", !list.isPagingEnabledForTest)
+    }
+
+    @Test
     fun usesRenderedHeightsForVariableRows() {
         val context = instrumentation.targetContext
         lateinit var list: CraftNativeFlatList

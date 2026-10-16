@@ -2537,6 +2537,15 @@ describe('native renderer component contract', () => {
     expect(androidFlatListTest).toContain('preservesRowTouchTargetsWhenScrollingIsDisabled')
   })
 
+  it('keeps FlatList paging enabled through both native hosts', () => {
+    expect(ios).toContain('list.isPagingEnabled = props["pagingEnabled"] as? Bool ?? false')
+    expect(android).toContain('list.setPagingEnabled(props.optBoolean("pagingEnabled", false))')
+    expect(androidFlatList).toContain('PagerSnapHelper')
+    expect(androidFlatList).toContain('fun setPagingEnabled(enabled: Boolean)')
+    expect(androidFlatListTest).toContain('appliesPagingToNativeList')
+    expect(iosNativeUnitTests).toContain('testFlatListPagingFollowsProps')
+  })
+
   it('routes authored links through both native hosts', () => {
     expect(navigationHome).toContain('<a testID="native-route-link" href="/linked-details">')
     expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')
