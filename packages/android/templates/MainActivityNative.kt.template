@@ -4963,7 +4963,7 @@ class MainActivity : AppCompatActivity() {
             }
             "Link" -> ((previous as? TextView)?.takeUnless { it is Button } ?: TextView(this)).apply {
                 includeFontPadding = false
-                configureText(this, craftNativeOptionalString(props.opt("title")) ?: childText(children), style)
+                configureText(this, (props.opt("title") as? String) ?: childText(children), style)
                 val linkColor = craftNativeOptionalString(props.opt("color")) ?: craftNativeOptionalString(style.opt("color"))
                 setTextColor(color(linkColor.orEmpty(), Color.rgb(33, 150, 243)))
                 paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
@@ -4971,7 +4971,8 @@ class MainActivity : AppCompatActivity() {
                 isClickable = true
                 isFocusable = true
                 val target = listOf(props.opt("href"), props.opt("to"))
-                    .firstNotNullOfOrNull(::craftNativeOptionalString)
+                    .mapNotNull { it as? String }
+                    .firstOrNull { it.trim().isNotEmpty() }
                     ?.trim()
                     ?.takeIf { !craftNativeBoolean(props.opt("disabled")) }
                 if (target != null) screen.linkTargets[this] = target else screen.linkTargets.remove(this)
@@ -4994,7 +4995,7 @@ class MainActivity : AppCompatActivity() {
                 minimumHeight = 0
                 setPadding(0, 0, 0, 0)
             }).apply {
-                val title = craftNativeOptionalString(props.opt("title")) ?: childText(children)
+                val title = (props.opt("title") as? String) ?: childText(children)
                 isAllCaps = false
                 configureText(this, title, style)
                 val buttonColor = craftNativeOptionalString(props.opt("color"))
@@ -5009,7 +5010,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             "Checkbox" -> (previous as? CheckBox ?: CheckBox(this)).apply {
-                text = craftNativeOptionalString(props.opt("label")) ?: childText(children)
+                text = (props.opt("label") as? String) ?: childText(children)
                 configureText(this, text.toString(), style)
                 val checkboxChecked = props.opt("checked")
                 val checkboxValue = props.opt("value")
