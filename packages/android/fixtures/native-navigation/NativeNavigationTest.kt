@@ -741,6 +741,12 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync { (picker as Spinner).setSelection(1) }
             awaitText(activity, "picker-value", "two")
             assertEquals("picker two", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            val itemsPicker = awaitView(activity, "native-items-picker")
+            assertTrue("items picker should be an Android Spinner", itemsPicker is Spinner)
+            assertEquals("one", (awaitView(activity, "items-picker-value") as TextView).text.toString())
+            instrumentation.runOnMainSync { (itemsPicker as Spinner).setSelection(1) }
+            awaitText(activity, "items-picker-value", "2")
+            assertEquals("items picker 2", (awaitView(activity, "native-link-status") as TextView).text.toString())
             val dateRoot = awaitView(activity, "native-date-picker")
             val nativeDatePicker = findType(dateRoot, DatePicker::class.java)
             assertTrue("native date picker should contain an Android DatePicker", nativeDatePicker != null)

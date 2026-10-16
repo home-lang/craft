@@ -18,6 +18,8 @@ const longPressStatus = state('')
 const longPressAccessibilityDisabled = state(false)
 const switchValue = state(false)
 const pickerValue = state('one')
+const itemsPickerValue = state('one')
+const pickerItems = [{ label: 'One item', value: 'one' }, { label: 'Two item', value: 2 }]
 const dateValue = state('2026-10-12')
 const timeValue = state('07:30')
 const countdownValue = state('01:30:45')
@@ -343,6 +345,11 @@ function toggleSwitch(event) {
 function choosePicker(event) {
   pickerValue.set(event.value)
   status.set(`picker ${pickerValue()}`)
+}
+
+function chooseItemsPicker(event) {
+  itemsPickerValue.set(event.value)
+  status.set(`items picker ${itemsPickerValue()}`)
 }
 
 function chooseDate(event) {
@@ -678,6 +685,8 @@ function toggleSafeAreaEdges() {
       <option value="three">Three</option>
     </select>
     <Text testID="picker-value" :text="pickerValue" />
+    <select testID="native-items-picker" items={pickerItems} :value="itemsPickerValue" @change="chooseItemsPicker($event)" />
+    <Text testID="items-picker-value" :text="itemsPickerValue" />
     <DatePicker testID="native-date-picker" value="2026-10-12" minimumDate="2026-10-01" maximumDate="2026-12-31" @value-change="chooseDate($event)" />
     <Text testID="date-value" :text="dateValue" />
     <DatePicker testID="native-time-picker" mode="time" value="07:30" minuteInterval={5} @value-change="chooseTime($event)" />

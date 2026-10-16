@@ -688,6 +688,9 @@ final class NativeNavigationUITests: XCTestCase {
         // The picker's first selection is not a change: the shared status
         // still says what the switch just did.
         XCTAssertEqual(app.staticTexts["native-link-status"].label, "switch on")
+        let itemsPicker = app.pickers["native-items-picker"]
+        XCTAssertTrue(itemsPicker.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["items-picker-value"].label, "one")
         let modalToggle = app.buttons["toggle-modal"]
         reveal(modalToggle, in: rootScroll)
         modalToggle.tap()
