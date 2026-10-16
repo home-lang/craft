@@ -49,10 +49,12 @@ describe('Component System', () => {
       onScroll: event => expect(event.nativeEvent.contentOffset.x).toBe(0),
       onScrollBeginDrag: () => {},
       onScrollEndDrag: () => {},
+      refreshControl: { refreshing: false, title: 'Pull to refresh' },
     }
     expect(input.accessibilityState?.selected).toBe(true)
     expect(input.accessibilityRole).toBe('toolbar')
     expect(scroll.onScroll).toBeDefined()
+    expect(scroll.refreshControl?.title).toBe('Pull to refresh')
   })
 
   it('types the native renderer component contract', () => {

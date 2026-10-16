@@ -711,8 +711,8 @@ export interface ScrollViewProps extends ViewProps {
   keyboardDismissMode?: 'none' | 'on-drag' | 'interactive'
   /** Keyboard should persist taps */
   keyboardShouldPersistTaps?: 'always' | 'never' | 'handled'
-  /** Refresh control component */
-  refreshControl?: any
+  /** Controlled native pull-to-refresh component. */
+  refreshControl?: RefreshControlProps
 }
 
 /**

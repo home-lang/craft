@@ -131,6 +131,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"scrollbar" -> ScrollView::class.java.name')
   })
 
+  it('types ScrollView refresh controls instead of falling back to any', () => {
+    expect(componentTypes).toContain('refreshControl?: RefreshControlProps')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
