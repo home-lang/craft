@@ -75,6 +75,16 @@ final class NativeLayoutUnitTests: XCTestCase {
         return view.convert(view.bounds, to: controller.view)
     }
 
+    private func assertColor(_ color: UIColor?, red: CGFloat, green: CGFloat, blue: CGFloat, file: StaticString = #filePath, line: UInt = #line) throws {
+        let color = try XCTUnwrap(color, file: file, line: line)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        XCTAssertTrue(color.getRed(&r, green: &g, blue: &b, alpha: &a), file: file, line: line)
+        XCTAssertEqual(r, red, accuracy: 0.001, file: file, line: line)
+        XCTAssertEqual(g, green, accuracy: 0.001, file: file, line: line)
+        XCTAssertEqual(b, blue, accuracy: 0.001, file: file, line: line)
+        XCTAssertEqual(a, 1, accuracy: 0.001, file: file, line: line)
+    }
+
     private func text(_ key: String, _ value: String, style: [String: Any] = [:], props: [String: Any] = [:]) -> [String: Any] {
         ["id": key, "type": "Text", "props": props.merging(["testID": key]) { $1 }, "style": style, "children": [value]]
     }
@@ -532,8 +542,10 @@ final class NativeLayoutUnitTests: XCTestCase {
         controller.evaluateScript("craft.navigation.setOptions({ backgroundColor: '#123456', navigationBarSolid: true })")
         let solid = try XCTUnwrap(controller.navigationItem.standardAppearance)
         XCTAssertNil(solid.backgroundEffect)
-        XCTAssertEqual(solid.shadowColor, .clear)
-        XCTAssertTrue(solid.backgroundColor?.isEqual(UIColor(red: 0x12 / 255, green: 0x34 / 255, blue: 0x56 / 255, alpha: 1)) == true)
+        // UIKit may normalize clear to nil; both mean no shadow.
+        XCTAssertEqual(solid.shadowColor?.cgColor.alpha ?? 0, 0)
+        XCTAssertNil(solid.shadowImage)
+        try assertColor(solid.backgroundColor, red: 0x12 / 255, green: 0x34 / 255, blue: 0x56 / 255)
         XCTAssertNotNil(controller.navigationItem.scrollEdgeAppearance)
         XCTAssertNotNil(controller.navigationItem.compactAppearance)
         XCTAssertNotNil(controller.navigationItem.compactScrollEdgeAppearance)
@@ -558,8 +570,8 @@ final class NativeLayoutUnitTests: XCTestCase {
         let appearance = try XCTUnwrap(controller.navigationItem.standardAppearance)
         let light = try XCTUnwrap(appearance.backgroundColor).resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
         let dark = try XCTUnwrap(appearance.backgroundColor).resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
-        XCTAssertTrue(light.isEqual(UIColor.white))
-        XCTAssertTrue(dark.isEqual(UIColor(red: 0x10 / 255, green: 0x18 / 255, blue: 0x20 / 255, alpha: 1)))
+        try assertColor(light, red: 1, green: 1, blue: 1)
+        try assertColor(dark, red: 0x10 / 255, green: 0x18 / 255, blue: 0x20 / 255)
     }
 
     func testAProgressFillTakesItsShareOnceItsGrowArrives() throws {
