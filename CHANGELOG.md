@@ -4,6 +4,8 @@
 
 ## 🐛 Bug Fixes
 
+- **ios**: keep slow hybrid pages visible until they commit ([77fc683](https://github.com/craft-native/craft/commit/77fc683)) _(by Chris Breuer)_
+- **ios**: pair simulator runtimes with the selected Xcode SDK ([cdda65f](https://github.com/craft-native/craft/commit/cdda65f)) _(by Chris Breuer)_
 - **ios**: clip nested scroll content to its viewport ([7ed9190](https://github.com/craft-native/craft/commit/7ed9190)) _(by Chris Breuer)_
 - **ios**: preserve native input touches and link activation ([58d672f](https://github.com/craft-native/craft/commit/58d672f)) _(by Chris Breuer)_
 - **android**: drain lifecycle messages before closing screens ([71ea48f](https://github.com/craft-native/craft/commit/71ea48f)) _(by Chris Breuer)_
@@ -18,12 +20,15 @@
 
 ## 📚 Documentation
 
+- record complete parallel device verification ([eeb471f](https://github.com/craft-native/craft/commit/eeb471f)) _(by Chris Breuer)_
 - synchronize native release verification notes ([8d534df](https://github.com/craft-native/craft/commit/8d534df)) _(by Chris Breuer)_
 - record the hybrid device harness fix ([6c19f0f](https://github.com/craft-native/craft/commit/6c19f0f)) _(by Chris Breuer)_
 - complete native device release notes ([233bbd8](https://github.com/craft-native/craft/commit/233bbd8)) _(by Chris Breuer)_
 
 ## 🧪 Tests
 
+- **ios**: use ad hoc signing for UIKit simulator fixtures ([b1d8b00](https://github.com/craft-native/craft/commit/b1d8b00)) _(by Chris Breuer)_
+- **ios**: retain hybrid HTTP and Xcode failure evidence ([f2f9cfc](https://github.com/craft-native/craft/commit/f2f9cfc)) _(by Chris Breuer)_
 - **ios**: keep hybrid fixture HTTP serving during Xcode checks ([877cdad](https://github.com/craft-native/craft/commit/877cdad)) _(by Chris Breuer)_
 - **ios**: verify native link retention and diagnose tab settling ([e3b34f5](https://github.com/craft-native/craft/commit/e3b34f5)) _(by Chris Breuer)_
 - align native contracts with shared service APIs ([429cc95](https://github.com/craft-native/craft/commit/429cc95)) _(by Chris Breuer)_
