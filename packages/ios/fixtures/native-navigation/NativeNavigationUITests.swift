@@ -493,6 +493,9 @@ final class NativeNavigationUITests: XCTestCase {
         styleToggle.tap()
         XCTAssertTrue(app.staticTexts["button style accented"].waitForExistence(timeout: 5))
         XCTAssertTrue(styleToggle.isSelected)
+        styleToggle.tap()
+        XCTAssertTrue(app.staticTexts["button style default"].waitForExistence(timeout: 5))
+        XCTAssertFalse(styleToggle.isSelected)
         let panelStyleToggle = app.buttons["toggle-panel-style"]
         reveal(panelStyleToggle, in: rootScroll)
         panelStyleToggle.tap()

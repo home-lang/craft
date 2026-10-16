@@ -1068,6 +1068,14 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('| `Picker` | `UIPickerView` | `Spinner` |')
   })
 
+  it('covers native button style removal after keyed reconciliation', () => {
+    expect(androidNavigationTest).toContain('removing the authored button color did not restore the theme color')
+    expect(androidNavigationTest).toContain('clearing the selected state was not exposed')
+    expect(iosNavigationTest).toContain('app.staticTexts["button style default"]')
+    expect(iosNavigationTest).toContain('XCTAssertFalse(styleToggle.isSelected)')
+    expect(guide).toContain('`Button.color` and `Link.color` set the native action-label color')
+  })
+
   it('keeps native Checkbox state and change events aligned across hosts', () => {
     expect(ios).toContain('private final class CraftNativeCheckboxButton: UIButton')
     expect(ios).toContain('let uncheckedImage = UIImage(systemName: indeterminate ? "minus.square" : "square")')

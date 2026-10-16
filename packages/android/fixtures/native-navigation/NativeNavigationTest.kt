@@ -665,6 +665,12 @@ class NativeNavigationTest {
             assertEquals(Color.rgb(0xef, 0x44, 0x44), accentedButton.currentTextColor)
             instrumentation.runOnMainSync { styleInfo = accentedButton.createAccessibilityNodeInfo() }
             assertTrue("selected accessibility state was not exposed", styleInfo?.isSelected == true)
+            click(activity, "toggle-button-style")
+            awaitText(activity, "native-link-status", "button style default")
+            val restoredButton = awaitView(activity, "toggle-button-style") as Button
+            assertEquals("removing the authored button color did not restore the theme color", Color.rgb(0x22, 0xc5, 0x5e), restoredButton.currentTextColor)
+            instrumentation.runOnMainSync { styleInfo = restoredButton.createAccessibilityNodeInfo() }
+            assertTrue("clearing the selected state was not exposed", styleInfo?.isSelected == false)
             val dynamicStyleBox = awaitView(activity, "dynamic-style-box")
             assertTrue("custom panel style should use a GradientDrawable", dynamicStyleBox.background is GradientDrawable)
             click(activity, "toggle-panel-style")
