@@ -35,7 +35,7 @@ private func craftNativePickerValue(_ value: Any?) -> String? {
 }
 
 private func craftNativeGridColumnCount(_ value: Any?) -> Int {
-    if let number = value as? NSNumber { return max(1, number.intValue) }
+    if !(value is Bool), let number = value as? NSNumber { return max(1, number.intValue) }
     guard let text = value as? String else { return 1 }
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.hasPrefix("repeat(") {
@@ -1449,7 +1449,9 @@ private enum CraftNativeLength: Equatable {
     case percent(CGFloat)
 
     init?(_ value: Any?) {
-        if let number = value as? NSNumber {
+        // JavaScript booleans can bridge to NSNumber on Apple platforms;
+        // they are invalid CSS lengths and must stay unset like Android.
+        if !(value is Bool), let number = value as? NSNumber {
             let points = CGFloat(truncating: number)
             guard points.isFinite else { return nil }
             self = .points(points)
@@ -1507,7 +1509,7 @@ private struct CraftNativeLayoutStyle {
 
     init(_ raw: [String: Any]) {
         func number(_ value: Any?) -> CGFloat? {
-            guard let number = value as? NSNumber else { return nil }
+            guard !(value is Bool), let number = value as? NSNumber else { return nil }
             let value = CGFloat(truncating: number)
             return value.isFinite ? value : nil
         }

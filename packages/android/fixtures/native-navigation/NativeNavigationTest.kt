@@ -788,6 +788,11 @@ class NativeNavigationTest {
                 nestedPercentChild.height.toDouble(),
                 1.0,
             )
+            val booleanWidthText = awaitView(activity, "boolean-width-text")
+            assertTrue(
+                "boolean width was treated as a numeric layout length",
+                booleanWidthText.width > 20.0 * density,
+            )
             val nestedShrinkRowText = awaitView(activity, "nested-shrink-row-text")
             val nestedShrinkColumnText = awaitView(activity, "nested-shrink-column-text")
             assertEquals(

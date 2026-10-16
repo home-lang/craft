@@ -1822,6 +1822,14 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('nested vertical text incorrectly used a horizontal flex-shrink default')
   })
 
+  it('ignores boolean values in numeric native layout styles on both hosts', () => {
+    expect(ios).toContain('// JavaScript booleans can bridge to NSNumber on Apple platforms;')
+    expect(android).toContain('if (value is Number)')
+    expect(navigationHome).toContain('testID="boolean-width-text"')
+    expect(iosNavigationTest).toContain('boolean width was treated as a numeric layout length')
+    expect(androidNavigationTest).toContain('boolean width was treated as a numeric layout length')
+  })
+
   it('sanitizes keyboard avoidance offsets before applying host geometry', () => {
     expect(ios).toContain('keyboardVerticalOffset = number(props["keyboardVerticalOffset"]) ?? 0')
     expect(android).toContain('val authoredOffset = craftNativeFiniteDouble(props, "keyboardVerticalOffset", 0.0)')

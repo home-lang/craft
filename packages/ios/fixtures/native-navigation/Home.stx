@@ -851,6 +851,9 @@ function toggleScreenBackground() {
     <View testID="nested-percent-parent" style={{"width":80,"height":60,"padding":4,"backgroundColor":"#604f2f"}}>
       <View testID="nested-percent-child" style={{"width":"50%","height":"50%","backgroundColor":"#fbbf24"}} />
     </View>
+    <View testID="invalid-number-layout" style={{"width":120,"height":30,"flexDirection":"row","backgroundColor":"#463b5e"}}>
+      <Text testID="boolean-width-text" style={{"width":true,"height":20}}>boolean width is ignored</Text>
+    </View>
     <View testID="nested-shrink-row-parent" style={{"width":140,"height":60,"flexDirection":"row","backgroundColor":"#553b62"}}>
       <View testID="nested-shrink-row" style={{"width":100,"height":60,"flexDirection":"row","backgroundColor":"#6d4c7d"}}>
         <Text testID="nested-shrink-row-text" style={{"width":80,"height":24}}>wide row label</Text>

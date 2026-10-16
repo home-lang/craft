@@ -808,6 +808,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(nestedPercentParent.frame.width, 80, accuracy: 2)
         XCTAssertEqual(nestedPercentChild.frame.width, 36, accuracy: 2, "nested percentage width used the outer parent")
         XCTAssertEqual(nestedPercentChild.frame.height, 26, accuracy: 2, "nested percentage height used the outer parent")
+        let booleanWidthText = app.staticTexts["boolean-width-text"]
+        XCTAssertTrue(booleanWidthText.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(booleanWidthText.frame.width, 20, "boolean width was treated as a numeric layout length")
         let nestedShrinkRowText = app.staticTexts["nested-shrink-row-text"]
         let nestedShrinkColumnText = app.staticTexts["nested-shrink-column-text"]
         XCTAssertTrue(nestedShrinkColumnText.waitForExistence(timeout: 5))
