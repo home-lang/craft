@@ -5055,14 +5055,14 @@ class MainActivity : AppCompatActivity() {
                 val defaultPadding = inputPaddingDefaults.getOrPut(this) {
                     intArrayOf(paddingLeft, paddingTop, paddingRight, paddingBottom)
                 }
-                hint = craftNativeOptionalString(props.opt("placeholder")).orEmpty()
+                hint = (props.opt("placeholder") as? String).orEmpty()
                 setHintTextColor(
-                    craftNativeOptionalString(props.opt("placeholderTextColor"))
+                    (props.opt("placeholderTextColor") as? String)
                         ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
                         ?.let { ColorStateList.valueOf(it) }
                         ?: defaultHintColors,
                 )
-                highlightColor = craftNativeOptionalString(props.opt("selectionColor"))
+                highlightColor = (props.opt("selectionColor") as? String)
                     ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
                     ?: defaultHighlightColor
                 val maxLength = craftNativeInt(props.opt("maxLength"), 0)
