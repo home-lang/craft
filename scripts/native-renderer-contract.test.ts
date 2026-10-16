@@ -545,6 +545,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private fun craftNativePickerValue(value: Any?): String?')
     expect(android).toContain('craftNativePickerValue(optionProps?.opt("value"))')
     expect(android).toContain('craftNativePickerValue(props.opt("selectedValue"))')
+    expect(android).toContain('is String -> value.takeIf { it.isNotEmpty() }')
+    expect(android).toContain('is Number -> value.toDouble().takeIf { it.isFinite() }?.toString()')
+    expect(android).not.toContain('else -> craftNativeOptionalString(value)')
   })
 
   it('supports typed picker items as well as child options on both hosts', () => {

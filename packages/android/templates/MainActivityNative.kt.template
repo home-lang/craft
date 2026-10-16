@@ -149,8 +149,9 @@ private fun craftNativeOptionalString(value: Any?): String? = value
     ?.takeIf { it.isNotBlank() }
 
 private fun craftNativePickerValue(value: Any?): String? = when (value) {
+    is String -> value.takeIf { it.isNotEmpty() }
     is Number -> value.toDouble().takeIf { it.isFinite() }?.toString()
-    else -> craftNativeOptionalString(value)
+    else -> null
 }
 
 private fun craftNativeEventName(events: JSONObject, vararg names: String): String =

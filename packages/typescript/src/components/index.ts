@@ -855,6 +855,7 @@ export interface SliderProps extends BaseProps {
 
 export interface PickerOption {
   label: string
+  /** String or finite number; other bridge values are ignored by native hosts. */
   value: string | number
 }
 
