@@ -649,6 +649,38 @@ describe('Craft Android builder', () => {
     })).toBe('')
   })
 
+  it('verifies only explicit HTTPS App Link hosts, independently from custom schemes', () => {
+    const config = { appName: 'HQ', packageName: 'training.hq.app', enableDeepLinks: true, urlSchemes: ['hqtraining'], appLinks: [{ host: 'hq.training' }] }
+    const manifest = renderAndroidDeepLinks(config)
+    expect(manifest).toContain('android:autoVerify="true"')
+    expect(manifest).toContain('android:scheme="https" android:host="hq.training"')
+    expect(manifest).toContain('android:scheme="hqtraining"')
+    expect(renderAndroidDeepLinks({ ...config, enableDeepLinks: false })).toBe('')
+    expect(renderAndroidDeepLinks({ ...config, appLinks: undefined, trustedOrigins: ['https://hq.training'] })).not.toContain('autoVerify')
+    expect(() => renderAndroidDeepLinks({ ...config, appLinks: [{ host: 'hq.training" injected="true' }] })).toThrow()
+  })
+
+  it('builds HTTPS-only links and installs ordered browser exclusions in both renderers', async () => {
+    const root = createTempDir('craft-app-links-')
+    for (const renderer of ['native', 'web'] as const) {
+      const output = join(root, renderer)
+      const appLinks = [{ host: 'HQ.TRAINING', paths: [{ pattern: '/privacy', exclude: true }, { pattern: '/*' }] }]
+      await init({ name: 'HQ', packageName: 'training.hq.app', output, runtimeDir: null, config: { renderer, enableDeepLinks: true, appLinks } })
+      const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
+      expect(config.appLinks[0].host).toBe('hq.training')
+      const source = join(output, 'app/src/main/java/training/hq/app')
+      expect(readFileSync(join(source, 'MainActivity.kt'), 'utf8')).toContain('CraftAppLinks.opensInBrowser(')
+      const links = readFileSync(join(source, 'CraftAppLinks.kt'), 'utf8')
+      expect(links).toContain('customTabsPackage != activity.packageName')
+      expect(links).toContain('tab.intent.setPackage(customTabsPackage)')
+      expect(readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')).toContain('android:autoVerify="true"')
+    }
+    for (const host of ['hq.training/path', 'hq.training:443', 'user@hq.training', 'https://hq.training']) {
+      await expect(init({ name: 'HQ', output: join(root, 'invalid'), runtimeDir: null, config: { appLinks: [{ host }] } })).rejects.toThrow()
+    }
+    await expect(init({ name: 'HQ', output: join(root, 'invalid'), runtimeDir: null, config: { appLinks: [{ host: 'hq.training', paths: [{ pattern: 'not-absolute' }] }] } })).rejects.toThrow()
+  })
+
   it('normalizes deep links and remote origins to the runtime trust contract', async () => {
     const output = createTempDir('craft-android-network-config-')
     await init({
@@ -1072,7 +1104,8 @@ describe('Craft Android builder', () => {
 
     // One flag, guarding both, rather than the link alone.
     expect(onCreate).toContain('Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY')
-    expect(onCreate.match(/launchedFromHistory/g)?.length).toBe(2)
+    // The same history flag also guards App Link browser exclusions.
+    expect(onCreate.match(/launchedFromHistory/g)?.length).toBe(3)
     // Bounded by the block's own closing brace: a slice that ran to the end
     // of onCreate would still find a shortcut call that had moved back out.
     const guardStart = onCreate.indexOf('if (!launchedFromHistory) {')

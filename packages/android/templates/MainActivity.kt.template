@@ -99,6 +99,11 @@ class MainActivity : AppCompatActivity() {
         // reading its intent, which onNewIntent may have replaced with a
         // later warm link.
         val launchedFromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (savedInstanceState == null && !launchedFromHistory && intent.data?.let { CraftAppLinks.opensInBrowser(configJson(), it) } == true) {
+            CraftAppLinks.openBrowser(this, intent.data!!)
+            finish()
+            return
+        }
         if (savedInstanceState == null) {
             if (!launchedFromHistory) {
                 intent.data?.toString()?.let(craftBridge::receiveDeepLink)
@@ -300,6 +305,12 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        intent.data?.let { link ->
+            if (CraftAppLinks.opensInBrowser(configJson(), link)) {
+                CraftAppLinks.openBrowser(this, link)
+                return
+            }
+        }
         intent.data?.toString()?.let(craftBridge::receiveDeepLink)
         handleIncomingShortcut(intent)
     }

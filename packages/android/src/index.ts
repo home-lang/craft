@@ -114,6 +114,8 @@ export interface CraftAndroidConfig {
   /** Reach the person's own devices on the local network over plain HTTP (a Mac companion). */
   enableLocalNetwork?: boolean
   urlSchemes?: string[]
+  /** HTTPS hosts owned by the app; path rules are ordered, with `*` matching any path text. */
+  appLinks?: Array<{ host: string, paths?: Array<{ pattern: string, exclude?: boolean }> }>
   trustedOrigins?: string[]
   appIconPath?: string
   googleServicesFile?: string
@@ -277,6 +279,7 @@ const DEFAULT_CONFIG: Omit<CraftAndroidConfig, 'appName' | 'packageName'> = {
   enableKeepAwake: false,
   enableDeepLinks: false,
   urlSchemes: [],
+  appLinks: [],
   trustedOrigins: [],
   minSdk: ANDROID_MIN_SDK,
   compileSdk: 36,
@@ -372,8 +375,21 @@ function normalizeAndroidNetworkConfig(config: CraftAndroidConfig): void {
     throw new Error('Android deep-link schemes must be valid URI schemes')
   }
   config.urlSchemes = [...new Set(schemes)]
-  if (config.enableDeepLinks && config.urlSchemes.length === 0) {
-    throw new Error('Android deep links require at least one URL scheme')
+  config.appLinks = (config.appLinks ?? []).map((link) => {
+    const host = link.host.trim().toLowerCase()
+    const parsed = new URL(`https://${host}`)
+    if (!host || parsed.hostname !== host || parsed.port || parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash)
+      throw new Error('Android App Links need a hostname without a scheme, port or path')
+    for (const rule of link.paths ?? []) {
+      if (!rule.pattern.startsWith('/') || /[\x00-\x1f]/.test(rule.pattern) || (rule.exclude !== undefined && typeof rule.exclude !== 'boolean'))
+        throw new Error('Android App Link path rules need an absolute path pattern and a boolean exclude')
+    }
+    return { ...link, host }
+  })
+  if (new Set(config.appLinks.map(link => link.host)).size !== config.appLinks.length)
+    throw new Error('Android App Link hosts must be unique')
+  if (config.enableDeepLinks && config.urlSchemes.length === 0 && config.appLinks.length === 0) {
+    throw new Error('Android deep links require at least one URL scheme or an App Link host')
   }
 
   const trustedOrigins = (config.trustedOrigins ?? []).map((value) => {
@@ -589,12 +605,22 @@ function renderNativeShellManifest(config: CraftAndroidConfig): string {
 export function renderAndroidDeepLinks(config: CraftAndroidConfig): string {
   if (!config.enableDeepLinks) return ''
   const schemes = [...new Set(config.urlSchemes?.map(value => value.trim()).filter(value => /^[a-z][a-z0-9+.-]*$/i.test(value)) ?? [])]
-  return schemes.map(scheme => `            <intent-filter>
+  const custom = schemes.map(scheme => `            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="${scheme}" />
             </intent-filter>`).join('\n')
+  const verified = (config.appLinks ?? []).map(link => {
+    if (!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(link.host)) throw new Error('Invalid Android App Link host')
+    return `            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="${link.host}" />
+            </intent-filter>`
+  }).join('\n')
+  return [custom, verified].filter(Boolean).join('\n')
 }
 
 /**
@@ -770,6 +796,10 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{APP_NAME\}\}/g, name)
 
   writeFileSync(join(output, 'app/src/main/java', packagePath, 'MainActivity.kt'), mainActivity)
+  writeFileSync(
+    join(output, 'app/src/main/java', packagePath, 'CraftAppLinks.kt'),
+    readFileSync(join(TEMPLATES_DIR, 'CraftAppLinks.kt.template'), 'utf8').replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName),
+  )
   // Both renderers: crash reporting does not depend on how screens are drawn.
   writeFileSync(
     join(output, 'app/src/main/java', packagePath, 'CraftCrashReporter.kt'),

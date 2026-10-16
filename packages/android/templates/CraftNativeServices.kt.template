@@ -17,7 +17,6 @@ import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.view.WindowManager
 import androidx.appcompat.app.AlertDialog
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -204,7 +203,7 @@ internal class CraftNativeServices(
         pendingBrowser = callback to done
         browserOpened = true
         try {
-            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(host, uri)
+            CraftAppLinks.openBrowser(host, uri)
         } catch (_: ActivityNotFoundException) {
             host.startActivity(Intent(Intent.ACTION_VIEW, uri))
         }

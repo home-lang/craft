@@ -8,6 +8,12 @@
     <!-- craft.speech: from Android 11 an app cannot see, and so cannot bind,
          a text-to-speech engine it has not declared it will look for. -->
     <queries>
+        <intent><action android:name="android.support.customtabs.action.CustomTabsService" /></intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
