@@ -87,6 +87,13 @@ final class DriverTests: XCTestCase {
         XCTAssertTrue(ok, what)
     }
 
+    /// testIDs are exact identifiers. Resolving a unique element with the
+    /// subscript scans the whole accessibility tree for ambiguous matches;
+    /// firstMatch can stop at the identified node, including a scrolled row.
+    func identified(_ id: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", id)).firstMatch
+    }
+
     func element(containing text: String, in target: XCUIApplication? = nil) -> XCUIElement? {
         let root = target ?? app
         let predicate = NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@ OR identifier == %@", text, text, text)
@@ -197,7 +204,7 @@ final class DriverTests: XCTestCase {
         switch command {
         case "ifid":
             let rest = arg.split(separator: " ", maxSplits: 1).map(String.init)
-            if rest.count == 2, app.descendants(matching: .any)[rest[0]].waitForExistence(timeout: 3) { note("ifid \(rest[0]): shown"); run(rest[1]) }
+            if rest.count == 2, identified(rest[0]).waitForExistence(timeout: 3) { note("ifid \(rest[0]): shown"); run(rest[1]) }
             else { note("ifid \(rest.first ?? ""): not shown") }
         case "launch": app.launch()
         case "activate": app.activate()
@@ -261,7 +268,7 @@ final class DriverTests: XCTestCase {
             if let target = poll(10, { exact(arg) }) { press(target); note("tapexact \(arg): ok") }
             else { XCTFail("Element not found"); note("FAIL tapexact \(arg): NOT FOUND") }
         case "tapid":
-            let target = app.descendants(matching: .any)[arg]
+            let target = identified(arg)
             if target.waitForExistence(timeout: 10) { press(target); note("tapid \(arg): ok") }
             else { XCTFail("Element not found"); note("FAIL tapid \(arg): NOT FOUND") }
         case "tapxy":
@@ -281,7 +288,7 @@ final class DriverTests: XCTestCase {
         case "return": app.typeText(XCUIKeyboardKey.return.rawValue); note("return")
         case "typeid":
             let idParts = arg.split(separator: " ", maxSplits: 1).map(String.init)
-            let target = app.descendants(matching: .any)[idParts[0]]
+            let target = identified(idParts[0])
             if target.waitForExistence(timeout: 10) {
                 target.tap()
                 Thread.sleep(forTimeInterval: 0.8)
@@ -306,15 +313,15 @@ final class DriverTests: XCTestCase {
             check(poll(seconds, { exact(text) }) != nil, "expectexact \(text)")
         case "expectid":
             let (id, seconds) = split(arg)
-            check(app.descendants(matching: .any)[id].waitForExistence(timeout: seconds), "expectid \(id)")
+            check(identified(id).waitForExistence(timeout: seconds), "expectid \(id)")
         case "labelid":
             let idParts = arg.split(separator: " ", maxSplits: 1).map(String.init)
-            let target = app.descendants(matching: .any)[idParts[0]]
+            let target = identified(idParts[0])
             let want = idParts.count > 1 ? idParts[1] : ""
             let seen = target.waitForExistence(timeout: 5) ? target.label : "(missing)"
             check(seen == want, "labelid \(idParts[0]) \(want) (saw \(seen))")
         case "absentid":
-            check(!app.descendants(matching: .any)[arg].exists, "absentid \(arg)")
+            check(!identified(arg).exists, "absentid \(arg)")
         case "absent":
             check(element(containing: arg) == nil, "absent \(arg)")
         case "tabbar":
