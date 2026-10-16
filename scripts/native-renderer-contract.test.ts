@@ -2398,7 +2398,10 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps activity indicator visibility and sizing props aligned', () => {
-    expect(ios).toContain('if let numericSize = requestedSize as? NSNumber')
+    expect(ios).toContain('if let numericSize = number(requestedSize)')
+    expect(navigationHome).toContain('testID="boolean-indicator"')
+    expect(iosNavigationTest).toContain('Boolean ActivityIndicator size was treated as numeric')
+    expect(androidNavigationTest).toContain('Boolean ActivityIndicator size was treated as numeric')
     expect(ios).toContain('indicator.indicatorScale = scale')
     expect(ios).toContain('affine = affine.scaledBy(x: intrinsicScale, y: intrinsicScale)')
     expect(ios).toContain('indicator.hidesWhenStopped = props["hidesWhenStopped"] as? Bool ?? true')

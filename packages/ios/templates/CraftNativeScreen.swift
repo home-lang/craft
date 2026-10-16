@@ -5929,8 +5929,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let requestedSize = props["size"]
             indicator.style = (requestedSize as? String) == "large" ? .large : .medium
             let scale: CGFloat
-            if let numericSize = requestedSize as? NSNumber {
-                let value = CGFloat(numericSize.doubleValue / 20.0)
+            if let numericSize = number(requestedSize) {
+                let value = numericSize / 20.0
                 scale = value.isFinite ? max(0.5, value) : 1
             } else if (requestedSize as? String) == "small" {
                 scale = 0.75

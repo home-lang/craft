@@ -766,6 +766,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue((booleanSlider.value as? String ?? "").contains("50%"), "Boolean slider minimum was treated as numeric")
 
         XCTAssertTrue(app.activityIndicators["native-indicator"].waitForExistence(timeout: 5))
+        let booleanIndicator = app.activityIndicators["boolean-indicator"]
+        XCTAssertTrue(booleanIndicator.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(booleanIndicator.frame.width, 12, "Boolean ActivityIndicator size was treated as numeric")
         XCTAssertTrue(app.activityIndicators["stopped-indicator"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.activityIndicators["hidden-indicator"].isHittable)
         // display:none hides the view, and a hidden view is not in the

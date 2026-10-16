@@ -819,6 +819,7 @@ function toggleScreenBackground() {
     <Button testID="toggle-invalid-slider-colors" @click="toggleInvalidSliderColors()">Toggle invalid slider colors</Button>
     <Text testID="invalid-slider-style-status" :text="invalidSliderStyleStatus" />
     <ActivityIndicator testID="native-indicator" color={invalidControlColors ? "not-a-color" : "#22c55e"} size="large" />
+    <ActivityIndicator testID="boolean-indicator" size={true} />
     <ActivityIndicator testID="stopped-indicator" color="#ef4444" :size="indicatorSize" :animating="false" :hides-when-stopped="false" />
     <Button testID="toggle-indicator-size" @click="indicatorSize.set(indicatorSize() === 'small' ? 'large' : 'small')">Toggle indicator size</Button>
     <ActivityIndicator testID="scaled-indicator" size={48} style={{"transform":[{"scale":0.5}]}} />
