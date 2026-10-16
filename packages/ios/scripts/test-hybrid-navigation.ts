@@ -11,6 +11,7 @@ const output = join(workspace, 'HybridNavigation')
 const bundle = join(workspace, 'native-screen.js')
 const prepareOnly = process.argv.includes('--prepare-only')
 const page = readFileSync(join(fixture, 'index.html'))
+let servedRequests = 0
 
 function servePage(body: Buffer) {
   const firstPort = 38000 + (process.pid % 1000)
@@ -18,7 +19,10 @@ function servePage(body: Buffer) {
     try {
       return Bun.serve({
         port: firstPort + offset,
-        fetch: () => new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+        fetch: () => {
+          servedRequests++
+          return new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8' } })
+        },
       })
     }
     catch (error) {
@@ -38,10 +42,12 @@ function run(args: string[], cwd: string): void {
     throw new Error(`${args[0]} exited with ${result.exitCode}`)
 }
 
-function runXcodeTests(args: string[], cwd: string, resultBundle: string): void {
+async function runXcodeTests(args: string[], cwd: string, resultBundle: string): Promise<void> {
   console.log(args.join(' '))
-  const result = Bun.spawnSync(args, { cwd, stdout: 'inherit', stderr: 'inherit' })
-  if (result.exitCode === 0) return
+  // Keep Bun's HTTP server responsive while the simulator requests pages.
+  const result = Bun.spawn(args, { cwd, stdout: 'inherit', stderr: 'inherit' })
+  const code = await result.exited
+  if (code === 0) return
 
   if (existsSync(resultBundle)) {
     console.log('xcodebuild failed; extracting test failure details from the result bundle')
@@ -50,7 +56,7 @@ function runXcodeTests(args: string[], cwd: string, resultBundle: string): void 
       { cwd, stdout: 'inherit', stderr: 'inherit' },
     )
   }
-  throw new Error(`${args[0]} exited with ${result.exitCode}`)
+  throw new Error(`${args[0]} exited with ${code}`)
 }
 
 function assertMutationBundle(path: string): void {
@@ -114,7 +120,8 @@ try {
     console.log('iOS hybrid navigation fixture prepared')
   }
   else {
-    const device = await pickSimulator()
+    const requested = process.env.CRAFT_HYBRID_NAVIGATION_SIMULATOR
+    const device = requested ? { udid: requested, name: requested, state: 'Booted', runtime: 'iOS' } : await pickSimulator()
     if (!device) throw new Error('No iOS simulator is available for hybrid navigation tests')
     await bootSimulator(device)
     const resultBundle = join(workspace, 'HybridNavigation.xcresult')
@@ -122,14 +129,21 @@ try {
     const selection = selectedTest
       ? [`-only-testing:HybridNavigationUITests/HybridNavigationUITests/${selectedTest}`]
       : []
-    runXcodeTests([
+    const xcodeArgs = [
       'xcodebuild', '-quiet', '-project', 'HybridNavigation.xcodeproj', '-scheme', 'HybridNavigation',
       '-configuration', 'Debug', '-destination', `id=${device.udid}`,
       '-derivedDataPath', join(workspace, 'DerivedData'),
+      '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'ENABLE_TESTABILITY=YES',
+    ]
+    run([...xcodeArgs, 'build-for-testing'], output)
+    await runXcodeTests([
+      ...xcodeArgs,
       '-resultBundlePath', resultBundle,
       ...selection,
-      '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'test',
+      'test-without-building',
     ], output, resultBundle)
+    if (servedRequests === 0) throw new Error('The hybrid simulator never reached its HTTP fixture server')
+    console.log(`Hybrid HTTP fixture served ${servedRequests} requests`)
     console.log('Hybrid navigation simulator tests passed')
   }
 }
