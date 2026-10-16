@@ -246,6 +246,15 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"datepicker", "date-picker", "date" -> "DatePicker"')
   })
 
+  it('canonicalizes container and SVG aliases identically on both hosts', () => {
+    expect(ios).toContain('case "keyboardavoidingview": return "KeyboardAvoidingView"')
+    expect(android).toContain('"keyboardavoidingview" -> "KeyboardAvoidingView"')
+    expect(ios).toContain('case "g": return "G"')
+    expect(android).toContain('"g" -> "G"')
+    expect(ios).toContain('case "svgtext", "svg-text": return "SvgText"')
+    expect(android).toContain('"svgtext", "svg-text" -> "SvgText"')
+  })
+
   it('keeps utility native nodes out of layout and binds their host traits', () => {
     expect(ios).toContain('case "StatusBar", "RefreshControl":')
     expect(ios).toContain('statusBarStyleOverride')
