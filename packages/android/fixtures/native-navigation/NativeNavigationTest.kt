@@ -788,6 +788,20 @@ class NativeNavigationTest {
                 nestedPercentChild.height.toDouble(),
                 1.0,
             )
+            val nestedShrinkRowText = awaitView(activity, "nested-shrink-row-text")
+            val nestedShrinkColumnText = awaitView(activity, "nested-shrink-column-text")
+            assertEquals(
+                "nested horizontal text did not use its parent flex-shrink default",
+                60.0 * density,
+                nestedShrinkRowText.width.toDouble(),
+                1.0,
+            )
+            assertEquals(
+                "nested vertical text incorrectly used a horizontal flex-shrink default",
+                80.0 * density,
+                nestedShrinkColumnText.height.toDouble(),
+                1.0,
+            )
             val nestedGrid = awaitView(activity, "nested-grid")
             val nestedGridFirst = awaitView(activity, "nested-grid-first")
             val nestedGridSecond = awaitView(activity, "nested-grid-second")

@@ -808,6 +808,11 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(nestedPercentParent.frame.width, 80, accuracy: 2)
         XCTAssertEqual(nestedPercentChild.frame.width, 36, accuracy: 2, "nested percentage width used the outer parent")
         XCTAssertEqual(nestedPercentChild.frame.height, 26, accuracy: 2, "nested percentage height used the outer parent")
+        let nestedShrinkRowText = app.staticTexts["nested-shrink-row-text"]
+        let nestedShrinkColumnText = app.staticTexts["nested-shrink-column-text"]
+        XCTAssertTrue(nestedShrinkColumnText.waitForExistence(timeout: 5))
+        XCTAssertEqual(nestedShrinkRowText.frame.width, 60, accuracy: 2, "nested horizontal text did not use its parent flex-shrink default")
+        XCTAssertEqual(nestedShrinkColumnText.frame.height, 80, accuracy: 2, "nested vertical text incorrectly used a horizontal flex-shrink default")
         let nestedGridFirst = app.otherElements["nested-grid-first"]
         let nestedGridSecond = app.otherElements["nested-grid-second"]
         let nestedGridThird = app.otherElements["nested-grid-third"]

@@ -1813,6 +1813,15 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('nested wrap-reverse flow did not use the shared v3 tree ABI')
   })
 
+  it('resolves omitted nested flex-shrink from the containing axis on both hosts', () => {
+    expect(ios).toContain('parentDirection == .horizontal')
+    expect(android).toContain('defaultFlexShrink(it, parentDirection == 0)')
+    expect(navigationHome).toContain('testID="nested-shrink-row-text"')
+    expect(navigationHome).toContain('testID="nested-shrink-column-text"')
+    expect(iosNavigationTest).toContain('nested horizontal text did not use its parent flex-shrink default')
+    expect(androidNavigationTest).toContain('nested vertical text incorrectly used a horizontal flex-shrink default')
+  })
+
   it('sanitizes keyboard avoidance offsets before applying host geometry', () => {
     expect(ios).toContain('keyboardVerticalOffset = number(props["keyboardVerticalOffset"]) ?? 0')
     expect(android).toContain('val authoredOffset = craftNativeFiniteDouble(props, "keyboardVerticalOffset", 0.0)')

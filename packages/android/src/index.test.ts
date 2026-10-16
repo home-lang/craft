@@ -161,7 +161,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('wrap = flexWrap == "wrap" || flexWrap == "wrap-reverse"')
       expect(nativeActivity).toContain('wrapReverse = flexWrap == "wrap-reverse"')
       expect(nativeActivity).toContain('it.style.flexShrink ?: defaultFlexShrink(it.view)')
-      expect(nativeActivity).toContain('view is TextView && view !is Button && view !is EditText && orientation == HORIZONTAL')
+      expect(nativeActivity).toContain('view is TextView && view !is Button && view !is EditText && horizontal')
       expect(nativeActivity).toContain('alignContent = craftNativeOptionalString(style.opt("alignContent")) ?: "flex-start"')
       expect(nativeActivity).toContain('alignContentCode(),')
       expect(nativeActivity).toContain('crossOffset += lineCross + crossBetween')
