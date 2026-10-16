@@ -405,7 +405,21 @@ export interface BaseProps {
   /** Accessibility state exposed to assistive technologies */
   accessibilityState?: AccessibilityState
   /** Accessibility role */
-  accessibilityRole?: 'none' | 'button' | 'link' | 'image' | 'text' | 'header' | 'search' | 'menu'
+  accessibilityRole?:
+    | 'none'
+    | 'button'
+    | 'link'
+    | 'image'
+    | 'text'
+    | 'header'
+    | 'search'
+    | 'menu'
+    | 'tablist'
+    | 'radiogroup'
+    | 'list'
+    | 'menubar'
+    | 'toolbar'
+    | 'scrollbar'
   /** Children elements */
   children?: any
 }

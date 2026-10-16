@@ -37,6 +37,7 @@ describe('Component System', () => {
     const input: TextInputProps = {
       accessibilityValue: 'Ada',
       accessibilityState: { selected: true },
+      accessibilityRole: 'toolbar',
       keyboardType: 'email-address',
       returnKeyType: 'done',
       textContentType: 'username',
@@ -50,6 +51,7 @@ describe('Component System', () => {
       onScrollEndDrag: () => {},
     }
     expect(input.accessibilityState?.selected).toBe(true)
+    expect(input.accessibilityRole).toBe('toolbar')
     expect(scroll.onScroll).toBeDefined()
   })
 

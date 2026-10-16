@@ -121,6 +121,16 @@ describe('native renderer component contract', () => {
     expect(android).toContain('drawing.optJSONObject("props")?.optJSONArray("viewBox")')
   })
 
+  it('exposes the semantic accessibility roles handled by both hosts', () => {
+    expect(componentTypes).toContain("| 'tablist'")
+    expect(componentTypes).toContain("| 'radiogroup'")
+    expect(componentTypes).toContain("| 'menubar'")
+    expect(componentTypes).toContain("| 'toolbar'")
+    expect(componentTypes).toContain("| 'scrollbar'")
+    expect(ios).toContain('["tablist", "radiogroup", "list", "menu", "menubar", "toolbar"]')
+    expect(android).toContain('"scrollbar" -> ScrollView::class.java.name')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
