@@ -966,8 +966,7 @@ export async function init(options: InitOptions): Promise<void> {
       : '')
     .replace(/\{\{JAVASCRIPT_ENGINE_DEPENDENCY\}\}/g, config.renderer === 'native'
       ? `    implementation("androidx.javascriptengine:javascriptengine:1.1.0")
-    // The in-app browser (Custom Tabs) and background refresh (WorkManager).
-    implementation("androidx.browser:browser:1.8.0")
+    // Native background refresh (WorkManager).
     implementation("androidx.work:work-runtime-ktx:2.9.1")`
       : '')
 

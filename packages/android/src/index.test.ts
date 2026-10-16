@@ -673,6 +673,8 @@ describe('Craft Android builder', () => {
       const links = readFileSync(join(source, 'CraftAppLinks.kt'), 'utf8')
       expect(links).toContain('customTabsPackage != activity.packageName')
       expect(links).toContain('tab.intent.setPackage(customTabsPackage)')
+      const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
+      expect(gradle.match(/implementation\("androidx\.browser:browser:1\.8\.0"\)/g)).toHaveLength(1)
       expect(readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')).toContain('android:autoVerify="true"')
     }
     for (const host of ['hq.training/path', 'hq.training:443', 'user@hq.training', 'https://hq.training']) {

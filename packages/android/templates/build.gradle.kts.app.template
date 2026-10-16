@@ -80,6 +80,8 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
 {{REFRESH_LAYOUT_DEPENDENCY}}
     implementation("androidx.webkit:webkit:1.12.1")
+    // App Link exclusions hand off to a browser in both renderers.
+    implementation("androidx.browser:browser:1.8.0")
 {{JAVASCRIPT_ENGINE_DEPENDENCY}}
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.coordinatorlayout:coordinatorlayout:1.2.0")
