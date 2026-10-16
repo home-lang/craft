@@ -920,7 +920,9 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(background.tintColor, UIColor(hex: "#2563eb"))
 
         controller.render(document([backgroundNode([:])]))
-        XCTAssertNil(background.tintColor)
+        // Clearing an explicit tint restores UIKit's inherited tint. The
+        // getter returns that resolved colour rather than nil on iOS 27.
+        XCTAssertEqual(background.tintColor, background.superview?.tintColor)
     }
 
     func testFlatListControllerLaysOutAndMovesMulticolumnRowsWithoutReentrantInvalidation() throws {

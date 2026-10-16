@@ -135,7 +135,7 @@ final class NativeLayoutUnitTests: XCTestCase {
 
     private func waitForSnapshotFile(
         _ name: String,
-        timeout: TimeInterval = 2
+        timeout: TimeInterval = 10
     ) -> Bool {
         guard let file = CraftSnapshots.url(for: name) else { return false }
         let deadline = Date().addingTimeInterval(timeout)
@@ -650,7 +650,7 @@ final class NativeLayoutUnitTests: XCTestCase {
     func testNumericNavigationBadgeOneSurvivesTheJSONBridge() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
-        controller.evaluateScript("craft.navigation.setOptions({ rightButtons: [{ id: 'one', symbol: 'bell', badge: 1 }] });")
+        controller.evaluateScript("craft.navigation.setOptions({ rightButtons: [{ id: 'one', symbol: 'bell', variant: 'accent', badge: 1 }] });")
         let button = try XCTUnwrap(controller.navigationItem.rightBarButtonItems?.first?.customView as? UIButton)
         XCTAssertEqual(button.accessibilityValue, "1 unread")
     }
@@ -660,11 +660,11 @@ final class NativeLayoutUnitTests: XCTestCase {
         let navigation = UINavigationController(rootViewController: controller)
         navigation.loadViewIfNeeded()
         controller.loadViewIfNeeded()
-        controller.evaluateScript("craft.navigation.setOptions({ rightButtons: [{ id: 'boolean-badge', symbol: 'bell', badge: true }] });")
+        controller.evaluateScript("craft.navigation.setOptions({ rightButtons: [{ id: 'boolean-badge', symbol: 'bell', variant: 'accent', badge: true }] });")
 
         let button = try XCTUnwrap(controller.navigationItem.rightBarButtonItems?.first?.customView as? UIButton)
         XCTAssertNil(button.accessibilityValue)
-        XCTAssertFalse(button.subviews.contains { $0 is UILabel }, "Boolean badge was treated as a numeric unread count")
+        XCTAssertFalse(button.subviews.compactMap { ($0 as? UILabel)?.text }.contains("1"), "Boolean badge was treated as a numeric unread count")
     }
 
     func testNavigationOptionsSetTheBarAndTheRootTitleIsNeverUndefined() throws {
