@@ -388,7 +388,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"statusbar" -> "StatusBar"')
     expect(android).toContain('"refreshcontrol" -> "RefreshControl"')
     expect(android).toContain('screen.statusBarStyle = craftNativeOptionalString(props.opt("barStyle"))')
-    expect(android).toContain('screen.statusBarHidden = if (props.has("hidden") && !props.isNull("hidden")) props.optBoolean("hidden") else null')
+    expect(android).toContain('screen.statusBarHidden = if (props.has("hidden") && !props.isNull("hidden")) craftNativeBoolean(props.opt("hidden")) else null')
     expect(android).toContain('val tint = craftNativeOptionalString(props.opt("tintColor"))')
     expect(android).toContain('val background = craftNativeOptionalString(props.opt("progressBackgroundColor"))')
     expect(android).toContain('val contentChildren = JSONArray()')
@@ -2868,6 +2868,16 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val showUserLocation = craftNativeBoolean(pendingProps.opt("showsUserLocation")) && hasLocationPermission()')
     expect(android).toContain('craftNativeBoolean(pendingProps.opt("fitToBounds"))')
     expect(android).not.toContain('pendingProps.optBoolean("fitToBounds", false)')
+  })
+
+  it('keeps status, accessibility, and text-input booleans strict on Android', () => {
+    expect(android).toContain('craftNativeBoolean(props.opt("hidden"))')
+    expect(android).toContain('info.isSelected = craftNativeBoolean(state?.opt("selected"))')
+    expect(android).toContain('info.isChecked = craftNativeBoolean(state?.opt("checked"))')
+    expect(android).toContain('craftNativeBoolean(props.opt("autoCorrect"), true)')
+    expect(android).toContain('craftNativeBoolean(props.opt("secureTextEntry"))')
+    expect(android).not.toContain('props.optBoolean("autoCorrect", true)')
+    expect(android).not.toContain('props.optBoolean("secureTextEntry", false)')
   })
 
   it('keeps malformed Android refresh colors from crashing or inventing a tint', () => {

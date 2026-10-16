@@ -4945,7 +4945,7 @@ class MainActivity : AppCompatActivity() {
             }
             "StatusBar" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 screen.statusBarStyle = craftNativeOptionalString(props.opt("barStyle"))
-                screen.statusBarHidden = if (props.has("hidden") && !props.isNull("hidden")) props.optBoolean("hidden") else null
+                screen.statusBarHidden = if (props.has("hidden") && !props.isNull("hidden")) craftNativeBoolean(props.opt("hidden")) else null
                 visibility = View.GONE
             }
             "RefreshControl" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
@@ -6543,8 +6543,8 @@ class MainActivity : AppCompatActivity() {
                 info.roleDescription = role.takeIf { it !in setOf("view", "text", "textinput", "scrollview") }
                 info.hintText = host.tooltipText
                 info.isEnabled = host.isEnabled && !disabled
-                info.isSelected = state?.optBoolean("selected", false) == true
-                info.isChecked = state?.optBoolean("checked", false) == true
+                info.isSelected = craftNativeBoolean(state?.opt("selected"))
+                info.isChecked = craftNativeBoolean(state?.opt("checked"))
             }
         })
         ViewCompat.setImportantForAccessibility(
@@ -6580,8 +6580,8 @@ class MainActivity : AppCompatActivity() {
             "sentences" -> InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             else -> 0
         }
-        val correction = if (props.optBoolean("autoCorrect", true)) InputType.TYPE_TEXT_FLAG_AUTO_CORRECT else 0
-        val secure = if (props.optBoolean("secureTextEntry", false)) InputType.TYPE_TEXT_VARIATION_PASSWORD else 0
+        val correction = if (craftNativeBoolean(props.opt("autoCorrect"), true)) InputType.TYPE_TEXT_FLAG_AUTO_CORRECT else 0
+        val secure = if (craftNativeBoolean(props.opt("secureTextEntry"))) InputType.TYPE_TEXT_VARIATION_PASSWORD else 0
         return keyboard or capitalization or correction or secure
     }
 
