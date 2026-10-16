@@ -555,11 +555,13 @@ enum CraftNativeMedia {
         let staging = root.appendingPathComponent(UUID().uuidString + ".part")
         defer { try? fm.removeItem(at: staging) }
         do {
-            let size = (try location.resourceValues(forKeys: [.fileSizeKey])).fileSize ?? 0
+            // URL resource values can retain a previous size when a retry
+            // reuses a temporary location. Validate the current file itself.
+            let size = (try fm.attributesOfItem(atPath: location.path)[.size] as? NSNumber)?.int64Value ?? 0
             // URLSession normally rejects a truncated transfer; also guard this boundary.
             let expected = response.expectedContentLength
             let encoded = response.value(forHTTPHeaderField: "Content-Encoding")
-            if size <= 0 || (encoded == nil && expected >= 0 && Int64(size) != expected) {
+            if size <= 0 || (encoded == nil && expected >= 0 && size != expected) {
                 return .failure(CraftNativeActionError(code: "NETWORK_ERROR", message: "media.keep received an incomplete file"))
             }
             var folder = root

@@ -160,7 +160,9 @@ final class FilesUnitTests: XCTestCase {
         guard case .failure = CraftNativeMedia.store(address, at: location, response: response) else { return XCTFail("truncated video was published") }
         XCTAssertNil(CraftNativeMedia.local(address))
         try Data([1, 2, 3, 4]).write(to: location)
-        guard case .success = CraftNativeMedia.store(address, at: location, response: response) else { return XCTFail("retry failed") }
+        if case .failure(let error) = CraftNativeMedia.store(address, at: location, response: response) {
+            return XCTFail("retry failed: \(error.code): \(error.message)")
+        }
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(CraftNativeMedia.local(address))), Data([1, 2, 3, 4]))
     }
 

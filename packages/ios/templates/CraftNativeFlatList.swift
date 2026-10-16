@@ -1,6 +1,12 @@
 import UIKit
 
 private final class CraftNativeFlatListLayout: UICollectionViewFlowLayout {
+    override func prepare() {
+        // Content-size queries can prepare layout before layoutSubviews runs.
+        (collectionView as? CraftNativeFlatList)?.updateItemEstimate()
+        super.prepare()
+    }
+
     override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool {
         guard let current = collectionView?.bounds else { return true }
         return scrollDirection == .vertical
@@ -208,13 +214,17 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         return max(1, (width - spacing) / CGFloat(count))
     }
 
-    override func layoutSubviews() {
+    fileprivate func updateItemEstimate() {
         let estimate = flowLayout.scrollDirection == .horizontal
             ? CGSize(width: 44, height: itemExtent(isChrome: true))
             : CGSize(width: itemExtent(isChrome: false), height: 44)
         if flowLayout.estimatedItemSize != estimate, bounds.width > 0 {
             flowLayout.estimatedItemSize = estimate
         }
+    }
+
+    override func layoutSubviews() {
+        updateItemEstimate()
         super.layoutSubviews()
         craftApplyCornerRadius()
     }
