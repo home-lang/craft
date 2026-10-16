@@ -678,10 +678,12 @@ label/tint colors and native accessibility traits follow the new appearance.
 
 `accessibilityLabel`, `accessibilityHint`, `accessibilityValue`,
 `accessibilityState`, and `accessibilityRole` map to native accessibility
-metadata and traits. The portable roles are `button`, `image`, `header`,
-`link`, `search`, and `none`; unknown roles retain the platform control's
-native class. `accessibilityState` supports `disabled`, `selected`, and
-`checked`.
+metadata and traits. The portable roles include `button`, `image`, `header`,
+`link`, `search`, `none`, `adjustable`, `checkbox`, `combobox`, `menu`,
+`menuitem`, `progressbar`, `radio`, `radiogroup`, `scrollbar`, `spinbutton`,
+`switch`, `tab`, `tablist`, `timer`, `toolbar`, `list`, `menubar`, `summary`,
+and `alert`; unknown roles retain the platform control's native class.
+`accessibilityState` supports `disabled`, `selected`, and `checked`.
 
 These fields are part of the exported `BaseProps`/`TextInputProps` types, so a
 shared screen can keep its accessibility and keyboard contract type-safe before

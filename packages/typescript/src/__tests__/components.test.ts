@@ -37,7 +37,7 @@ describe('Component System', () => {
     const input: TextInputProps = {
       accessibilityValue: 'Ada',
       accessibilityState: { selected: true },
-      accessibilityRole: 'toolbar',
+      accessibilityRole: 'tab',
       transitionID: 'profile-avatar',
       keyboardType: 'email-address',
       returnKeyType: 'done',
@@ -56,7 +56,7 @@ describe('Component System', () => {
       refreshControl: { refreshing: false, title: 'Pull to refresh' },
     }
     expect(input.accessibilityState?.selected).toBe(true)
-    expect(input.accessibilityRole).toBe('toolbar')
+    expect(input.accessibilityRole).toBe('tab')
     expect(input.transitionID).toBe('profile-avatar')
     expect(scroll.onScroll).toBeDefined()
     expect(scroll.scrollTarget).toMatchObject({ id: 'today', animated: false })

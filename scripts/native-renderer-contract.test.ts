@@ -122,6 +122,10 @@ describe('native renderer component contract', () => {
   })
 
   it('exposes the semantic accessibility roles handled by both hosts', () => {
+    expect(componentTypes).toContain("| 'adjustable'")
+    expect(componentTypes).toContain("| 'checkbox'")
+    expect(componentTypes).toContain("| 'progressbar'")
+    expect(componentTypes).toContain("| 'tab'")
     expect(componentTypes).toContain("| 'tablist'")
     expect(componentTypes).toContain("| 'radiogroup'")
     expect(componentTypes).toContain("| 'menubar'")
