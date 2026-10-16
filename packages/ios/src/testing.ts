@@ -87,6 +87,8 @@ export type SimulatorStep =
   | { command: 'tap' | 'tapif' | 'tapid' | 'tapexact' | 'type' | 'absent' | 'absentid' | 'selected' | 'tab' | 'scrollto' | 'dismiss' | 'log' | 'systemtap' | 'systemabsent', text: string }
   | { command: 'shot' | 'tree' | 'audit' | 'exec' | 'systemtree', name: string }
   | { command: 'openurl', url: string }
+  /** Use Apple's universalLinksOnly API, allowing association downloads up to 60 seconds. */
+  | { command: 'universallink', url: string }
   /** Runs `step` only when the element with this identifier is there (a screen shown the first time). */
   | { command: 'ifid', id: string, step: SimulatorStep }
 
@@ -124,7 +126,11 @@ export function serializeSimulatorSteps(steps: readonly SimulatorStep[]): string
       }
     }
     else if ('name' in step) arg = token(step.name)
-    else if ('url' in step) arg = step.url
+    else if ('url' in step) {
+      if (step.command === 'universallink' && new URL(step.url).protocol !== 'https:')
+        throw new Error('Universal Links require an HTTPS URL')
+      arg = step.url
+    }
     if (/[\r\n]/.test(arg)) throw new Error('Simulator arguments cannot contain newlines')
     return `${step.command}${arg ? ` ${arg}` : ''}`
   }

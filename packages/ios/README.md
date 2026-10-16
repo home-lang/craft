@@ -192,6 +192,14 @@ wrong screen. `systemtap` targets the system button around a Live Activity rathe
 than its remotely hosted text. The [Live Activity layout fixture](./fixtures/live-activity)
 exercises long names and timer alignment using the production widget.
 
+Use `universallink https://example.com/profile` to test an associated HTTPS
+link after a fresh install. The driver host uses Apple's public
+`universalLinksOnly` option and waits up to 60 seconds for iOS to accept the
+association downloaded from Apple's CDN. A rejected association fails the
+journey; it cannot fall back to Safari. This operation does not launch the app
+under test directly, so a preceding `terminate` still tests a cold handoff.
+Use `openurl` for browser fallback checks and custom URL schemes.
+
 The iOS host uses the shared tree-layout ABI for eligible definite-size,
 non-grid, non-wrapped containers and retains a local fallback for older
 runtimes or unsupported styles. Both paths implement wrapped-line and grid

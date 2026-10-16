@@ -14,6 +14,7 @@ import XCTest
 ///   delay <ms>            every proxied request waits this long (0 = off)
 ///   exec <hook>           runs the switch's HOOKS/<hook>.sh on the Mac (restart the API, …)
 ///   openurl <url>         opens a link through the system, answering "Open in the app?"
+///   universallink <https-url> waits up to 60s for an OS-verified link; never opens a browser
 ///   shot <name>           screenshot → shots/<name>.png
 ///   tree <name>           accessibility tree → shots/<name>.txt
 ///   tap <text>            first hittable element whose label contains text
@@ -253,6 +254,21 @@ final class DriverTests: XCTestCase {
                 answerOpenPrompt()
                 note("openurl \(arg)")
             }
+        case "universallink":
+            guard let url = URL(string: arg), url.scheme == "https" else {
+                check(false, "universallink requires an HTTPS URL")
+                return
+            }
+            let host = XCUIApplication(bundleIdentifier: "{{BUNDLE_PREFIX}}.host")
+            host.launchArguments = ["--craft-universal-link", url.absoluteString]
+            host.launch()
+            let opened = app.wait(for: .runningForeground, timeout: 75)
+            if !opened {
+                post("/save?name=universal-link-host.txt", Data(host.debugDescription.utf8))
+                post("/save?name=universal-link-app.txt", Data(app.debugDescription.utf8))
+            }
+            check(opened, "universallink \(arg) opened the target app")
+            host.terminate()
         case "shot":
             let shot = XCUIScreen.main.screenshot()
             post("/save?name=\(arg).png", shot.pngRepresentation)
