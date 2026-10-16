@@ -39,6 +39,7 @@ describe('Component System', () => {
       accessibilityState: { selected: true },
       accessibilityRole: 'tab',
       transitionID: 'profile-avatar',
+      onChange: () => {},
       keyboardType: 'email-address',
       returnKeyType: 'done',
       textContentType: 'username',
@@ -64,7 +65,7 @@ describe('Component System', () => {
   })
 
   it('types the native renderer component contract', () => {
-    const button: ButtonProps = { title: 'Open map', onPress: () => {} }
+    const button: ButtonProps = { title: 'Open map', onClick: () => {} }
     const map: MapProps = {
       initialRegion: {
         center: { latitude: 47, longitude: 11 },
@@ -76,7 +77,7 @@ describe('Component System', () => {
     }
     const route: MapPolylineProps = { geometry: [47, 11, 47.1, 11.2], strokeWidth: 3 }
     const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], onPress: () => {} }
-    const picker: PickerProps = { items: [{ label: 'One', value: 1 }], selectedValue: 1 }
+    const picker: PickerProps = { items: [{ label: 'One', value: 1 }], selectedValue: 1, onChange: () => {} }
     const childPicker: PickerProps = { children: ['One', 'Two'], selectedValue: 'Two' }
     const statusBar: StatusBarProps = { barStyle: 'dark-content', hidden: false }
     const refresh: RefreshControlProps = { refreshing: true, tintColor: '#2563eb', progressViewOffset: 8, onRefresh: () => {} }

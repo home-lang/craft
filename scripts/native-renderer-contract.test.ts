@@ -160,6 +160,17 @@ describe('native renderer component contract', () => {
     expect(android).toContain('control.transitionName = craftNativeOptionalString(props.opt("transitionID"))')
   })
 
+  it('types the event aliases already accepted by native controls', () => {
+    expect(componentTypes).toContain('onClick?: () => void')
+    expect(componentTypes).toContain('onChange?: (text: string) => void')
+    expect(componentTypes).toContain('onChange?: (value: boolean) => void')
+    expect(componentTypes).toContain('onChange?: (value: number) => void')
+    expect(ios).toContain('nonEmptyHandler(events["onPress"]) ?? nonEmptyHandler(events["onClick"])')
+    expect(ios).toContain('nonEmptyHandler(events["onChange"]) ?? nonEmptyHandler(events["onChangeText"])')
+    expect(android).toContain('craftNativeEventName(events, "onPress", "onClick")')
+    expect(android).toContain('craftNativeEventName(events, "onValueChange", "onChange")')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')

@@ -452,6 +452,8 @@ export interface ViewProps extends BaseProps {
   style?: ViewStyle | ViewStyle[]
   /** Press handler */
   onPress?: () => void
+  /** DOM-compatible press alias accepted by native hosts. */
+  onClick?: () => void
   /** Long press handler */
   onLongPress?: () => void
   /** Layout change handler */
@@ -511,6 +513,7 @@ export interface TextProps extends BaseProps {
 export interface ButtonProps extends BaseProps {
   title?: string
   onPress?: () => void
+  onClick?: () => void
   disabled?: boolean
   color?: string
 }
@@ -799,6 +802,8 @@ export interface TextInputProps extends BaseProps {
   selectionColor?: string
   /** Change text handler */
   onChangeText?: (text: string) => void
+  /** DOM-compatible change alias accepted by native hosts. */
+  onChange?: (text: string) => void
   /** Focus handler */
   onFocus?: () => void
   /** Blur handler */
@@ -839,6 +844,7 @@ export type ReturnKeyType =
 export interface SwitchProps extends BaseProps {
   value?: boolean
   onValueChange?: (value: boolean) => void
+  onChange?: (value: boolean) => void
   disabled?: boolean
   trackColor?: { false?: string; true?: string }
   thumbColor?: string
@@ -851,6 +857,7 @@ export interface CheckboxProps extends BaseProps {
   indeterminate?: boolean
   label?: string
   onValueChange?: (value: boolean) => void
+  onChange?: (value: boolean) => void
   disabled?: boolean
   color?: string
 }
@@ -861,6 +868,7 @@ export interface SliderProps extends BaseProps {
   maximumValue?: number
   step?: number
   onValueChange?: (value: number) => void
+  onChange?: (value: number) => void
   onSlidingComplete?: (value: number) => void
   disabled?: boolean
   minimumTrackTintColor?: string
@@ -878,6 +886,7 @@ export interface PickerProps extends BaseProps {
   items?: PickerOption[]
   selectedValue?: string | number
   onValueChange?: (value: string | number, index: number) => void
+  onChange?: (value: string | number, index: number) => void
   disabled?: boolean
 }
 
@@ -895,6 +904,7 @@ export interface DatePickerProps extends BaseProps {
   minuteInterval?: number
   display?: 'compact' | 'inline' | 'wheels'
   onValueChange?: (event: DatePickerChange) => void
+  onChange?: (event: DatePickerChange) => void
   disabled?: boolean
 }
 
