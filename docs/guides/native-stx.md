@@ -700,6 +700,17 @@ app, the iOS shell's gesture also covers the WebView. Pass
 gesture of its own; native screens can still opt out independently with
 `tabSwipeEnabled`.
 
+On iOS, a native screen can opt into an opaque navigation bar that uses its
+screen background, including the light/dark variant from `craft.config.json`:
+
+```js
+craft.navigation.setOptions({ navigationBarSolid: true })
+```
+
+This applies to both standard and large-title bars, and remains in place while
+the screen is pushed, popped, or revealed by a tab swipe. The default remains
+UIKit's translucent material; pass `navigationBarSolid: false` to restore it.
+
 A screen's content stays inside the safe area. To colour the strips under the
 status bar and the home indicator too, such as a black full-screen timer with
 the bar hidden, set `craft.navigation.setOptions({ hidden: true,

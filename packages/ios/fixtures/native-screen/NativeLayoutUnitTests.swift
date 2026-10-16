@@ -595,7 +595,9 @@ final class NativeLayoutUnitTests: XCTestCase {
         navigation.loadViewIfNeeded()
         controller.loadViewIfNeeded()
 
-        controller.evaluateScript("craft.navigation.setOptions({ backgroundColor: '#123456', navigationBarSolid: true })")
+        controller.evaluateScript("craft.navigation.setOptions({ title: 'Solid', largeTitle: true, backgroundColor: '#123456', navigationBarSolid: true })")
+        XCTAssertEqual(controller.navigationItem.largeTitleDisplayMode, .always)
+        XCTAssertTrue(navigation.navigationBar.prefersLargeTitles)
         let solid = try XCTUnwrap(controller.navigationItem.standardAppearance)
         XCTAssertNil(solid.backgroundEffect)
         // UIKit may normalize clear to nil; both mean no shadow.
@@ -605,6 +607,13 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertNotNil(controller.navigationItem.scrollEdgeAppearance)
         XCTAssertNotNil(controller.navigationItem.compactAppearance)
         XCTAssertNotNil(controller.navigationItem.compactScrollEdgeAppearance)
+
+        // The same fill remains attached when a screen opts out of the large
+        // title layout; UIKit must not fall back to its translucent scroll-edge
+        // material just because the title collapsed.
+        controller.evaluateScript("craft.navigation.setOptions({ largeTitle: false })")
+        XCTAssertEqual(controller.navigationItem.largeTitleDisplayMode, .never)
+        XCTAssertNotNil(controller.navigationItem.scrollEdgeAppearance)
 
         controller.evaluateScript("craft.navigation.setOptions({ navigationBarSolid: false })")
         XCTAssertNil(controller.navigationItem.standardAppearance)
