@@ -94,6 +94,13 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('gridAutoRows?: number | string')
   })
 
+  it('exposes the implemented native gradient style controls', () => {
+    expect(componentTypes).toContain("gradientDirection?: 'to-t' | 'to-tr' | 'to-r' | 'to-br' | 'to-b' | 'to-bl' | 'to-l' | 'to-tl'")
+    expect(componentTypes).toContain('gradientFrom?: string')
+    expect(componentTypes).toContain('gradientVia?: string')
+    expect(componentTypes).toContain('gradientTo?: string')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')

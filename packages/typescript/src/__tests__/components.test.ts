@@ -221,6 +221,10 @@ describe('Component System', () => {
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
         gridAutoRows: 48,
+        gradientDirection: 'to-br',
+        gradientFrom: '#111827',
+        gradientVia: '#334155',
+        gradientTo: '#0f172a',
         shadowColor: 'black',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
@@ -232,6 +236,8 @@ describe('Component System', () => {
       expect(viewStyle.display).toBe('grid')
       expect(viewStyle.gridTemplateColumns).toBe('repeat(3, 1fr)')
       expect(viewStyle.gridAutoRows).toBe(48)
+      expect(viewStyle.gradientDirection).toBe('to-br')
+      expect(viewStyle.gradientVia).toBe('#334155')
     })
 
     it('should support TextStyle properties', () => {

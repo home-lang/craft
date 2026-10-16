@@ -277,6 +277,14 @@ export interface ColorStyle {
   backgroundColor?: string
   /** Opacity */
   opacity?: number
+  /** Linear-gradient direction used by native hosts. */
+  gradientDirection?: 'to-t' | 'to-tr' | 'to-r' | 'to-br' | 'to-b' | 'to-bl' | 'to-l' | 'to-tl'
+  /** Linear-gradient start color. */
+  gradientFrom?: string
+  /** Optional linear-gradient middle stop. */
+  gradientVia?: string
+  /** Linear-gradient end color. */
+  gradientTo?: string
 }
 
 /**
