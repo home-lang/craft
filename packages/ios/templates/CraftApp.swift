@@ -797,9 +797,11 @@ final class CraftChrome: ObservableObject {
 
     /// Move the tab indicator with an in-flight native-stack swipe. The
     /// controller commits or restores this preview when the finger lifts.
-    func beginTabSwipe(to id: String) {
-        guard id != selected, tabs.contains(where: { $0.id == id }) else { return }
-        tabSwipePrevious = selected
+    func beginTabSwipe(to id: String, from previous: String) {
+        guard id != previous, tabs.contains(where: { $0.id == id }) else { return }
+        // A page's pending selection report may disagree with the native
+        // stack. Cancellation belongs to the stack the finger left.
+        tabSwipePrevious = previous
         withAnimation(nil) { selected = id }
     }
 
