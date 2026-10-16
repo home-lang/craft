@@ -5848,7 +5848,20 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             stack.removeArrangedSubview(spacer)
             spacer.removeFromSuperview()
         }
-        let nodes = children.compactMap { $0 as? [String: Any] }
+        // STX permits text directly inside containers (including HTML links).
+        // Give it a native label, inheriting typography without duplicating
+        // the parent's padding, dimensions or flex layout.
+        let typography = style.filter { key, _ in
+            key == "color" || key == "letterSpacing" || key == "lineHeight"
+                || key.hasPrefix("font") || key.hasPrefix("text")
+        }
+        let nodes = children.compactMap { child -> [String: Any]? in
+            if let node = child as? [String: Any] { return node }
+            if let text = child as? String {
+                return ["type": "Text", "style": typography, "children": [text]]
+            }
+            return nil
+        }
         let keys = nodes.compactMap { explicitKey($0, props: $0["props"] as? [String: Any] ?? [:]) }
         let counts = Dictionary(keys.map { ($0, 1) }, uniquingKeysWith: +)
         let old = Dictionary(uniqueKeysWithValues: parent.children.map { ($0.identity, $0) })
@@ -6157,10 +6170,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     /// Views that take their own touches whatever handlers the screen gives
-    /// them: a scroll view, a modal, and a video's system controls (with
+    /// them: native controls, a scroll view, a modal, and a video's controls (with
     /// interaction off, its play, scrubber and full screen never answered).
     private func ownsTouches(_ view: UIView) -> Bool {
-        view is UIScrollView || view is CraftNativeModalView || view is CraftNativeVideoView
+        view is UIControl || view is UIScrollView || view is CraftNativeModalView || view is CraftNativeVideoView
     }
 
     private func updatePressHandler(_ handler: String?, for view: UIView) {
@@ -6172,7 +6185,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let recognizer = UITapGestureRecognizer(target: self, action: #selector(viewPressed(_:)))
             tapRecognizers[id] = recognizer
             view.addGestureRecognizer(recognizer)
-        } else if handler == nil, let recognizer = tapRecognizers.removeValue(forKey: id) {
+        } else if !actionable, let recognizer = tapRecognizers.removeValue(forKey: id) {
             view.removeGestureRecognizer(recognizer)
         }
         // A container keeps receiving touches without a handler of its own,
@@ -6809,7 +6822,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         } else if type != "TextInput" {
             view.accessibilityValue = nil
         }
-        let role = props["accessibilityRole"] as? String
+        let hasLinkTarget = ["href", "to"].contains { !(props[$0] as? String ?? "").isEmpty }
+        let linkedControl = ["Link", "TouchableOpacity", "TouchableHighlight", "Pressable"].contains(type) && hasLinkTarget
+        let role = (props["accessibilityRole"] as? String) ?? (linkedControl ? "link" : nil)
         // A scroll view, a list or a group of controls holds what VoiceOver
         // reads: its label names the group, as a tab strip or a pager's
         // name, and never stands in for its content. As an element of its

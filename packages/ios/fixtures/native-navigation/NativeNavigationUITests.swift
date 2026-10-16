@@ -1,6 +1,10 @@
 import XCTest
 
 final class NativeNavigationUITests: XCTestCase {
+    private func layoutCount(_ element: XCUIElement) -> Int {
+        Int(String(element.label.split(separator: ":").last ?? "0").trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+    }
+
     private func waitForLabel(
         _ element: XCUIElement,
         _ label: String,
@@ -18,7 +22,7 @@ final class NativeNavigationUITests: XCTestCase {
     ) -> Bool {
         let predicate = NSPredicate { object, _ in
             guard let candidate = object as? XCUIElement else { return false }
-            return Int(candidate.label.split(separator: ":").last ?? "0") ?? 0 > baseline
+            return self.layoutCount(candidate) > baseline
         }
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
@@ -190,14 +194,37 @@ final class NativeNavigationUITests: XCTestCase {
                                     "floating navigation buttons overlapped into one platter")
     }
 
+    func testRefreshedScrollViewKeepsInputFocusAcrossKeyedMoves() {
+        let app = XCUIApplication()
+        app.launch()
+        app.buttons["open-details"].tap()
+        XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
+        let people = app.scrollViews["people-list"]
+        XCTAssertTrue(people.waitForExistence(timeout: 5))
+        people.swipeDown()
+        XCTAssertTrue(waitForLabel(app.staticTexts["people-count"], "People: 40; events: 1"))
+        let input = app.textFields["person-input-person-0"]
+        reveal(input, in: people)
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        input.typeText("draft")
+        app.buttons["shuffle-people"].tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["person-label-person-0"], "1: Person zero updated"))
+        XCTAssertEqual(input.value as? String, "draft")
+        input.typeText("!")
+        XCTAssertEqual(input.value as? String, "draft!")
+    }
+
     func testNativeLinkOpensRoute() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.staticTexts["native-route-link"].waitForExistence(timeout: 10))
-        app.staticTexts["native-route-link"].tap()
+        let link = app.links["native-route-link"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        reveal(link, in: app.scrollViews["native-root-scroll"])
+        link.tap()
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         app.buttons["details-back"].tap()
-        XCTAssertTrue(app.staticTexts["native-route-link"].waitForExistence(timeout: 10))
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
     }
 
     func testCapabilityPersistenceAndNotificationsAcrossRelaunch() throws {
@@ -314,13 +341,21 @@ final class NativeNavigationUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         XCTAssertFalse(app.webViews.firstMatch.exists, "native navigation created a WebView")
+        // Measure padding before any gesture changes this inner scroll offset.
+        let scroll = app.scrollViews["native-scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 15))
+        let image = app.images["native-image"]
+        XCTAssertTrue(image.waitForExistence(timeout: 10))
+        XCTAssertGreaterThanOrEqual(image.frame.minY, scroll.frame.minY + 12, "ScrollView contentContainerStyle did not add top padding")
         let rootScroll = app.scrollViews["native-root-scroll"]
         XCTAssertTrue(rootScroll.waitForExistence(timeout: 15))
         let rootOverlay = app.otherElements["native-root-overlay"]
         XCTAssertTrue(rootOverlay.waitForExistence(timeout: 5), "root absolute sibling did not mount")
         let overlayFrame = rootOverlay.frame
+        let overlayTop = overlayFrame.minY - rootScroll.frame.minY
         rootScroll.swipeUp()
-        XCTAssertEqual(rootOverlay.frame.minY, overlayFrame.minY, accuracy: 2, "root absolute sibling moved with ScrollView content")
+        // A large navigation title can collapse, moving the viewport itself.
+        XCTAssertEqual(rootOverlay.frame.minY - rootScroll.frame.minY, overlayTop, accuracy: 2, "root absolute sibling moved with ScrollView content")
         XCTAssertEqual(rootOverlay.frame.maxX, overlayFrame.maxX, accuracy: 2, "root absolute sibling changed horizontal position")
         let bubble = app.otherElements["max-content-bubble"]
         let bubbleText = app.staticTexts["max-content-bubble-text"]
@@ -328,10 +363,6 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(bubbleText.waitForExistence(timeout: 5), "max-content bubble text did not mount")
         XCTAssertLessThan(bubbleText.frame.height, 30, "text took min-content width and wrapped unexpectedly")
         XCTAssertGreaterThan(bubble.frame.width, bubbleText.frame.width, "bubble did not retain its authored horizontal padding")
-        let scroll = app.scrollViews["native-scroll"]
-        XCTAssertTrue(scroll.waitForExistence(timeout: 15))
-        let image = app.images["native-image"]
-        XCTAssertTrue(image.waitForExistence(timeout: 10))
         let intrinsicImage = app.images["intrinsic-image"]
         XCTAssertTrue(intrinsicImage.waitForExistence(timeout: 10), "intrinsic image did not mount")
         XCTAssertTrue(app.staticTexts["intrinsic image ready"].waitForExistence(timeout: 5), "intrinsic image did not receive its initial measurement")
@@ -362,7 +393,6 @@ final class NativeNavigationUITests: XCTestCase {
         sectionList.swipeUp()
         XCTAssertTrue(waitForLabel(app.staticTexts["section-scroll-status"], "Section scrolls: 1"), "SectionList did not deliver onScroll")
         XCTAssertTrue(app.otherElements["native-video"].waitForExistence(timeout: 5), "Video fixture did not mount as a native view")
-        XCTAssertGreaterThanOrEqual(image.frame.minY, scroll.frame.minY + 12, "ScrollView contentContainerStyle did not add top padding")
         XCTAssertEqual(app.staticTexts["home-title"].label, "Home")
         app.buttons["native-audio-context"].tap()
         XCTAssertTrue(app.staticTexts["AudioContext ready"].waitForExistence(timeout: 5))
@@ -782,11 +812,14 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(peopleHeader.frame.minY, people.frame.minY + 8, "ScrollView contentContainerStyle did not add top padding")
         let peopleLayouts = app.staticTexts["people-layout-status"]
         XCTAssertTrue(peopleLayouts.waitForExistence(timeout: 5))
-        let initialRowLayouts = Int(peopleLayouts.label.split(separator: ":").last ?? "0") ?? 0
+        XCTAssertTrue(waitForLayoutIncrease(peopleLayouts, from: 0), "rows did not report their initial layout")
+        let initialRowLayouts = layoutCount(peopleLayouts)
         XCTAssertGreaterThan(initialRowLayouts, 0)
         XCTAssertTrue(app.textFields["person-input-person-0"].waitForExistence(timeout: 5))
         let personInput = app.textFields["person-input-person-0"]
+        reveal(personInput, in: people)
         personInput.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "the row input did not open its keyboard")
         personInput.typeText("draft")
         app.buttons["shuffle-people"].tap()
         let firstPerson = app.staticTexts["person-label-person-0"]

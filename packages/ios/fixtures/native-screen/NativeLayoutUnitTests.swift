@@ -17,6 +17,45 @@ final class NativeLayoutUnitTests: XCTestCase {
         return controller
     }
 
+    func testUncontrolledInputReceivesTouchesWithoutEventHandlers() throws {
+        let controller = screen(box("root", [
+            ["type": "TextInput", "props": ["testID": "draft", "placeholder": "Note"]],
+        ]))
+        let input = try XCTUnwrap(find("draft", below: controller.view) as? UITextField)
+        XCTAssertTrue(input.isUserInteractionEnabled)
+        XCTAssertTrue(input.isEnabled)
+        let point = input.convert(CGPoint(x: input.bounds.midX, y: input.bounds.midY), to: controller.view)
+        let hit = controller.view.hitTest(point, with: nil)
+        XCTAssertTrue(hit === input || hit?.isDescendant(of: input) == true)
+        controller.render(box("root", [
+            ["type": "TextInput", "props": ["testID": "draft", "placeholder": "Updated"]],
+        ]))
+        XCTAssertTrue(find("draft", below: controller.view) === input)
+        XCTAssertTrue(input.isUserInteractionEnabled)
+    }
+
+    func testRawContainerTextRendersAndNamesNativeLinks() throws {
+        func document(_ title: String) -> [String: Any] {
+            ["type": "TouchableOpacity", "props": ["testID": "route-link", "href": "/details"],
+             "style": ["fontSize": 22, "color": "#ff0000", "padding": 12], "children": [title]]
+        }
+        let controller = screen(document("Open details"))
+        let link = try XCTUnwrap(find("route-link", below: controller.view))
+        let label = try XCTUnwrap(link.subviews.compactMap { $0 as? UILabel }.first)
+        XCTAssertEqual(label.text, "Open details")
+        XCTAssertGreaterThan(label.frame.height, 0)
+        XCTAssertEqual(label.font.pointSize, 22, accuracy: 0.01)
+        try assertColor(label.textColor, red: 1, green: 0, blue: 0)
+        XCTAssertTrue(link.isAccessibilityElement)
+        XCTAssertTrue(link.accessibilityTraits.contains(.link))
+        XCTAssertEqual(link.accessibilityLabel, "Open details")
+        let tap = try XCTUnwrap(link.gestureRecognizers?.first { $0 is UITapGestureRecognizer })
+        controller.render(document("Updated details"))
+        XCTAssertTrue(link.gestureRecognizers?.contains(where: { $0 === tap }) == true)
+        XCTAssertTrue(find("route-link", below: controller.view) === link)
+        XCTAssertEqual(link.accessibilityLabel, "Updated details")
+    }
+
     func testActivityIndicatorSizeSurvivesStyleReconciliation() throws {
         func document(_ size: Any, transform: [[String: Any]]? = nil) -> [String: Any] {
             var style: [String: Any] = [:]
