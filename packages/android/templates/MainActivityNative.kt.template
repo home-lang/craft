@@ -6286,12 +6286,12 @@ class MainActivity : AppCompatActivity() {
                 Layout.JUSTIFICATION_MODE_NONE
             }
         }
-        view.letterSpacing = style.optDouble("letterSpacing", Double.NaN)
+        view.letterSpacing = craftNativeFiniteDouble(style, "letterSpacing", Double.NaN)
             .takeIf { it.isFinite() }
             ?.let { if (view.textSize > 0) dp(it).toFloat() / view.textSize else 0f }
             ?: 0f
         view.setLineSpacing(
-            style.optDouble("lineHeight", Double.NaN).takeIf { it.isFinite() }?.let { dp(it) - view.textSize } ?: 0f,
+            craftNativeFiniteDouble(style, "lineHeight", Double.NaN).takeIf { it.isFinite() }?.let { dp(it) - view.textSize } ?: 0f,
             1f
         )
         val shadowColor = style.optString("textShadowColor").takeIf { it.isNotBlank() }
