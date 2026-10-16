@@ -4151,6 +4151,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let appVersion = Self.jsonString(info?["CFBundleShortVersionString"] as? String ?? "")
         let appBuild = Self.jsonString(info?["CFBundleVersion"] as? String ?? "")
         jsContext.evaluateScript("""
+            // JavaScriptCore has no DOM window, but browser-safe SDK bridges
+            // address the host through `window.craft`. Keep native screens
+            // compatible without pretending a document exists.
+            if (typeof globalThis.window === "undefined") { globalThis.window = globalThis; }
             globalThis.__stxNativeCallback = null;
             globalThis.__stxNativeBridge = {
                 platform: "ios",

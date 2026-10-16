@@ -389,6 +389,10 @@ internal object CraftNativePrelude {
         routePrelude: String,
     ): String = """
         $routePrelude
+        // JavaScriptSandbox has no DOM window, but browser-safe SDK bridges
+        // address the host through `window.craft`. Keep native screens
+        // compatible without pretending a document exists.
+        if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;
         (function() {
           var forward = null;
           var queued = [];

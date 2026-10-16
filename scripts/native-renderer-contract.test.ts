@@ -88,6 +88,11 @@ const COMPONENTS: Array<[string, string, string]> = [
 ]
 
 describe('native renderer component contract', () => {
+  it('keeps browser-safe capability bridges reachable in DOM-free hosts', () => {
+    expect(ios).toContain('if (typeof globalThis.window === "undefined") { globalThis.window = globalThis; }')
+    expect(androidChrome).toContain("if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;")
+  })
+
   it('exposes the implemented grid layout controls in the public style type', () => {
     expect(componentTypes).toContain("display?: 'flex' | 'none' | 'grid'")
     expect(componentTypes).toContain('gridTemplateColumns?: number | string')

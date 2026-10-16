@@ -46,6 +46,7 @@ describe('the native shell prelude (JavaScriptSandbox has no synchronous host ca
       secure: { 'auth.token': 'token-1' },
       snapshots: { 'workout-42': '{"id":42}' },
     })
+    expect(vm.runInContext('window === globalThis', app.context)).toBe(true)
     expect(app.context.craft.storage.getSync('units')).toBe('metric')
     expect(app.context.craft.secureStorage.getSync('auth.token')).toBe('token-1')
     expect(app.context.craft.secureStorage.getSync('missing')).toBeNull()
