@@ -1202,7 +1202,11 @@ describe('native renderer component contract', () => {
   it('keeps TextInput keyboard traits aligned across hosts', () => {
     expect(componentTypes).toContain('textContentType?: string')
     expect(componentTypes).toContain('autoComplete?: string')
-    expect(componentTypes).toContain('passwordRules?: string')
+    expect(componentTypes).not.toContain('passwordRules?: string')
+    expect(componentTypes).not.toContain("| 'ascii-capable'")
+    expect(componentTypes).not.toContain("| 'numbers-and-punctuation'")
+    expect(componentTypes).not.toContain("| 'name-phone-pad'")
+    expect(componentTypes).not.toContain("| 'twitter'")
     expect(ios).toContain('case "email-address": return .emailAddress')
     expect(ios).toContain('case "decimal-pad": return .decimalPad')
     expect(ios).toContain('case "done": return .done')

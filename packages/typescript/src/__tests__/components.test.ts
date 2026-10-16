@@ -49,9 +49,13 @@ describe('Component System', () => {
       returnKeyType: 'done',
       textContentType: 'username',
       autoComplete: 'username',
-      passwordRules: 'required: upper; required: digit;',
       onSubmitEditing: () => {},
     }
+    // iOS-only keyboard traits are not part of the shared native contract.
+    // @ts-expect-error passwordRules is ignored by the Android host.
+    input.passwordRules = 'required: upper; required: digit;'
+    // @ts-expect-error ascii-capable is iOS-only.
+    input.keyboardType = 'ascii-capable'
     const scroll: ScrollViewProps = {
       onScroll: event => expect(event.nativeEvent.contentOffset.x).toBe(0),
       onScrollBeginDrag: () => {},

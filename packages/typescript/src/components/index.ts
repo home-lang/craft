@@ -769,8 +769,6 @@ export interface TextInputProps extends BaseProps {
   textContentType?: string
   /** HTML-style autofill hint (for example `current-password`). */
   autoComplete?: string
-  /** iOS password-rule descriptor. */
-  passwordRules?: string
   /** Multi-line input */
   multiline?: boolean
   /** Number of lines for multiline */
@@ -805,10 +803,6 @@ export type KeyboardType =
   | 'url'
   | 'web-search'
   | 'visible-password'
-  | 'ascii-capable'
-  | 'numbers-and-punctuation'
-  | 'name-phone-pad'
-  | 'twitter'
 
 export type ReturnKeyType =
   | 'done'

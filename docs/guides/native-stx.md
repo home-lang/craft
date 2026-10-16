@@ -667,7 +667,10 @@ the event applies to a `TextInput`. `keyboardType`, `returnKeyType`,
 `autoCapitalize`, `autoCorrect`, `secureTextEntry`, `editable`, and `autoFocus`
 map to the platform input control. `placeholderTextColor`, `selectionColor`,
 positive `maxLength`, `multiline`, and `numberOfLines` values are applied on
-both hosts, including keyboard and return-key traits on multiline inputs. Shared text styles (`color`, `fontSize`, `fontFamily`, `fontWeight`,
+both hosts, including keyboard and return-key traits on multiline inputs. Shared
+keyboard types are limited to values both hosts implement; iOS-only keyboard
+variants and `passwordRules` are intentionally not part of the shared contract.
+Shared text styles (`color`, `fontSize`, `fontFamily`, `fontWeight`,
 `fontStyle`, `textAlign`, `letterSpacing`, and `lineHeight`) also apply to
 native text inputs. When `fontSize` is omitted, text uses the shared 16-point
 default on both hosts. Configuration changes are applied only when
