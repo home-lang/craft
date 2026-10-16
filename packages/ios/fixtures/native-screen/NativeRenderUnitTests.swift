@@ -815,6 +815,25 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertNil(list.refreshControl)
     }
 
+    func testImageBackgroundTintFollowsStyle() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        let backgroundNode: ([String: Any]) -> [String: Any] = { style in
+            [
+                "type": "ImageBackground",
+                "props": ["key": "background"],
+                "style": style,
+            ]
+        }
+
+        controller.render(document([backgroundNode(["tintColor": "#2563eb"])]))
+        let background = try XCTUnwrap(find(UIImageView.self, key: "background", below: controller.view))
+        XCTAssertEqual(background.tintColor, UIColor(hex: "#2563eb"))
+
+        controller.render(document([backgroundNode([:])]))
+        XCTAssertNil(background.tintColor)
+    }
+
     func testFlatListControllerLaysOutAndMovesMulticolumnRowsWithoutReentrantInvalidation() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

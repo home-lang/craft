@@ -5779,6 +5779,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateImage(image, source: props["source"], defaultSource: props["defaultSource"])
         case "ImageBackground":
             let background = result as! CraftNativeImageBackgroundView
+            let backgroundID = ObjectIdentifier(background)
+            if let tint = color(style["tintColor"]) {
+                tintedImages.insert(backgroundID)
+                background.tintColor = tint
+            } else {
+                tintedImages.remove(backgroundID)
+                background.tintColor = nil
+            }
+            if let current = background.image { background.image = imageForDisplay(current, view: background) }
             let requestedResizeMode = style["resizeMode"] as? String ?? props["resizeMode"] as? String
             background.contentMode = imageContentMode(requestedResizeMode)
             background.clipsToBounds = background.contentMode == .scaleAspectFill

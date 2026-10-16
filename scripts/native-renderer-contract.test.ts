@@ -2406,6 +2406,15 @@ describe('native renderer component contract', () => {
     expect(android).toContain('image.clearColorFilter()')
   })
 
+  it('applies ImageBackground tint to the iOS image view and clears it', () => {
+    expect(ios).toContain('let backgroundID = ObjectIdentifier(background)')
+    expect(ios).toContain('tintedImages.insert(backgroundID)')
+    expect(ios).toContain('background.tintColor = tint')
+    expect(ios).toContain('tintedImages.remove(backgroundID)')
+    expect(ios).toContain('if let current = background.image { background.image = imageForDisplay(current, view: background) }')
+    expect(iosNativeUnitTests).toContain('func testImageBackgroundTintFollowsStyle()')
+  })
+
   it('exercises independent floating iOS navigation buttons in the maintained fixture', () => {
     expect(navigationHome).toContain("id: 'fixture-messages'")
     expect(navigationHome).toContain("id: 'fixture-account'")
