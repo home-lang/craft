@@ -358,6 +358,17 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
     }
 
+    func testPageReportingTheOutgoingRootCannotClearAnActiveSwipePreview() async throws {
+        mountDetails()
+        drag(-150)
+        CraftChrome.shared.handle(["type": "selectTab", "id": "/"])
+        await renderFrames()
+        XCTAssertEqual(CraftChrome.shared.selected, "/details", "the finger's preview owns selection until the gesture settles")
+        drag(-150, phase: .cancelled)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
+    }
+
     func testSwipeAfterATabTapCannotBeChangedByTheOlderAnimation() async throws {
         mountDetails()
         let details = try XCTUnwrap(stack("/details"))
