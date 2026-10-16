@@ -151,6 +151,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps composed native styles recursively flattenable', () => {
+    expect(componentTypes).toContain('export type StyleValue<T> =')
     expect(componentTypes).toContain('const merge = (value: unknown): void =>')
     expect(componentTypes).toContain('value.forEach(merge)')
     expect(componentTypes).toContain('if (!value) return')

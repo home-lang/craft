@@ -264,7 +264,7 @@ describe('Component System', () => {
       const style2: Record<string, unknown> = { padding: 16 }
       const style3: Record<string, unknown> = { margin: 8 }
 
-      const flattened = StyleSheet.flatten([style1, style2, style3])
+      const flattened = StyleSheet.flatten<Record<string, unknown>>([style1, style2, style3])
 
       expect(flattened).toEqual({
         flex: 1,
@@ -274,12 +274,12 @@ describe('Component System', () => {
     })
 
     it('should handle nested arrays in flatten', () => {
-      const styles = StyleSheet.flatten([
+      const styles = StyleSheet.flatten<Record<string, unknown>>([
         { flex: 1 },
         [{ padding: 16 }, [false, { margin: 8 }]],
         undefined,
         { backgroundColor: 'white' },
-      ] as any)
+      ])
 
       expect(styles).toEqual({
         flex: 1,
@@ -290,13 +290,13 @@ describe('Component System', () => {
     })
 
     it('should filter falsy values in flatten', () => {
-      const styles = StyleSheet.flatten([
+      const styles = StyleSheet.flatten<Record<string, unknown>>([
         { flex: 1 },
         null,
         undefined,
         false && { padding: 16 },
         { margin: 8 }
-      ] as any)
+      ])
 
       expect(styles).toEqual({
         flex: 1,

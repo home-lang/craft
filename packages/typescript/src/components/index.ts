@@ -384,6 +384,9 @@ export interface ImageStyleProps {
  */
 export type ImageStyle = ViewStyle & ImageStyleProps
 
+/** A style value may be nested or conditionally omitted. */
+export type StyleValue<T> = T | StyleValue<T>[] | null | false | undefined
+
 // ============================================================================
 // Component Props Types
 // ============================================================================
@@ -1070,7 +1073,7 @@ export const StyleSheet = {
   /**
    * Flatten nested style arrays and ignore falsy conditional entries.
    */
-  flatten<T>(style: T | T[] | undefined): T | undefined {
+  flatten<T>(style: StyleValue<T>): T | undefined {
     if (!style) return undefined
     const flattened: Record<string, unknown> = {}
     const merge = (value: unknown): void => {
