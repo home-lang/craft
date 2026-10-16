@@ -16,8 +16,13 @@
 - **ios**: refresh list estimates and retry file sizes ([b95d74e](https://github.com/craft-native/craft/commit/b95d74e)) _(by Chris Breuer)_
 - **android**: preserve text keyboard class and multiline flags ([27ad059](https://github.com/craft-native/craft/commit/27ad059)) _(by Chris Breuer)_
 
+## 📚 Documentation
+
+- complete native device release notes ([233bbd8](https://github.com/craft-native/craft/commit/233bbd8)) _(by Chris Breuer)_
+
 ## 🧪 Tests
 
+- **ios**: keep hybrid fixture HTTP serving during Xcode checks ([877cdad](https://github.com/craft-native/craft/commit/877cdad)) _(by Chris Breuer)_
 - align native contracts with shared service APIs ([429cc95](https://github.com/craft-native/craft/commit/429cc95)) _(by Chris Breuer)_
 - **android**: share Gradle Kotlin fixture execution ([21161be](https://github.com/craft-native/craft/commit/21161be)) _(by Chris Breuer)_
 - **ios**: assert selected tabs without matching back buttons ([9449168](https://github.com/craft-native/craft/commit/9449168)) _(by Chris Breuer)_
