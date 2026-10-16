@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.196...v0.0.197)
+
+## 🐛 Bug Fixes
+
+- **ios**: derive reusable cell sizing from current list bounds ([628f411](https://github.com/craft-native/craft/commit/628f411)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: resize a reused list inside its constrained parent ([3920e98](https://github.com/craft-native/craft/commit/3920e98)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.195...v0.0.196)
 
 ## 🐛 Bug Fixes
