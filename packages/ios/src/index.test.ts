@@ -91,6 +91,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('columns: Int(number(props["numColumns"]) ?? 1)')
     expect(nativeSwift).toContain('compactMap { number($0).map { Int($0) } }')
     expect(nativeSwift).toContain('guard !(value is Bool), let number = value as? NSNumber else { return nil }')
+    expect(nativeSwift).toContain('if !(value is Bool), let value = value as? NSNumber, value.doubleValue.isFinite { return String(value.doubleValue) }')
     expect(flatListSwift).toContain('guard !(value is Bool), let number = value as? NSNumber else { return nil }')
     expect(nativeSwift).toContain("module: 'Dialog'")
     expect(nativeSwift).toContain("actionSheet: function(options)")

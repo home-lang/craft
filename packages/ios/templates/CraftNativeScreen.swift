@@ -32,7 +32,7 @@ private func craftNativeFontWeight(_ value: Any?) -> String? {
 
 private func craftNativePickerValue(_ value: Any?) -> String? {
     if let value = value as? String, !value.isEmpty { return value }
-    if let value = value as? NSNumber, value.doubleValue.isFinite { return String(value.doubleValue) }
+    if !(value is Bool), let value = value as? NSNumber, value.doubleValue.isFinite { return String(value.doubleValue) }
     return nil
 }
 

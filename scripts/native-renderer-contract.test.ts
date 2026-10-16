@@ -1136,6 +1136,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('UIPickerViewDataSource, UIPickerViewDelegate')
     expect(ios).toContain('picker.selectRow(row, inComponent: 0, animated: false)')
     expect(ios).toContain('"nativeEvent": ["value": option.value, "index": row]')
+    expect(ios).toContain('if !(value is Bool), let value = value as? NSNumber, value.doubleValue.isFinite { return String(value.doubleValue) }')
+    expect(iosNativeUnitTests).toContain('testPickerBooleanValuesFallBackToTheirLabels')
     expect(android).toContain('"Picker" -> (previous as? Spinner ?: Spinner(this)).apply')
     expect(android).toContain('setSelection(selected, false)')
     expect(android).toContain('onItemSelectedListener = null')

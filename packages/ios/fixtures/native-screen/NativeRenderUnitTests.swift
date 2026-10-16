@@ -1442,6 +1442,24 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(date.accessibilityTraits.contains(.adjustable))
     }
 
+    func testPickerBooleanValuesFallBackToTheirLabels() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.evaluateScript("globalThis.__picked = null; globalThis.__stxNativeCallback = function(json) { const message = JSON.parse(json); if (message.payload && message.payload.handlerName === 'picked') globalThis.__picked = message.payload.nativeEvent.value; };")
+        controller.render(document([[
+            "type": "Picker",
+            "props": [
+                "key": "boolean-picker",
+                "items": [["label": "Boolean option", "value": true], ["label": "String option", "value": "string"]],
+            ],
+            "events": ["onValueChange": "picked"],
+        ]]))
+
+        let picker = try XCTUnwrap(find(UIPickerView.self, key: "boolean-picker", below: controller.view))
+        controller.pickerView(picker, didSelectRow: 0, inComponent: 0)
+        XCTAssertEqual(controller.evaluateScript("__picked")?.toString(), "Boolean option")
+    }
+
     func testTheScriptHearsNewParamsAndTheScreenComingBack() throws {
         let controller = CraftNativeScreenController(config: CraftConfig(), routeName: "Messages", routeParams: ["person": "4"])
         controller.loadViewIfNeeded()
