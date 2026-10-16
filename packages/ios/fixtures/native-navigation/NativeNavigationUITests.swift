@@ -223,6 +223,8 @@ final class NativeNavigationUITests: XCTestCase {
         reveal(link, in: app.scrollViews["native-root-scroll"])
         link.tap()
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.webViews.firstMatch.exists, "native link opened a WebView")
+        XCTAssertTrue(app.tabBars.buttons["Home"].isSelected, "link selected the Details tab instead of pushing")
         app.buttons["details-back"].tap()
         XCTAssertTrue(link.waitForExistence(timeout: 10))
     }
@@ -307,6 +309,27 @@ final class NativeNavigationUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(homeState.waitForExistence(timeout: 10))
         XCTAssertEqual(homeState.label, "Home state: Ada/2")
+    }
+
+    func testNativeBackSwipeKeepsTheSelectedTabAndHomeState() {
+        let app = XCUIApplication()
+        app.launch()
+        let homeState = app.staticTexts["navigation-home-state"]
+        XCTAssertTrue(homeState.waitForExistence(timeout: 15))
+        app.buttons["navigation-increment"].tap()
+        XCTAssertTrue(waitForLabel(homeState, "Home state: Ada/1"))
+        app.buttons["navigation-open-details"].tap()
+        XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 5))
+
+        let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.5))
+        let destination = app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5))
+        edge.press(forDuration: 0.1, thenDragTo: destination)
+
+        XCTAssertTrue(homeState.waitForExistence(timeout: 10), "native back gesture did not pop the pushed screen")
+        XCTAssertEqual(homeState.label, "Home state: Ada/1")
+        XCTAssertTrue(app.tabBars.buttons["Home"].isSelected, "back gesture changed the selected tab")
+        XCTAssertFalse(app.webViews.firstMatch.exists, "native back gesture created a WebView")
     }
 
     func testSharedRuntimeKeyedForPreservesNativeRowState() throws {
