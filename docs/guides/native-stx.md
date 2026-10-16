@@ -183,7 +183,10 @@ delivered.
 `style.color` remains the shared fallback when either prop is omitted.
 `Pressable`, `TouchableOpacity`, and `TouchableHighlight` are native flow
 containers with `onPress`/`onClick`, long-press, and disabled handling; disabled
-containers block both press and long-press callbacks on both hosts.
+containers block both press and long-press callbacks on both hosts. On
+`TouchableHighlight`, `underlayColor` temporarily replaces the authored
+background during a press and `onShowUnderlay`/`onHideUnderlay` follow the
+same lifecycle on iOS and Android.
 `Picker` renders option children from `<select>`/`<option>` or the native
 primitive, accepts an `items` array or child options plus `value`/`selectedValue`,
 and sends the selected option's `value` plus `index` through `onValueChange` or

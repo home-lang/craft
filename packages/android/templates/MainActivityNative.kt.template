@@ -32,6 +32,7 @@ import android.graphics.Typeface
 import android.graphics.ColorFilter
 import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
@@ -3433,6 +3434,8 @@ class MainActivity : AppCompatActivity() {
         val linkTargets = mutableMapOf<View, String>()
         val pressInHandlers = mutableMapOf<View, String>()
         val pressOutHandlers = mutableMapOf<View, String>()
+        val pressUnderlayShowHandlers = mutableMapOf<View, String>()
+        val pressUnderlayHideHandlers = mutableMapOf<View, String>()
         val longPressHandlers = mutableMapOf<View, String>()
         val scrollHandlers = mutableMapOf<View, String>()
         val scrollBeginHandlers = mutableMapOf<View, String>()
@@ -3451,6 +3454,8 @@ class MainActivity : AppCompatActivity() {
         val imageErrorHandlers = mutableMapOf<ImageView, String>()
         val pressActiveOpacities = mutableMapOf<View, Float>()
         val pressBaseOpacities = mutableMapOf<View, Float>()
+        val pressUnderlayColors = mutableMapOf<View, Int>()
+        val pressBaseBackgrounds = mutableMapOf<View, Drawable?>()
         val modalVisibility = mutableMapOf<View, Boolean>()
         val modalCloseHandlers = mutableMapOf<View, String>()
         val layoutHandlers = mutableMapOf<View, String>()
@@ -4998,8 +5003,16 @@ class MainActivity : AppCompatActivity() {
             }
             "TouchableOpacity", "TouchableHighlight", "Pressable" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 configureContainer(this, style)
+                val disabled = props.optBoolean("disabled", false)
                 screen.pressActiveOpacities[this] = craftNativeFiniteFloat(props, "activeOpacity", 0.5f)
                 screen.pressBaseOpacities[this] = craftNativeFiniteFloat(style, "opacity", 1f)
+                if (type == "TouchableHighlight" && !disabled) {
+                    craftNativeOptionalString(props.opt("underlayColor"))?.let { screen.pressUnderlayColors[this] = color(it, Color.TRANSPARENT) }
+                        ?: screen.pressUnderlayColors.remove(this)
+                } else {
+                    screen.pressUnderlayColors.remove(this)
+                }
+                screen.pressBaseBackgrounds[this] = this.background
                 reconcileChildren(screen, this, children, identity, next, style, previousControls)
             }
             "Switch" -> (previous as? Switch ?: Switch(this)).apply {
@@ -5310,6 +5323,10 @@ class MainActivity : AppCompatActivity() {
         val pressOutHandler = craftNativeEventName(events, "onPressOut").takeIf { it.isNotBlank() }
         if (pressInHandler != null) screen.pressInHandlers[control] = pressInHandler else screen.pressInHandlers.remove(control)
         if (pressOutHandler != null) screen.pressOutHandlers[control] = pressOutHandler else screen.pressOutHandlers.remove(control)
+        val underlayShowHandler = if (type == "TouchableHighlight") craftNativeEventName(events, "onShowUnderlay").takeIf { it.isNotBlank() } else null
+        val underlayHideHandler = if (type == "TouchableHighlight") craftNativeEventName(events, "onHideUnderlay").takeIf { it.isNotBlank() } else null
+        if (underlayShowHandler != null) screen.pressUnderlayShowHandlers[control] = underlayShowHandler else screen.pressUnderlayShowHandlers.remove(control)
+        if (underlayHideHandler != null) screen.pressUnderlayHideHandlers[control] = underlayHideHandler else screen.pressUnderlayHideHandlers.remove(control)
         if (type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView" && type != "StatusBar" && type != "RefreshControl" && type != "Map") {
             val handler = craftNativeEventName(events, "onPress", "onClick")
             val disabled = props.optBoolean("disabled", false)
@@ -5318,7 +5335,8 @@ class MainActivity : AppCompatActivity() {
                 ?.trim()
                 ?.takeIf { !disabled && type in setOf("TouchableOpacity", "TouchableHighlight", "Pressable") }
             if (target != null) screen.linkTargets[control] = target else screen.linkTargets.remove(control)
-            val hasPressLifecycle = pressInHandler != null || pressOutHandler != null
+            val hasUnderlay = type == "TouchableHighlight" && screen.pressUnderlayColors[control] != null
+            val hasPressLifecycle = pressInHandler != null || pressOutHandler != null || hasUnderlay
             if ((handler.isNotBlank() || target != null || (type in setOf("TouchableOpacity", "TouchableHighlight", "Pressable") && hasPressLifecycle)) && !disabled) {
                 if (handler.isNotBlank()) screen.handlers[control] = handler else screen.handlers.remove(control)
                 control.isClickable = true
@@ -5334,14 +5352,22 @@ class MainActivity : AppCompatActivity() {
                                 val active = screen.pressActiveOpacities[view] ?: 0.5f
                                 val base = screen.pressBaseOpacities[view] ?: 1f
                                 view.alpha = base * active
+                                screen.pressUnderlayColors[view]?.let { view.background = ColorDrawable(it) }
                                 screen.pressInHandlers[view]?.let { current ->
+                                    send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject()))
+                                }
+                                screen.pressUnderlayShowHandlers[view]?.let { current ->
                                     send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject()))
                                 }
                                 true
                             }
                             android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
                                 view.alpha = screen.pressBaseOpacities[view] ?: 1f
+                                if (screen.pressBaseBackgrounds.containsKey(view)) view.background = screen.pressBaseBackgrounds[view]
                                 screen.pressOutHandlers[view]?.let { current ->
+                                    send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject()))
+                                }
+                                screen.pressUnderlayHideHandlers[view]?.let { current ->
                                     send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject()))
                                 }
                                 if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
@@ -5356,6 +5382,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 } else {
                     control.setOnTouchListener(null)
+                    if (screen.pressBaseBackgrounds.containsKey(control)) control.background = screen.pressBaseBackgrounds[control]
                     control.setOnClickListener {
                         screen.linkTargets[control]?.let { target -> navigateOpen(target); return@setOnClickListener }
                         val current = screen.handlers[control] ?: return@setOnClickListener
@@ -6753,6 +6780,10 @@ class MainActivity : AppCompatActivity() {
         screen.handlers.keys.removeAll(released)
         screen.pressInHandlers.keys.removeAll(released)
         screen.pressOutHandlers.keys.removeAll(released)
+        screen.pressUnderlayShowHandlers.keys.removeAll(released)
+        screen.pressUnderlayHideHandlers.keys.removeAll(released)
+        screen.pressUnderlayColors.keys.removeAll(released)
+        screen.pressBaseBackgrounds.keys.removeAll(released)
         screen.longPressHandlers.keys.removeAll(released)
         screen.layoutHandlers.keys.removeAll(released)
         screen.layoutListeners.forEach { (view, listener) ->
@@ -6777,6 +6808,8 @@ class MainActivity : AppCompatActivity() {
         screen.imageErrorHandlers.keys.removeAll(releasedImages)
         screen.pressActiveOpacities.keys.removeAll(released)
         screen.pressBaseOpacities.keys.removeAll(released)
+        screen.pressUnderlayColors.keys.removeAll(released)
+        screen.pressBaseBackgrounds.keys.removeAll(released)
         screen.modalVisibility.keys.removeAll(released)
         screen.modalCloseHandlers.keys.removeAll(released)
     }
@@ -6807,6 +6840,10 @@ class MainActivity : AppCompatActivity() {
         screen.handlers.clear()
         screen.pressInHandlers.clear()
         screen.pressOutHandlers.clear()
+        screen.pressUnderlayShowHandlers.clear()
+        screen.pressUnderlayHideHandlers.clear()
+        screen.pressUnderlayColors.clear()
+        screen.pressBaseBackgrounds.clear()
         screen.layoutHandlers.clear()
         screen.lastLayoutBounds.clear()
         screen.scrollHandlers.clear()

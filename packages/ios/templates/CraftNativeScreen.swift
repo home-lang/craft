@@ -1602,6 +1602,8 @@ extension UIView {
 private class CraftNativeFlowView: UIStackView {
     var pressActiveOpacity: CGFloat?
     var pressBaseOpacity: CGFloat = 1
+    var pressUnderlayColor: UIColor?
+    var pressBaseBackgroundColor: UIColor?
     var wrap = false { didSet { if wrap != oldValue { invalidateMeasurements() } } }
     var alignItems = "stretch" { didSet { alignment = alignmentValue; if alignItems != oldValue { invalidateMeasurements() } } }
     var alignContent = "flex-start" { didSet { if alignContent != oldValue { invalidateMeasurements() } } }
@@ -3661,6 +3663,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var handlers: [ObjectIdentifier: String] = [:]
     private var pressInHandlers: [ObjectIdentifier: String] = [:]
     private var pressOutHandlers: [ObjectIdentifier: String] = [:]
+    private var underlayShowHandlers: [ObjectIdentifier: String] = [:]
+    private var underlayHideHandlers: [ObjectIdentifier: String] = [:]
     private var focusHandlers: [ObjectIdentifier: String] = [:]
     private var blurHandlers: [ObjectIdentifier: String] = [:]
     private var endEditingHandlers: [ObjectIdentifier: String] = [:]
@@ -5583,9 +5587,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let pressable = result as! CraftNativeFlowView
             configureStack(pressable, style: style)
             reconcileChildren(children, in: pressable, parent: current, path: path, style: style)
-            pressable.pressActiveOpacity = props["disabled"] as? Bool == true
+            let disabled = props["disabled"] as? Bool == true
+            pressable.pressActiveOpacity = disabled
                 ? nil : number(props["activeOpacity"]) ?? 0.5
             pressable.pressBaseOpacity = number(style["opacity"]) ?? 1
+            pressable.pressUnderlayColor = type == "TouchableHighlight" && !disabled ? color(props["underlayColor"]) : nil
+            pressable.pressBaseBackgroundColor = pressable.backgroundColor
         case "Switch":
             let toggle = result as! UISwitch
             toggle.isOn = props["value"] as? Bool ?? props["checked"] as? Bool ?? false
@@ -5779,6 +5786,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updatePressFeedback(
                 disabled ? nil : nonEmptyHandler(events["onPressIn"]),
                 disabled ? nil : nonEmptyHandler(events["onPressOut"]),
+                for: result
+            )
+            updateUnderlayHandlers(
+                type == "TouchableHighlight" && !disabled ? nonEmptyHandler(events["onShowUnderlay"]) : nil,
+                type == "TouchableHighlight" && !disabled ? nonEmptyHandler(events["onHideUnderlay"]) : nil,
                 for: result
             )
             if disabled { result.isUserInteractionEnabled = false }
@@ -6136,6 +6148,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         transitionIDs.removeValue(forKey: id)
         pressInHandlers.removeValue(forKey: id)
         pressOutHandlers.removeValue(forKey: id)
+        underlayShowHandlers.removeValue(forKey: id)
+        underlayHideHandlers.removeValue(forKey: id)
         layoutHandlers.removeValue(forKey: id)
         lastLayoutFrames.removeValue(forKey: id)
         focusHandlers.removeValue(forKey: id)
@@ -6309,8 +6323,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let id = ObjectIdentifier(view)
         if let pressIn, !pressIn.isEmpty { pressInHandlers[id] = pressIn } else { pressInHandlers.removeValue(forKey: id) }
         if let pressOut, !pressOut.isEmpty { pressOutHandlers[id] = pressOut } else { pressOutHandlers.removeValue(forKey: id) }
-        guard pressInHandlers[id] != nil || pressOutHandlers[id] != nil else {
+        let hasUnderlay = (view as? CraftNativeFlowView)?.pressUnderlayColor != nil
+        guard pressInHandlers[id] != nil || pressOutHandlers[id] != nil || hasUnderlay else {
             if let recognizer = pressFeedbackRecognizers.removeValue(forKey: id) { view.removeGestureRecognizer(recognizer) }
+            if let pressable = view as? CraftNativeFlowView { pressable.backgroundColor = pressable.pressBaseBackgroundColor }
             if !ownsTouches(view) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }
             return
         }
@@ -6324,6 +6340,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             view.addGestureRecognizer(recognizer)
         }
         if !ownsTouches(view) { view.isUserInteractionEnabled = true }
+    }
+
+    private func updateUnderlayHandlers(_ show: String?, _ hide: String?, for view: UIView) {
+        let id = ObjectIdentifier(view)
+        if let show, !show.isEmpty { underlayShowHandlers[id] = show } else { underlayShowHandlers.removeValue(forKey: id) }
+        if let hide, !hide.isEmpty { underlayHideHandlers[id] = hide } else { underlayHideHandlers.removeValue(forKey: id) }
     }
 
     private func updateLongPressHandler(_ handler: String?, for view: UIView) {
@@ -7329,13 +7351,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let id = ObjectIdentifier(view)
         switch sender.state {
         case .began:
-            if let pressable = view as? CraftNativeFlowView, let activeOpacity = pressable.pressActiveOpacity {
-                UIView.animate(withDuration: 0.1) { pressable.alpha = pressable.pressBaseOpacity * activeOpacity }
+            if let pressable = view as? CraftNativeFlowView {
+                if let underlayColor = pressable.pressUnderlayColor { pressable.backgroundColor = underlayColor }
+                if let activeOpacity = pressable.pressActiveOpacity {
+                    UIView.animate(withDuration: 0.1) { pressable.alpha = pressable.pressBaseOpacity * activeOpacity }
+                }
             }
             if let handler = pressInHandlers[id] { send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
+            if let handler = underlayShowHandlers[id] { send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
         case .ended, .cancelled, .failed:
-            if let pressable = view as? CraftNativeFlowView { UIView.animate(withDuration: 0.1) { pressable.alpha = pressable.pressBaseOpacity } }
+            if let pressable = view as? CraftNativeFlowView {
+                pressable.backgroundColor = pressable.pressBaseBackgroundColor
+                UIView.animate(withDuration: 0.1) { pressable.alpha = pressable.pressBaseOpacity }
+            }
             if let handler = pressOutHandlers[id] { send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
+            if let handler = underlayHideHandlers[id] { send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
         default:
             break
         }
