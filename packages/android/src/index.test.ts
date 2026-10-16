@@ -310,6 +310,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('view.removeOnLayoutChangeListener(listener)')
       expect(nativeActivity).toContain('released.filterIsInstance<CraftNativeMapView>().forEach { it.destroy() }')
       expect(nativeActivity).toContain('onMarkerTap?.invoke(id)\n            // The native contract dispatches the marker event itself.')
+      expect(nativeActivity).toContain('nextMarkers[id] = point to (props.opt("title") as? String)')
       expect(nativeActivity).toContain('if (fitToBounds()) initialCameraKey = key')
       expect(nativeActivity).toContain('override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int)')
       expect(nativeActivity).toContain('craftNativeBoolean(pendingProps.opt("fitToBounds")) && initialCameraKey == null')

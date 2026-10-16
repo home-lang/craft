@@ -454,6 +454,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('private static func locationPermissionGranted() -> Bool')
     expect(android).toContain('private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMapReadyCallback')
     expect(android).toContain('onMarkerTap?.invoke(id)\n            // The native contract dispatches the marker event itself.')
+    expect(android).toContain('nextMarkers[id] = point to (props.opt("title") as? String)')
     expect(android).toContain('            true\n        }')
     expect(android).toContain('val points = coordinates(props.optJSONArray("geometry"))')
     expect(android).toContain('nativeEvent", JSONObject().put("id", markerId)')

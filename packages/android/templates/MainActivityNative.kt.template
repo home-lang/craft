@@ -673,7 +673,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
             val points = coordinates(props.optJSONArray("geometry"))
             if (type == "mapmarker" || type == "marker") {
                 points.firstOrNull()?.let { point ->
-                    nextMarkers[id] = point to craftNativeOptionalString(props.opt("title"))
+                    nextMarkers[id] = point to (props.opt("title") as? String)
                     listOf(events.opt("onPress"), events.opt("onMarkerPress"))
                         .firstNotNullOfOrNull(::craftNativeOptionalString)
                         ?.let { nextHandlers[id] = it }
