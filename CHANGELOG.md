@@ -20,6 +20,8 @@
 
 ## 📚 Documentation
 
+- **native**: document shared transforms and shadows ([4e065e1](https://github.com/craft-native/craft/commit/4e065e1)) _(by glennmichael123)_
+- record cold simulator startup verification ([6177834](https://github.com/craft-native/craft/commit/6177834)) _(by Chris Breuer)_
 - record default simulator test invocation ([a823efd](https://github.com/craft-native/craft/commit/a823efd)) _(by Chris Breuer)_
 - include UIKit fixture metadata verification ([954683f](https://github.com/craft-native/craft/commit/954683f)) _(by Chris Breuer)_
 - record simulator compatibility and hybrid rendering fixes ([2431f89](https://github.com/craft-native/craft/commit/2431f89)) _(by Chris Breuer)_
@@ -30,6 +32,7 @@
 
 ## 🧪 Tests
 
+- **ios**: cover solid navigation bar title modes ([ba7e5fc](https://github.com/craft-native/craft/commit/ba7e5fc)) _(by glennmichael123)_
 - **ios**: await cold WebKit startup with the device suite budget ([0705910](https://github.com/craft-native/craft/commit/0705910)) _(by Chris Breuer)_
 - **ios**: request Xcode repetitions only for stress runs ([0e3a1e9](https://github.com/craft-native/craft/commit/0e3a1e9)) _(by Chris Breuer)_
 - **ios**: declare complete UIKit test target metadata ([51f2f5a](https://github.com/craft-native/craft/commit/51f2f5a)) _(by Chris Breuer)_
@@ -47,6 +50,7 @@
 
 ## 🤖 Continuous Integration
 
+- support fixed-ref release candidate verification ([b7d2e54](https://github.com/craft-native/craft/commit/b7d2e54)) _(by Chris Breuer)_
 - run required iOS native and protocol suites independently ([1b50fec](https://github.com/craft-native/craft/commit/1b50fec)) _(by Chris Breuer)_
 
 ## 🧹 Chores
@@ -63,6 +67,7 @@
 ## Contributors
 
 - _Chris Breuer_
+- _glennmichael123_
 
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.201...v0.0.202)
 
