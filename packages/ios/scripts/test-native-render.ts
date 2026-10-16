@@ -4,6 +4,15 @@ import { bootSimulator, build, init, pickSimulator } from '../src/index'
 import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './insert-project-targets'
 import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
+const cliArgs = process.argv.slice(2)
+if (cliArgs.length > 0) {
+  if (cliArgs.length === 1 && ['--help', '-h'].includes(cliArgs[0]!)) {
+    console.log('Usage: bun packages/ios/scripts/test-native-render.ts\nSet CRAFT_NATIVE_RENDER_SIMULATOR to an owned disposable simulator UUID and CRAFT_ONLY_TESTING to an XCTest selection.')
+    process.exit(0)
+  }
+  throw new Error(`Unknown native renderer test argument: ${cliArgs.join(' ')}`)
+}
+
 const fixture = join(import.meta.dir, '..', 'fixtures', 'native-screen')
 const workspace = createTempDir('craft-native-render-')
 const output = join(workspace, 'NativeRender')
