@@ -67,7 +67,7 @@ jobs:
           bun packages/ios/scripts/test-native-navigation.ts 2>&1 | tee "$RUNNER_TEMP/native-transition-after.log"
           navigation_results=("$RUNNER_TEMP"/craft-native-navigation-*/NativeNavigation.xcresult)
           xcrun xcresulttool get test-results summary --path "${navigation_results[0]}" > "$RUNNER_TEMP/native-transition-summary.json"
-          bun -e 'const s = await Bun.file(process.env.RUNNER_TEMP + "/native-transition-summary.json").json(); if (s.result !== "Passed" || s.passedTests !== 13 || s.failedTests !== 0 || s.skippedTests !== 0) throw new Error(JSON.stringify(s)); console.log("Verified 13 passed, 0 failed, 0 skipped in the XCTest result bundle")'
+          bun -e 'const s = await Bun.file(process.env.RUNNER_TEMP + "/native-transition-summary.json").json(); if (s.result !== "Passed" || s.passedTests !== 14 || s.failedTests !== 0 || s.skippedTests !== 0) throw new Error(JSON.stringify(s)); console.log("Verified 14 passed, 0 failed, 0 skipped in the XCTest result bundle")'
       - name: Upload native transition evidence
         if: always()
         uses: actions/upload-artifact@v4
