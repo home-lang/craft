@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.214...v0.0.215)
+
+## 🐛 Bug Fixes
+
+- **ios**: wait for verified Universal Links in device journeys ([6c776b6](https://github.com/craft-native/craft/commit/6c776b6)) _(by Chris Breuer)_
+- **test**: use typed view lookup in native SVG fixture ([e40bc05](https://github.com/craft-native/craft/commit/e40bc05)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.213...v0.0.214)
 
 ## 🚀 Features
