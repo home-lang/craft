@@ -1668,10 +1668,11 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     /// tab's root: over a native screen, or on an entry the shell pushed
     /// there, the page cannot know which tab it is in (a workout page
     /// loaded on its own lights Calendar, though Today opened it). The bar
-    /// then keeps the tab that is on screen.
+    /// then keeps the tab that is on screen, or the finger's active preview.
     func pageSelectedTab(_ id: String) {
-        guard id != currentTab, pendingTab?.id != id else { return }
-        guard let top = visibleStack?.topViewController as? CraftHybridWebSlot, top.isTabRoot else {
+        guard id != (activeTabSwipeTarget ?? currentTab), pendingTab?.id != id else { return }
+        guard activeTabSwipeTarget == nil,
+              let top = visibleStack?.topViewController as? CraftHybridWebSlot, top.isTabRoot else {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.hybrid.controller === self else { return }
                 // Resolve ownership when the correction runs: a newer tap
