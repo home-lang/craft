@@ -2700,6 +2700,17 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('keyed reconciliation replaced the list scroll host')
   })
 
+  it('covers retained View and SafeAreaView type switches on both native hosts', () => {
+    expect(navigationHome).toContain('key="retained-safe-area"')
+    expect(navigationHome).toContain('<View :if="!retainedSafeArea()"')
+    expect(navigationHome).toContain('<SafeAreaView :if="retainedSafeArea()"')
+    expect(navigationHome).toContain('function toggleRetainedSafeArea()')
+    expect(iosNavigationTest).toContain('testRetainedContainerCanSwitchBetweenViewAndSafeAreaView')
+    expect(androidNavigationTest).toContain('View type switch retained a stale window inset')
+    expect(androidNavigationTest).toContain('type-switched retained container was replaced')
+    expect(android).toContain('else setWindowSafeInsets(0, 0, 0, 0)')
+  })
+
   it('keeps reverse flex directions covered on both native hosts', () => {
     expect(navigationHome).toContain('testID="reverse-column"')
     expect(navigationHome).toContain('flexDirection":"column-reverse"')

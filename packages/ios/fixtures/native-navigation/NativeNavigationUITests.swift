@@ -198,6 +198,24 @@ final class NativeNavigationUITests: XCTestCase {
                        "restoring the top edge did not restore the native inset")
     }
 
+    func testRetainedContainerCanSwitchBetweenViewAndSafeAreaView() {
+        let app = XCUIApplication()
+        app.launch()
+        let rootScroll = app.scrollViews["native-root-scroll"]
+        XCTAssertTrue(rootScroll.waitForExistence(timeout: 15))
+        let toggle = app.buttons["toggle-retained-safe-area"]
+        reveal(toggle, in: rootScroll)
+
+        XCTAssertTrue(waitForLabel(app.staticTexts["retained-safe-area-status"], "Retained: plain"))
+        XCTAssertTrue(app.otherElements["retained-safe-area"].waitForExistence(timeout: 5))
+        toggle.tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["retained-safe-area-status"], "Retained: safe"))
+        XCTAssertTrue(app.otherElements["retained-safe-area"].waitForExistence(timeout: 5))
+        toggle.tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["retained-safe-area-status"], "Retained: plain"))
+        XCTAssertTrue(app.otherElements["retained-safe-area"].waitForExistence(timeout: 5))
+    }
+
     func testMultipleFloatingNavigationButtonsStayIndependent() {
         let app = XCUIApplication()
         app.launch()
