@@ -45,8 +45,11 @@ final class NativeNavigationUnitTests: XCTestCase {
     private var selection: String?
     private let pan = Pan()
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
+        await displayWait("native host window connected") {
+            CraftHybrid.shared.controller?.viewIfLoaded?.window?.windowScene != nil
+        }
         previous = CraftHybrid.shared.controller
         previousWindow = previous?.view.window
         selection = CraftChrome.shared.selected
@@ -92,27 +95,27 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
     }
 
-    private func displayWait(_ description: String, ready: @escaping () -> Bool) {
+    private func displayWait(_ description: String, ready: @escaping () -> Bool) async {
         let finished = expectation(description: description)
         let display = DisplayWait(ready: ready, finished: finished)
         display.start()
-        wait(for: [finished], timeout: 15)
+        await fulfillment(of: [finished], timeout: 15)
         display.stop()
     }
 
-    private func renderFrames() {
+    private func renderFrames() async {
         CATransaction.flush()
         var frames = 0
-        displayWait("native frames rendered") { frames += 1; return frames >= 2 }
+        await displayWait("native frames rendered") { frames += 1; return frames >= 2 }
     }
 
-    private func settle() {
-        displayWait("native settle animation completed") { [self] in
+    private func settle() async {
+        await displayWait("native settle animation completed") { [self] in
             shell.children.compactMap { $0 as? UINavigationController }.allSatisfy {
                 $0.view.frame == shell.view.bounds && ($0.view.layer.animationKeys()?.isEmpty ?? true)
             }
         }
-        renderFrames()
+        await renderFrames()
     }
 
     private func attachFrame(_ name: String) {
@@ -129,7 +132,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         CraftChrome.shared.selected = "/"
     }
 
-    func testFirstSwipeMountsAnUnvisitedNativeTabBesideTheCurrentScreen() throws {
+    func testFirstSwipeMountsAnUnvisitedNativeTabBesideTheCurrentScreen() async throws {
         XCTAssertNil(stack("/details"))
         let width = shell.view.bounds.width
         drag(-150)
@@ -138,10 +141,10 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(incoming.view.frame.minX, width - 150, accuracy: 0.5)
         XCTAssertEqual(outgoing.view.frame.maxX, incoming.view.frame.minX, accuracy: 0.5)
         drag(-150, phase: .cancelled)
-        settle()
+        await settle()
     }
 
-    func testIncomingTabKeepsItsEdgePastHalfwayInBothDirections() throws {
+    func testIncomingTabKeepsItsEdgePastHalfwayInBothDirections() async throws {
         mountDetails()
         let width = shell.view.bounds.width
         let home = try XCTUnwrap(stack("/"))
@@ -153,7 +156,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
         attachFrame("Left swipe beyond halfway")
         drag(-width, phase: .ended)
-        settle()
+        await settle()
         XCTAssertTrue(home.view.isHidden)
         XCTAssertFalse(details.view.isHidden)
         XCTAssertEqual(details.view.frame, shell.view.bounds)
@@ -164,13 +167,13 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
         attachFrame("Right swipe beyond halfway")
         drag(width, phase: .ended)
-        settle()
+        await settle()
         XCTAssertEqual(CraftChrome.shared.selected, "/")
         XCTAssertFalse(home.view.isHidden)
         XCTAssertEqual(home.view.frame, shell.view.bounds)
     }
 
-    func testReleaseAnimatesToTheDestinationInsteadOfJumping() throws {
+    func testReleaseAnimatesToTheDestinationInsteadOfJumping() async throws {
         mountDetails()
         let details = try XCTUnwrap(stack("/details"))
         let width = shell.view.bounds.width
@@ -179,7 +182,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         attachFrame("Incoming native tab follows the finger")
         // A real drag renders before release; beginning and ending in one
         // run-loop turn can otherwise animate from an uncommitted layer.
-        renderFrames()
+        await renderFrames()
         drag(-width * 0.4, phase: .ended)
         if !UIAccessibility.isReduceMotionEnabled {
             let animation = try XCTUnwrap(details.view.layer.animation(forKey: "position") as? CABasicAnimation,
@@ -203,21 +206,21 @@ final class NativeNavigationUnitTests: XCTestCase {
             }
             sample.fulfill()
         }
-        wait(for: [sample], timeout: 15)
-        settle()
+        await fulfillment(of: [sample], timeout: 15)
+        await settle()
         XCTAssertEqual(details.view.frame, shell.view.bounds)
         XCTAssertFalse(details.view.isHidden)
         XCTAssertEqual(CraftChrome.shared.selected, "/details")
     }
 
-    func testShortAndSystemCancelledSwipesRestoreBothStacksAndSelection() throws {
+    func testShortAndSystemCancelledSwipesRestoreBothStacksAndSelection() async throws {
         mountDetails()
         let home = try XCTUnwrap(stack("/"))
         let details = try XCTUnwrap(stack("/details"))
         for phase in [UIGestureRecognizer.State.ended, .cancelled, .failed] {
             drag(-50)
             drag(-50, phase: phase)
-            settle()
+            await settle()
             XCTAssertEqual(CraftChrome.shared.selected, "/")
             XCTAssertFalse(home.view.isHidden)
             XCTAssertTrue(details.view.isHidden)
@@ -226,7 +229,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
     }
 
-    func testReversingTheDragNeverExposesTheBackgroundOrSelectsTheWrongTab() throws {
+    func testReversingTheDragNeverExposesTheBackgroundOrSelectsTheWrongTab() async throws {
         mountDetails()
         let home = try XCTUnwrap(stack("/"))
         let details = try XCTUnwrap(stack("/details"))
@@ -235,12 +238,12 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(home.view.frame.minX, 0, accuracy: 0.5)
         XCTAssertEqual(details.view.frame.minX, shell.view.bounds.width, accuracy: 0.5)
         drag(70, phase: .ended, speed: 800)
-        settle()
+        await settle()
         XCTAssertEqual(CraftChrome.shared.selected, "/")
         XCTAssertEqual(home.view.frame, shell.view.bounds)
     }
 
-    func testTabTapDuringSettlingWinsOverTheSwipeCompletion() throws {
+    func testTabTapDuringSettlingWinsOverTheSwipeCompletion() async throws {
         mountDetails()
         let home = try XCTUnwrap(stack("/"))
         let details = try XCTUnwrap(stack("/details"))
@@ -255,7 +258,7 @@ final class NativeNavigationUnitTests: XCTestCase {
             XCTAssertFalse(selected.view.isHidden, "the newer tab tap must take effect immediately")
             XCTAssertEqual(selected.view.frame, shell.view.bounds)
             XCTAssertTrue(selected.view.layer.animationKeys()?.isEmpty ?? true)
-            settle()
+            await settle()
             XCTAssertEqual(CraftChrome.shared.selected, path, "a completed swipe overrode the newer tab tap")
             XCTAssertEqual(home.view.isHidden, path != "/")
             XCTAssertEqual(details.view.isHidden, path != "/details")
@@ -263,7 +266,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
     }
 
-    func testSwipeAfterATabTapCannotBeChangedByTheOlderAnimation() throws {
+    func testSwipeAfterATabTapCannotBeChangedByTheOlderAnimation() async throws {
         mountDetails()
         let details = try XCTUnwrap(stack("/details"))
         let width = shell.view.bounds.width
@@ -274,7 +277,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         drag(-width * 0.4)
         XCTAssertEqual(details.view.frame.minX, width * 0.6, accuracy: 0.5)
         drag(-width * 0.4, phase: .ended)
-        settle()
+        await settle()
         XCTAssertEqual(CraftChrome.shared.selected, "/details")
         XCTAssertFalse(details.view.isHidden)
         XCTAssertEqual(details.view.frame, shell.view.bounds)
