@@ -19,9 +19,13 @@ import type {
   ImageProps,
   RefreshControlProps,
   StatusBarProps,
+  CircleProps,
+  GProps,
   PickerProps,
   MapProps,
   MapMarkerProps,
+  SvgProps,
+  SvgTextProps,
   MapPolylineProps,
   SectionListProps,
   TextInputProps,
@@ -66,6 +70,10 @@ describe('Component System', () => {
     const childPicker: PickerProps = { children: ['One', 'Two'], selectedValue: 'Two' }
     const statusBar: StatusBarProps = { barStyle: 'dark-content', hidden: false }
     const refresh: RefreshControlProps = { refreshing: true, tintColor: '#2563eb', progressViewOffset: 8, onRefresh: () => {} }
+    const svg: SvgProps = { viewBox: [0, 0, 24, 24], preserveAspectRatio: 'xMidYMid meet', fill: 'none' }
+    const group: GProps = { stroke: '#2563eb', strokeLinecap: 'round' }
+    const circle: CircleProps = { geometry: [0, 12, 4], fill: '#fff' }
+    const label: SvgTextProps = { x: 12, y: 21, textAnchor: 'middle', fontSize: 10 }
     const sections: SectionListProps<string> = {
       sections: [{ title: 'Trails', data: ['Alpine'] }],
       renderItem: ({ item }) => item,
@@ -79,6 +87,10 @@ describe('Component System', () => {
     expect(childPicker.items).toBeUndefined()
     expect(statusBar.barStyle).toBe('dark-content')
     expect(refresh.progressViewOffset).toBe(8)
+    expect(svg.viewBox).toEqual([0, 0, 24, 24])
+    expect(group.strokeLinecap).toBe('round')
+    expect(circle.geometry).toEqual([0, 12, 4])
+    expect(label.textAnchor).toBe('middle')
     expect(sections.sections[0]?.data).toEqual(['Alpine'])
   })
 

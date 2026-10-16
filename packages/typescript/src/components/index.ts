@@ -610,6 +610,57 @@ export interface ImageBackgroundProps extends ImageProps {
   imageStyle?: ImageStyle | ImageStyle[]
 }
 
+/** Shared paint and accessibility props for DOM-free native SVG nodes. */
+export interface SvgPaintProps extends BaseProps {
+  style?: ViewStyle | ViewStyle[]
+  fill?: string
+  stroke?: string
+  strokeWidth?: number
+  strokeDasharray?: number[] | string
+  strokeDashoffset?: number
+  strokeLinecap?: 'butt' | 'round' | 'square'
+  strokeLinejoin?: 'miter' | 'round' | 'bevel'
+  strokeMiterlimit?: number
+  strokeOpacity?: number
+  fillOpacity?: number
+  fillRule?: 'nonzero' | 'evenodd'
+  vectorEffect?: 'none' | 'non-scaling-stroke'
+  color?: string
+  opacity?: number
+}
+
+/** Root native SVG drawing surface. */
+export interface SvgProps extends SvgPaintProps {
+  viewBox?: [number, number, number, number] | string
+  preserveAspectRatio?: string
+}
+
+/** Native SVG group inheriting paint from its parent. */
+export interface GProps extends SvgPaintProps {}
+
+/** Shared generated geometry prop for native SVG shape nodes. */
+export interface SvgShapeProps extends SvgPaintProps {
+  geometry?: number[]
+}
+
+export interface PathProps extends SvgShapeProps {}
+export interface LineProps extends SvgShapeProps {}
+export interface RectProps extends SvgShapeProps {}
+export interface CircleProps extends SvgShapeProps {}
+export interface EllipseProps extends SvgShapeProps {}
+export interface PolylineProps extends SvgShapeProps {}
+export interface PolygonProps extends SvgShapeProps {}
+
+/** Native SVG text painted in the root viewBox. */
+export interface SvgTextProps extends SvgPaintProps {
+  x?: number
+  y?: number
+  fontSize?: number
+  fontWeight?: string | number
+  textAnchor?: 'start' | 'middle' | 'end' | string
+  dominantBaseline?: string
+}
+
 /**
  * ScrollView component props.
  */

@@ -110,6 +110,17 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val offset = props.optDouble("progressViewOffset", Double.NaN)')
   })
 
+  it('exposes the implemented native SVG prop contracts', () => {
+    expect(componentTypes).toContain('export interface SvgProps extends SvgPaintProps')
+    expect(componentTypes).toContain('viewBox?: [number, number, number, number] | string')
+    expect(componentTypes).toContain("strokeLinecap?: 'butt' | 'round' | 'square'")
+    expect(componentTypes).toContain('export interface SvgShapeProps extends SvgPaintProps')
+    expect(componentTypes).toContain('export interface SvgTextProps extends SvgPaintProps')
+    expect(componentTypes).toContain("textAnchor?: 'start' | 'middle' | 'end' | string")
+    expect(ios).toContain('let box = props["viewBox"] as? [Any]')
+    expect(android).toContain('drawing.optJSONObject("props")?.optJSONArray("viewBox")')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
