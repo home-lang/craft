@@ -1136,7 +1136,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('UIPickerViewDataSource, UIPickerViewDelegate')
     expect(ios).toContain('picker.selectRow(row, inComponent: 0, animated: false)')
     expect(ios).toContain('"nativeEvent": ["value": option.value, "index": row]')
-    expect(ios).toContain('if !(value is Bool), let value = value as? NSNumber, value.doubleValue.isFinite { return String(value.doubleValue) }')
+    expect(ios).toContain('if let value = craftNativeNumber(value), value.doubleValue.isFinite { return String(value.doubleValue) }')
     expect(iosNativeUnitTests).toContain('testPickerBooleanValuesFallBackToTheirLabels')
     expect(android).toContain('"Picker" -> (previous as? Spinner ?: Spinner(this)).apply')
     expect(android).toContain('setSelection(selected, false)')
@@ -1838,7 +1838,7 @@ describe('native renderer component contract', () => {
 
   it('ignores boolean values in numeric native layout styles on both hosts', () => {
     expect(ios).toContain('// JavaScript booleans can bridge to NSNumber on Apple platforms;')
-    expect(ios).toContain('guard !(value is Bool), let number = value as? NSNumber else { return nil }')
+    expect(ios).toContain('guard let number = craftNativeNumber(value) else { return nil }')
     expect(android).toContain('if (value is Number)')
     expect(navigationHome).toContain('testID="boolean-width-text"')
     expect(navigationHome).toContain('testID="boolean-font-size-text"')
@@ -2339,7 +2339,7 @@ describe('native renderer component contract', () => {
     // item's plain backgroundColor white.
     expect(ios).toContain('let fill = UIImageView(image: UIImage(systemName: "circle.fill"))')
     expect(ios).toContain('fill.tintColor = dot ? .systemRed : .systemBlue')
-    expect(ios).toContain('if !(spec["badge"] is Bool), let value = spec["badge"] as? NSNumber, value.intValue > 0 {')
+    expect(ios).toContain('if let value = craftNativeNumber(spec["badge"]), value.intValue > 0 {')
     expect(iosLayoutUnitTests).toContain('testBooleanNavigationBadgeIsIgnored')
   })
 
@@ -3095,7 +3095,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('compactMap { number($0).map { Int($0) } }')
     expect(iosNativeUnitTests).toContain('"invalid-interval"')
     expect(iosNativeUnitTests).toContain('XCTAssertEqual(invalid.minuteInterval, 1)')
-    expect(iosFlatList).toContain('guard !(value is Bool), let number = value as? NSNumber else { return nil }')
+    expect(iosFlatList).toContain('guard let number = craftNativeNumber(value) else { return nil }')
     expect(iosNativeUnitTests).toContain('testFlatListContentInsetsRejectBooleanNumbers')
     expect(android).toContain('minuteInterval = craftNativeInt(props.opt("minuteInterval"), 1)')
     expect(android).toContain('columns = craftNativeInt(props.opt("numColumns"), 1)')

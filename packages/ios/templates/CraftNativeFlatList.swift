@@ -308,7 +308,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
 
     func setContentContainerStyle(_ raw: [String: Any]?) {
         func nonNegative(_ value: Any?) -> CGFloat? {
-            guard !(value is Bool), let number = value as? NSNumber else { return nil }
+            guard let number = craftNativeNumber(value) else { return nil }
             let points = CGFloat(truncating: number)
             guard points.isFinite, points >= 0 else { return nil }
             return points

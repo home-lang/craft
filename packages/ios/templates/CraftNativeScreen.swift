@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 import AVFoundation
 import AVKit
 import CryptoKit
@@ -12,32 +13,41 @@ import UIKit
 
 private let craftNativeCapabilityTimeoutMilliseconds = 30_000
 
+/// Foundation's `NSNumber(0/1) is Bool` is true even for JSON numbers.
+/// Check the Core Foundation identity so real booleans stay invalid numeric
+/// props while zero lengths, flex factors and opacity 1 remain numbers.
+func craftNativeNumber(_ value: Any?) -> NSNumber? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+    return number
+}
+
 /// A finite number from a prop, for the views outside the screen controller,
 /// which has its own: the keyboard-avoiding view and SVG text read theirs
 /// with it, and without it the template did not compile.
 private func number(_ value: Any?) -> CGFloat? {
     // JavaScript booleans bridge to NSNumber on Apple platforms; they are
     // invalid numeric styles and must stay unset like Android's Number cast.
-    guard !(value is Bool), let number = value as? NSNumber else { return nil }
+    guard let number = craftNativeNumber(value) else { return nil }
     let value = CGFloat(truncating: number)
     return value.isFinite ? value : nil
 }
 
 private func craftNativeFontWeight(_ value: Any?) -> String? {
     if let value = value as? String { return value }
-    guard !(value is Bool), let number = value as? NSNumber, number.doubleValue.isFinite else { return nil }
+    guard let number = craftNativeNumber(value), number.doubleValue.isFinite else { return nil }
     let integer = number.doubleValue.rounded()
     return integer == number.doubleValue ? String(Int(integer)) : nil
 }
 
 private func craftNativePickerValue(_ value: Any?) -> String? {
     if let value = value as? String, !value.isEmpty { return value }
-    if !(value is Bool), let value = value as? NSNumber, value.doubleValue.isFinite { return String(value.doubleValue) }
+    if let value = craftNativeNumber(value), value.doubleValue.isFinite { return String(value.doubleValue) }
     return nil
 }
 
 private func craftNativeGridColumnCount(_ value: Any?) -> Int {
-    if !(value is Bool), let number = value as? NSNumber { return max(1, number.intValue) }
+    if let number = craftNativeNumber(value) { return max(1, number.intValue) }
     guard let text = value as? String else { return 1 }
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.hasPrefix("repeat(") {
@@ -1387,7 +1397,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     }
 
     private static func numeric(_ value: Any?) -> Double? {
-        guard !(value is Bool), let number = value as? NSNumber else { return nil }
+        guard let number = craftNativeNumber(value) else { return nil }
         let value = number.doubleValue
         return value.isFinite ? value : nil
     }
@@ -1458,7 +1468,7 @@ private enum CraftNativeLength: Equatable {
     init?(_ value: Any?) {
         // JavaScript booleans can bridge to NSNumber on Apple platforms;
         // they are invalid CSS lengths and must stay unset like Android.
-        if !(value is Bool), let number = value as? NSNumber {
+        if let number = craftNativeNumber(value) {
             let points = CGFloat(truncating: number)
             guard points.isFinite else { return nil }
             self = .points(points)
@@ -1516,7 +1526,7 @@ private struct CraftNativeLayoutStyle {
 
     init(_ raw: [String: Any]) {
         func number(_ value: Any?) -> CGFloat? {
-            guard !(value is Bool), let number = value as? NSNumber else { return nil }
+            guard let number = craftNativeNumber(value) else { return nil }
             let value = CGFloat(truncating: number)
             return value.isFinite ? value : nil
         }
@@ -5000,7 +5010,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         else if let symbol = spec["symbol"] as? String { button.setImage(UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .regular)), for: .normal) }
         button.accessibilityIdentifier = spec["id"] as? String
         button.accessibilityLabel = spec["accessibilityLabel"] as? String
-        if !(spec["badge"] is Bool), let value = spec["badge"] as? NSNumber, value.intValue > 0 {
+        if let value = craftNativeNumber(spec["badge"]), value.intValue > 0 {
             let dot = spec["badgeStyle"] as? String == "dot"
             let size: CGFloat = dot ? 9 : 18
             // The fill is a tinted symbol, not a background colour: on iOS 26
@@ -7658,7 +7668,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// Countdown values use seconds when numeric, or `HH:mm[:ss]` text.
     static func countdownDuration(_ value: Any?) -> TimeInterval? {
         let maximum: TimeInterval = 23 * 3600 + 59 * 60 + 59
-        if let number = value as? NSNumber, !(value is Bool) {
+        if let number = craftNativeNumber(value) {
             let seconds = number.doubleValue
             guard seconds.isFinite else { return nil }
             return min(maximum, max(0, seconds))
@@ -7679,7 +7689,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// time), `2026-10-12T07:30` (local), a full ISO 8601 string, or
     /// milliseconds since 1970. Nil for anything else.
     static func pickerDate(_ value: Any?) -> Date? {
-        if let number = value as? NSNumber, !(value is Bool) {
+        if let number = craftNativeNumber(value) {
             let milliseconds = number.doubleValue
             guard milliseconds.isFinite else { return nil }
             return Date(timeIntervalSince1970: milliseconds / 1000)
@@ -7851,7 +7861,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func number(_ value: Any?) -> CGFloat? {
-        guard !(value is Bool), let number = value as? NSNumber else { return nil }
+        guard let number = craftNativeNumber(value) else { return nil }
         let value = CGFloat(truncating: number)
         return value.isFinite ? value : nil
     }

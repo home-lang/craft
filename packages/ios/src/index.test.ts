@@ -90,9 +90,10 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('let interval = Int(number(props["minuteInterval"]) ?? 1)')
     expect(nativeSwift).toContain('columns: Int(number(props["numColumns"]) ?? 1)')
     expect(nativeSwift).toContain('compactMap { number($0).map { Int($0) } }')
-    expect(nativeSwift).toContain('guard !(value is Bool), let number = value as? NSNumber else { return nil }')
-    expect(nativeSwift).toContain('if !(value is Bool), let value = value as? NSNumber, value.doubleValue.isFinite { return String(value.doubleValue) }')
-    expect(flatListSwift).toContain('guard !(value is Bool), let number = value as? NSNumber else { return nil }')
+    expect(nativeSwift).toContain('guard let number = craftNativeNumber(value) else { return nil }')
+    expect(nativeSwift).toContain('CFGetTypeID(number) != CFBooleanGetTypeID()')
+    expect(nativeSwift).toContain('if let value = craftNativeNumber(value), value.doubleValue.isFinite { return String(value.doubleValue) }')
+    expect(flatListSwift).toContain('guard let number = craftNativeNumber(value) else { return nil }')
     expect(nativeSwift).toContain("module: 'Dialog'")
     expect(nativeSwift).toContain("actionSheet: function(options)")
     expect(nativeSwift).toContain('bridge.addMessageListener')
@@ -1473,7 +1474,7 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('navigationItem.leftItemsSupplementBackButton = true')
     expect(swift).toContain('navigationItem.leftBarButtonItems = buttons.compactMap(navigationButton)')
     expect(swift).toContain('if spec["variant"] as? String == "neutral" { item.tintColor = .label }')
-    expect(swift).toContain('if !(spec["badge"] is Bool), let value = spec["badge"] as? NSNumber, value.intValue > 0 {')
+    expect(swift).toContain('if let value = craftNativeNumber(spec["badge"]), value.intValue > 0 {')
   })
 
   it('floats a native bar\'s round buttons, as the tab bar floats: glass, else the thin material', () => {

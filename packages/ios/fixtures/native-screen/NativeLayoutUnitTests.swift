@@ -618,6 +618,43 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertTrue(items.allSatisfy { $0.customView is UIButton })
     }
 
+    func testJSONNumbersZeroAndOneKeepTheConversationComposerAtTheBottom() throws {
+        // The bridge parses JSON, which boxes 0 and 1 as NSNumber. Swift's
+        // `is Bool` also matches those numeric boxes; authored Swift Ints do
+        // not reproduce the installed app's lost flex factors.
+        let data = Data(#"""
+        {"type":"View","props":{"testID":"root"},"style":{"flex":1},"children":[
+          {"type":"ScrollView","props":{"testID":"thread"},"style":{"flex":1,"flexBasis":0},"children":[
+            {"type":"Text","children":["A short conversation"]}
+          ]},
+          {"type":"View","props":{"testID":"composer"},"style":{"flexDirection":"row","padding":12,"gap":8},"children":[
+            {"type":"TextInput","props":{"testID":"draft","multiline":true,"placeholder":"Message"},"style":{"flex":1,"flexBasis":0,"minHeight":36}},
+            {"type":"View","props":{"testID":"send"},"style":{"width":36,"height":36}}
+          ]}
+        ]}
+        """#.utf8)
+        let document = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let controller = screen(document)
+        settle(controller)
+        let root = try frame("root", in: controller)
+        let composer = try frame("composer", in: controller)
+        let thread = try frame("thread", in: controller)
+        let draft = try frame("draft", in: controller)
+        XCTAssertEqual(composer.maxY, root.maxY, accuracy: 1)
+        XCTAssertEqual(thread.maxY, composer.minY, accuracy: 1)
+        XCTAssertGreaterThan(thread.height, 600)
+        XCTAssertGreaterThan(draft.width, 300)
+        XCTAssertEqual(try frame("send", in: controller).width, 36, accuracy: 1)
+    }
+
+    func testNumericNavigationBadgeOneSurvivesTheJSONBridge() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.evaluateScript("craft.navigation.setOptions({ rightButtons: [{ id: 'one', symbol: 'bell', badge: 1 }] });")
+        let button = try XCTUnwrap(controller.navigationItem.rightBarButtonItems?.first?.customView as? UIButton)
+        XCTAssertEqual(button.accessibilityValue, "1 unread")
+    }
+
     func testBooleanNavigationBadgeIsIgnored() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let navigation = UINavigationController(rootViewController: controller)
