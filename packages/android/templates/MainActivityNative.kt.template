@@ -5390,9 +5390,9 @@ class MainActivity : AppCompatActivity() {
                     "center" -> ImageView.ScaleType.CENTER
                     else -> ImageView.ScaleType.CENTER_INSIDE
                 }
-                craftNativeOptionalString(style.opt("tintColor"))
-                    ?.let { image.setColorFilter(color(it, Color.TRANSPARENT)) }
-                    ?: image.clearColorFilter()
+                val tint = craftNativeOptionalString(style.opt("tintColor"))
+                    ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
+                if (tint == null) image.clearColorFilter() else image.setColorFilter(tint)
                 val onLoadStart = craftNativeEventName(events, "onLoadStart")
                 if (onLoadStart.isNotBlank()) screen.imageLoadStartHandlers[image] = onLoadStart else screen.imageLoadStartHandlers.remove(image)
                 val onLoad = craftNativeEventName(events, "onLoad")
@@ -6056,10 +6056,13 @@ class MainActivity : AppCompatActivity() {
         }
         if (view is ImageView) {
             val tint = style.opt("tintColor") as? String
-            if (tint.isNullOrBlank() || tint == "null" || tint == "undefined") {
+            val resolvedTint = tint
+                ?.takeUnless { it.isBlank() || it == "null" || it == "undefined" }
+                ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
+            if (resolvedTint == null) {
                 view.clearColorFilter()
             } else {
-                view.setColorFilter(color(tint, Color.TRANSPARENT))
+                view.setColorFilter(resolvedTint)
             }
         }
     }

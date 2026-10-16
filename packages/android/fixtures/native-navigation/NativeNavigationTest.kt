@@ -1033,6 +1033,11 @@ class NativeNavigationTest {
             click(activity, "toggle-image-tint")
             awaitText(activity, "image-tint-status", "image tint on")
             assertTrue("ImageBackground tint was not restored", backgroundImage.colorFilter != null)
+            click(activity, "toggle-invalid-image-tint")
+            awaitView(activity, "native-image-background")
+            assertTrue("invalid ImageBackground tint should clear its color filter", backgroundImage.colorFilter == null)
+            click(activity, "toggle-invalid-image-tint")
+            assertTrue("valid ImageBackground tint was not restored after invalid input", backgroundImage.colorFilter != null)
             assertEquals("missing image errors should be deduplicated", "2", (awaitView(activity, "image-error-count") as TextView).text.toString())
             assertNoWebView(activity)
 

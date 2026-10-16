@@ -44,6 +44,7 @@ const imageErrorStatus = state('')
 const imageBackgroundErrorStatus = state('')
 const imageFailureCount = state(0)
 const imageTinted = state(true)
+const invalidImageTint = state(false)
 const imageSource = state('http://example.com/image.png')
 const validImageSource = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
 const intrinsicImageWide = state(false)
@@ -241,6 +242,10 @@ function clearImageSource() {
 function toggleImageTint() {
   imageTinted.update(value => !value)
   imageTintStatus.set(imageTinted() ? 'image tint on' : 'image tint off')
+}
+
+function toggleInvalidImageTint() {
+  invalidImageTint.update(value => !value)
 }
 
 function captureIntrinsicImageLayout(event) {
@@ -544,10 +549,11 @@ function toggleScreenBackground() {
         source={validImage()}
         resizeMode="cover"
         accessibilityLabel="Native image background"
-        style={{"width":80,"height":36,"tintColor":imageTinted ? "#2563eb" : null}}
+        style={{"width":80,"height":36,"tintColor":invalidImageTint ? "not-a-color" : (imageTinted ? "#2563eb" : null)}}
       >
         <Text testID="native-image-background-label" style={{"color":"#ffffff"}}>Background child</Text>
       </ImageBackground>
+      <Button testID="toggle-invalid-image-tint" @click="toggleInvalidImageTint()">Toggle invalid image tint</Button>
       <ImageBackground
         testID="unsupported-image-background"
         source={currentImage()}
