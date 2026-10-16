@@ -593,7 +593,9 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`Svg` is DOM-free in native mode')
     expect(guide).toContain('line caps, joins, miter limits, dash patterns, and')
     expect(ios).toContain('n.allSatisfy(\\.isFinite)')
-    expect(android).toContain('if ((0 until geometry.length()).any { !geometry.optDouble(it, Double.NaN).toFloat().isFinite() }) return')
+    expect(android).toContain('if ((0 until geometry.length()).any { craftNativeNumber(geometry.opt(it))?.toFloat()?.isFinite() != true }) return')
+    expect(android).toContain('craftNativeNumber(values.opt(0))?.toFloat() ?: Float.NaN')
+    expect(android).toContain('craftNativeNumber(geometry.opt(index))?.toInt() ?: break')
     expect(ios).toContain('guard n.count == 4, n.allSatisfy(\\.isFinite), n[2] > 0, n[3] > 0 else { return nil }')
     expect(android).toContain('!x.isFinite() || !y.isFinite() || !width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f')
   })
@@ -632,14 +634,12 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps Android SVG text sizes as Kotlin floats in both prop branches', () => {
-    expect(android).toContain(
-      'val size = (if (props.has("fontSize")) props.optDouble("fontSize", 12.0) else nodeStyle.optDouble("fontSize", 12.0))',
-    )
+    expect(android).toContain('craftNativeNumber(props.opt("fontSize"))')
     expect(android).toContain('textSize = size')
     expect(ios).toContain('let size = number(props["fontSize"]) ?? number(style["fontSize"]) ?? 12')
     expect(ios).toContain('var x = number(props["x"]) ?? 0')
     expect(android).toContain('.takeIf { it.isFinite() }')
-    expect(android).toContain('var x = props.optDouble("x", 0.0).takeIf { it.isFinite() }?.toFloat() ?: 0f')
+    expect(android).toContain('var x = craftNativeNumber(props.opt("x"))?.toFloat()?.takeIf { it.isFinite() } ?: 0f')
   })
 
   it('keeps native video playback available on both hosts', () => {

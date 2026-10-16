@@ -390,7 +390,7 @@ private class CraftNativeSvgView(context: Context) : View(context) {
             fun dashes(rawValue: Any?): List<Float>? {
                 val values = rawValue as? JSONArray ?: return null
                 return (0 until values.length()).mapNotNull {
-                    values.optDouble(it, Double.NaN).toFloat().takeIf { value -> value.isFinite() && value >= 0 }
+                    craftNativeNumber(values.opt(it))?.toFloat()?.takeIf { value -> value.isFinite() && value >= 0 }
                 }
             }
             // Keep the cascade explicit: computed style wins over a raw prop
@@ -468,10 +468,10 @@ private class CraftNativeSvgView(context: Context) : View(context) {
     private fun viewBox(): Quadruple<Float, Float, Float, Float>? {
         val values = drawing.optJSONObject("props")?.optJSONArray("viewBox") ?: return null
         if (values.length() != 4) return null
-        val x = values.optDouble(0, Double.NaN).toFloat()
-        val y = values.optDouble(1, Double.NaN).toFloat()
-        val width = values.optDouble(2, Double.NaN).toFloat()
-        val height = values.optDouble(3, Double.NaN).toFloat()
+        val x = craftNativeNumber(values.opt(0))?.toFloat() ?: Float.NaN
+        val y = craftNativeNumber(values.opt(1))?.toFloat() ?: Float.NaN
+        val width = craftNativeNumber(values.opt(2))?.toFloat() ?: Float.NaN
+        val height = craftNativeNumber(values.opt(3))?.toFloat() ?: Float.NaN
         if (!x.isFinite() || !y.isFinite() || !width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f) return null
         return Quadruple(width, height, x, y)
     }
@@ -493,12 +493,12 @@ private class CraftNativeSvgView(context: Context) : View(context) {
     private fun drawPath(canvas: Canvas, node: JSONObject, style: SvgPaint) {
         val props = node.optJSONObject("props") ?: JSONObject()
         val geometry = props.optJSONArray("geometry") ?: return
-        if ((0 until geometry.length()).any { !geometry.optDouble(it, Double.NaN).toFloat().isFinite() }) return
+        if ((0 until geometry.length()).any { craftNativeNumber(geometry.opt(it))?.toFloat()?.isFinite() != true }) return
         val path = Path()
         var index = 0
         while (index < geometry.length()) {
-            val command = geometry.optDouble(index, Double.NaN).toInt()
-            fun number(offset: Int): Float = geometry.optDouble(index + offset, Double.NaN).toFloat()
+            val command = craftNativeNumber(geometry.opt(index))?.toInt() ?: break
+            fun number(offset: Int): Float = craftNativeNumber(geometry.opt(index + offset))?.toFloat() ?: Float.NaN
             when (command) {
                 0 -> if (index + 2 < geometry.length()) { path.moveTo(number(1), number(2)); index += 3 } else break
                 1 -> if (index + 2 < geometry.length()) { path.lineTo(number(1), number(2)); index += 3 } else break
@@ -564,9 +564,9 @@ private class CraftNativeSvgView(context: Context) : View(context) {
             for (index in 0 until children.length()) if (children.opt(index) is String) append(children.optString(index))
         }
         if (text.isEmpty()) return
-        val size = (if (props.has("fontSize")) props.optDouble("fontSize", 12.0) else nodeStyle.optDouble("fontSize", 12.0))
-            .takeIf { it.isFinite() }
+        val size = (if (props.has("fontSize")) craftNativeNumber(props.opt("fontSize")) else craftNativeNumber(nodeStyle.opt("fontSize")))
             ?.toFloat()
+            ?.takeIf { it.isFinite() }
             ?: 12f
         val paint = android.graphics.Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = resolveColor(style.fill, style.color, Color.BLACK)
@@ -574,8 +574,8 @@ private class CraftNativeSvgView(context: Context) : View(context) {
             textSize = size
             typeface = style.typeface
         }
-        var x = props.optDouble("x", 0.0).takeIf { it.isFinite() }?.toFloat() ?: 0f
-        val y = props.optDouble("y", 0.0).takeIf { it.isFinite() }?.toFloat() ?: 0f
+        var x = craftNativeNumber(props.opt("x"))?.toFloat()?.takeIf { it.isFinite() } ?: 0f
+        val y = craftNativeNumber(props.opt("y"))?.toFloat()?.takeIf { it.isFinite() } ?: 0f
         when (props.optString("textAnchor")) {
             "middle" -> x -= paint.measureText(text) / 2f
             "end" -> x -= paint.measureText(text)
