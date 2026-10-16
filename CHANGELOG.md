@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.197...v0.0.198)
+
+## 🐛 Bug Fixes
+
+- **ios**: preserve Live Activity contrast and nullable timers ([47289a9](https://github.com/craft-native/craft/commit/47289a9)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.196...v0.0.197)
 
 ## 🐛 Bug Fixes
