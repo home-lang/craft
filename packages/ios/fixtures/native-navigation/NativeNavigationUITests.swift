@@ -105,6 +105,54 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.textFields["name-input"].waitForExistence(timeout: 10))
     }
 
+    func testSwipesAcrossAllFiveNativeTabsAndBack() {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["home-title"].waitForExistence(timeout: 15))
+        let tabs = [("Home", "home-title"), ("Details", "details-title"), ("Third", "summary-title"), ("Fourth", "details-title"), ("Fifth", "summary-title")]
+        for index in Array(1..<tabs.count) + Array((0..<(tabs.count - 1)).reversed()) {
+            let left = index > (tabs.firstIndex { app.buttons[$0.0].isSelected } ?? 0)
+            swipeTab(app, left: left)
+            let (title, identifier) = tabs[index]
+            let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.buttons[title])
+            XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 10), .completed, "tab selection did not settle on \(title)")
+            let content = app.staticTexts[identifier]
+            XCTAssertTrue(content.waitForExistence(timeout: 10))
+            XCTAssertTrue(content.isHittable, "selected native tab has no usable screen")
+            XCTAssertGreaterThanOrEqual(content.frame.minX, app.windows.firstMatch.frame.minX)
+            XCTAssertLessThanOrEqual(content.frame.maxX, app.windows.firstMatch.frame.maxX)
+            XCTAssertFalse(app.webViews.firstMatch.exists)
+        }
+    }
+
+    func testShortTabSwipeCancelsAndTheNextSwipeStillWorks() {
+        let app = XCUIApplication()
+        app.launch()
+        let home = app.staticTexts["home-title"]
+        XCTAssertTrue(home.waitForExistence(timeout: 15))
+        let baseline = home.frame
+        let window = app.windows.firstMatch
+        let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.35))
+        let end = window.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.35))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertTrue(home.isHittable, "cancelled drag did not restore the native root")
+        XCTAssertEqual(home.frame.minX, baseline.minX, accuracy: 1)
+        XCTAssertFalse(app.staticTexts["details-title"].isHittable)
+        swipeTab(app, left: true)
+        let details = app.staticTexts["details-title"]
+        XCTAssertTrue(details.waitForExistence(timeout: 10))
+        XCTAssertTrue(details.isHittable)
+        XCTAssertGreaterThanOrEqual(details.frame.minX, window.frame.minX)
+        XCTAssertLessThanOrEqual(details.frame.maxX, window.frame.maxX)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Native tab after cancelled and completed swipe"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        swipeTab(app, left: false)
+        XCTAssertTrue(home.waitForExistence(timeout: 10))
+        XCTAssertEqual(home.frame.minX, baseline.minX, accuracy: 1)
+    }
+
     func testHorizontalCarouselKeepsItsSwipe() {
         let app = XCUIApplication()
         app.launch()

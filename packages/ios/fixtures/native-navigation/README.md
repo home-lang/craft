@@ -62,3 +62,21 @@ then uses keyed mutations for later updates.
 without requiring an installed or bootable simulator. Set
 `CRAFT_KEEP_NATIVE_NAVIGATION_PROJECT=1` to keep the generated project for
 inspection; the normal command remains the CI simulator gate.
+
+## Interactive native tab transitions
+
+The iOS fixture has five native tabs. `NativeNavigationUnitTests` drives the real
+UIKit gesture handler and checks stack geometry during the drag, past halfway,
+and after completion, cancellation and reversal. It also samples the presentation
+layer while settling, so a jump at release cannot pass as an animated transition.
+Mid-drag screenshots are retained in the Xcode result bundle.
+
+`testTabSwipeSwitchesNativeRootsAndReturns`,
+`testSwipesAcrossAllFiveNativeTabsAndBack`,
+`testShortTabSwipeCancelsAndTheNextSwipeStillWorks` and
+`testHorizontalCarouselKeepsItsSwipe` exercise actual simulator touches through
+the compiled stx screens. The normal CI navigation command runs both targets.
+To use a dedicated simulator, set `CRAFT_NATIVE_NAVIGATION_SIMULATOR=<udid>`.
+To run only the geometry checks, set
+`CRAFT_ONLY_TESTING=NativeNavigationUnitTests`; `CRAFT_NATIVE_NAVIGATION_TEST`
+continues to select a single UI test by method name.

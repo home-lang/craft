@@ -55,10 +55,16 @@ try {
         '/details': 'details',
         '/summary': 'summary',
         '/capabilities': 'capabilities',
+        '/third': 'summary',
+        '/fourth': 'details',
+        '/fifth': 'summary',
       },
       tabs: [
         { id: '/', title: 'Home', symbol: 'house' },
         { id: '/details', title: 'Details', symbol: 'doc.text' },
+        { id: '/third', title: 'Third', symbol: 'chart.bar' },
+        { id: '/fourth', title: 'Fourth', symbol: 'heart' },
+        { id: '/fifth', title: 'Fifth', symbol: 'person' },
       ],
       enableDeepLinks: true,
       enableLocalDatabase: true,
@@ -71,10 +77,26 @@ try {
   })
   await build({ output, nativeBundlePath: bundle, generateProject: false, runtimeDir: null })
 
+  mkdirSync(join(output, 'UnitTests'))
+  copyFileSync(join(fixture, 'NativeNavigationUnitTests.swift'), join(output, 'UnitTests', 'NativeNavigationUnitTests.swift'))
   mkdirSync(join(output, 'UITests'))
   copyFileSync(join(fixture, 'NativeNavigationUITests.swift'), join(output, 'UITests', 'NativeNavigationUITests.swift'))
   const project = join(output, 'project.yml')
   const projectWithTargets = insertProjectTargetsBeforeSchemes(readFileSync(project, 'utf8'), `
+  NativeNavigationUnitTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - UnitTests
+    settings:
+      GENERATE_INFOPLIST_FILE: YES
+      PRODUCT_NAME: "$(TARGET_NAME)"
+      PRODUCT_BUNDLE_IDENTIFIER: dev.craft.native-navigation.unit-tests
+      SWIFT_VERSION: "5.0"
+      TEST_HOST: "$(BUILT_PRODUCTS_DIR)/NativeNavigation.app/NativeNavigation"
+      BUNDLE_LOADER: "$(TEST_HOST)"
+    dependencies:
+      - target: NativeNavigation
   NativeNavigationUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -82,22 +104,27 @@ try {
       - UITests
     settings:
       GENERATE_INFOPLIST_FILE: YES
+      PRODUCT_NAME: "$(TARGET_NAME)"
+      PRODUCT_BUNDLE_IDENTIFIER: dev.craft.native-navigation.ui-tests
+      SWIFT_VERSION: "5.0"
     dependencies:
       - target: NativeNavigation
 `)
-  writeFileSync(project, addSchemeTestTargets(projectWithTargets, 'NativeNavigation', ['NativeNavigationUITests']))
+  writeFileSync(project, addSchemeTestTargets(projectWithTargets, 'NativeNavigation', ['NativeNavigationUnitTests', 'NativeNavigationUITests']))
   run(['xcodegen', 'generate'], output)
 
   if (prepareOnly) {
     console.log('iOS native navigation fixture prepared')
   }
   else {
-    const device = await pickSimulator()
+    const requested = process.env.CRAFT_NATIVE_NAVIGATION_SIMULATOR
+    const device = requested ? { udid: requested, name: requested, state: 'Booted', runtime: 'iOS' } : await pickSimulator()
     if (!device) throw new Error('No iOS simulator is available for native navigation tests')
     await bootSimulator(device)
     const resultBundle = join(workspace, 'NativeNavigation.xcresult')
     const selectedTest = process.env.CRAFT_NATIVE_NAVIGATION_TEST
-    const selection = selectedTest
+    const selectedTarget = process.env.CRAFT_ONLY_TESTING
+    const selection = selectedTarget ? [`-only-testing:${selectedTarget}`] : selectedTest
       ? [`-only-testing:NativeNavigationUITests/NativeNavigationUITests/${selectedTest}`]
       : []
     runXcodeTests([
@@ -106,7 +133,7 @@ try {
       '-derivedDataPath', join(workspace, 'DerivedData'),
       '-resultBundlePath', resultBundle,
       ...selection,
-      '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'test',
+      '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'ENABLE_TESTABILITY=YES', 'test',
     ], output, resultBundle)
     console.log('Native navigation simulator tests passed')
   }
