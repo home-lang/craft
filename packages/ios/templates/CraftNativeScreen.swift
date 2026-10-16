@@ -4128,8 +4128,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         applyNavigationBarAppearance()
         // Each screen says whether it wants the tab bar, so one that hid it
         // never leaves it hidden for the next.
-        CraftChrome.shared.setHiddenByScreen(tabBarHidden)
-        CraftChrome.shared.updateTabAccessory(tabAccessory)
+        restoreShellChrome()
         refreshTraitDefaults()
     }
 
@@ -4176,13 +4175,24 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
+    private func restoreShellChrome() {
+        guard !isAppScript else { return }
+        CraftChrome.shared.setHiddenByScreen(tabBarHidden)
+        CraftChrome.shared.updateTabAccessory(tabAccessory)
+    }
+
     /// The screen came on screen or went off it: a screen pushed over it was
     /// popped, or the hybrid shell switched to or away from its tab (which
     /// hides a stack rather than moving it, so UIKit says nothing). The first
     /// appearance is the screen's mount, not news; every later one is
     /// `SCREEN_FOCUS { focused: true }`, and going away is `focused: false`.
     func screenVisibilityChanged(_ visible: Bool) {
-        guard !runtimeDisposed, visible != reportedVisible else { return }
+        guard !runtimeDisposed else { return }
+        // Hidden tab stacks receive no UIKit appearance callback. A cancelled
+        // preview also restores a screen that never lost focus, so restore its
+        // chrome even when no new SCREEN_FOCUS event is needed.
+        if visible { restoreShellChrome() }
+        guard visible != reportedVisible else { return }
         reportedVisible = visible
         if visible, !hasAppeared {
             hasAppeared = true

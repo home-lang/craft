@@ -691,12 +691,18 @@ final class CraftChrome: ObservableObject {
     }
     /// A destination beside the tab pill, outside the tab stacks and swipe order.
     func updateTabAccessory(_ item: [String: Any]?) {
-        guard let item, let path = item["path"] as? String,
-              path.hasPrefix("/"), !path.hasPrefix("//"),
-              let title = item["title"] as? String else { tabAccessory = nil; return }
-        tabAccessory = Tab(id: path, title: title, symbol: item["symbol"] as? String ?? "message",
-            badge: (item["badge"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) },
-            accessibilityLabel: item["accessibilityLabel"] as? String)
+        let next: Tab?
+        if let item, let path = item["path"] as? String,
+           path.hasPrefix("/"), !path.hasPrefix("//"),
+           let title = item["title"] as? String {
+            next = Tab(id: path, title: title, symbol: item["symbol"] as? String ?? "message",
+                badge: (item["badge"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) },
+                accessibilityLabel: item["accessibilityLabel"] as? String)
+        } else {
+            next = nil
+        }
+        guard tabAccessory != next else { return }
+        tabAccessory = next
     }
 
     func setHiddenByScreen(_ hidden: Bool) {
