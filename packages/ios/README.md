@@ -119,6 +119,9 @@ In Xcode:
 
 Native screens also support `ImageBackground`, which loads an image behind
 ordinary native children while preserving the shared flex layout contract.
+Native image sources accept HTTPS everywhere and loopback HTTP for local
+development (`localhost`, `127.0.0.1`, `::1`, and `*.localhost`); public HTTP
+and unsupported schemes are rejected.
 `KeyboardAvoidingView` also responds to the native keyboard with `padding`,
 `position`, or `height` behavior.
 

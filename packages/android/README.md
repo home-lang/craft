@@ -120,7 +120,10 @@ and `thumbColor`, while `Slider` supports track/thumb tint props and `step`
 snapping without collapsing stepped ranges to a fixed pixel-like precision.
 `ActivityIndicator` keeps a visible stopped indicator genuinely
 non-animated when `animating={false}` and `hidesWhenStopped={false}`. `Image`
-reports load lifecycle events and structured failures. `Video` uses the native
+reports load lifecycle events and structured failures. Native image sources
+accept HTTPS everywhere and loopback HTTP for local development (`localhost`,
+`127.0.0.1`, `10.0.2.2`, `::1`, and `*.localhost`); public HTTP and unsupported
+schemes are rejected. `Video` uses the native
 `VideoView` for URI playback with autoplay, pause, looping, mute, controls, and
 resize-mode props.
 `ImageBackground` loads an image behind ordinary native children while

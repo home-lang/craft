@@ -534,9 +534,11 @@ as the keyboard animates and returns to the original inset when it hides.
 Use `{ uri: value }` for an image source. Dimensions belong in the `Image`
 style/layout rather than the source object. `headers` on an object source are
 forwarded to HTTPS requests on both hosts. Data-image URIs and HTTPS URLs work on
-both platforms. A source with no URI scheme resolves from the iOS asset catalog
-or Android app assets, so the asset must be packaged separately under the same
-name for a shared bundle. Plain HTTP, file URLs, and other schemes are rejected.
+both platforms. Local development may also use HTTP from loopback hosts
+(`localhost`, `127.0.0.1`, `::1`, or Android's `10.0.2.2`); public HTTP, file
+URLs, and other schemes are rejected. A source with no URI scheme resolves from
+the iOS asset catalog or Android app assets, so the asset must be packaged
+separately under the same name for a shared bundle.
 Image sources are URI strings, data URLs, or packaged asset paths; numeric
 bundled-image IDs are not part of the native contract. Invalid data, missing bundled images, failed HTTPS downloads, and unsupported
 schemes clear stale pixels, log a diagnostic, and expose a short accessibility

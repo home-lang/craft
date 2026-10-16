@@ -500,6 +500,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('imageSources[view] == requestKey')
   })
 
+  it('keeps image URL policy aligned with the local development fallback', () => {
+    expect(ios).toContain('if scheme == "https" { return true }')
+    expect(ios).toContain('"localhost", "127.0.0.1", "::1"')
+    expect(android).toContain('if (scheme == "https") return true')
+    expect(android).toContain('host == "localhost" || host == "127.0.0.1" || host == "10.0.2.2"')
+    expect(guide).toContain('public HTTP, file')
+  })
+
   it('normalizes numeric picker values identically on both hosts', () => {
     expect(ios).toContain('private func craftNativePickerValue(_ value: Any?) -> String?')
     expect(ios).toContain('craftNativePickerValue(optionProps["value"])')
