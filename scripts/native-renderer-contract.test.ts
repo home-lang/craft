@@ -1284,6 +1284,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val explicitRegion = region(pendingProps.optJSONObject("region"))')
     expect(android).toContain('val initialRegion = region(pendingProps.optJSONObject("initialRegion"))')
     expect(android).toContain('val key = "fit:${overlayKey(nextMarkers, nextPolylines)}"')
+    expect(android).toContain('if (fitToBounds()) initialCameraKey = key')
+    expect(android).toContain('override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int)')
     expect(guide).toContain('an `initialRegion` applied once')
   })
 

@@ -689,11 +689,19 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         } else if (pendingProps.optBoolean("fitToBounds", false)) {
             val key = "fit:${overlayKey(nextMarkers, nextPolylines)}"
             if (initialCameraKey != key) {
-                fitToBounds()
-                initialCameraKey = key
+                if (fitToBounds()) initialCameraKey = key
             }
         } else {
             initialCameraKey = null
+        }
+    }
+
+    override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight)
+        // MapView can become ready before its host has a usable viewport. Do
+        // not mark a fit as complete until the camera update can be issued.
+        if (width > 0 && height > 0 && pendingProps.optBoolean("fitToBounds", false) && initialCameraKey == null) {
+            applyPending()
         }
     }
 
@@ -716,16 +724,18 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         return "m[$markerKey]p[$polylineKey]"
     }
 
-    private fun fitToBounds() {
-        val map = googleMap ?: return
+    private fun fitToBounds(): Boolean {
+        val map = googleMap ?: return false
+        if (width <= 0 || height <= 0) return false
         val builder = LatLngBounds.Builder()
         var count = 0
         markers.values.forEach { builder.include(it.position); count++ }
         polylines.values.flatMap { it.points }.forEach { builder.include(it); count++ }
-        if (count == 0) return
+        if (count == 0) return false
         post {
             if (width > 0 && height > 0) map.moveCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 24))
         }
+        return true
     }
 
     override fun onAttachedToWindow() {
