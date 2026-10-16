@@ -515,7 +515,7 @@ enum CraftNativeMedia {
     static func local(_ address: String) -> URL? {
         guard !address.isEmpty else { return nil }
         let url = file(for: address)
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        return ((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) > 0 ? url : nil
     }
 
     static func describe(_ address: String, _ url: URL) -> [String: Any] {
@@ -545,11 +545,23 @@ enum CraftNativeMedia {
     /// A finished download moved into place (atomically, so a half-written
     /// file is never played), or a refusal with the server's status.
     static func store(_ address: String, at location: URL, response: HTTPURLResponse) -> Result<Any, CraftNativeActionError> {
-        guard (200..<300).contains(response.statusCode) else {
+        guard response.statusCode == 200 else {
             return .success(["ok": false, "url": address, "status": response.statusCode])
         }
         let fm = FileManager.default
+        // Commit and prune share a lock; neither can remove a file being committed.
+        lock.lock()
+        defer { lock.unlock() }
+        let staging = root.appendingPathComponent(UUID().uuidString + ".part")
+        defer { try? fm.removeItem(at: staging) }
         do {
+            let size = (try location.resourceValues(forKeys: [.fileSizeKey])).fileSize ?? 0
+            // URLSession normally rejects a truncated transfer; also guard this boundary.
+            let expected = response.expectedContentLength
+            let encoded = response.value(forHTTPHeaderField: "Content-Encoding")
+            if size <= 0 || (encoded == nil && expected >= 0 && Int64(size) != expected) {
+                return .failure(CraftNativeActionError(code: "NETWORK_ERROR", message: "media.keep received an incomplete file"))
+            }
             var folder = root
             if !fm.fileExists(atPath: folder.path) {
                 try fm.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -558,7 +570,6 @@ enum CraftNativeMedia {
                 try? folder.setResourceValues(values)
             }
             let target = file(for: address)
-            let staging = root.appendingPathComponent(UUID().uuidString + ".part")
             try fm.moveItem(at: location, to: staging)
             _ = try? fm.removeItem(at: target)
             try fm.moveItem(at: staging, to: target)
@@ -571,10 +582,13 @@ enum CraftNativeMedia {
 
     /// Removes every copy whose address is not in `keep`; answers how many.
     static func prune(keep: [String]) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
         let wanted = Set(keep.map { file(for: $0).lastPathComponent })
         let files = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         var removed = 0
-        for url in files where !wanted.contains(url.lastPathComponent) {
+        let active = Set(inFlight.keys.map { file(for: $0).lastPathComponent })
+        for url in files where !wanted.contains(url.lastPathComponent) && !active.contains(url.lastPathComponent) {
             if (try? FileManager.default.removeItem(at: url)) != nil { removed += 1 }
         }
         return removed

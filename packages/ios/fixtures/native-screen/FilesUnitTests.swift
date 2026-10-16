@@ -150,4 +150,30 @@ final class FilesUnitTests: XCTestCase {
         XCTAssertNotNil(CraftNativeFiles.owned(info["path"] as? String ?? ""))
         CraftNativeFiles.remove(info["path"] as? String ?? "")
     }
+
+    func testAnIncompleteOfflineVideoIsNeverPublishedAndCanBeRetried() throws {
+        let address = "https://example.com/interrupted-\(UUID().uuidString).mp4"
+        let location = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: location); try? FileManager.default.removeItem(at: CraftNativeMedia.file(for: address)) }
+        try Data([1, 2]).write(to: location)
+        let response = HTTPURLResponse(url: URL(string: address)!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Length": "4"])!
+        guard case .failure = CraftNativeMedia.store(address, at: location, response: response) else { return XCTFail("truncated video was published") }
+        XCTAssertNil(CraftNativeMedia.local(address))
+        try Data([1, 2, 3, 4]).write(to: location)
+        guard case .success = CraftNativeMedia.store(address, at: location, response: response) else { return XCTFail("retry failed") }
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(CraftNativeMedia.local(address))), Data([1, 2, 3, 4]))
+    }
+
+    func testAnUnsolicitedPartialOrEmptyVideoIsNeverPublished() throws {
+        for status in [200, 206] {
+            let address = "https://example.com/empty-\(UUID().uuidString).mp4"
+            let location = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try Data().write(to: location)
+            defer { try? FileManager.default.removeItem(at: location) }
+            let response = HTTPURLResponse(url: URL(string: address)!, statusCode: status, httpVersion: nil, headerFields: ["Content-Length": "0"])!
+            _ = CraftNativeMedia.store(address, at: location, response: response)
+            XCTAssertNil(CraftNativeMedia.local(address))
+        }
+    }
+
 }

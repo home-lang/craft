@@ -917,7 +917,7 @@ internal object CraftNativeMedia {
     }
 
     fun local(context: Context, address: String): File? =
-        address.takeIf { it.isNotBlank() }?.let { file(context, it) }?.takeIf(File::exists)
+        address.takeIf { it.isNotBlank() }?.let { file(context, it) }?.takeIf { it.isFile && it.length() > 0 }
 
     private fun describe(address: String, file: File) = JSONObject().put("ok", true).put("url", address).put("path", file.absolutePath).put("size", file.length())
 
@@ -951,15 +951,24 @@ internal object CraftNativeMedia {
                 headers.keys().forEach { name -> connection.setRequestProperty(name, headers.optString(name)) }
                 try {
                     val status = connection.responseCode
-                    if (status !in 200..299) return@runCatching CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("status", status))
+                    if (status != 200) return@runCatching CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("status", status))
                     val target = file(context, address)
                     target.parentFile?.mkdirs()
                     // Written aside and moved into place, so a half-written file is never played.
-                    val staging = File(target.parentFile, "${java.util.UUID.randomUUID()}.part")
-                    connection.inputStream.use { input -> staging.outputStream().use { input.copyTo(it) } }
-                    if (!staging.renameTo(target)) {
+                    val staging = File(target.parentFile, "${target.name}.part")
+                    try {
+                        val size = connection.inputStream.use { input -> staging.outputStream().use { input.copyTo(it) } }
+                        val expected = connection.contentLengthLong
+                        if (size <= 0 || (expected >= 0 && size != expected)) {
+                            return@runCatching CraftNativeCapabilityResult(code = "NETWORK_ERROR", message = "media.keep received an incomplete file")
+                        }
+                        synchronized(inFlight) {
+                            if (!staging.renameTo(target)) {
+                                return@runCatching CraftNativeCapabilityResult(code = "IO_ERROR", message = "media.keep could not store the file")
+                            }
+                        }
+                    } finally {
                         staging.delete()
-                        return@runCatching CraftNativeCapabilityResult(code = "IO_ERROR", message = "media.keep could not store the file")
                     }
                     CraftNativeCapabilityResult(data = describe(address, target))
                 } finally {
@@ -983,7 +992,14 @@ internal object CraftNativeMedia {
     fun prune(context: Context, keep: List<String>): Int {
         val wanted = keep.map { file(context, it).name }.toSet()
         var removed = 0
-        root(context).listFiles()?.forEach { file -> if (file.name !in wanted && file.delete()) removed++ }
+        synchronized(inFlight) {
+            // A concurrent keep owns its target and staging file until it finishes.
+            val active = inFlight.keys.map { file(context, it).name }.toSet()
+            root(context).listFiles()?.forEach { file ->
+                val target = file.name.removeSuffix(".part")
+                if (target !in active && file.name !in wanted && file.delete()) removed++
+            }
+        }
         return removed
     }
 
