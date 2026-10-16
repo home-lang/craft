@@ -138,12 +138,18 @@ export async function verifyBundleTrust(
   appPath: string,
   policy: BundleTrustPolicy = {},
 ): Promise<BundleTrustResult> {
+  if (!existsSync(appPath)) {
+    return {
+      ok: false,
+      identity: { identifier: null, teamId: null, authority: null },
+      gatekeeperSource: null,
+      reason: 'unreadable',
+      detail: `No such bundle: ${appPath}`,
+    }
+  }
+
   const identity = await readBundleIdentity(appPath)
   const requireNotarized = policy.requireNotarized ?? true
-
-  if (!existsSync(appPath)) {
-    return { ok: false, identity, gatekeeperSource: null, reason: 'unreadable', detail: `No such bundle: ${appPath}` }
-  }
 
   try {
     await execFileAsync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath])
