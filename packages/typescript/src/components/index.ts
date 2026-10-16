@@ -499,8 +499,6 @@ export interface TextProps extends BaseProps {
   numberOfLines?: number
   /** Ellipsize mode */
   ellipsizeMode?: 'head' | 'middle' | 'tail' | 'clip'
-  /** Selectable text */
-  selectable?: boolean
   /** Press handler */
   onPress?: () => void
   /** Long press handler */

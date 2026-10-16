@@ -32,6 +32,7 @@ import type {
   TextInputProps,
   ScrollViewProps,
   ViewProps,
+  TextProps,
 } from '../components'
 
 describe('Component System', () => {
@@ -73,6 +74,11 @@ describe('Component System', () => {
     // @ts-expect-error pointerEvents is intentionally outside the native View contract.
     view.pointerEvents = 'none'
     expect(view.onPress).toBeDefined()
+    const text: TextProps = { numberOfLines: 2, ellipsizeMode: 'tail' }
+    // Text selection is not implemented by either maintained native host.
+    // @ts-expect-error selectable is intentionally outside the native Text contract.
+    text.selectable = true
+    expect(text.ellipsizeMode).toBe('tail')
     const pressable: PressableProps = { disabled: false, onPressIn: () => {}, onPressOut: () => {} }
     // These platform-specific press options are not implemented by either native host.
     // @ts-expect-error hitSlop is intentionally outside the native Pressable contract.

@@ -193,6 +193,9 @@ hosts implement them.
 Pointer-event routing (`pointerEvents`, `box-none`, and `box-only`) is likewise
 outside the maintained native contract; use explicit native layout and enabled
 state props instead of relying on DOM hit-testing semantics.
+Native `Text` does not advertise selectable-text behavior yet; selection needs a
+shared UIKit and Android control path rather than silently falling back to a
+non-selectable label.
 `Picker` renders option children from `<select>`/`<option>` or the native
 primitive, accepts an `items` array or child options plus `value`/`selectedValue`,
 and sends the selected option's `value` plus `index` through `onValueChange` or
