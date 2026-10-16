@@ -5526,9 +5526,15 @@ class MainActivity : AppCompatActivity() {
             }
             "FlatList" -> (previous as? CraftNativeRefreshableFlatList ?: CraftNativeRefreshableFlatList(this)).apply {
                 val nativeList = list
-                configureRefresh(craftNativeEventName(events, "onRefresh").takeIf { it.isNotBlank() }?.let { handler ->
+                val propRefresh = props.optJSONObject("refreshControl") ?: JSONObject()
+                val propRefreshEvents = propRefresh.optJSONObject("events") ?: JSONObject()
+                val refreshHandlerName = craftNativeEventName(propRefreshEvents, "onRefresh")
+                    .takeIf { it.isNotBlank() }
+                    ?: craftNativeEventName(events, "onRefresh").takeIf { it.isNotBlank() }
+                configureRefresh(refreshHandlerName?.let { handler ->
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
-                }, props.optBoolean("refreshing", false))
+                }, propRefresh.optBoolean("refreshing", props.optBoolean("refreshing", false)))
+                setRefreshAppearance(propRefresh)
                 nativeList.setKeyboardShouldPersistTaps(props.optString("keyboardShouldPersistTaps", "never"))
                 nativeList.setContentContainerStyle(props.optJSONObject("contentContainerStyle"), resources.displayMetrics.density)
                 nativeList.setKeyboardDismissMode(props.optString("keyboardDismissMode")) {

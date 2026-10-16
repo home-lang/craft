@@ -348,6 +348,10 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         }
     }
 
+    func setRefreshAppearance(_ props: [String: Any]) {
+        nativeRefreshControl.tintColor = (props["tintColor"] as? String).flatMap { UIColor(hex: $0) }
+    }
+
     @objc private func refreshTriggered() {
         refreshHandler?()
         DispatchQueue.main.async { [weak self] in

@@ -6139,6 +6139,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let owner = parent.protocolId ?? path
         flatListOwners = flatListOwners.filter { $0.value != owner }
         for child in children { registerFlatListOwnership(child, owner: owner) }
+        let propRefresh = props["refreshControl"] as? [String: Any] ?? [:]
+        let propRefreshEvents = propRefresh["events"] as? [String: String] ?? [:]
+        let refreshHandler = nonEmptyHandler(propRefreshEvents["onRefresh"])
+            ?? nonEmptyHandler(events["onRefresh"])
+        let refreshing = (propRefresh["refreshing"] ?? props["refreshing"]) as? Bool == true
         list.bounces = props["bounces"] as? Bool ?? true
         list.isScrollEnabled = props["scrollEnabled"] as? Bool != false
         list.onFittingHeightChanged = { [weak list] in
@@ -6147,9 +6152,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         list.setKeyboardShouldPersistTaps(props["keyboardShouldPersistTaps"])
         list.setContentContainerStyle(props["contentContainerStyle"] as? [String: Any])
-        list.setRefreshHandler(nonEmptyHandler(events["onRefresh"]).map { [weak self] handler in
+        list.setRefreshHandler(refreshHandler.map { [weak self] handler in
             { self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
-        }, refreshing: props["refreshing"] as? Bool == true)
+        }, refreshing: refreshing)
+        list.setRefreshAppearance(propRefresh)
         list.keyboardDismissMode = keyboardDismissMode(props["keyboardDismissMode"])
         list.onScrollEvent = nonEmptyHandler(events["onScroll"]).map { handler in
             { [weak self] scrollView in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": self?.scrollEvent(scrollView) ?? [:]]) }
