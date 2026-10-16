@@ -97,6 +97,114 @@ jobs:
       - name: Test the report protocol
         run: bun test ./scripts/mobile-e2e/protocol.test.ts
 
+  ios-native:
+    name: iOS native UI
+    runs-on: macos-15
+    # A hung simulator launch would otherwise burn the six-hour default. The
+    # harness has its own per-app timeout; this is the backstop for everything
+    # around it.
+    timeout-minutes: 45
+    env:
+      CRAFT_EVIDENCE_LABEL: ios-native
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # These fixtures explicitly use runtimeDir: null; they need Bun and
+      # Xcode, while the separate protocol job builds and tests Zig.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The fixtures compile real .stx sources. Pin the
+      # @stacksjs/stx compiler (`stx native compile`) so this job cannot silently change
+      # underneath us. Both iOS jobs and Android use the same compiler revision.
+      - name: Checkout stx compiler
+        uses: actions/checkout@v6
+        with:
+          repository: stacksjs/stx
+          ref: 3dd3240fc9a64f360e9690eee50c483be3325705
+          path: .stx-compiler
+
+      - name: Install stx compiler dependencies
+        working-directory: .stx-compiler
+        # Pantry ships Bun 1.3.14, which cannot frozen-install the pinned stx
+        # lockfile. Resolve the unchanged external manifest without rewriting
+        # its checkout; Craft's own install remains frozen above.
+        run: bun install --no-save
+
+      - name: Test native UIKit reconciliation
+        id: uikit
+        run: |
+          mkdir -p artifacts/mobile-e2e/ios-native
+          bun packages/ios/scripts/test-native-render.ts 2>&1 | tee artifacts/mobile-e2e/ios-native/uikit.log
+
+      - name: Test native multi-screen navigation
+        id: navigation
+        env:
+          STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
+        run: |
+          mkdir -p artifacts/mobile-e2e/ios-native
+          bun packages/ios/scripts/test-native-navigation.ts 2>&1 | tee artifacts/mobile-e2e/ios-native/navigation.log
+
+      - name: Collect iOS simulator diagnostics
+        id: diagnostics
+        if: always()
+        run: |
+          evidence_dir="artifacts/mobile-e2e/ios-native/diagnostics"
+          mkdir -p "$evidence_dir"
+          run_bounded() {
+            local seconds="$1"
+            shift
+            "$@" &
+            local command_pid=$!
+            ( sleep "$seconds"; kill "$command_pid" 2>/dev/null || true ) &
+            local watchdog_pid=$!
+            local status=0
+            if wait "$command_pid"; then status=0; else status=$?; fi
+            kill "$watchdog_pid" 2>/dev/null || true
+            wait "$watchdog_pid" 2>/dev/null || true
+            return "$status"
+          }
+          {
+            echo "uikit=${{ steps.uikit.conclusion }}"
+            echo "navigation=${{ steps.navigation.conclusion }}"
+            echo "runner=$(uname -a)"
+            echo
+            run_bounded 20 xcrun simctl list devices || true
+          } > "$evidence_dir/simulator.txt" 2>&1
+          run_bounded 20 xcrun simctl spawn booted log show --last 10m --style compact > "$evidence_dir/system.log" 2>&1 || true
+          {
+            find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -type f \
+              \( -name '*NativeNavigation*' -o -name '*NativeRender*' -o -name '*Craft*' \) -print 2>/dev/null || true
+          } > "$evidence_dir/crash-reports.txt"
+          while IFS= read -r report; do
+            cp "$report" "$evidence_dir/$(basename "$report")" || true
+          done < "$evidence_dir/crash-reports.txt"
+
+      - name: Upload iOS evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-e2e-ios-native
+          # Console logs, build logs, screenshots, the generated project.yml and
+          # the exact page that ran. Excludes work/ — the generated projects and
+          # their DerivedData are hundreds of megabytes and the interesting
+          # parts are copied out.
+          path: |
+            artifacts/mobile-e2e/ios-native/**
+            !artifacts/mobile-e2e/ios-native/work/**
+          # A run that produced no evidence is a broken harness, not a pass.
+          if-no-files-found: error
+          retention-days: 30
+
   ios-simulator:
     name: iOS simulator
     runs-on: macos-15
@@ -121,8 +229,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # Exercise the short network/protocol gates before the longer view and
-      # navigation suites. All remain required on this same source revision.
+      # Protocol and native UI checks use separate simulators and budgets.
+      # The summary requires both jobs, including every original test suite.
       # The multi-screen fixture is compiled from real .stx sources. Pin the
       # @stacksjs/stx compiler (`stx native compile`) so this job cannot silently change
       # underneath us. This release also carries a Bun-compatible lockfile.
@@ -172,14 +280,6 @@ jobs:
       - name: Run mobile E2E on the simulator
         id: harness
         run: bun scripts/mobile-e2e.ts --platform ios --ios-runtime packages/zig/zig-out/lib
-
-      - name: Test native UIKit reconciliation
-        run: bun packages/ios/scripts/test-native-render.ts
-
-      - name: Test native multi-screen navigation
-        env:
-          STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
-        run: bun packages/ios/scripts/test-native-navigation.ts
 
       - name: Collect iOS simulator diagnostics
         id: diagnostics
@@ -452,7 +552,7 @@ jobs:
 
   mobile-summary:
     name: Mobile E2E summary
-    needs: [harness, ios-simulator, android-emulator, ios-zig-slice]
+    needs: [harness, ios-native, ios-simulator, android-emulator, ios-zig-slice]
     runs-on: ubuntu-latest
     if: always()
 
@@ -465,6 +565,7 @@ jobs:
             echo "| Leg | Result |"
             echo "|-----|--------|"
             echo "| Harness unit tests | ${{ needs.harness.result }} |"
+            echo "| iOS native UIKit and navigation | ${{ needs.ios-native.result }} |"
             echo "| iOS simulator (generated app) | ${{ needs.ios-simulator.result }} |"
             echo "| Android emulator (generated app) | ${{ needs.android-emulator.result }} |"
             echo "| iOS Zig runtime slice | ${{ needs.ios-zig-slice.result }} |"
@@ -481,6 +582,7 @@ jobs:
       - name: Fail if any leg failed
         if: >-
           contains(fromJSON('["failure", "skipped"]'), needs.harness.result)
+          || contains(fromJSON('["failure", "skipped"]'), needs.ios-native.result)
           || contains(fromJSON('["failure", "skipped"]'), needs.ios-simulator.result)
           || contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result)
           || contains(fromJSON('["failure", "skipped"]'), needs.ios-zig-slice.result)

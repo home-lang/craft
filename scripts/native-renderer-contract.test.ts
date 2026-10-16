@@ -611,7 +611,7 @@ describe('native renderer component contract', () => {
 
   it('pins one @stacksjs/stx compiler revision across mobile E2E hosts', () => {
     const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: ([0-9a-f]{40})/g)].map(match => match[1])
-    expect(refs).toHaveLength(2)
+    expect(refs).toHaveLength(3)
     expect(new Set(refs).size).toBe(1)
     expect(mobileE2EWorkflow).toContain('stx native compile')
     expect(mobileE2EWorkflow).not.toContain('stx-native')

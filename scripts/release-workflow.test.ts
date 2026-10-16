@@ -50,15 +50,34 @@ test('mobile device jobs use the same pinned stx compiler', () => {
     const options = step.with as Record<string, string> | undefined
     return options?.repository === 'stacksjs/stx'
   })
-  expect(compilerCheckouts).toHaveLength(2)
+  expect(compilerCheckouts).toHaveLength(3)
   for (const step of compilerCheckouts)
     expect((step.with as Record<string, string>).ref).toBe(stxCompilerCommit)
+})
+
+test('native iOS suites and protocol checks have independent required jobs', () => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
+  const native = workflow.jobs['ios-native']
+  const protocol = workflow.jobs['ios-simulator']
+  expect(needs(native)).toEqual([])
+  expect(needs(protocol)).toEqual([])
+  expect(steps(native)).toContain('test-native-render.ts')
+  expect(steps(native)).toContain('test-native-navigation.ts')
+  expect(steps(protocol)).toContain('test-hybrid-navigation.ts')
+  expect(steps(protocol)).toContain('scripts/mobile-e2e.ts --platform ios')
+  expect(steps(protocol)).not.toContain('test-native-render.ts')
+  expect(steps(protocol)).not.toContain('test-native-navigation.ts')
+  const summary = workflow.jobs['mobile-summary']
+  expect(needs(summary)).toContain('ios-native')
+  expect(needs(summary)).toContain('ios-simulator')
+  expect(summary.steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-native.result')
 })
 
 test('mobile device jobs preserve runner diagnostics when the harness fails', () => {
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
   for (const [jobName, evidenceDir, expectedCommand] of [
     ['ios-simulator', 'ios-simulator/diagnostics', 'run_bounded 20 xcrun simctl'],
+    ['ios-native', 'ios-native/diagnostics', 'run_bounded 20 xcrun simctl'],
     ['android-emulator', 'android-emulator/diagnostics', 'run_bounded 20 adb logcat'],
   ] as const) {
     const job = workflow.jobs[jobName]
