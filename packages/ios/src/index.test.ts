@@ -96,6 +96,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('craft_native_layout_tree_v4')
     expect(nativeSwift).toContain('private static func treeFramesV4(')
     expect(nativeSwift).toContain('input.gridAutoRows = node.gridAutoRows.map')
+    expect(nativeSwift).not.toContain('guard gridAutoRows == nil else { return nil }')
     expect(nativeSwift).toContain('offset.x - parentFrame.x')
     expect(nativeSwift).toContain('let maxContent = label.sizeThatFits(CGSize(width: unbounded, height: unbounded))')
     expect(nativeSwift).toContain('collapses shrink-to-fit bubbles and pills')

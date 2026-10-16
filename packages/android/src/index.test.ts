@@ -151,6 +151,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('gridAutoRows = CraftNativeLength.from(style.opt("gridAutoRows"), density)')
       expect(nativeActivity).toContain('gridAutoRows?.resolve(contentHeight)?.toFloat()')
       expect(nativeActivity).toContain('val gridAutoRows: CraftNativeLength?')
+      expect(nativeActivity).toContain('gridAutoRows = nested?.gridAutoRows')
+      expect(nativeActivity).not.toContain('if (gridAutoRows != null) return null')
       expect(nativeActivity).toContain('if (autoRowsAware) {')
       expect(nativeActivity).toContain('CraftNative.layoutTreeV4(width.toFloat(), height.toFloat(), nodeData, treeMeta)')
       expect(nativeActivity).toContain('put(base, 33, sharedLength(node.gridAutoRows, contentHeight))')
