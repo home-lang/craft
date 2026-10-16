@@ -33,6 +33,9 @@ describe('Component System', () => {
       accessibilityState: { selected: true },
       keyboardType: 'email-address',
       returnKeyType: 'done',
+      textContentType: 'username',
+      autoComplete: 'username',
+      passwordRules: 'required: upper; required: digit;',
       onSubmitEditing: () => {},
     }
     const scroll: ScrollViewProps = {

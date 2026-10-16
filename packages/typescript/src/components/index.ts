@@ -665,6 +665,12 @@ export interface TextInputProps extends BaseProps {
   autoFocus?: boolean
   /** Secure text entry (password) */
   secureTextEntry?: boolean
+  /** Platform autofill content type (for example `username` or `oneTimeCode`). */
+  textContentType?: string
+  /** HTML-style autofill hint (for example `current-password`). */
+  autoComplete?: string
+  /** iOS password-rule descriptor. */
+  passwordRules?: string
   /** Multi-line input */
   multiline?: boolean
   /** Number of lines for multiline */

@@ -1047,6 +1047,9 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps TextInput keyboard traits aligned across hosts', () => {
+    expect(componentTypes).toContain('textContentType?: string')
+    expect(componentTypes).toContain('autoComplete?: string')
+    expect(componentTypes).toContain('passwordRules?: string')
     expect(ios).toContain('case "email-address": return .emailAddress')
     expect(ios).toContain('case "decimal-pad": return .decimalPad')
     expect(ios).toContain('case "done": return .done')
@@ -1065,6 +1068,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"creditcardnumber", "ccnumber" -> "creditCardNumber"')
     expect(android).toContain('if (autofillHint == null) setAutofillHints(*emptyArray()) else setAutofillHints(autofillHint)')
     expect(android).toContain('"characters" -> InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS')
+    expect(ios).toContain('props["passwordRules"] as? String')
+    expect(android).toContain('props.optString("textContentType").ifBlank { props.optString("autoComplete") }')
   })
 
   it('keeps blur and end-editing callbacks independent across hosts', () => {
