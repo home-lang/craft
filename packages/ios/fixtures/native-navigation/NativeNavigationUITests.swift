@@ -861,6 +861,9 @@ final class NativeNavigationUITests: XCTestCase {
         booleanMaxLength.tap()
         booleanMaxLength.typeText("AB")
         XCTAssertEqual(booleanMaxLength.value as? String, "AB", "Boolean maxLength was treated as numeric")
+        let booleanInputLines = app.textViews["boolean-input-lines"]
+        XCTAssertTrue(booleanInputLines.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(booleanInputLines.frame.height, 24, "Boolean TextInput numberOfLines was treated as numeric")
         let notes = app.textViews["notes-input"]
         XCTAssertTrue(notes.waitForExistence(timeout: 5), "multiline TextInput did not render as UITextView")
         XCTAssertTrue(notes.isEnabled)

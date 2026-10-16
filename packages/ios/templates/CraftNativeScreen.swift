@@ -6749,7 +6749,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             textView.textContainer.lineFragmentPadding = 0
         }
         textView.isScrollEnabled = false
-        if let numberOfLines = (props["numberOfLines"] as? NSNumber)?.intValue, numberOfLines > 0 {
+        let numberOfLines = Int(number(props["numberOfLines"]) ?? 0)
+        if numberOfLines > 0 {
             textView.textContainer.maximumNumberOfLines = numberOfLines
         } else {
             textView.textContainer.maximumNumberOfLines = 0

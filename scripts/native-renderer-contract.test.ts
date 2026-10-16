@@ -3067,9 +3067,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val maxLength = craftNativeInt(props.opt("maxLength"), 0)')
     expect(android).not.toContain('props.optInt("maxLength", 0)')
     expect(ios).toContain('let maxLength = Int(number(props["maxLength"]) ?? 0)')
+    expect(ios).toContain('let numberOfLines = Int(number(props["numberOfLines"]) ?? 0)')
     expect(navigationHome).toContain('testID="boolean-max-length"')
+    expect(navigationHome).toContain('testID="boolean-input-lines"')
     expect(iosNavigationTest).toContain('Boolean maxLength was treated as numeric')
     expect(androidNavigationTest).toContain('Boolean maxLength was treated as numeric')
+    expect(iosNavigationTest).toContain('Boolean TextInput numberOfLines was treated as numeric')
+    expect(androidNavigationTest).toContain('Boolean TextInput numberOfLines was treated as numeric')
   })
 
   it('keeps native integer component props numeric at the Android bridge boundary', () => {

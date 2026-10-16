@@ -461,6 +461,8 @@ class NativeNavigationTest {
             val booleanMaxLength = awaitView(activity, "boolean-max-length") as EditText
             instrumentation.runOnMainSync { booleanMaxLength.setText("AB") }
             assertEquals("AB", booleanMaxLength.text.toString(), "Boolean maxLength was treated as numeric")
+            val booleanInputLines = awaitView(activity, "boolean-input-lines") as EditText
+            assertEquals("Boolean TextInput numberOfLines was treated as numeric", Int.MAX_VALUE, booleanInputLines.maxLines)
             val readonly = awaitView(activity, "readonly-input") as EditText
             assertTrue("editable=false should disable the native input", !readonly.isEnabled)
             assertEquals("Read only", readonly.text.toString())
