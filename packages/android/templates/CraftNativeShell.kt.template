@@ -395,6 +395,7 @@ internal object CraftNativePrelude {
         if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;
         (function() {
           var forward = null;
+          var listeners = [];
           var queued = [];
           var sync = { storage: {}, secure: {}, snapshots: {} };
           var preload = $STORES;
@@ -445,7 +446,11 @@ internal object CraftNativePrelude {
           }
           function send(value) { if (typeof value !== 'string') value = JSON.stringify(value); $post }
           function emit(message) {
-            if (forward) forward(typeof message === 'string' ? message : JSON.stringify(message));
+            var raw = typeof message === 'string' ? message : JSON.stringify(message);
+            listeners.slice().forEach(function(callback) {
+              try { callback(raw); } catch (error) {}
+            });
+            if (forward) forward(raw);
             else queued.push(message);
           }
           function deliver(raw) {
@@ -515,6 +520,14 @@ internal object CraftNativePrelude {
               var pending = queued;
               queued = [];
               pending.forEach(emit);
+            },
+            addMessageListener: function(callback) {
+              if (typeof callback !== 'function') return function() {};
+              listeners.push(callback);
+              return function() {
+                var index = listeners.indexOf(callback);
+                if (index >= 0) listeners.splice(index, 1);
+              };
             }
           };
           $receiveSetup
@@ -563,6 +576,47 @@ internal object CraftNativePrelude {
               return value === undefined ? null : value;
             }
           });
+          // Older native bundles call the page-shaped `craft.dialog` API
+          // directly. Keep that API on the capability bridge so JavaScript
+          // Core/JavaScriptSandbox screens never fall back to a DOM sheet.
+          if (Array.isArray(__stxNativeBridge.capabilities) && __stxNativeBridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog) {
+            var nextDialogRequest = 0;
+            function dialogRequest(method, args) {
+              return new Promise(function(resolve, reject) {
+                var id = 'craft-dialog-' + (++nextDialogRequest);
+                var remove = __stxNativeBridge.addMessageListener(function(raw) {
+                  var message;
+                  try { message = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (error) { return; }
+                  var payload = message && message.payload;
+                  if (!payload || payload.requestId !== id) return;
+                  remove();
+                  if (message.type === 'API_ERROR') {
+                    var failure = new Error(payload.message || 'Native dialog failed');
+                    failure.code = payload.code || 'NATIVE_CALL_FAILED';
+                    reject(failure);
+                  } else if (message.type === 'API_RESPONSE') {
+                    resolve(payload.data === undefined ? null : payload.data);
+                  }
+                });
+                __stxNativeBridge.postMessage(JSON.stringify({
+                  type: 'API_REQUEST',
+                  id: id,
+                  payload: {
+                    version: __stxNativeBridge.capabilityProtocolVersion || 1,
+                    module: 'Dialog',
+                    method: method,
+                    args: args,
+                    untimed: true,
+                  },
+                }));
+              });
+            }
+            craft.dialog = {
+              alert: function(options) { return dialogRequest('alert', [options || {}]).then(function() {}); },
+              confirm: function(options) { return dialogRequest('confirm', [options || {}]).then(Boolean); },
+              actionSheet: function(options) { return dialogRequest('actionSheet', [options || {}]).then(function(id) { return typeof id === 'string' ? id : null; }); },
+            };
+          }
         })();
     """.trimIndent()
 }

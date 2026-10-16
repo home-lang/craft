@@ -11,14 +11,14 @@ afterAll(removeAllTempDirs)
 const templates = join(import.meta.dir, '../templates')
 
 /** The prelude every isolate runs (CraftNativeShell.kt's CraftNativePrelude), with its Kotlin holes filled. */
-function prelude(stores: Record<string, Record<string, string>>): string {
+function prelude(stores: Record<string, Record<string, string>>, capabilities: string[] = []): string {
   const source = readFileSync(join(templates, 'CraftNativeShell.kt.template'), 'utf8')
   const start = source.indexOf('): String = """') + '): String = """'.length
   const end = source.indexOf('""".trimIndent()', start)
   return source.slice(start, end)
     .replace('$routePrelude', 'globalThis.__stxNativeRoute = "Today";')
     .replace('$STORES', JSON.stringify(stores))
-    .replace('$bridgeFields', "platform: 'android', capabilities: []")
+    .replace('$bridgeFields', `platform: 'android', capabilityProtocolVersion: 1, capabilities: ${JSON.stringify(capabilities)}`)
     .replace('$post', 'globalThis.__posted.push(JSON.parse(value));')
     .replace('$receiveSetup', 'globalThis.__deliver = deliver;')
 }
@@ -30,10 +30,10 @@ interface Isolate {
   deliver: (message: unknown) => void
 }
 
-function isolate(stores: Record<string, Record<string, string>> = {}): Isolate {
+function isolate(stores: Record<string, Record<string, string>> = {}, capabilities: string[] = []): Isolate {
   const context: Record<string, any> = { __posted: [], console: { error() {}, log() {} } }
   vm.createContext(context)
-  vm.runInContext(prelude({ storage: {}, secure: {}, snapshots: {}, ...stores }), context)
+  vm.runInContext(prelude({ storage: {}, secure: {}, snapshots: {}, ...stores }, capabilities), context)
   const heard: any[] = []
   context.__stxNativeBridge.onMessage((raw: string) => heard.push(JSON.parse(raw)))
   return { posted: context.__posted, heard, context, deliver: message => context.__deliver(JSON.stringify(message)) }
@@ -110,6 +110,25 @@ describe('the native shell prelude (JavaScriptSandbox has no synchronous host ca
     const app = isolate()
     app.deliver({ type: 'API_RESPONSE', payload: { requestId: '1', data: true } })
     expect(app.heard).toContainEqual({ type: 'API_RESPONSE', payload: { requestId: '1', data: true } })
+  })
+
+  it('routes legacy page-shaped dialogs through the native capability bridge', async () => {
+    const app = isolate({}, ['dialog'])
+    const sheet = app.context.craft.dialog.actionSheet({
+      title: 'Remove photo?',
+      actions: [{ id: 'remove', title: 'Remove', style: 'destructive' }],
+    })
+    const request = app.posted.find(message => message.type === 'API_REQUEST')!
+    expect(request.payload).toMatchObject({
+      module: 'Dialog',
+      method: 'actionSheet',
+      untimed: true,
+      args: [{ title: 'Remove photo?', actions: [{ id: 'remove', title: 'Remove', style: 'destructive' }] }],
+    })
+    // The host's response id is the request's top-level id. Android's
+    // prelude forwards the payload unchanged, so use that exact value.
+    app.deliver({ type: 'API_RESPONSE', payload: { requestId: request.id, data: 'remove' } })
+    expect(await sheet).toBe('remove')
   })
 })
 

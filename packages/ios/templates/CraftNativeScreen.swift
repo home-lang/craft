@@ -4490,6 +4490,74 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         jsContext.setObject(snapshotClear, forKeyedSubscript: "craftNativeSnapshotClear" as NSString)
         jsContext.setObject(secureGet, forKeyedSubscript: "craftNativeSecureGet" as NSString)
         jsContext.setObject(setOptions, forKeyedSubscript: "craftNativeSetOptions" as NSString)
+        // Older native bundles call the page-shaped `craft.dialog` API
+        // directly. Keep that API backed by the same capability protocol as
+        // current stx bundles, rather than letting their DOM fallback draw a
+        // fake sheet in a JavaScriptCore screen.
+        jsContext.evaluateScript("""
+            (function() {
+                var bridge = globalThis.__stxNativeBridge;
+                if (!bridge || typeof bridge.postMessage !== 'function') return;
+                var listeners = [];
+                var runtimeCallback = null;
+                bridge.onMessage = function(callback) {
+                    runtimeCallback = typeof callback === 'function' ? callback : null;
+                };
+                bridge.addMessageListener = function(callback) {
+                    if (typeof callback !== 'function') return function() {};
+                    listeners.push(callback);
+                    return function() {
+                        var index = listeners.indexOf(callback);
+                        if (index >= 0) listeners.splice(index, 1);
+                    };
+                };
+                globalThis.__stxNativeCallback = function(raw) {
+                    listeners.slice().forEach(function(callback) {
+                        try { callback(raw); } catch (error) {}
+                    });
+                    if (runtimeCallback) runtimeCallback(raw);
+                };
+                var nextRequest = 0;
+                function request(method, args) {
+                    return new Promise(function(resolve, reject) {
+                        var id = 'craft-dialog-' + (++nextRequest);
+                        var remove = bridge.addMessageListener(function(raw) {
+                            var message;
+                            try { message = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (error) { return; }
+                            var payload = message && message.payload;
+                            if (!payload || payload.requestId !== id) return;
+                            remove();
+                            if (message.type === 'API_ERROR') {
+                                var failure = new Error(payload.message || 'Native dialog failed');
+                                failure.code = payload.code || 'NATIVE_CALL_FAILED';
+                                reject(failure);
+                            } else if (message.type === 'API_RESPONSE') {
+                                resolve(payload.data === undefined ? null : payload.data);
+                            }
+                        });
+                        bridge.postMessage(JSON.stringify({
+                            type: 'API_REQUEST',
+                            id: id,
+                            payload: {
+                                version: bridge.capabilityProtocolVersion || 1,
+                                module: 'Dialog',
+                                method: method,
+                                args: args,
+                                untimed: true
+                            }
+                        }));
+                    });
+                }
+                var craft = globalThis.craft = globalThis.craft || {};
+                if (Array.isArray(bridge.capabilities) && bridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog) {
+                    craft.dialog = {
+                        alert: function(options) { return request('alert', [options || {}]).then(function() {}); },
+                        confirm: function(options) { return request('confirm', [options || {}]).then(Boolean); },
+                        actionSheet: function(options) { return request('actionSheet', [options || {}]).then(function(id) { return typeof id === 'string' ? id : null; }); }
+                    };
+                }
+            })();
+        """)
         // `AudioContext` and the rest of Web Audio, rendered natively.
         audio.install(in: jsContext)
         // `crypto` for code shared with the page (a sign-in's nonce and its
