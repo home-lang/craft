@@ -4604,8 +4604,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
-            "TextInput" -> (reusableInput?.takeIf { it.isSingleLine == !props.optBoolean("multiline", false) }
-                ?: EditText(this)).apply {
+            "TextInput" -> (reusableInput ?: EditText(this)).apply {
                 // Setting filters, the input type or single-line mode makes
                 // TextView set its text again, which puts the caret back at
                 // the start: typing then came out backwards. Each is set only

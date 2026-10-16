@@ -907,7 +907,8 @@ class NativeNavigationTest {
             assertTrue("TextInput lost focus after typing", name.isFocused)
             click(activity, "toggle-name-mode")
             val multilineName = awaitView(activity, "name-input") { it is EditText && !it.isSingleLine } as EditText
-            assertFalse("multiline mode did not replace the single-line input", multilineName.isSingleLine)
+            assertSame("multiline mode replaced the retained input", name, multilineName)
+            assertFalse("multiline mode was not applied", multilineName.isSingleLine)
             assertTrue("email keyboard lost its multiline flag", multilineName.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0)
             assertEquals(InputType.TYPE_CLASS_TEXT, multilineName.inputType and InputType.TYPE_MASK_CLASS)
             assertEquals(InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, multilineName.inputType and InputType.TYPE_MASK_VARIATION)
@@ -915,6 +916,7 @@ class NativeNavigationTest {
             awaitText(activity, "name-mode", "multiline")
             click(activity, "toggle-name-mode")
             val singleLineName = awaitView(activity, "name-input") { it is EditText && it.isSingleLine } as EditText
+            assertSame("single-line mode replaced the retained input", name, singleLineName)
             assertTrue("single-line mode did not restore the input", singleLineName.isSingleLine)
             assertEquals("Ada", singleLineName.text.toString())
             // The field's dashed underline, on what was typed (an empty field has nothing to underline).
