@@ -144,6 +144,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('inverted = props.optBoolean("inverted", false)')
   })
 
+  it('allows the maintained child-based SectionList fallback', () => {
+    expect(componentTypes).toContain('sections?: SectionListSection<T>[]')
+    expect(componentTypes).toContain('renderItem?: (info: { item: T; index: number; section: SectionListSection<T> }) => any')
+    expect(guide).toContain('`SectionList` currently follows the same native scroll host')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')

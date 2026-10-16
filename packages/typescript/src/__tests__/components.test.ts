@@ -86,6 +86,7 @@ describe('Component System', () => {
       sections: [{ title: 'Trails', data: ['Alpine'] }],
       renderItem: ({ item }) => item,
     }
+    const childSectionList: SectionListProps<string> = { children: ['Header', 'Row'] }
     expect(button.title).toBe('Open map')
     expect(map.initialRegion?.span.longitudeDelta).toBe(0.75)
     expect(map.fitToBounds).toBe(true)
@@ -99,7 +100,8 @@ describe('Component System', () => {
     expect(group.strokeLinecap).toBe('round')
     expect(circle.geometry).toEqual([0, 12, 4])
     expect(label.textAnchor).toBe('middle')
-    expect(sections.sections[0]?.data).toEqual(['Alpine'])
+    expect(sections.sections?.[0]?.data).toEqual(['Alpine'])
+    expect(childSectionList.sections).toBeUndefined()
   })
 
   it('keeps image resize modes within the native contract', () => {
