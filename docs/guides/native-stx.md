@@ -102,9 +102,11 @@ content-box measurements, so parent placement cannot erase those values.
 Wrapped flows use the same boundary when both axes use independent row/column gaps; percentage sizes
 resolve against the parent content box before entering the shared ABI. Reverse
 main-axis flows use the versioned v2 boundary when available, and wrap-reverse
-flows use v3; absolute children, missing runtimes, and any malformed ABI result stay on the
-local compatibility algorithms. Grid-auto-rows remain
-on the local path because they need host-specific row measurement. The iOS root also keeps
+flows use v3; grids with resolved `gridAutoRows` use v4, which appends the
+resolved minimum without changing the older payloads. Absolute children,
+missing runtimes, and any malformed ABI result stay on the local compatibility
+algorithms. Hosts still measure each grid child locally, but the shared core now
+owns the final auto-row minimum and row placement. The iOS root also keeps
 a
 definite viewport frame for a `flex: 1` screen root, so an absolute sibling of
 a `ScrollView` is anchored to the screen rather than to the scroll content.
@@ -117,8 +119,8 @@ hosts.
 The Zig contract also exercises a nested preorder tree and checks absolute
 descendant frames, so hosts cannot silently flatten a nested container or lose
 its padding and gap offsets while applying the shared result. Wrap-reverse,
-absolute overlays, grid-auto-rows, missing runtimes, and malformed ABI results
-stay on the local compatibility algorithms. The fallback is intentional, so
+absolute overlays, missing runtimes, and malformed ABI results stay on the local
+compatibility algorithms. The fallback is intentional, so
 an SDK-only project never loses native layout. Baseline alignment follows the same
 boundary: hosts provide the measured distance to a child's baseline, and Zig
 only aligns those numeric metrics.
