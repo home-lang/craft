@@ -511,6 +511,25 @@ describe('Craft Android builder', () => {
     expect(native).not.toContain('WebView(')
   })
 
+  it('keeps launch query parameters for the initial native route', async () => {
+    const output = createTempDir('craft-android-native-launch-query-')
+    await init({
+      name: 'NativeLaunchQuery',
+      packageName: 'org.example.nativelaunchquery',
+      output,
+      runtimeDir: null,
+      config: {
+        renderer: 'native',
+        devServerURL: 'https://example.com/workout?id=42',
+        nativeScreens: { '/workout': 'Workout' },
+      },
+    })
+
+    const shell = readFileSync(join(output, 'app/src/main/java/org/example/nativelaunchquery/CraftNativeShell.kt'), 'utf8')
+    expect(shell).toContain('val query = uri.encodedQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""')
+    expect(shell).toContain('(path + query).takeIf { match(it) != null }')
+  })
+
   it('floats a playing video, speaks in the best installed voice and animates a screen\'s next change', async () => {
     const output = createTempDir('craft-android-native-media-')
     await init({ name: 'NativeMedia', packageName: 'org.example.nativemedia', output, runtimeDir: null, config: { renderer: 'native' } })

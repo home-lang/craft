@@ -1320,6 +1320,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('Missing native-screen.js')
   })
 
+  it('preserves Android native launch query parameters like iOS', () => {
+    expect(androidShell).toContain('val path = uri.encodedPath?.takeIf { it.isNotBlank() } ?: "/"')
+    expect(androidShell).toContain('val query = uri.encodedQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""')
+    expect(androidShell).toContain('(path + query).takeIf { match(it) != null }')
+  })
+
   it('does not recenter native maps on every reconciliation', () => {
     expect(ios).toContain('private var initialCameraKey: String?')
     expect(ios).toContain('if let region = Self.region(props["region"])')

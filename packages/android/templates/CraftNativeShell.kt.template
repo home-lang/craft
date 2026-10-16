@@ -119,9 +119,11 @@ internal class CraftNativeRoutes(config: JSONObject) {
     }
 
     /** Where the app opens: the site's path when a screen draws it, else the first tab. */
-    val initialPath: String = site?.path?.takeIf { it.isNotBlank() && match(it) != null }
-        ?: tabs.firstOrNull()?.id
-        ?: "/"
+    val initialPath: String = site?.let { uri ->
+        val path = uri.encodedPath?.takeIf { it.isNotBlank() } ?: "/"
+        val query = uri.encodedQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""
+        (path + query).takeIf { match(it) != null }
+    } ?: tabs.firstOrNull()?.id ?: "/"
 
     val isEmpty: Boolean get() = routes.isEmpty()
 
