@@ -1271,6 +1271,22 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(list.contentInset, .zero)
     }
 
+    func testScreenNumericStylesRejectBooleanNumbers() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([node(
+            "View",
+            key: "boolean-style",
+            style: ["width": true, "height": false, "borderWidth": true, "opacity": false]
+        )]))
+
+        let view = try XCTUnwrap(find(UIView.self, key: "boolean-style", below: controller.view))
+        XCTAssertFalse(view.constraints.contains { $0.isActive && $0.firstAttribute == .width }, "Boolean width was treated as numeric")
+        XCTAssertFalse(view.constraints.contains { $0.isActive && $0.firstAttribute == .height }, "Boolean height was treated as numeric")
+        XCTAssertEqual(view.layer.borderWidth, 0, "Boolean border width was treated as numeric")
+        XCTAssertEqual(view.alpha, 1, accuracy: 0.001, "Boolean opacity changed the native view")
+    }
+
     func testAPressableWithPressFeedbackStillTakesItsPress() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

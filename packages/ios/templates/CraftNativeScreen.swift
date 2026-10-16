@@ -7848,7 +7848,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func number(_ value: Any?) -> CGFloat? {
-        guard let number = value as? NSNumber else { return nil }
+        guard !(value is Bool), let number = value as? NSNumber else { return nil }
         let value = CGFloat(truncating: number)
         return value.isFinite ? value : nil
     }

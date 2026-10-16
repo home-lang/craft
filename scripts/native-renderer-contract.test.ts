@@ -1836,6 +1836,7 @@ describe('native renderer component contract', () => {
 
   it('ignores boolean values in numeric native layout styles on both hosts', () => {
     expect(ios).toContain('// JavaScript booleans can bridge to NSNumber on Apple platforms;')
+    expect(ios).toContain('guard !(value is Bool), let number = value as? NSNumber else { return nil }')
     expect(android).toContain('if (value is Number)')
     expect(navigationHome).toContain('testID="boolean-width-text"')
     expect(navigationHome).toContain('testID="boolean-font-size-text"')
@@ -1843,6 +1844,7 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('boolean width was treated as a numeric layout length')
     expect(iosNavigationTest).toContain('boolean font size was treated as a numeric style')
     expect(androidNavigationTest).toContain('boolean font size was treated as a numeric style')
+    expect(iosNativeUnitTests).toContain('testScreenNumericStylesRejectBooleanNumbers')
   })
 
   it('sanitizes keyboard avoidance offsets before applying host geometry', () => {
