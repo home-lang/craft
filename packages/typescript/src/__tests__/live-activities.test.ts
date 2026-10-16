@@ -82,3 +82,21 @@ describe('browser-safe Live Activity handles', () => {
     }
   })
 })
+
+
+describe('Live Activity availability', () => {
+  it('checks real authorization and lists existing activities without fabricating handles', async () => {
+    const root = globalThis as any
+    const previous = root.window
+    root.window = { craft: { liveActivity: { isAvailable: async () => true, list: async () => [{ id: 'native', activityId: 'workout', title: 'Run' }] } } }
+    try {
+      expect(await liveActivities.isAvailable()).toBe(true)
+      expect(await liveActivities.list()).toEqual([{ id: 'native', activityId: 'workout', title: 'Run' }])
+      root.window = {}
+      expect(await liveActivities.isAvailable()).toBe(false)
+      expect(await liveActivities.list()).toEqual([])
+      await expect(liveActivities.start({ activityId: 'none', title: 'No host' })).rejects.toThrow('unavailable')
+    }
+    finally { if (previous === undefined) delete root.window; else root.window = previous }
+  })
+})

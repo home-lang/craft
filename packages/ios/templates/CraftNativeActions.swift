@@ -48,6 +48,7 @@ enum CraftNativeActions {
         if config.enableDeepLinks { values.append("deepLinks") }
         if config.enableLocalNotifications { values.append("notifications") }
         if config.enableHealthKit { values.append("health") }
+        if config.enableLiveActivities { values.append("liveActivities") }
         // The in-app browser and the system's web sign-in sheet (CraftBrowser).
         values.append("browser")
         if config.enableSocialAuth { values.append("appleSignIn") }
@@ -326,6 +327,11 @@ enum CraftNativeActions {
                 default:
                     complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Dialog method"), completion)
                 }
+            }
+            return
+        case ("LiveActivities", _):
+            CraftLiveActivities.perform(method: method, args: args, enabled: config.enableLiveActivities, appName: config.appName) { result in
+                complete(requestToken, result, completion)
             }
             return
         case ("Health", _):

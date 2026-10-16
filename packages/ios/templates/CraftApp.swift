@@ -2752,6 +2752,10 @@ struct CraftWebView: UIViewRepresentable {
                 }
 
             // MARK: - Live Activities
+            case "isLiveActivityAvailable":
+                liveActivity(method: "isAvailable", args: [], callbackId: callbackId)
+            case "listLiveActivities":
+                liveActivity(method: "list", args: [], callbackId: callbackId)
             case "startLiveActivity":
                 if config.enableLiveActivities {
                     startLiveActivity(body: body, callbackId: callbackId)
@@ -5380,6 +5384,8 @@ struct CraftWebView: UIViewRepresentable {
                     };
                 })();
                 craft.liveActivity = {
+                    isAvailable: function() { return craft._invoke('isLiveActivityAvailable'); },
+                    list: function() { return craft._invoke('listLiveActivities'); },
                     start: function(options) { return craft._invoke('startLiveActivity', options || {}); },
                     update: function(idOrState, state) {
                         if (typeof idOrState !== 'string') return craft._invoke('updateLiveActivity', idOrState || {});
@@ -7463,123 +7469,25 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         // MARK: - Live Activities
+        private func liveActivity(method: String, args: [Any], callbackId: String?) {
+            let token = armDeadline(Coordinator.liveActivityDeadline, callbackId: callbackId, error: "Live Activity request timed out")
+            CraftLiveActivities.perform(method: method, args: args, enabled: config.enableLiveActivities, appName: config.appName) { [weak self] result in
+                guard let self, self.claimDeadline(token) else { return }
+                switch result {
+                case .success(let value): self.resolveCallback(callbackId, result: value)
+                case .failure(let error): self.rejectCallback(callbackId, error: error.message)
+                }
+            }
+        }
+
         private func startLiveActivity(body: [String: Any], callbackId: String?) {
-            guard #available(iOS 16.2, *), ActivityAuthorizationInfo().areActivitiesEnabled else {
-                rejectCallback(callbackId, error: "Live Activities are unavailable")
-                return
-            }
-            let attributes = CraftActivityAttributes(
-                activityId: body["activityId"] as? String ?? UUID().uuidString,
-                title: body["title"] as? String ?? config.appName
-            )
-            let state = CraftActivityAttributes.ContentState(
-                status: body["status"] as? String ?? "Recording",
-                distanceMeters: body["distanceMeters"] as? Double ?? 0,
-                durationSeconds: body["durationSeconds"] as? Double ?? 0,
-                progress: min(max(body["progress"] as? Double ?? 0, 0), 1)
-            )
-            do {
-                let activity = try Activity.request(
-                    attributes: attributes,
-                    content: ActivityContent(state: state, staleDate: nil),
-                    pushType: nil
-                )
-                resolveCallback(callbackId, result: ["id": activity.id])
-            } catch {
-                rejectCallback(callbackId, error: error.localizedDescription)
-            }
+            liveActivity(method: "start", args: [body], callbackId: callbackId)
         }
-
         private func updateLiveActivity(body: [String: Any], callbackId: String?) {
-            guard #available(iOS 16.2, *) else {
-                rejectCallback(callbackId, error: "No Live Activity is running")
-                return
-            }
-            let activities = Activity<CraftActivityAttributes>.activities
-            let activity: Activity<CraftActivityAttributes>
-            if let activityId = body["id"] as? String {
-                guard let matchingActivity = activities.first(where: { $0.id == activityId }) else {
-                    rejectCallback(callbackId, error: "No Live Activity with id \(activityId) is running")
-                    return
-                }
-                activity = matchingActivity
-            } else {
-                guard let currentActivity = activities.first else {
-                    rejectCallback(callbackId, error: "No Live Activity is running")
-                    return
-                }
-                activity = currentActivity
-            }
-            let current = activity.content.state
-            let state = CraftActivityAttributes.ContentState(
-                status: body["status"] as? String ?? current.status,
-                distanceMeters: body["distanceMeters"] as? Double ?? current.distanceMeters,
-                durationSeconds: body["durationSeconds"] as? Double ?? current.durationSeconds,
-                progress: min(max(body["progress"] as? Double ?? current.progress, 0), 1)
-            )
-            let token = armDeadline(
-                Coordinator.liveActivityDeadline,
-                callbackId: callbackId,
-                error: "Activity.update did not return within \(Int(Coordinator.liveActivityDeadline))s"
-            )
-            Task {
-                await activity.update(ActivityContent(state: state, staleDate: nil))
-                await MainActor.run { [weak self] in
-                    guard let self, self.claimDeadline(token) else { return }
-                    self.resolveCallback(callbackId, result: ["updated": true])
-                }
-            }
+            liveActivity(method: "update", args: [body["id"] ?? NSNull(), body], callbackId: callbackId)
         }
-
         private func endLiveActivity(body: [String: Any], callbackId: String?) {
-            guard #available(iOS 16.2, *) else {
-                resolveCallback(callbackId, result: ["ended": false])
-                return
-            }
-            let activities = Activity<CraftActivityAttributes>.activities
-            let activity: Activity<CraftActivityAttributes>
-            if let activityId = body["id"] as? String {
-                guard let matchingActivity = activities.first(where: { $0.id == activityId }) else {
-                    rejectCallback(callbackId, error: "No Live Activity with id \(activityId) is running")
-                    return
-                }
-                activity = matchingActivity
-            } else {
-                guard let currentActivity = activities.first else {
-                    resolveCallback(callbackId, result: ["ended": false])
-                    return
-                }
-                activity = currentActivity
-            }
-            let hasFinalState = body["status"] != nil
-                || body["distanceMeters"] != nil
-                || body["durationSeconds"] != nil
-                || body["progress"] != nil
-            let finalContent: ActivityContent<CraftActivityAttributes.ContentState>?
-            if hasFinalState {
-                let current = activity.content.state
-                let state = CraftActivityAttributes.ContentState(
-                    status: body["status"] as? String ?? current.status,
-                    distanceMeters: body["distanceMeters"] as? Double ?? current.distanceMeters,
-                    durationSeconds: body["durationSeconds"] as? Double ?? current.durationSeconds,
-                    progress: min(max(body["progress"] as? Double ?? current.progress, 0), 1)
-                )
-                finalContent = ActivityContent(state: state, staleDate: nil)
-            } else {
-                finalContent = nil
-            }
-            let token = armDeadline(
-                Coordinator.liveActivityDeadline,
-                callbackId: callbackId,
-                error: "Activity.end did not return within \(Int(Coordinator.liveActivityDeadline))s"
-            )
-            Task {
-                await activity.end(finalContent, dismissalPolicy: .default)
-                await MainActor.run { [weak self] in
-                    guard let self, self.claimDeadline(token) else { return }
-                    self.resolveCallback(callbackId, result: ["ended": true])
-                }
-            }
+            liveActivity(method: "end", args: [body["id"] ?? NSNull(), body], callbackId: callbackId)
         }
 
         // MARK: - Screen Capture

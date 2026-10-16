@@ -981,7 +981,17 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('startLiveActivity')
     expect(swift).toContain('craft.liveActivity = {')
     expect(swift).toContain("{id: idOrState}")
-    expect(swift.split('activities.first(where: { $0.id == activityId })')).toHaveLength(3)
+    const activities = readFileSync(join(output, 'Sources', 'CraftLiveActivities.swift'), 'utf8')
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const widget = readFileSync(join(output, 'WidgetExtension', 'WildLoopLiveActivity.swift'), 'utf8')
+    expect(activities).toContain('activities.first(where: { $0.id == id })')
+    expect(activities).toContain('activities.first(where: { $0.attributes.activityId == key })')
+    expect(actions).toContain('values.append("liveActivities")')
+    expect(actions).toContain('case ("LiveActivities", _):')
+    expect(widget).toContain('Text(timerInterval:')
+    expect(widget).toContain('.widgetURL(')
+    expect(widget).toContain('context.state.paused == true')
+    expect(widget).toContain('context.state.showsDistance != false')
     expect(swift).toContain('endLiveActivity(body: body, callbackId: callbackId)')
     expect(swift).toContain('saveHealthWorkout')
     expect(readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')).toContain('HKWorkoutRouteBuilder')
@@ -1917,22 +1927,22 @@ describe('Craft iOS builder', () => {
     // It reports a timeout, never the work having happened.
     expect(swift).toContain('self.rejectCallback(callbackId, error: error, code: "TIMEOUT")')
 
-    // Five call sites, each with its own budget, all well under the 30s the
+    // Four call sites, each with its own budget, all well under the 30s the
     // page's own _invoke allows so the caller hears the native answer.
     for (const [constant, uses] of [
       ['notificationSettingsDeadline', 1],
       ['pushRegistrationDeadline', 1],
       ['storeKitDeadline', 1],
       // Live Activities share one budget across update and end.
-      ['liveActivityDeadline', 2],
+      ['liveActivityDeadline', 1],
     ] as const) {
       expect(swift).toContain(`private static let ${constant}: TimeInterval =`)
       expect(swift.match(new RegExp(`Coordinator\\.${constant},`, 'g'))?.length).toBe(uses)
     }
-    // Every arm has a claim. Five sites arm; the claims are those five plus
+    // Every arm has a claim. Four sites arm; the claims are those four plus
     // the push helper's own and the two places it is reached through.
-    expect(swift.match(/armDeadline\(/g)?.length).toBe(6)
-    expect(swift.match(/claimDeadline\(/g)?.length).toBe(8)
+    expect(swift.match(/armDeadline\(/g)?.length).toBe(5)
+    expect(swift.match(/claimDeadline\(/g)?.length).toBe(7)
 
     // The push registration's second call used to overwrite the first's
     // callbackId, so the first promise never settled at all.

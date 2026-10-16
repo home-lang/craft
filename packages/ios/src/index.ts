@@ -1327,6 +1327,7 @@ function writeShell(output: string, config: CraftConfig): void {
     readFileSync(join(TEMPLATES_DIR, 'CraftCrashReporter.swift'), 'utf-8').replace(/\{\{CRAFT_VERSION\}\}/g, CRAFT_VERSION),
   )
 
+  cpSync(join(TEMPLATES_DIR, 'CraftLiveActivities.swift'), join(output, 'Sources', 'CraftLiveActivities.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftActivityAttributes.swift'), join(output, 'Shared', 'CraftActivityAttributes.swift'))
   for (const [enabled, folder, template, filename] of [
     [config.enableLiveActivities, 'WidgetExtension', 'CraftLiveActivityWidget.swift.template', `${name}LiveActivity.swift`],

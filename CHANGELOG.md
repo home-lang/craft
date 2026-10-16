@@ -1,5 +1,22 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.194...v0.0.195)
+
+## 🚀 Features
+
+- **mobile**: share ActivityKit lifecycle across native and web hosts ([e612375](https://github.com/craft-native/craft/commit/e612375)) _(by Chris Breuer)_
+- **ios**: add native session Live Activity presentations ([d91bf7b](https://github.com/craft-native/craft/commit/d91bf7b)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **mobile**: preserve fractional intrinsic image measurements ([53b630c](https://github.com/craft-native/craft/commit/53b630c)) _(by Chris Breuer)_
+- **android**: account for pixel snapping in constrained widths ([881ab5c](https://github.com/craft-native/craft/commit/881ab5c)) _(by Chris Breuer)_
+- **android**: compare layout callbacks at physical pixel precision ([dc53143](https://github.com/craft-native/craft/commit/dc53143)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.193...v0.0.194)
 
 ## 🚀 Features
