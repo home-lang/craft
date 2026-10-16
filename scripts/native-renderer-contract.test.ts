@@ -699,6 +699,9 @@ describe('native renderer component contract', () => {
     expect(androidNavigationReadme).toContain('`CraftNativeIconView`')
     expect(android).toContain('"500" -> 500')
     expect(android).toContain('Typeface.create("sans-serif", weight, false)')
+    expect(android).toContain('when (craftNativeFontWeight(style.opt("fontWeight")))')
+    expect(ios).toContain('private func craftNativeFontWeight(_ value: Any?) -> String?')
+    expect(ios).toContain('switch craftNativeFontWeight(style["fontWeight"])')
     expect(ios).toContain('case "500": weight = .medium')
   })
 

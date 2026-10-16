@@ -21,6 +21,13 @@ private func number(_ value: Any?) -> CGFloat? {
     return value.isFinite ? value : nil
 }
 
+private func craftNativeFontWeight(_ value: Any?) -> String? {
+    if let value = value as? String { return value }
+    guard !(value is Bool), let number = value as? NSNumber, number.doubleValue.isFinite else { return nil }
+    let integer = number.doubleValue.rounded()
+    return integer == number.doubleValue ? String(Int(integer)) : nil
+}
+
 private func craftNativePickerValue(_ value: Any?) -> String? {
     if let value = value as? String, !value.isEmpty { return value }
     if let value = value as? NSNumber, value.doubleValue.isFinite { return String(value.doubleValue) }
@@ -6610,7 +6617,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         (icon as? CraftNativeIconView)?.defaultBox = box == nil && fontSize == nil ? 20 : nil
         let pointSize = fontSize ?? (box ?? 20) * 0.84
         let weight: UIImage.SymbolWeight
-        switch style["fontWeight"] as? String {
+        switch craftNativeFontWeight(style["fontWeight"]) {
         case "100": weight = .ultraLight
         case "200": weight = .thin
         case "300": weight = .light

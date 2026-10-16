@@ -165,6 +165,12 @@ private fun craftNativeNumber(value: Any?): Double? = (value as? Number)
     ?.toDouble()
     ?.takeIf { it.isFinite() }
 
+private fun craftNativeFontWeight(value: Any?): String? = when (value) {
+    is String -> value
+    is Number -> value.toDouble().takeIf { it.isFinite() && it % 1.0 == 0.0 }?.toInt()?.toString()
+    else -> null
+}
+
 internal fun craftNativePadding(style: JSONObject?, name: String, fallback: Int, density: Float): Int {
     val value = craftNativeNumber(style?.opt(name)) ?: Double.NaN
     val pixels = value * density
@@ -6204,7 +6210,7 @@ class MainActivity : AppCompatActivity() {
         )
         view.vector = vector
         view.text = if (vector != null) "" else androidIconGlyph(symbol)
-        val weight = when (style.optString("fontWeight")) {
+        val weight = when (craftNativeFontWeight(style.opt("fontWeight"))) {
             "100" -> 100
             "200" -> 200
             "300" -> 300
