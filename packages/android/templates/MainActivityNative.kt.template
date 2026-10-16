@@ -5356,9 +5356,8 @@ class MainActivity : AppCompatActivity() {
                 val animating = props.optBoolean("animating", true)
                 isIndeterminate = animating
                 visibility = if (!animating && props.optBoolean("hidesWhenStopped", true)) View.GONE else View.VISIBLE
-                craftNativeOptionalString(props.opt("color"))
+                indeterminateTintList = craftNativeOptionalString(props.opt("color"))
                     ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
-                    ?: run { indeterminateTintList = null }
             }
             "Icon" -> (previous as? CraftNativeIconView ?: CraftNativeIconView(this)).apply {
                 configureIcon(this, props, style)

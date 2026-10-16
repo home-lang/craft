@@ -1004,7 +1004,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('?: run { progressBackgroundTintList = null }')
     expect(android).toContain('?: run { thumbTintList = null }')
     expect(android).toContain('craftNativeOptionalString(props.opt("color"))')
-    expect(android).toContain('?: run { indeterminateTintList = null }')
+    expect(android).toContain('indeterminateTintList = craftNativeOptionalString(props.opt("color"))')
     expect(guide).toContain('`Slider` accepts `minimumTrackTintColor`')
   })
 
@@ -2221,6 +2221,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('isIndeterminate = animating')
     expect(android).toContain('props.optBoolean("hidesWhenStopped", true)')
     expect(android).toContain('if (style.optString("display") == "none" || (!animating && hidesWhenStopped))')
+    expect(android).toContain('indeterminateTintList = craftNativeOptionalString(props.opt("color"))')
+    expect(androidNavigationTest).toContain('authored activity-indicator color was not applied')
   })
 
   it('snaps controlled slider values on initial render across hosts', () => {

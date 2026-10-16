@@ -910,6 +910,8 @@ class NativeNavigationTest {
             }
             awaitText(activity, "slider-completions", "Slider completions: 1")
             assertTrue("native indicator should be a ProgressBar", awaitView(activity, "native-indicator") is ProgressBar)
+            val nativeIndicator = awaitView(activity, "native-indicator") as ProgressBar
+            assertEquals("authored activity-indicator color was not applied", Color.rgb(0x22, 0xc5, 0x5e), nativeIndicator.indeterminateTintList?.getColorForState(intArrayOf(), Color.TRANSPARENT))
             val stoppedIndicator = awaitProgressBar(activity, "stopped-indicator", "visible and stopped") {
                 it.isShown && !it.isIndeterminate
             }

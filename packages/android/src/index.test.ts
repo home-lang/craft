@@ -356,7 +356,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('?: run { progressBackgroundTintList = null }')
       expect(nativeActivity).toContain('?: run { thumbTintList = null }')
       expect(nativeActivity).toContain('craftNativeOptionalString(props.opt("color"))')
-      expect(nativeActivity).toContain('?: run { indeterminateTintList = null }')
+      expect(nativeActivity).toContain('indeterminateTintList = craftNativeOptionalString(props.opt("color"))')
       expect(nativeActivity).toContain('inputHintDefaults.getOrPut(this)')
       expect(nativeActivity).toContain('inputHighlightDefaults.getOrPut(this)')
       expect(nativeActivity).toContain('setHintTextColor(')
