@@ -1051,13 +1051,16 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps native text truncation props aligned across hosts', () => {
-    expect(ios).toContain('label.numberOfLines = max(0, (props["numberOfLines"] as? NSNumber)?.intValue ?? 0)')
+    expect(ios).toContain('label.numberOfLines = max(0, Int(number(props["numberOfLines"]) ?? 0))')
     expect(ios).toContain('label.lineBreakMode = textLineBreakMode(props["ellipsizeMode"])')
     expect(ios).toContain('case "middle": return .byTruncatingMiddle')
     expect(android).toContain('maxLines = craftNativeInt(props.opt("numberOfLines"), 0).takeIf { it > 0 } ?: Int.MAX_VALUE')
     expect(android).toContain('"middle" -> TextUtils.TruncateAt.MIDDLE')
     expect(android).toContain('"tail" -> TextUtils.TruncateAt.END')
     expect(guide).toContain('`Text` supports positive `numberOfLines` values')
+    expect(navigationHome).toContain('testID="boolean-number-lines"')
+    expect(iosNavigationTest).toContain('boolean numberOfLines was treated as numeric')
+    expect(androidNavigationTest).toContain('boolean numberOfLines was treated as numeric')
   })
 
   it('preserves authored button label casing across hosts', () => {

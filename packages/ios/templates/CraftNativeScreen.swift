@@ -5681,7 +5681,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             result.isUserInteractionEnabled = false
         case "Text":
             let label = result as! UILabel
-            label.numberOfLines = max(0, (props["numberOfLines"] as? NSNumber)?.intValue ?? 0)
+            label.numberOfLines = max(0, Int(number(props["numberOfLines"]) ?? 0))
             label.lineBreakMode = textLineBreakMode(props["ellipsizeMode"])
             (label as? CraftNativeLabel)?.insets = paddingInsets(style)
             configureText(label, text: children.compactMap { $0 as? String }.joined(), style: style)

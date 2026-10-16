@@ -817,6 +817,9 @@ final class NativeNavigationUITests: XCTestCase {
         let booleanFontSizeText = app.staticTexts["boolean-font-size-text"]
         XCTAssertTrue(booleanFontSizeText.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(booleanFontSizeText.frame.height, 10, "boolean font size was treated as a numeric style")
+        let booleanNumberLines = app.staticTexts["boolean-number-lines"]
+        XCTAssertTrue(booleanNumberLines.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(booleanNumberLines.frame.height, 24, "boolean numberOfLines was treated as numeric")
         let nestedShrinkRowText = app.staticTexts["nested-shrink-row-text"]
         let nestedShrinkColumnText = app.staticTexts["nested-shrink-column-text"]
         XCTAssertTrue(nestedShrinkColumnText.waitForExistence(timeout: 5))

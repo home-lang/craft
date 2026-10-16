@@ -856,6 +856,7 @@ function toggleScreenBackground() {
       <Text testID="boolean-width-text" style={{"width":true,"height":20}}>boolean width is ignored</Text>
       <Text testID="boolean-font-size-text" style={{"fontSize":false}}>boolean font size is ignored</Text>
     </View>
+    <Text testID="boolean-number-lines" numberOfLines={true} style={{"width":120}}>line one wraps across line two and line three</Text>
     <View testID="nested-shrink-row-parent" style={{"width":140,"height":60,"flexDirection":"row","backgroundColor":"#553b62"}}>
       <View testID="nested-shrink-row" style={{"width":100,"height":60,"flexDirection":"row","backgroundColor":"#6d4c7d"}}>
         <Text testID="nested-shrink-row-text" style={{"width":80,"height":24}}>wide row label</Text>
