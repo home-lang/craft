@@ -146,6 +146,7 @@ describe('the native app shell in a generated project', () => {
           enablePushNotifications: true,
           googleServicesFile: services,
           healthConnect: { read: ['steps', 'mindful'], write: ['mindful'] },
+          devServerURL: 'https://example.com/m',
           nativeScreens: { '/m': 'Today', '/m/workout/:id': 'Workout' },
           tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }],
           nativeApp: '__app',
