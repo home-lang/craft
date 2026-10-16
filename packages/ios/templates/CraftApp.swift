@@ -936,6 +936,7 @@ struct CraftTabBarView: View {
                                 .foregroundStyle(Color.primary)
                                 .frame(width: 62, height: 62)
                         }
+                            .contentShape(Rectangle())
                             .overlay(alignment: .topTrailing) {
                                 if let badge = accessory.badge {
                                     Text(badge)
