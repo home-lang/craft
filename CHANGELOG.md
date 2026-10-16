@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.195...v0.0.196)
+
+## 🐛 Bug Fixes
+
+- **mobile**: reconcile intrinsic control and list measurements ([7ffad50](https://github.com/craft-native/craft/commit/7ffad50)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/device-ci-publication ([5c1e7d1](https://github.com/craft-native/craft/commit/5c1e7d1)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.194...v0.0.195)
 
 ## 🚀 Features
