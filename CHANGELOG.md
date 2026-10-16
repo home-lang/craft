@@ -1,5 +1,21 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.199...v0.0.200)
+
+## 🐛 Bug Fixes
+
+- **ios**: complete and cancel interactive native tab transitions ([32d59a9](https://github.com/craft-native/craft/commit/32d59a9)) _(by Chris Breuer)_
+- **updater**: reject missing bundles before invoking codesign ([3e1a797](https://github.com/craft-native/craft/commit/3e1a797)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: assert focus on the field receiving input ([a181ed9](https://github.com/craft-native/craft/commit/a181ed9)) _(by Chris Breuer)_
+- **mobile**: separate image load recovery and tint feedback ([6147cc1](https://github.com/craft-native/craft/commit/6147cc1)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.198...v0.0.199)
 
 ## 🐛 Bug Fixes
