@@ -20,6 +20,7 @@
 
 ## 📚 Documentation
 
+- record default simulator test invocation ([a823efd](https://github.com/craft-native/craft/commit/a823efd)) _(by Chris Breuer)_
 - include UIKit fixture metadata verification ([954683f](https://github.com/craft-native/craft/commit/954683f)) _(by Chris Breuer)_
 - record simulator compatibility and hybrid rendering fixes ([2431f89](https://github.com/craft-native/craft/commit/2431f89)) _(by Chris Breuer)_
 - record complete parallel device verification ([eeb471f](https://github.com/craft-native/craft/commit/eeb471f)) _(by Chris Breuer)_
@@ -29,6 +30,7 @@
 
 ## 🧪 Tests
 
+- **ios**: await cold WebKit startup with the device suite budget ([0705910](https://github.com/craft-native/craft/commit/0705910)) _(by Chris Breuer)_
 - **ios**: request Xcode repetitions only for stress runs ([0e3a1e9](https://github.com/craft-native/craft/commit/0e3a1e9)) _(by Chris Breuer)_
 - **ios**: declare complete UIKit test target metadata ([51f2f5a](https://github.com/craft-native/craft/commit/51f2f5a)) _(by Chris Breuer)_
 - **ios**: use ad hoc signing for UIKit simulator fixtures ([b1d8b00](https://github.com/craft-native/craft/commit/b1d8b00)) _(by Chris Breuer)_
