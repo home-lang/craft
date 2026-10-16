@@ -3464,7 +3464,7 @@ private final class CraftNativeSvgView: UIView {
     var viewBox: CGRect? {
         let props = drawing["props"] as? [String: Any] ?? [:]
         guard let box = props["viewBox"] as? [Any], box.count == 4 else { return nil }
-        let n = box.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+        let n = box.compactMap(number)
         guard n.count == 4, n.allSatisfy(\.isFinite), n[2] > 0, n[3] > 0 else { return nil }
         return CGRect(x: n[0], y: n[1], width: n[2], height: n[3])
     }
@@ -3501,9 +3501,7 @@ private final class CraftNativeSvgView: UIView {
             let style = node["style"] as? [String: Any] ?? [:]
             func value(_ key: String) -> Any? { style[key] ?? props[key] }
             func finite(_ raw: Any?) -> CGFloat? {
-                guard let number = raw as? NSNumber else { return nil }
-                let value = CGFloat(truncating: number)
-                return value.isFinite ? value : nil
+                return number(raw)
             }
             func string(_ raw: Any?) -> String? {
                 if let value = raw as? String { return value }
@@ -3662,7 +3660,7 @@ private final class CraftNativeSvgView: UIView {
 
     static func path(_ value: Any?) -> UIBezierPath? {
         guard let list = value as? [Any] else { return nil }
-        let n = list.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+        let n = list.compactMap(number)
         guard !n.isEmpty, n.count == list.count, n.allSatisfy(\.isFinite) else { return nil }
         let path = UIBezierPath()
         var i = 0

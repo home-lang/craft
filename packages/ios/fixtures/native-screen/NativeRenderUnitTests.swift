@@ -591,6 +591,23 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(map?.overlays.count, 0, "Boolean map coordinates were treated as numeric")
     }
 
+    func testSvgIgnoresBooleanNumericGeometry() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        controller.render([
+            "type": "View",
+            "children": [[
+                "type": "Svg",
+                "props": ["testID": "boolean-svg", "viewBox": [true, 0, 24, 24]],
+                "style": ["width": 40],
+            ]],
+        ])
+        controller.view.layoutIfNeeded()
+        let svg = try XCTUnwrap(find("boolean-svg", below: controller.view))
+        XCTAssertLessThanOrEqual(svg.frame.height, 1, "Boolean SVG viewBox values were treated as numeric")
+    }
+
     func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace() throws {
         // A chart behind an `:if` (stx): the drawing and its shapes arrive in
         // one batch after the first paint. The shapes were refused as

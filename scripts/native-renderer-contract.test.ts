@@ -146,6 +146,8 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('fontWeight?: string | number')
     expect(componentTypes).toContain("textAnchor?: 'start' | 'middle' | 'end' | string")
     expect(ios).toContain('let box = props["viewBox"] as? [Any]')
+    expect(ios).toContain('let n = box.compactMap(number)')
+    expect(iosNativeUnitTests).toContain('func testSvgIgnoresBooleanNumericGeometry()')
     expect(android).toContain('drawing.optJSONObject("props")?.optJSONArray("viewBox")')
   })
 
