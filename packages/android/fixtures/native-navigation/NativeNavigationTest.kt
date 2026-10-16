@@ -142,19 +142,29 @@ class NativeNavigationTest {
     }
 
     private fun pullToRefresh(host: SwipeRefreshLayout) {
-        val downTime = SystemClock.uptimeMillis()
-        val x = host.width / 2f
-        val startY = 2f
-        val endY = (host.height * 0.9f).coerceAtLeast(120f)
+        var ready = false
+        for (attempt in 0 until 75) {
+            instrumentation.runOnMainSync { ready = host.isLaidOut && host.width > 0 && host.height > 0 }
+            if (ready) break
+            SystemClock.sleep(100)
+        }
+        assertTrue("pull-to-refresh host did not lay out", ready)
         instrumentation.runOnMainSync {
+            val downTime = SystemClock.uptimeMillis()
+            val x = host.width / 2f
+            val startY = 2f
+            val endY = (host.height * 0.9f).coerceAtLeast(240f * host.resources.displayMetrics.density)
             val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, startY, 0)
-            val move = MotionEvent.obtain(downTime, downTime + 16, MotionEvent.ACTION_MOVE, x, endY, 0)
-            val up = MotionEvent.obtain(downTime, downTime + 32, MotionEvent.ACTION_UP, x, endY, 0)
             host.dispatchTouchEvent(down)
-            host.dispatchTouchEvent(move)
-            host.dispatchTouchEvent(up)
             down.recycle()
-            move.recycle()
+            for (step in 1..8) {
+                val y = startY + (endY - startY) * step / 8f
+                val move = MotionEvent.obtain(downTime, downTime + step * 16, MotionEvent.ACTION_MOVE, x, y, 0)
+                host.dispatchTouchEvent(move)
+                move.recycle()
+            }
+            val up = MotionEvent.obtain(downTime, downTime + 144, MotionEvent.ACTION_UP, x, endY, 0)
+            host.dispatchTouchEvent(up)
             up.recycle()
         }
     }
@@ -181,16 +191,18 @@ class NativeNavigationTest {
     }
 
     private fun awaitText(activity: MainActivity, id: String, expected: String): TextView {
+        var actual = "<missing>"
         repeat(75) {
             var matching: TextView? = null
             instrumentation.runOnMainSync {
                 val view = find(activity.window.decorView, id)
+                actual = (view as? TextView)?.text?.toString() ?: "<missing>"
                 if (view is TextView && view.text.toString() == expected) matching = view
             }
             if (matching != null) return matching!!
             SystemClock.sleep(100)
         }
-        throw AssertionError("Timed out waiting for $id to read $expected")
+        throw AssertionError("Timed out waiting for $id to read $expected (actual: $actual)")
     }
 
     private fun awaitLayoutWidth(activity: MainActivity, id: String, expected: Double): Double {
@@ -1001,6 +1013,32 @@ class NativeNavigationTest {
             awaitText(activity, "navigation-lifecycle", "Disposed Ada/2")
         }
         finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
+    fun nativePullToRefreshSurvivesViewReattachment() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        try {
+            click(activity, "open-details")
+            val host = awaitView(activity, "people-list") { it.width > 0 && it.height > 0 } as SwipeRefreshLayout
+            assertTrue("default refresh travel collapsed", host.progressViewEndOffset > host.progressViewStartOffset)
+            assertTrue("native refresh indicator was detached", findType(host, ImageView::class.java) != null)
+            instrumentation.runOnMainSync {
+                val parent = host.parent as ViewGroup
+                val index = parent.indexOfChild(host)
+                parent.removeView(host)
+                parent.addView(host, index)
+            }
+            pullToRefresh(host)
+            awaitText(activity, "people-count", "People: 40; events: 1")
+        } finally {
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
             instrumentation.waitForIdleSync()
         }

@@ -2020,6 +2020,9 @@ private class CraftNativeKeyboardAvoidingView(context: Context) : FrameLayout(co
 
 private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context) {
     val content = CraftNativeFlexLayout(context)
+    // Keep one refresh target across axis changes. Replacing all children of
+    // SwipeRefreshLayout would also detach its own animated indicator.
+    private val scrollContainer = FrameLayout(context)
     private val vertical = ScrollView(context)
     private val horizontal = HorizontalScrollView(context)
     private var horizontalMode: Boolean? = null
@@ -2029,12 +2032,18 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
     private var alwaysBounceHorizontal = true
     private var keyboardShouldPersistTaps = "never"
     private var refreshHandler: (() -> Unit)? = null
+    private var authoredRefreshing: Boolean? = null
+    private val defaultProgressStart = progressViewStartOffset
+    private val defaultProgressEnd = progressViewEndOffset
+    private var configuredProgressOffset: Int? = null
 
     init {
         vertical.isNestedScrollingEnabled = true
         horizontal.isNestedScrollingEnabled = true
         vertical.isFillViewport = true
         horizontal.isFillViewport = true
+        addView(scrollContainer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        setOnChildScrollUpCallback { _, _ -> horizontalMode != true && vertical.canScrollVertically(-1) }
         setOnRefreshListener { refreshHandler?.invoke() }
         // The outer refresh host must stay touch-enabled so its real scroll
         // child can receive gestures even when no pull-to-refresh handler is
@@ -2103,8 +2112,13 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
     fun setRefreshHandler(handler: (() -> Unit)?, refreshing: Boolean) {
         refreshHandler = handler
         isEnabled = true
-        isRefreshing = handler != null && refreshing
-        if (handler == null) isRefreshing = false
+        val requested = handler != null && refreshing
+        // An unchanged false prop must not cancel a native pull before its
+        // onRefresh callback has reached the script.
+        if (handler == null || authoredRefreshing != requested) {
+            authoredRefreshing = requested
+            isRefreshing = requested
+        }
     }
 
     fun setRefreshAppearance(props: JSONObject, density: Float) {
@@ -2115,21 +2129,28 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         if (background != null) setProgressBackgroundColorSchemeColor(craftNativeColor(background))
         else setProgressBackgroundColorSchemeColor(Color.TRANSPARENT)
         val offset = props.optDouble("progressViewOffset", Double.NaN)
-        if (offset.isFinite()) setProgressViewOffset(true, 0, (offset * density).roundToInt())
-        else setProgressViewOffset(false, 0, 0)
+        val requested = if (offset.isFinite()) (offset * density).roundToInt() else null
+        if (configuredProgressOffset != requested) {
+            val wasRefreshing = isRefreshing
+            val shift = requested ?: 0
+            setProgressViewOffset(false, defaultProgressStart + shift, defaultProgressEnd + shift)
+            configuredProgressOffset = requested
+            if (wasRefreshing) isRefreshing = true
+        }
     }
 
-    override fun onDetachedFromWindow() {
-        refreshHandler = null
-        isRefreshing = false
-        super.onDetachedFromWindow()
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        // Navigation may detach and reattach a retained screen. Its handler
+        // belongs to the screen; releaseViewState clears it on disposal.
+        if (authoredRefreshing == true) isRefreshing = true
     }
 
     fun setHorizontal(value: Boolean) {
         if (horizontalMode == value) return
         horizontalMode = value
         (content.parent as? ViewGroup)?.removeView(content)
-        removeAllViews()
+        scrollContainer.removeAllViews()
         val scroller: ViewGroup = if (value) horizontal else vertical
         scroller.removeAllViews()
         content.orientation = if (value) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
@@ -2137,7 +2158,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         scroller.addView(content, if (value)
             ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT)
         else ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        addView(scroller, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        scrollContainer.addView(scroller, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
     /**

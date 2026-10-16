@@ -1,17 +1,31 @@
 import UIKit
 
 private final class CraftNativeFlatListLayout: UICollectionViewFlowLayout {
+    private var preparedExtent: CGFloat?
+
     override func prepare() {
         // Content-size queries can prepare layout before layoutSubviews runs.
         (collectionView as? CraftNativeFlatList)?.updateItemEstimate()
         super.prepare()
+        preparedExtent = collectionView.map { extent(of: $0.bounds) }
+    }
+
+    private func extent(of bounds: CGRect) -> CGFloat {
+        scrollDirection == .vertical ? bounds.width : bounds.height
     }
 
     override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool {
-        guard let current = collectionView?.bounds else { return true }
-        return scrollDirection == .vertical
-            ? abs(current.width - newBounds.width) > .ulpOfOne
-            : abs(current.height - newBounds.height) > .ulpOfOne
+        guard let preparedExtent else { return true }
+        return abs(preparedExtent - extent(of: newBounds)) > .ulpOfOne
+    }
+
+    override func invalidationContext(forBoundsChange newBounds: CGRect) -> UICollectionViewLayoutInvalidationContext {
+        let context = super.invalidationContext(forBoundsChange: newBounds)
+        if shouldInvalidateLayout(forBoundsChange: newBounds), let flow = context as? UICollectionViewFlowLayoutInvalidationContext {
+            flow.invalidateFlowLayoutDelegateMetrics = true
+            flow.invalidateFlowLayoutAttributes = true
+        }
+        return context
     }
 }
 
@@ -196,7 +210,10 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     /// room again as they are.
     func fittingHeight(width: CGFloat) -> CGFloat {
         guard !isScrollEnabled else { return 0 }
-        if abs(bounds.width - width) > 0.5 { frame.size.width = width }
+        if abs(bounds.width - width) > 0.5 {
+            flowLayout.invalidateLayout()
+            frame.size.width = width
+        }
         layoutIfNeeded()
         let content = flowLayout.collectionViewContentSize.height
         return max(0, ceil(content + contentInset.top + contentInset.bottom))
