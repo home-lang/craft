@@ -18,6 +18,7 @@ import type {
   ButtonProps,
   PressableProps,
   ImageProps,
+  ImageBackgroundProps,
   RefreshControlProps,
   StatusBarProps,
   CircleProps,
@@ -182,6 +183,14 @@ describe('Component System', () => {
     // @ts-expect-error Source dimensions are controlled by Image style/layout.
     image.source.height = 240
     expect(image.source.uri).toContain('example.com')
+  })
+
+  it('keeps ImageBackground styling on the shared container contract', () => {
+    const background: ImageBackgroundProps = { source: { uri: 'hero.png' } }
+    // ImageBackground imageStyle is not consumed by either maintained host.
+    // @ts-expect-error Image-specific styling is not part of the native protocol.
+    background.imageStyle = { resizeMode: 'cover' }
+    expect(background.source.uri).toBe('hero.png')
   })
 
   describe('Platform', () => {

@@ -211,7 +211,8 @@ unchecked on the next user toggle.
 mounting ordinary native children in a flex container over the image. Its
 `resizeMode` follows the same `cover`, `contain`, `stretch`, and `center`
 semantics as `Image`; native tiling (`repeat`) is intentionally not part of
-the native contract.
+the native contract. Image presentation is controlled by the shared container
+style; there is no separate `imageStyle` prop in the native protocol.
 
 `Map` is the deliberately small native trail-map primitive. Its children may
 be `MapPolyline` or `MapMarker`; each overlay carries a flat latitude,

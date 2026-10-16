@@ -500,6 +500,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('imageSources[view] == requestKey')
   })
 
+  it('keeps ImageBackground styling on the shared container style', () => {
+    const backgroundProps = componentTypes.match(/export interface ImageBackgroundProps extends ImageProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(backgroundProps).not.toContain('imageStyle?:')
+    expect(ios).toContain('configureStack(background.contentStack, style: style)')
+    expect(android).toContain('configureContainer(content, style)')
+  })
+
   it('keeps image URL policy aligned with the local development fallback', () => {
     expect(ios).toContain('if scheme == "https" { return true }')
     expect(ios).toContain('"localhost", "127.0.0.1", "::1"')

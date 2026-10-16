@@ -627,7 +627,6 @@ export interface MapMarkerProps extends BaseProps {
 }
 
 export interface ImageBackgroundProps extends ImageProps {
-  imageStyle?: ImageStyle | ImageStyle[]
 }
 
 /** Shared paint and accessibility props for DOM-free native SVG nodes. */
