@@ -2546,6 +2546,15 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('testFlatListPagingFollowsProps')
   })
 
+  it('keeps FlatList scrollTarget wired through virtualized hosts', () => {
+    expect(ios).toContain('list.setScrollTarget(props["scrollTarget"])')
+    expect(iosFlatList).toContain('func setScrollTarget(_ value: Any?)')
+    expect(android).toContain('list.setScrollTarget(props.opt("scrollTarget"))')
+    expect(androidFlatList).toContain('fun setScrollTarget(value: Any?)')
+    expect(androidFlatListTest).toContain('acceptsVirtualizedScrollTargets')
+    expect(iosNativeUnitTests).toContain('testFlatListScrollTargetIsAccepted')
+  })
+
   it('routes authored links through both native hosts', () => {
     expect(navigationHome).toContain('<a testID="native-route-link" href="/linked-details">')
     expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')

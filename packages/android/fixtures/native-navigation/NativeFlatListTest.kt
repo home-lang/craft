@@ -228,6 +228,15 @@ class NativeFlatListTest {
     }
 
     @Test
+    fun acceptsVirtualizedScrollTargets() {
+        val list = CraftNativeFlatList(instrumentation.targetContext)
+        list.setScrollTarget(JSONObject().put("id", "row").put("key", "first"))
+        assertTrue("scroll target should remain pending until rows mount", list.isScrollTargetPendingForTest)
+        list.setScrollTarget(null)
+        assertTrue("clearing the target should cancel pending work", !list.isScrollTargetPendingForTest)
+    }
+
+    @Test
     fun usesRenderedHeightsForVariableRows() {
         val context = instrumentation.targetContext
         lateinit var list: CraftNativeFlatList
