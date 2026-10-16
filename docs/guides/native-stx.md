@@ -579,6 +579,13 @@ AndroidX `SwipeRefreshLayout` on Android. Use
 `ScrollView` for bounded content and `FlatList` for data sets that need
 recycling.
 
+`FlatList` also accepts `showsVerticalScrollIndicator`,
+`showsHorizontalScrollIndicator`, `bounces`, `alwaysBounceVertical`, and
+`alwaysBounceHorizontal`. Indicators default to visible. When the bounce-axis
+props are omitted, the list's active axis follows `bounces` and the other axis
+does not, so horizontal and vertical lists retain their native direction by
+default.
+
 `RefreshControl` is a native utility node rather than a visible child: place it
 inside a `ScrollView` when the screen wants the React Native-shaped form. Its
 `refreshing`, `onRefresh`, and `tintColor` props control the platform refresh

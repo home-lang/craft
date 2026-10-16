@@ -194,6 +194,22 @@ class NativeFlatListTest {
     }
 
     @Test
+    fun appliesScrollIndicatorsAndBounceAxes() {
+        val context = instrumentation.targetContext
+        val list = CraftNativeFlatList(context)
+        list.setScrollIndicators(vertical = false, horizontal = true)
+        list.setBounceOptions(enabled = true, vertical = false, horizontal = true)
+        assertTrue("vertical indicator should be hidden", !list.isVerticalScrollBarEnabled)
+        assertTrue("horizontal indicator should be visible", list.isHorizontalScrollBarEnabled)
+        assertEquals(View.OVER_SCROLL_NEVER, list.overScrollMode)
+        list.apply(emptyList(), true, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, null)
+        list.setBounceOptions(enabled = true, vertical = false, horizontal = true)
+        assertEquals(View.OVER_SCROLL_ALWAYS, list.overScrollMode)
+        list.setBounceOptions(enabled = false, vertical = true, horizontal = true)
+        assertEquals(View.OVER_SCROLL_NEVER, list.overScrollMode)
+    }
+
+    @Test
     fun usesRenderedHeightsForVariableRows() {
         val context = instrumentation.targetContext
         lateinit var list: CraftNativeFlatList

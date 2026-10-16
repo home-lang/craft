@@ -722,6 +722,39 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(momentumEndCount, 1)
     }
 
+    func testFlatListScrollIndicatorsAndBounceAxesFollowProps() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([[
+            "type": "FlatList",
+            "props": [
+                "key": "list",
+                "horizontal": true,
+                "showsVerticalScrollIndicator": false,
+                "showsHorizontalScrollIndicator": true,
+                "alwaysBounceVertical": true,
+                "alwaysBounceHorizontal": false,
+            ],
+            "children": [["id": "row", "type": "Text", "children": ["Row"]]],
+        ]]))
+
+        let list = try XCTUnwrap(find(CraftNativeFlatList.self, key: "list", below: controller.view))
+        XCTAssertFalse(list.showsVerticalScrollIndicator)
+        XCTAssertTrue(list.showsHorizontalScrollIndicator)
+        XCTAssertTrue(list.alwaysBounceVertical)
+        XCTAssertFalse(list.alwaysBounceHorizontal)
+
+        controller.render(document([[
+            "type": "FlatList",
+            "props": ["key": "list"],
+            "children": [["id": "row", "type": "Text", "children": ["Row"]]],
+        ]]))
+        XCTAssertTrue(list.showsVerticalScrollIndicator)
+        XCTAssertTrue(list.showsHorizontalScrollIndicator)
+        XCTAssertTrue(list.alwaysBounceVertical)
+        XCTAssertFalse(list.alwaysBounceHorizontal)
+    }
+
     func testFlatListRefreshControlForwardsAndTracksControlledState() {
         let list = CraftNativeFlatList()
         // A refresh control only begins refreshing inside a window.
