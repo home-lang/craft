@@ -2947,6 +2947,16 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         private set
     /** Playback started or stopped, or the choice changed: the activity's PiP params follow. */
     var onPictureInPictureChanged: (() -> Unit)? = null
+    private val progressHandler = Handler(Looper.getMainLooper())
+    private val progressTick = object : Runnable {
+        override fun run() {
+            if (!playing) return
+            fire("onProgress", JSONObject()
+                .put("currentTime", currentPosition.coerceAtLeast(0) / 1000.0)
+                .put("duration", duration.coerceAtLeast(0) / 1000.0))
+            progressHandler.postDelayed(this, 500L)
+        }
+    }
 
     init {
         // Mixed with the music rather than pausing it.
@@ -3009,7 +3019,10 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
 
     override fun start() {
         super.start()
-        setPlaying(true)
+        // VideoView accepts start() before its MediaPlayer is prepared. Do
+        // not announce playback until the player reports that it is actually
+        // running; iOS follows the same rule through AVPlayer's time status.
+        if (runCatching { isPlaying }.getOrDefault(false)) setPlaying(true)
     }
 
     override fun pause() {
@@ -3021,6 +3034,8 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         if (playing == value) return
         playing = value
         fire(if (value) "onPlay" else "onPause")
+        progressHandler.removeCallbacks(progressTick)
+        if (value) progressHandler.post(progressTick)
         onPictureInPictureChanged?.invoke()
     }
 
@@ -3052,6 +3067,7 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     fun stop() {
         // Released with its screen: nothing more is told to it.
         emit = null
+        progressHandler.removeCallbacks(progressTick)
         stopPlayback()
         setPlaying(false)
         sourceUri = ""
