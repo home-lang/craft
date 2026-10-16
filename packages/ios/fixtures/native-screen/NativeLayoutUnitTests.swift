@@ -644,6 +644,35 @@ final class NativeLayoutUnitTests: XCTestCase {
         try assertColor(dark, red: 0x10 / 255, green: 0x18 / 255, blue: 0x20 / 255)
     }
 
+    func testNavigationBarSolidReappliesWhenScreenReappears() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let navigation = UINavigationController(rootViewController: controller)
+        navigation.loadViewIfNeeded()
+        controller.loadViewIfNeeded()
+
+        controller.evaluateScript("craft.navigation.setOptions({ backgroundColor: '#123456', navigationBarSolid: true })")
+        controller.navigationItem.standardAppearance = nil
+        controller.navigationItem.scrollEdgeAppearance = nil
+        controller.navigationItem.compactAppearance = nil
+        controller.navigationItem.compactScrollEdgeAppearance = nil
+
+        // UIKit can discard the item appearances while a push/pop or tab
+        // swipe is settling. The next appearance must restore every slot.
+        controller.viewWillAppear(false)
+
+        let appearances = [
+            try XCTUnwrap(controller.navigationItem.standardAppearance),
+            try XCTUnwrap(controller.navigationItem.scrollEdgeAppearance),
+            try XCTUnwrap(controller.navigationItem.compactAppearance),
+            try XCTUnwrap(controller.navigationItem.compactScrollEdgeAppearance),
+        ]
+        for appearance in appearances {
+            XCTAssertNil(appearance.backgroundEffect)
+            XCTAssertEqual(appearance.shadowColor?.cgColor.alpha ?? 0, 0)
+            try assertColor(appearance.backgroundColor, red: 0x12 / 255, green: 0x34 / 255, blue: 0x56 / 255)
+        }
+    }
+
     func testAProgressFillTakesItsShareOnceItsGrowArrives() throws {
         // HQ's week bar: the shares arrive as a style binding after the first
         // render, 78 to the fill and 22 to the rest of the track.

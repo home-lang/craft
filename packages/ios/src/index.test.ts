@@ -1604,6 +1604,8 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('navigationItem.compactAppearance = appearance')
     expect(screen).toContain('navigationItem.compactScrollEdgeAppearance = appearance')
     expect(screen).toContain('navigationItem.standardAppearance = nil')
+    expect(screen).toContain('override func viewWillAppear(_ animated: Bool)')
+    expect(screen).toContain('        applyNavigationBarAppearance()\n        // Each screen says whether it wants the tab bar')
     expect(readFileSync(join(import.meta.dir, '..', 'fixtures/native-screen/NativeLayoutUnitTests.swift'), 'utf8')).toContain('try assertColor(light, red: 1, green: 1, blue: 1)')
     // A screen that starts with its scroll view runs edge to edge, so what
     // scrolls up goes under the bar, not over its back button; the bottom
