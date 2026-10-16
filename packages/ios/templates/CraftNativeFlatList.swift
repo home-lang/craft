@@ -158,6 +158,8 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     private var refreshHandler: (() -> Void)?
     private let keyboardTapGesture = UITapGestureRecognizer()
     private var keyboardShouldPersistTaps = "never"
+    private var scrollTargetKey: String?
+    private var pendingScrollTarget: (id: String, animated: Bool, attempts: Int)?
 
     init() {
         let layout = CraftNativeFlatListLayout()
@@ -271,6 +273,37 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         updateItemEstimate()
         super.layoutSubviews()
         craftApplyCornerRadius()
+        scrollToPendingTarget()
+    }
+
+    /// Scroll to a virtualized row identified by its native testID, id, or key.
+    /// The row need not be mounted yet; the data snapshot is enough to find its
+    /// index, and UIKit will mount it as part of the scroll.
+    func setScrollTarget(_ value: Any?) {
+        var id: String?
+        var animated = true
+        if let text = value as? String {
+            id = text
+        } else if let target = value as? [String: Any] {
+            id = target["id"] as? String
+            animated = target["animated"] as? Bool ?? true
+        }
+        guard let id, !id.isEmpty else {
+            scrollTargetKey = nil
+            pendingScrollTarget = nil
+            return
+        }
+        let key: String
+        if let target = value as? [String: Any],
+           let data = try? JSONSerialization.data(withJSONObject: target, options: [.sortedKeys]) {
+            key = String(decoding: data, as: UTF8.self)
+        } else {
+            key = id
+        }
+        guard key != scrollTargetKey else { return }
+        scrollTargetKey = key
+        pendingScrollTarget = (id, animated, 0)
+        scrollToPendingTarget()
     }
 
     func setContentContainerStyle(_ raw: [String: Any]?) {
@@ -473,6 +506,8 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         onMomentumScrollBegin = nil
         onMomentumScrollEnd = nil
         pendingThemeRefresh = false
+        scrollTargetKey = nil
+        pendingScrollTarget = nil
     }
 
     func refreshThemeDefaults() {
@@ -543,8 +578,31 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
                 self.refreshThemeDefaults()
                 return
             }
+            self.scrollToPendingTarget()
             self.evaluateEndReached()
         }
+    }
+
+    private func targetIndex(for id: String) -> Int? {
+        items.firstIndex { item in
+            let props = item.node["props"] as? [String: Any] ?? [:]
+            return [props["testID"], props["id"], item.node["id"], item.identity]
+                .compactMap { $0 as? String }
+                .contains(id)
+        }
+    }
+
+    private func scrollToPendingTarget() {
+        guard let target = pendingScrollTarget else { return }
+        guard let index = targetIndex(for: target.id), index < numberOfItems(inSection: 0) else {
+            guard target.attempts < 4 else { pendingScrollTarget = nil; return }
+            pendingScrollTarget = (target.id, target.animated, target.attempts + 1)
+            DispatchQueue.main.async { [weak self] in self?.scrollToPendingTarget() }
+            return
+        }
+        pendingScrollTarget = nil
+        let position: UICollectionView.ScrollPosition = flowLayout.scrollDirection == .horizontal ? .left : .top
+        scrollToItem(at: IndexPath(item: index, section: 0), at: position, animated: target.animated)
     }
 
     private func clamped(_ offset: CGPoint) -> CGPoint {

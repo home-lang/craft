@@ -108,6 +108,8 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     private var scrollEnabled = true
     private var pagingEnabled = false
     private val pagerSnapHelper = PagerSnapHelper()
+    private var scrollTargetKey: String? = null
+    private var pendingScrollTarget: Pair<String, Boolean>? = null
     private var keyboardShouldPersistTaps = "never"
     private var submissionGeneration = 0
     private var isSubmittingList = false
@@ -146,6 +148,9 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     val isPagingEnabledForTest: Boolean
         get() = pagingEnabled
 
+    val isScrollTargetPendingForTest: Boolean
+        get() = pendingScrollTarget != null
+
     override fun onInterceptTouchEvent(event: android.view.MotionEvent): Boolean {
         if (!scrollEnabled) return false
         return super.onInterceptTouchEvent(event)
@@ -176,6 +181,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
+        scrollToPendingTarget(0)
         onLayoutChanged?.invoke()
     }
 
@@ -332,8 +338,42 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
                 pendingThemeRefresh = false
                 refreshThemeDefaults()
             }
+            scrollToPendingTarget(0)
             evaluateEndReached()
         }
+    }
+
+    /** Scroll to a virtualized row identified by its native testID, id, or key. */
+    fun setScrollTarget(value: Any?) {
+        val target: String
+        val animated: Boolean
+        val key: String
+        when (value) {
+            is String -> {
+                target = value.trim()
+                animated = true
+                key = target
+            }
+            is JSONObject -> {
+                target = craftNativeOptionalString(value.opt("id")).orEmpty().trim()
+                animated = value.optBoolean("animated", true)
+                key = value.toString()
+            }
+            else -> {
+                scrollTargetKey = null
+                pendingScrollTarget = null
+                return
+            }
+        }
+        if (target.isBlank()) {
+            scrollTargetKey = null
+            pendingScrollTarget = null
+            return
+        }
+        if (key == scrollTargetKey) return
+        scrollTargetKey = key
+        pendingScrollTarget = target to animated
+        post { scrollToPendingTarget(0) }
     }
 
     fun discardAll() {
@@ -348,6 +388,8 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         recycleItem = null
         endReached = null
         setPagingEnabled(false)
+        scrollTargetKey = null
+        pendingScrollTarget = null
         dataContentSignature = ""
         onScrollEvent = null
         onScrollBeginDrag = null
@@ -376,6 +418,28 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
             }
             else -> LinearLayoutManager(context)
         }
+    }
+
+    private fun targetPosition(id: String): Int? = listAdapter.currentList.indexOfFirst { item ->
+        val props = item.node.optJSONObject("props")
+        listOf(
+            props?.optString("testID"),
+            props?.optString("id"),
+            item.node.optString("id"),
+            item.identity,
+        ).any { it == id }
+    }.takeIf { it >= 0 }
+
+    private fun scrollToPendingTarget(attempt: Int) {
+        val target = pendingScrollTarget ?: return
+        val position = targetPosition(target.first)
+        if (position == null || layoutManager == null || width <= 0 || height <= 0) {
+            if (attempt < 4) postDelayed({ scrollToPendingTarget(attempt + 1) }, 16L)
+            else pendingScrollTarget = null
+            return
+        }
+        pendingScrollTarget = null
+        if (target.second) smoothScrollToPosition(position) else scrollToPosition(position)
     }
 
     private fun evaluateEndReached() {
