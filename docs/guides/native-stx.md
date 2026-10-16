@@ -517,7 +517,8 @@ Use `{ uri: value }` for an image source. Data-image URIs and HTTPS URLs work on
 both platforms. A source with no URI scheme resolves from the iOS asset catalog
 or Android app assets, so the asset must be packaged separately under the same
 name for a shared bundle. Plain HTTP, file URLs, and other schemes are rejected.
-Invalid data, missing bundled images, failed HTTPS downloads, and unsupported
+Image sources are URI strings, data URLs, or packaged asset paths; numeric
+bundled-image IDs are not part of the native contract. Invalid data, missing bundled images, failed HTTPS downloads, and unsupported
 schemes clear stale pixels, log a diagnostic, and expose a short accessibility
 error value. That value remains stable when the native node is reconciled again;
 it is not appended repeatedly. `onLoadStart`, `onLoad`, and `onLoadEnd` report the image lifecycle;

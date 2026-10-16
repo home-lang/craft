@@ -480,7 +480,6 @@ export interface TouchableHighlightProps extends ViewProps {
  */
 export type ImageSource =
   | { uri: string; width?: number; height?: number; headers?: Record<string, string> }
-  | number // For bundled images
 
 /**
  * Image component props.
