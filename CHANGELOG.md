@@ -1,5 +1,43 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.205...v0.0.206)
+
+## 🚀 Features
+
+- **ios**: run bundled device journeys with XCTest evidence ([8911df8](https://github.com/craft-native/craft/commit/8911df8)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **android**: align checkbox indeterminate state ([e2e9781](https://github.com/craft-native/craft/commit/e2e9781)) _(by glennmichael123)_
+- **android**: accept local fractional dates ([8e87985](https://github.com/craft-native/craft/commit/8e87985)) _(by glennmichael123)_
+- **native**: reject invalid picker values ([820e4b0](https://github.com/craft-native/craft/commit/820e4b0)) _(by glennmichael123)_
+- **native**: align malformed checkbox state ([8b2abd8](https://github.com/craft-native/craft/commit/8b2abd8)) _(by glennmichael123)_
+- **native**: reject malformed switch state ([a73f710](https://github.com/craft-native/craft/commit/a73f710)) _(by glennmichael123)_
+- **native**: align SVG text weight inheritance ([862902e](https://github.com/craft-native/craft/commit/862902e)) _(by glennmichael123)_
+- **android**: inherit parent typography for raw text ([1a1926b](https://github.com/craft-native/craft/commit/1a1926b)) _(by glennmichael123)_
+- **android**: ignore invalid switch colors ([6c37769](https://github.com/craft-native/craft/commit/6c37769)) _(by glennmichael123)_
+- **android**: ignore invalid refresh colors ([8ce7c3e](https://github.com/craft-native/craft/commit/8ce7c3e)) _(by glennmichael123)_
+- **android**: ignore invalid control colors ([3888b47](https://github.com/craft-native/craft/commit/3888b47)) _(by glennmichael123)_
+- **android**: ignore invalid slider colors ([b832a85](https://github.com/craft-native/craft/commit/b832a85)) _(by glennmichael123)_
+- **android**: ignore invalid input colors ([b58dd98](https://github.com/craft-native/craft/commit/b58dd98)) _(by glennmichael123)_
+- **android**: clear invalid image tints ([49645b4](https://github.com/craft-native/craft/commit/49645b4)) _(by glennmichael123)_
+- **ios**: honor ImageBackground tint styles ([f792538](https://github.com/craft-native/craft/commit/f792538)) _(by glennmichael123)_
+- **android**: adapt refresh tint to screen theme ([26b35e9](https://github.com/craft-native/craft/commit/26b35e9)) _(by glennmichael123)_
+- **android**: guard FlatList refresh colors ([6f11861](https://github.com/craft-native/craft/commit/6f11861)) _(by glennmichael123)_
+- **native**: honor FlatList refresh control props ([51013fc](https://github.com/craft-native/craft/commit/51013fc)) _(by glennmichael123)_
+- **android**: apply slider tint colors ([27727af](https://github.com/craft-native/craft/commit/27727af)) _(by glennmichael123)_
+- **android**: apply activity indicator colors ([9d20fbf](https://github.com/craft-native/craft/commit/9d20fbf)) _(by glennmichael123)_
+- **android**: reset removed button colors ([ceeb235](https://github.com/craft-native/craft/commit/ceeb235)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: cover FlatList refresh appearance ([daea603](https://github.com/craft-native/craft/commit/daea603)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.204...v0.0.205)
 
 ## 🚀 Features
