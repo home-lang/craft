@@ -38,6 +38,7 @@ describe('Component System', () => {
       accessibilityValue: 'Ada',
       accessibilityState: { selected: true },
       accessibilityRole: 'toolbar',
+      transitionID: 'profile-avatar',
       keyboardType: 'email-address',
       returnKeyType: 'done',
       textContentType: 'username',
@@ -56,6 +57,7 @@ describe('Component System', () => {
     }
     expect(input.accessibilityState?.selected).toBe(true)
     expect(input.accessibilityRole).toBe('toolbar')
+    expect(input.transitionID).toBe('profile-avatar')
     expect(scroll.onScroll).toBeDefined()
     expect(scroll.scrollTarget).toMatchObject({ id: 'today', animated: false })
     expect(scroll.refreshControl?.title).toBe('Pull to refresh')

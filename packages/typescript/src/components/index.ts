@@ -420,6 +420,8 @@ export interface BaseProps {
     | 'menubar'
     | 'toolbar'
     | 'scrollbar'
+  /** Matches a view across an animated state change. */
+  transitionID?: string
   /** Children elements */
   children?: any
 }

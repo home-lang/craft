@@ -150,6 +150,12 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`SectionList` currently follows the same native scroll host')
   })
 
+  it('exposes the shared transition identity used by both hosts', () => {
+    expect(componentTypes).toContain('transitionID?: string')
+    expect(ios).toContain('if let transitionID = props["transitionID"] as? String')
+    expect(android).toContain('control.transitionName = craftNativeOptionalString(props.opt("transitionID"))')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
