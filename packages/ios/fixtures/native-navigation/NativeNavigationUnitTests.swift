@@ -70,8 +70,9 @@ final class NativeNavigationUnitTests: XCTestCase {
     }
 
     override func tearDown() {
-        window.isHidden = true
-        window.rootViewController = nil
+        if let shell { _ = shell.tabTapped("/", reselect: false) }
+        window?.isHidden = true
+        window?.rootViewController = nil
         shell = nil
         window = nil
         CraftHybrid.shared.controller = previous
@@ -183,6 +184,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         // A real drag renders before release; beginning and ending in one
         // run-loop turn can otherwise animate from an uncommitted layer.
         await renderFrames()
+        let releasedAt = CACurrentMediaTime()
         drag(-width * 0.4, phase: .ended)
         if !UIAccessibility.isReduceMotionEnabled {
             let animation = try XCTUnwrap(details.view.layer.animation(forKey: "position") as? CABasicAnimation,
@@ -193,7 +195,6 @@ final class NativeNavigationUnitTests: XCTestCase {
             XCTAssertEqual(from.x - to.x, start, accuracy: 0.5)
             XCTAssertEqual(to.x, animation.isAdditive ? 0 : width * 0.5, accuracy: 0.5)
         }
-        let releasedAt = CACurrentMediaTime()
         let sample = expectation(description: "sample a settling animation frame")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
             let elapsed = CACurrentMediaTime() - releasedAt
