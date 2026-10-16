@@ -218,6 +218,9 @@ final class NativeNavigationUITests: XCTestCase {
     func testNativeLinkOpensRoute() {
         let app = XCUIApplication()
         app.launch()
+        XCTAssertTrue(app.buttons["navigation-increment"].waitForExistence(timeout: 15))
+        app.buttons["navigation-increment"].tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["navigation-home-state"], "Home state: Ada/1"))
         let link = app.links["native-route-link"]
         XCTAssertTrue(link.waitForExistence(timeout: 10))
         reveal(link, in: app.scrollViews["native-root-scroll"])

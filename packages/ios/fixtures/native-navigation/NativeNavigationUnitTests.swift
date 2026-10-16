@@ -96,12 +96,13 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
     }
 
-    private func displayWait(_ description: String, ready: @escaping () -> Bool) async {
+    private func displayWait(_ description: String, diagnostic: @escaping () -> String = { "" }, ready: @escaping () -> Bool) async {
         let finished = expectation(description: description)
         let display = DisplayWait(ready: ready, finished: finished)
         display.start()
-        await fulfillment(of: [finished], timeout: 15)
+        let result = await XCTWaiter.fulfillment(of: [finished], timeout: 15)
         display.stop()
+        XCTAssertEqual(result, .completed, "\(description): \(diagnostic())")
     }
 
     private func renderFrames() async {
@@ -111,9 +112,17 @@ final class NativeNavigationUnitTests: XCTestCase {
     }
 
     private func settle() async {
-        await displayWait("native settle animation completed") { [self] in
+        await displayWait("native settle animation completed", diagnostic: { [self] in
+            shell.children.compactMap { $0 as? UINavigationController }.map {
+                "frame=\($0.view.frame), expected=\(shell.view.bounds), hidden=\($0.view.isHidden), animations=\($0.view.layer.animationKeys() ?? [])"
+            }.joined(separator: "; ")
+        }) { [self] in
             shell.children.compactMap { $0 as? UINavigationController }.allSatisfy {
-                $0.view.frame == shell.view.bounds && ($0.view.layer.animationKeys()?.isEmpty ?? true)
+                let frame = $0.view.frame
+                let bounds = shell.view.bounds
+                return abs(frame.minX - bounds.minX) <= 0.5 && abs(frame.minY - bounds.minY) <= 0.5
+                    && abs(frame.width - bounds.width) <= 0.5 && abs(frame.height - bounds.height) <= 0.5
+                    && ($0.view.layer.animationKeys()?.isEmpty ?? true)
             }
         }
         await renderFrames()
@@ -131,6 +140,35 @@ final class NativeNavigationUnitTests: XCTestCase {
         _ = shell.tabTapped("/details", reselect: false)
         _ = shell.tabTapped("/", reselect: false)
         CraftChrome.shared.selected = "/"
+    }
+
+    func testNativeLinkRetainsItsTapRecognizerAcrossUnrelatedUpdates() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        func document(_ count: Int, enabled: Bool = true) -> [String: Any] {
+            ["type": "View", "children": [
+                ["type": "TouchableOpacity", "props": ["testID": "link-probe", "href": "/linked-details", "accessibilityRole": "link", "accessibilityLabel": "Open details", "disabled": !enabled],
+                 "children": [["type": "Text", "children": ["Open details"]]]],
+                ["type": "Text", "props": ["testID": "unrelated-count"], "children": ["Count: \(count)"]],
+            ]]
+        }
+        func find(_ view: UIView) -> UIView? {
+            if view.accessibilityIdentifier == "link-probe" { return view }
+            return view.subviews.lazy.compactMap { find($0) }.first
+        }
+        controller.render(document(0))
+        let link = try XCTUnwrap(find(controller.view))
+        for count in 1...4 {
+            controller.render(document(count))
+            XCTAssertTrue(find(controller.view) === link, "a count update replaced the native link")
+            XCTAssertEqual(link.gestureRecognizers?.filter { $0 is UITapGestureRecognizer }.count, 1,
+                           "an unrelated screen update removed or duplicated the native link's tap recognizer")
+            XCTAssertTrue(link.isUserInteractionEnabled)
+        }
+        controller.render(document(5, enabled: false))
+        XCTAssertEqual(link.gestureRecognizers?.filter { $0 is UITapGestureRecognizer }.count ?? 0, 0)
+        controller.render(document(6))
+        XCTAssertEqual(link.gestureRecognizers?.filter { $0 is UITapGestureRecognizer }.count, 1)
     }
 
     func testFirstSwipeMountsAnUnvisitedNativeTabBesideTheCurrentScreen() async throws {
