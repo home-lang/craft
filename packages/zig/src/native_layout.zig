@@ -1778,6 +1778,43 @@ test "v4 tree layout applies a resolved grid auto-row minimum" {
     try std.testing.expectEqual(@as(f32, 20), frames[3].y);
 }
 
+test "v4 tree layout carries auto rows through nested grids" {
+    var root_style = emptyLayoutStyleInputV4();
+    root_style.width = 100;
+    root_style.height = 100;
+
+    var grid_style = emptyLayoutStyleInputV4();
+    grid_style.width = 100;
+    grid_style.height = 100;
+    grid_style.grid = 1;
+    grid_style.grid_columns = 2;
+    grid_style.grid_auto_rows = 18;
+
+    var first_style = emptyLayoutStyleInputV4();
+    first_style.intrinsic_width = 10;
+    first_style.intrinsic_height = 4;
+    var second_style = emptyLayoutStyleInputV4();
+    second_style.intrinsic_width = 10;
+    second_style.intrinsic_height = 6;
+    var third_style = emptyLayoutStyleInputV4();
+    third_style.intrinsic_width = 10;
+    third_style.intrinsic_height = 5;
+
+    const nodes = [_]LayoutNodeInputV4{
+        .{ .style = root_style, .first_child = 1, .child_count = 1 },
+        .{ .style = grid_style, .first_child = 2, .child_count = 3 },
+        .{ .style = first_style, .first_child = 0, .child_count = 0 },
+        .{ .style = second_style, .first_child = 0, .child_count = 0 },
+        .{ .style = third_style, .first_child = 0, .child_count = 0 },
+    };
+    var frames: [5]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_layout_tree_v4(100, 100, &nodes, nodes.len, &frames, frames.len));
+    try std.testing.expectEqual(@as(f32, 0), frames[1].x);
+    try std.testing.expectEqual(@as(f32, 0), frames[2].y);
+    try std.testing.expectEqual(@as(f32, 0), frames[3].y);
+    try std.testing.expectEqual(@as(f32, 18), frames[4].y);
+}
+
 test "lays out nested flat trees with absolute descendant frames" {
     var root_style = emptyLayoutStyleInput();
     root_style.width = 200;

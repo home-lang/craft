@@ -372,6 +372,22 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(third.minY - first.minY, 28, accuracy: 1)
     }
 
+    func testNestedGridAutoRowsStayOnTheSharedTreePath() throws {
+        let controller = screen(box("root", style: ["width": 120, "height": 100], [
+            box("grid", style: [
+                "display": "grid", "gridTemplateColumns": "repeat(2, 1fr)",
+                "gridAutoRows": 18, "rowGap": 3, "width": 120, "height": 100
+            ], [
+                box("first", style: ["height": 4]),
+                box("second", style: ["height": 6]),
+                box("third", style: ["height": 5]),
+            ])
+        ]), width: 120)
+        let first = try frame("first", in: controller)
+        let third = try frame("third", in: controller)
+        XCTAssertEqual(third.minY - first.minY, 21, accuracy: 1)
+    }
+
     func testANonScrollingFlatListTakesItsRowsHeightInsideAMarginedParent() throws {
         func row(_ index: Int) -> [String: Any] {
             box("row-\(index)", style: ["flexDirection": "row", "gap": 12, "padding": 12], props: ["listRole": "item", "key": "row-\(index)"], [

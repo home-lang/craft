@@ -109,6 +109,13 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('gridAutoRows?: number | string')
   })
 
+  it('keeps grid-auto-rows on the shared ABI when a grid is nested', () => {
+    expect(nativeLayout).toContain('test "v4 tree layout carries auto rows through nested grids"')
+    expect(iosLayoutUnitTests).toContain('testNestedGridAutoRowsStayOnTheSharedTreePath')
+    expect(ios).toContain('if containsGridAutoRows(root)')
+    expect(android).toContain('val autoRowsAware = nodes.any { it.gridAutoRows != null }')
+  })
+
   it('exposes the implemented native gradient style controls', () => {
     expect(componentTypes).toContain("gradientDirection?: 'to-t' | 'to-tr' | 'to-r' | 'to-br' | 'to-b' | 'to-bl' | 'to-l' | 'to-tl'")
     expect(componentTypes).toContain('gradientFrom?: string')
