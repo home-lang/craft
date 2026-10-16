@@ -542,6 +542,14 @@ export interface TouchableHighlightProps extends ViewProps {
 export type ImageSource =
   | { uri: string; headers?: Record<string, string> }
 
+export interface ImageErrorEvent {
+  nativeEvent: {
+    error: {
+      message: string
+    }
+  }
+}
+
 /**
  * Image component props.
  */
@@ -558,8 +566,8 @@ export interface ImageProps extends BaseProps {
   onLoad?: () => void
   /** Load end handler */
   onLoadEnd?: () => void
-  /** Error handler */
-  onError?: (error: Error) => void
+  /** Error handler; native failures are exposed as nativeEvent.error.message. */
+  onError?: (event: ImageErrorEvent) => void
   /** Default source while loading */
   defaultSource?: ImageSource
   /** Alt text for accessibility */

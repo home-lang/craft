@@ -182,8 +182,13 @@ describe('Component System', () => {
   })
 
   it('keeps image resize modes within the native contract', () => {
-    const image: ImageProps = { source: { uri: 'https://example.com/image.png' }, resizeMode: 'center' }
+    const image: ImageProps = {
+      source: { uri: 'https://example.com/image.png' },
+      resizeMode: 'center',
+      onError: event => expect(event.nativeEvent.error.message).toBe('Image download failed'),
+    }
     expect(image.resizeMode).toBe('center')
+    expect(image.onError).toBeDefined()
     // Native hosts do not implement CSS-style image tiling.
     // @ts-expect-error repeat is intentionally outside the native Image contract
     const tiled: ImageProps = { source: { uri: 'https://example.com/image.png' }, resizeMode: 'repeat' }

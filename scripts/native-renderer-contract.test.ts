@@ -466,6 +466,8 @@ describe('native renderer component contract', () => {
     expect(imageProps).toContain("resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'")
     expect(imageProps).not.toContain("'repeat'")
     expect(componentTypes).toContain('export type ImageSource =')
+    expect(componentTypes).toContain('onError?: (event: ImageErrorEvent) => void')
+    expect(componentTypes).toContain('nativeEvent: {\n    error: {\n      message: string')
     expect(componentTypes).not.toContain('{ uri: string; width?: number; height?: number;')
     expect(componentTypes).not.toContain('| number // For bundled images')
     expect(imageProps).not.toContain('blurRadius?: number')
@@ -2218,6 +2220,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val resolvedTint = tint')
     expect(android).toContain('runCatching { craftNativeColor(it) }.getOrNull()')
     expect(android).toContain('view.clearColorFilter()')
+    expect(ios).toContain('nativeEvent: ["error": ["message": message]]')
+    expect(android).toContain('JSONObject().put("error", JSONObject().put("message", message))')
   })
 
   it('re-measures intrinsic images after a drawable swap on both hosts', () => {
