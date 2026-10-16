@@ -2333,6 +2333,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('Restore the native baseline')
   })
 
+  it('clears Android icon minimums when explicit dimensions are authored', () => {
+    expect(navigationHome).toContain('testID="toggle-icon-size"')
+    expect(navigationHome).toContain('"width":iconSized ? 24 : null')
+    expect(androidNavigationTest).toContain('explicit icon size retained the implicit minimum')
+    expect(android).toContain('val hasExplicitWidth = style.has("width") && !style.isNull("width")')
+    expect(android).toContain('view.minimumWidth = 0')
+  })
+
   it('exercises independent floating iOS navigation buttons in the maintained fixture', () => {
     expect(navigationHome).toContain("id: 'fixture-messages'")
     expect(navigationHome).toContain("id: 'fixture-account'")

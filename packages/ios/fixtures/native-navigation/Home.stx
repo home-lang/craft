@@ -53,6 +53,7 @@ const intrinsicImageStatus = state('intrinsic image pending')
 const buttonAccent = state(false)
 const buttonPadded = state(false)
 const inputPadded = state(false)
+const iconSized = state(false)
 const inputColors = state(true)
 const inputStyleStatus = state('')
 const nameMultiline = state(false)
@@ -269,6 +270,10 @@ function toggleButtonPadding() {
 
 function toggleInputPadding() {
   inputPadded.update(value => !value)
+}
+
+function toggleIconSize() {
+  iconSized.update(value => !value)
 }
 
 function toggleInputColors() {
@@ -568,7 +573,7 @@ function toggleScreenBackground() {
           <text x="12" y="21" text-anchor="middle" dominant-baseline="middle" fill="#111827" stroke="none" font-size="4">SVG</text>
         </g>
       </svg>
-      <Icon testID="native-icon" symbol="sun.max" accessibilityLabel="Native icon" style={{"width":24,"height":24,"color":"#f59e0b"}} />
+      <Icon testID="native-icon" symbol="sun.max" accessibilityLabel="Native icon" style={{"width":iconSized ? 24 : null,"height":iconSized ? 24 : null,"color":"#f59e0b"}} />
       <Video testID="native-video" source={{"uri":""}} style={{"width":120,"height":68}} />
       <Text testID="native-caption" :text="'Image taps: ' + imageTaps" />
       <Text testID="image-status" :text="imageStatus" />
@@ -703,6 +708,7 @@ function toggleScreenBackground() {
     <Button testID="toggle-button-style" accessibilityState={buttonAccessibilityState()} @click="toggleButtonAccent()" style={{"color":buttonAccent ? "#ef4444" : "#22c55e","fontSize":buttonAccent ? 22 : 16}}>Toggle button style</Button>
     <Button testID="toggle-button-padding" @click="toggleButtonPadding()" style={{"paddingHorizontal":buttonPadded ? 32 : null}}>Toggle button padding</Button>
     <Button testID="toggle-input-padding" @click="toggleInputPadding()">Toggle input padding</Button>
+    <Button testID="toggle-icon-size" @click="toggleIconSize()">Toggle icon size</Button>
     <Button testID="toggle-image-tint" @click="toggleImageTint()">Toggle image tint</Button>
     <Switch testID="native-switch" value={switchValue} accessibilityState={switchAccessibilityState()} trackColor={switchTrackColor()} thumbColor="#ffffff" ios_backgroundColor="#475569" @value-change="toggleSwitch($event)" />
     <Switch testID="nullable-switch" :value="null" :checked="true" />

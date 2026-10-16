@@ -954,6 +954,20 @@ class NativeNavigationTest {
             var iconInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { iconInfo = icon.createAccessibilityNodeInfo() }
             assertEquals(ImageView::class.java.name, iconInfo?.className?.toString())
+            val implicitIconMinimum = icon.minimumWidth
+            assertTrue("unsized icon did not receive its implicit box", implicitIconMinimum > 0)
+            click(activity, "toggle-icon-size")
+            repeat(75) {
+                if (icon.minimumWidth == 0) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertEquals("explicit icon size retained the implicit minimum", 0, icon.minimumWidth)
+            click(activity, "toggle-icon-size")
+            repeat(75) {
+                if (icon.minimumWidth == implicitIconMinimum) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertEquals("removing explicit icon size did not restore the implicit minimum", implicitIconMinimum, icon.minimumWidth)
             assertTrue("SectionList did not render an Android ScrollView", containsType(sectionList, ScrollView::class.java))
             assertTrue("SectionList header did not reconcile", awaitView(activity, "native-section-header") is TextView)
             assertTrue("SectionList row did not reconcile", awaitView(activity, "native-section-row") is TextView)

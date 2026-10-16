@@ -6093,10 +6093,18 @@ class MainActivity : AppCompatActivity() {
             else -> Typeface.NORMAL
         }
         view.typeface = Typeface.create("sans-serif", weight)
-        if (!style.has("width") && !style.has("height")) {
+        val hasExplicitWidth = style.has("width") && !style.isNull("width")
+        val hasExplicitHeight = style.has("height") && !style.isNull("height")
+        if (!hasExplicitWidth && !hasExplicitHeight) {
             val box = dp(size.toDouble())
             view.minimumWidth = box
             view.minimumHeight = box
+        } else {
+            // A retained icon may move from the implicit square to an
+            // explicitly sized layout. Do not let the old minimum constrain
+            // the authored dimensions.
+            view.minimumWidth = 0
+            view.minimumHeight = 0
         }
     }
 
