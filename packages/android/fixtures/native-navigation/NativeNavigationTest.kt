@@ -891,6 +891,7 @@ class NativeNavigationTest {
             }
             awaitText(activity, "name-focuses", "Focuses: 1")
             awaitText(activity, "greeting", "Hello Ada")
+            assertTrue("TextInput lost focus after typing", name.isFocused)
             click(activity, "toggle-name-mode")
             val multilineName = awaitView(activity, "name-input") as EditText
             assertFalse("multiline mode did not replace the single-line input", multilineName.isSingleLine)
@@ -919,7 +920,9 @@ class NativeNavigationTest {
             awaitText(activity, "name-submits", "Submits: 2")
             assertSame("View container was replaced after typing", root, awaitView(activity, "root"))
             assertSame("TextInput was replaced after typing", singleLineName, awaitView(activity, "name-input"))
-            assertTrue("TextInput lost focus after typing", singleLineName.isFocused)
+            assertSame("multiline TextInput was replaced after typing", notes, awaitView(activity, "notes-input"))
+            assertTrue("multiline TextInput lost focus after typing", notes.isFocused)
+            assertFalse("blurred TextInput regained focus while typing in notes", singleLineName.isFocused)
             instrumentation.runOnMainSync {
                 notes.requestFocus()
                 notes.clearFocus()
