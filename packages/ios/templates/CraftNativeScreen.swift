@@ -3614,6 +3614,8 @@ private final class CraftNativeIconView: UIImageView {
 
 private final class CraftNativeTextView: UITextView {
     private let placeholderLabel = UILabel()
+    private var nativeTextContainerInset: UIEdgeInsets?
+    private var nativeLineFragmentPadding: CGFloat?
     var placeholder: String? {
         didSet { refreshPlaceholder() }
     }
@@ -3636,6 +3638,20 @@ private final class CraftNativeTextView: UITextView {
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         configurePlaceholder()
+    }
+
+    func applyAuthoredPadding(_ padding: UIEdgeInsets) {
+        if nativeTextContainerInset == nil {
+            nativeTextContainerInset = textContainerInset
+            nativeLineFragmentPadding = textContainer.lineFragmentPadding
+        }
+        if padding == .zero {
+            textContainerInset = nativeTextContainerInset ?? .zero
+            textContainer.lineFragmentPadding = nativeLineFragmentPadding ?? 0
+        } else {
+            textContainerInset = padding
+            textContainer.lineFragmentPadding = 0
+        }
     }
 
     override func layoutSubviews() {
@@ -6447,7 +6463,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         applyAutofill(to: textView, props: props)
         // The style's padding is where the text starts, as in a web textarea.
         let padding = paddingInsets(style)
-        if padding != .zero {
+        if let craftTextView = textView as? CraftNativeTextView {
+            craftTextView.applyAuthoredPadding(padding)
+        } else if padding != .zero {
             if textView.textContainerInset != padding { textView.textContainerInset = padding }
             textView.textContainer.lineFragmentPadding = 0
         }

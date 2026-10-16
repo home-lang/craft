@@ -796,6 +796,21 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(notes.waitForExistence(timeout: 5), "multiline TextInput did not render as UITextView")
         XCTAssertTrue(notes.isEnabled)
         XCTAssertEqual(notes.value as? String, "Draft", "defaultValue was not applied to the native text view")
+        let initialNotesHeight = notes.frame.height
+        let inputPaddingToggle = app.buttons["toggle-input-padding"]
+        reveal(inputPaddingToggle, in: rootScroll)
+        inputPaddingToggle.tap()
+        let expandedNotes = XCTNSPredicateExpectation(predicate: NSPredicate { object, _ in
+            guard let candidate = object as? XCUIElement else { return false }
+            return candidate.frame.height > initialNotesHeight + 1
+        }, object: notes)
+        XCTAssertEqual(XCTWaiter.wait(for: [expandedNotes], timeout: 10), .completed, "multiline input padding was not applied")
+        inputPaddingToggle.tap()
+        let restoredNotes = XCTNSPredicateExpectation(predicate: NSPredicate { object, _ in
+            guard let candidate = object as? XCUIElement else { return false }
+            return abs(candidate.frame.height - initialNotesHeight) <= 1
+        }, object: notes)
+        XCTAssertEqual(XCTWaiter.wait(for: [restoredNotes], timeout: 10), .completed, "multiline input padding was retained after removal")
         let readonly = app.textFields["readonly-input"]
         XCTAssertTrue(readonly.waitForExistence(timeout: 5))
         XCTAssertFalse(readonly.isEnabled)

@@ -2341,6 +2341,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('view.minimumWidth = 0')
   })
 
+  it('restores iOS multiline input insets when authored padding is removed', () => {
+    expect(navigationHome).toContain('"paddingVertical":inputPadded ? 12 : null')
+    expect(iosNavigationTest).toContain('multiline input padding was retained after removal')
+    expect(ios).toContain('func applyAuthoredPadding(_ padding: UIEdgeInsets)')
+    expect(ios).toContain('nativeLineFragmentPadding ?? 0')
+    expect(ios).toContain('craftTextView.applyAuthoredPadding(padding)')
+  })
+
   it('exercises independent floating iOS navigation buttons in the maintained fixture', () => {
     expect(navigationHome).toContain("id: 'fixture-messages'")
     expect(navigationHome).toContain("id: 'fixture-account'")
