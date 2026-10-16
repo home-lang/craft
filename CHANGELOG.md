@@ -1,5 +1,27 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.216...v0.0.217)
+
+## 🐛 Bug Fixes
+
+- **ios**: keep outgoing page reports from clearing swipe previews ([7236139](https://github.com/craft-native/craft/commit/7236139)) _(by Chris Breuer)_
+- **ios**: preserve newer tab input across deferred page reports ([203c4cf](https://github.com/craft-native/craft/commit/203c4cf)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: preserve active swipe selection over page reports ([1b08944](https://github.com/craft-native/craft/commit/1b08944)) _(by Chris Breuer)_
+- **ios**: cover stale incoming selection on swipe cancellation ([5dc2e85](https://github.com/craft-native/craft/commit/5dc2e85)) _(by Chris Breuer)_
+- **ios**: reproduce stale tab selection after newer input ([a22d5cc](https://github.com/craft-native/craft/commit/a22d5cc)) _(by Chris Breuer)_
+- **ios**: exercise accent badges and inherited tint reliably ([41a252b](https://github.com/craft-native/craft/commit/41a252b)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- retain navigation evidence when UIKit reconciliation fails ([8e03128](https://github.com/craft-native/craft/commit/8e03128)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.215...v0.0.216)
 
 ## 🐛 Bug Fixes
