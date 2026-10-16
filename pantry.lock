@@ -9,16 +9,13 @@
         "@stacksjs/bumpx": "^0.2.10",
         "@stacksjs/bunpress": "^0.2.13",
         "@stacksjs/env": "^0.72.50",
-        "better-dx": "^0.2.15"
-      },
-      "system": {
-        "bun.sh": "1.3.14",
-        "ziglang.org": "0.17.0-dev.1963_e00c6c439"
+        "better-dx": "^0.2.38",
+        "buddy-bot": "^0.9.17"
       }
     },
     "benchmarks": {
       "name": "craft-benchmarks",
-      "version": "0.0.207",
+      "version": "0.0.208",
       "dependencies": {
         "mitata": "^1.0.10"
       },
@@ -28,11 +25,11 @@
     },
     "packages/android": {
       "name": "@craft-native/android",
-      "version": "0.0.207"
+      "version": "0.0.208"
     },
     "packages/create-craft": {
       "name": "create-craft",
-      "version": "0.0.207",
+      "version": "0.0.208",
       "dependencies": {
         "@stacksjs/clapp": "^0.2.0"
       },
@@ -42,7 +39,7 @@
     },
     "packages/examples-ts": {
       "name": "craft-examples",
-      "version": "0.0.207",
+      "version": "0.0.208",
       "dependencies": {
         "craft-native": "workspace:*"
       },
@@ -52,30 +49,34 @@
     },
     "packages/ios": {
       "name": "@craft-native/ios",
-      "version": "0.0.207"
+      "version": "0.0.208"
+    },
+    "packages/macos": {
+      "name": "@craft-native/macos",
+      "version": "0.0.208"
     },
     "packages/react": {
       "name": "@craft-native/react",
-      "version": "0.0.207",
+      "version": "0.0.208",
       "devDependencies": {
         "@types/react": "^18.2.0",
         "react": "^18.2.0",
         "tsup": "^8.0.0",
-        "typescript": "^7.0.2"
+        "typescript": "7.1.0-dev.20261011.1"
       }
     },
     "packages/svelte": {
       "name": "@craft-native/svelte",
-      "version": "0.0.207",
+      "version": "0.0.208",
       "devDependencies": {
         "svelte": "^4.0.0",
         "tsup": "^8.0.0",
-        "typescript": "^7.0.2"
+        "typescript": "7.1.0-dev.20261011.1"
       }
     },
     "packages/ts-maps": {
       "name": "@craft-native/ts-maps",
-      "version": "0.0.207",
+      "version": "0.0.208",
       "devDependencies": {
         "@types/bun": "^1.2.0",
         "ts-maps": "^0.3.1",
@@ -84,21 +85,21 @@
     },
     "packages/typescript": {
       "name": "craft-native",
-      "version": "0.0.207",
+      "version": "0.0.208",
       "devDependencies": {
         "@stacksjs/clapp": "^0.2.0",
         "@types/bun": "^1.2.0",
         "@types/node": "^22.0.0",
-        "better-dx": "^0.2.7"
+        "better-dx": "^0.2.38"
       }
     },
     "packages/vue": {
       "name": "@craft-native/vue",
-      "version": "0.0.207",
+      "version": "0.0.208",
       "devDependencies": {
         "tsup": "^8.0.0",
-        "typescript": "^7.0.2",
-        "vue": "^3.3.0"
+        "typescript": "7.1.0-dev.20261011.1",
+        "vue": "^3.5.43"
       }
     }
   },
@@ -108,73 +109,7 @@
       "version": "0.72.56",
       "source": "npm",
       "resolved": "https://registry.npmjs.org/@stacksjs/buddy/-/buddy-0.72.56.tgz",
-      "integrity": "sha512-MXz8TQdyTuVmmVwN05MXr+Hf/Wjmq6+tu52PVwIxaT+7qaWkpgxV4FU5sLdz06ix5E7Dr7e3g9BGwZ3rPONpdA==",
-      "dependencies": {
-        "@stacksjs/actions": "^0.72.56",
-        "@stacksjs/ai": "^0.72.56",
-        "@stacksjs/alias": "^0.72.56",
-        "@stacksjs/analytics": "^0.72.56",
-        "@stacksjs/arrays": "^0.72.56",
-        "@stacksjs/auth": "^0.72.56",
-        "@stacksjs/browser-extension": "^0.72.56",
-        "@stacksjs/build": "^0.72.56",
-        "@stacksjs/cache": "^0.72.56",
-        "@stacksjs/chat": "^0.72.56",
-        "@stacksjs/clapp": "^0.2.12",
-        "@stacksjs/cli": "^0.72.56",
-        "@stacksjs/cloud": "^0.72.56",
-        "@stacksjs/cms": "^0.72.56",
-        "@stacksjs/collections": "^0.72.56",
-        "@stacksjs/config": "^0.72.56",
-        "@stacksjs/database": "^0.72.56",
-        "@stacksjs/desktop-build": "^0.72.56",
-        "@stacksjs/dns": "^0.72.56",
-        "@stacksjs/dnsx": "^0.2.3",
-        "@stacksjs/email": "^0.72.56",
-        "@stacksjs/enums": "^0.72.56",
-        "@stacksjs/env": "^0.72.56",
-        "@stacksjs/error-handling": "^0.72.56",
-        "@stacksjs/events": "^0.72.56",
-        "@stacksjs/git": "^0.72.56",
-        "@stacksjs/gitit": "^0.2.5",
-        "@stacksjs/health": "^0.72.56",
-        "@stacksjs/httx": "^0.1.10",
-        "@stacksjs/image": "^0.72.56",
-        "@stacksjs/lint": "^0.72.56",
-        "@stacksjs/logging": "^0.72.56",
-        "@stacksjs/notifications": "^0.72.56",
-        "@stacksjs/objects": "^0.72.56",
-        "@stacksjs/orm": "^0.72.56",
-        "@stacksjs/path": "^0.72.56",
-        "@stacksjs/payments": "^0.72.56",
-        "@stacksjs/realtime": "^0.72.56",
-        "@stacksjs/router": "^0.72.56",
-        "@stacksjs/rpx": "^0.11.42",
-        "@stacksjs/scheduler": "^0.72.56",
-        "@stacksjs/search-engine": "^0.72.56",
-        "@stacksjs/security": "^0.72.56",
-        "@stacksjs/server": "^0.72.56",
-        "@stacksjs/sites": "^0.72.56",
-        "@stacksjs/skills": "^0.72.56",
-        "@stacksjs/storage": "^0.72.56",
-        "@stacksjs/strings": "^0.72.56",
-        "@stacksjs/testing": "^0.72.56",
-        "@stacksjs/tinker": "^0.72.56",
-        "@stacksjs/ts-cloud": "^0.11.4",
-        "@stacksjs/tunnel": "^0.72.56",
-        "@stacksjs/types": "^0.72.56",
-        "@stacksjs/ui": "^0.72.56",
-        "@stacksjs/utils": "^0.72.56",
-        "@stacksjs/validation": "^0.72.56",
-        "ajv": "^8.20.0",
-        "ajv-formats": "^3.0.1",
-        "ts-pantry": "^0.11.35"
-      },
-      "bin": {
-        "bud": "dist/cli.js",
-        "buddy": "dist/cli.js",
-        "stacks": "dist/cli.js"
-      }
+      "integrity": "sha512-MXz8TQdyTuVmmVwN05MXr+Hf/Wjmq6+tu52PVwIxaT+7qaWkpgxV4FU5sLdz06ix5E7Dr7e3g9BGwZ3rPONpdA=="
     },
     "@stacksjs/bumpx@0.2.10": {
       "name": "@stacksjs/bumpx",
@@ -227,10 +162,7 @@
       "version": "0.72.103",
       "source": "npm",
       "resolved": "https://registry.npmjs.org/@stacksjs/env/-/env-0.72.103.tgz",
-      "integrity": "sha512-5vd5Gtg810opfvFAun7ylTCocvEt4/C9sRrnYF2mjUBV+xesbBnl3tGNxVIvLOHjzJCVLfDnI8qTyIjuKiu69Q==",
-      "dependencies": {
-        "@stacksjs/path": "0.72.103"
-      }
+      "integrity": "sha512-5vd5Gtg810opfvFAun7ylTCocvEt4/C9sRrnYF2mjUBV+xesbBnl3tGNxVIvLOHjzJCVLfDnI8qTyIjuKiu69Q=="
     },
     "@types/bun@1.3.14": {
       "name": "@types/bun",
@@ -286,11 +218,10 @@
         "typescript": "^7.0.2"
       }
     },
-    "bun.sh@1.3.14": {
-      "name": "bun.sh",
-      "version": "1.3.14",
-      "source": "pantry",
-      "resolved": "registry:bun.sh@1.3.14"
+    "buddy-bot@^0.9.17": {
+      "name": "buddy-bot",
+      "version": "^0.9.17",
+      "source": "npm"
     },
     "mitata@1.0.34": {
       "name": "mitata",
@@ -332,12 +263,10 @@
         "periscopic": "^3.1.0"
       }
     },
-    "ts-maps@0.3.2": {
+    "ts-maps@0.2.7": {
       "name": "ts-maps",
-      "version": "0.3.2",
-      "source": "npm",
-      "resolved": "https://registry.npmjs.org/ts-maps/-/ts-maps-0.3.2.tgz",
-      "integrity": "sha512-kNjeSu1nIE1DAEZ7MPFWMcjV7pgGvM6JJk+vyJGsWyo+Zu41OoznMwAWkQoE6Iy5Uh5+7nm5zx5DjA+xwfYMwA=="
+      "version": "0.2.7",
+      "source": "npm"
     },
     "tsup@8.5.1": {
       "name": "tsup",
@@ -381,14 +310,13 @@
         "typescript"
       ]
     },
-    "typescript@7.1.0-dev.20260708.3": {
+    "typescript@5.9.3": {
       "name": "typescript",
-      "version": "7.1.0-dev.20260708.3",
+      "version": "5.9.3",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-7.1.0-dev.20260708.3.tgz",
-      "integrity": "sha512-XZJ/eynNOqyE2tz8kkCZO8x7CmJBp40c1ljuBgMotrIFfjK4uH0Br2e94FaXr29q7CvwpaL+CNCW4DynxuNCeA==",
       "bin": {
-        "tsc": "./bin/tsc"
+        "tsc": "./bin/tsc",
+        "tsserver": "./bin/tsserver"
       }
     },
     "very-happy-dom@0.1.10": {
@@ -417,12 +345,6 @@
       "optionalPeers": [
         "typescript"
       ]
-    },
-    "ziglang.org@0.17.0-dev.1963_e00c6c439": {
-      "name": "ziglang.org",
-      "version": "0.17.0-dev.1963_e00c6c439",
-      "source": "pantry",
-      "resolved": "registry:ziglang.org@0.17.0-dev.1963_e00c6c439"
     }
   }
 }

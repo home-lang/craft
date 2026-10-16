@@ -1,5 +1,25 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.207...v0.0.208)
+
+## 🚀 Features
+
+- **mobile**: add a destination beside the tab pill ([8fadbe9](https://github.com/craft-native/craft/commit/8fadbe9)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **crypto**: bridge Ed25519 APIs across Zig snapshots ([d1a34d8](https://github.com/craft-native/craft/commit/d1a34d8)) _(by glennmichael123)_
+- **android**: keep layout alignment strings typed ([3fcaf15](https://github.com/craft-native/craft/commit/3fcaf15)) _(by glennmichael123)_
+- **android**: keep view styles typed ([889df54](https://github.com/craft-native/craft/commit/889df54)) _(by glennmichael123)_
+- **android**: keep svg paint strings typed ([069ef9e](https://github.com/craft-native/craft/commit/069ef9e)) _(by glennmichael123)_
+- **android**: keep layout strings typed ([9212f95](https://github.com/craft-native/craft/commit/9212f95)) _(by glennmichael123)_
+- **android**: keep text styles typed ([91bf37c](https://github.com/craft-native/craft/commit/91bf37c)) _(by glennmichael123)_
+- **android**: keep scroll enum props typed ([4713f0c](https://github.com/craft-native/craft/commit/4713f0c)) _(by glennmichael123)_
+
+## Contributors
+
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.206...v0.0.207)
 
 ## 🐛 Bug Fixes
