@@ -843,6 +843,7 @@ class NativeNavigationTest {
             val reportedWidth = awaitLayoutWidth(activity, "layout-status", 180.0)
             assertEquals("layout event must describe the actual native frame", wrapped.width.toDouble() / density.toDouble(), reportedWidth, 0.000001)
             assertEquals("native frame must resize within one physical pixel", 180.0 * density.toDouble(), wrapped.width.toDouble(), 1.0)
+            awaitLayoutWidth(activity, "layout-transform-status", 100.0)
             awaitText(activity, "hidden-layout-status", "Hidden layout events: 0")
             val bounded = awaitView(activity, "layout-min")
             val absolute = awaitView(activity, "layout-absolute")

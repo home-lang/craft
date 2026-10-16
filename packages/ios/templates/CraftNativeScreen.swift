@@ -6119,6 +6119,19 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private var layoutEventsScheduled = false
 
+    /// UIView.frame is undefined while a transform is applied. onLayout is
+    /// the authored layout in the parent coordinate space, matching Android's
+    /// left/top/right/bottom values rather than the transformed visual bounds.
+    private func layoutFrame(of view: UIView) -> CGRect {
+        guard !view.transform.isIdentity else { return view.frame }
+        return CGRect(
+            x: view.center.x - view.bounds.width / 2,
+            y: view.center.y - view.bounds.height / 2,
+            width: view.bounds.width,
+            height: view.bounds.height
+        )
+    }
+
     /// A view inside the screen moved: report onLayout once the pass that
     /// moved it is over, however deep it was.
     fileprivate func scheduleLayoutEvents() {
@@ -6134,7 +6147,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func emitLayoutEvents(for node: RenderedNode) {
         let id = ObjectIdentifier(node.view)
         if let handler = layoutHandlers[id], isEffectivelyVisible(node.view) {
-            let frame = node.view.frame
+            let frame = layoutFrame(of: node.view)
             if lastLayoutFrames[id] != frame {
                 lastLayoutFrames[id] = frame
                 send(type: "EVENT", payload: [

@@ -1090,6 +1090,9 @@ describe('native renderer component contract', () => {
   it('keeps responsive layout events aligned across hosts', () => {
     expect(ios).toContain('events["onLayout"]')
     expect(ios).toContain('lastLayoutFrames[id] != frame')
+    expect(ios).toContain('private func layoutFrame(of view: UIView) -> CGRect')
+    expect(ios).toContain('guard !view.transform.isIdentity else { return view.frame }')
+    expect(ios).toContain('let frame = layoutFrame(of: node.view)')
     expect(ios).toContain('isEffectivelyVisible(node.view)')
     expect(ios).toContain('if current.isHidden { return false }')
     // A key is a node's own, or a lone wrapped child's: never a sibling-
@@ -1124,8 +1127,11 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('"nativeEvent": ["layout": [')
     expect(android).toContain('.put("layout", JSONObject()')
     expect(navigationHome).toContain('testID="hidden-layout-child" @layout="captureHiddenLayout()"')
+    expect(navigationHome).toContain('testID="layout-transform" @layout="captureTransformedLayout($event)"')
     expect(iosNavigationTest).toContain('Hidden layout events: 0')
+    expect(iosNavigationTest).toContain('Transformed layout width: 100')
     expect(androidNavigationTest).toContain('hidden-layout-status", "Hidden layout events: 0"')
+    expect(androidNavigationTest).toContain('layout-transform-status", 100.0')
   })
 
   it('rebinds Android targeted style mutations to the parent layout', () => {
