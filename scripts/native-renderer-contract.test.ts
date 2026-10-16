@@ -150,6 +150,10 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('inverted?: boolean')
     expect(ios).toContain('scroll.setStickyHeaderIndices(props["stickyHeaderIndices"])')
     expect(ios).toContain('scroll.setScrollTarget(props["scrollTarget"])')
+    expect(android).toContain('setStickyHeaderIndices(props.optJSONArray("stickyHeaderIndices"))')
+    expect(android).toContain('setScrollTarget(props.opt("scrollTarget"))')
+    expect(android).toContain('private fun updateStickyHeaders()')
+    expect(android).toContain('private fun scrollToPendingTarget(attempt: Int)')
     expect(android).toContain('inverted = props.optBoolean("inverted", false)')
   })
 

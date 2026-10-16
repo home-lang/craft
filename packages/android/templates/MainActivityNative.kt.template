@@ -2092,6 +2092,9 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
     private val defaultProgressStart = progressViewStartOffset
     private val defaultProgressEnd = progressViewEndOffset
     private var configuredProgressOffset: Int? = null
+    private var stickyIndices = emptyList<Int>()
+    private var scrollTargetKey: String? = null
+    private var pendingScrollTarget: Pair<String, Boolean>? = null
 
     init {
         vertical.isNestedScrollingEnabled = true
@@ -2303,6 +2306,133 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         horizontal.isHorizontalScrollBarEnabled = horizontalVisible
     }
 
+    /** Keep vertical ScrollView headers pinned while preserving their layout slots. */
+    fun setStickyHeaderIndices(value: JSONArray?) {
+        stickyIndices.forEach { index ->
+            content.getChildAt(index)?.apply {
+                translationY = 0f
+                translationZ = 0f
+            }
+        }
+        stickyIndices = if (value == null) {
+            emptyList()
+        } else {
+            (0 until value.length()).mapNotNull { value.optInt(it, -1).takeIf { index -> index >= 0 } }.distinct().sorted()
+        }
+        post { updateStickyHeaders() }
+    }
+
+    /** Scroll a child identified by its native testID/id after reconciliation. */
+    fun setScrollTarget(value: Any?) {
+        val target: String
+        val animated: Boolean
+        val key: String
+        when (value) {
+            is String -> {
+                target = value.trim()
+                animated = true
+                key = target
+            }
+            is JSONObject -> {
+                target = craftNativeOptionalString(value.opt("id")).orEmpty().trim()
+                animated = value.optBoolean("animated", true)
+                key = value.toString()
+            }
+            else -> {
+                scrollTargetKey = null
+                pendingScrollTarget = null
+                return
+            }
+        }
+        if (target.isBlank()) {
+            scrollTargetKey = null
+            pendingScrollTarget = null
+            return
+        }
+        if (key == scrollTargetKey) return
+        scrollTargetKey = key
+        pendingScrollTarget = target to animated
+        post { scrollToPendingTarget(0) }
+    }
+
+    private fun updateStickyHeaders() {
+        if (horizontalMode == true) {
+            stickyIndices.forEach { index ->
+                content.getChildAt(index)?.apply {
+                    translationY = 0f
+                    translationZ = 0f
+                }
+            }
+            return
+        }
+        val scrollY = vertical.scrollY
+        var pinnedBottom = 0
+        stickyIndices.forEachIndexed { position, index ->
+            val header = content.getChildAt(index)
+            if (header == null || header.visibility != View.VISIBLE || header.height <= 0) return@forEachIndexed
+            val nextTop = stickyIndices.drop(position + 1)
+                .firstNotNullOfOrNull { next -> content.getChildAt(next)?.takeIf { it.visibility == View.VISIBLE }?.top }
+                ?: Int.MAX_VALUE
+            val desired = max(0, scrollY + pinnedBottom - header.top)
+            val limit = if (nextTop == Int.MAX_VALUE) Int.MAX_VALUE else max(0, nextTop - header.bottom)
+            val translation = min(desired, limit)
+            header.translationY = translation.toFloat()
+            header.translationZ = if (translation > 0) 1f else 0f
+            if (translation > 0) pinnedBottom = header.top - scrollY + translation + header.height
+        }
+    }
+
+    private fun findDescendant(view: View, id: String): View? {
+        if (view.tag?.toString() == id || view.contentDescription?.toString() == id) return view
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) findDescendant(view.getChildAt(index), id)?.let { return it }
+        }
+        return null
+    }
+
+    private fun scrollToPendingTarget(attempt: Int) {
+        val target = pendingScrollTarget ?: return
+        val scroller: View = if (horizontalMode == true) horizontal else vertical
+        val view = findDescendant(content, target.first)
+        if (view == null || view.width <= 0 || view.height <= 0 || scroller.width <= 0 || scroller.height <= 0) {
+            if (attempt < 4) postDelayed({ scrollToPendingTarget(attempt + 1) }, 16L)
+            return
+        }
+        val targetLocation = IntArray(2)
+        val scrollerLocation = IntArray(2)
+        view.getLocationOnScreen(targetLocation)
+        scroller.getLocationOnScreen(scrollerLocation)
+        val current = if (horizontalMode == true) horizontal.scrollX else vertical.scrollY
+        val stickyHeight = if (horizontalMode == true) 0 else {
+            val contentLocation = IntArray(2)
+            content.getLocationOnScreen(contentLocation)
+            val targetContentTop = targetLocation[1] - contentLocation[1] + vertical.scrollY
+            stickyIndices.mapNotNull { index -> content.getChildAt(index) }
+                .lastOrNull { it.visibility == View.VISIBLE && it.top <= targetContentTop }
+                ?.height ?: 0
+        }
+        val desired = if (horizontalMode == true) {
+            current + targetLocation[0] - scrollerLocation[0]
+        } else {
+            current + targetLocation[1] - scrollerLocation[1] - stickyHeight
+        }
+        val maximum = if (horizontalMode == true) {
+            max(0, content.measuredWidth - scroller.width)
+        } else {
+            max(0, content.measuredHeight - scroller.height)
+        }
+        val bounded = desired.coerceIn(0, maximum)
+        if (target.second) {
+            if (horizontalMode == true) horizontal.smoothScrollTo(bounded, 0) else vertical.smoothScrollTo(0, bounded)
+        } else if (horizontalMode == true) {
+            horizontal.scrollTo(bounded, 0)
+        } else {
+            vertical.scrollTo(0, bounded)
+        }
+        pendingScrollTarget = null
+        updateStickyHeaders()
+    }
+
     fun setScrollListeners(
         onScroll: ((Int, Int) -> Unit)?,
         onBeginDrag: (() -> Unit)?,
@@ -2333,7 +2463,10 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
                 }
             }
 
-            scroller.setOnScrollChangeListener { _, x, y, _, _ -> onScroll?.invoke(x, y) }
+            scroller.setOnScrollChangeListener { _, x, y, _, _ ->
+                if (!horizontal) updateStickyHeaders()
+                onScroll?.invoke(x, y)
+            }
             scroller.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     android.view.MotionEvent.ACTION_DOWN -> {
@@ -5294,6 +5427,8 @@ class MainActivity : AppCompatActivity() {
                     if (child !is JSONObject || canonicalType(child.optString("type")) != "RefreshControl") contentChildren.put(child)
                 }
                 reconcileChildren(screen, content, contentChildren, identity, next, contentStyle, previousControls)
+                setStickyHeaderIndices(props.optJSONArray("stickyHeaderIndices"))
+                setScrollTarget(props.opt("scrollTarget"))
             }
             "FlatList" -> (previous as? CraftNativeRefreshableFlatList ?: CraftNativeRefreshableFlatList(this)).apply {
                 val nativeList = list

@@ -112,7 +112,8 @@ the app's own Maps credentials. `SectionList` uses the same
 native scroll host for ordinary `.stx` slot children; grouped section data
 should use `FlatList` until the section-data protocol is available. The
 generated host routes both list names through `CraftNativeScrollView` for this
-slot-based contract. `Picker` renders `<select>`/`<option>` values
+slot-based contract. `ScrollView` also supports `stickyHeaderIndices` and
+`scrollTarget` for vertical native content. `Picker` renders `<select>`/`<option>` values
 with `onValueChange` or `onChange`. `DatePicker` uses the platform `DatePicker`
 and `TimePicker` controls for date, time, datetime, and countdown modes and
 emits local `value`, ISO, and millisecond `timestamp` fields. `Modal` is parent-scoped and supports
