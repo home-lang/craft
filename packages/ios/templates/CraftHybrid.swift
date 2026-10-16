@@ -1203,7 +1203,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         tabSwipeFrom = -direction * width
         target.view.frame = view.bounds.offsetBy(dx: tabSwipeFrom, dy: 0)
         view.bringSubviewToFront(target.view)
-        CraftChrome.shared.beginTabSwipe(to: id)
+        CraftChrome.shared.beginTabSwipe(to: id, from: currentTab)
         return true
     }
 
@@ -1672,8 +1672,11 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     func pageSelectedTab(_ id: String) {
         guard id != currentTab, pendingTab?.id != id else { return }
         guard let top = visibleStack?.topViewController as? CraftHybridWebSlot, top.isTabRoot else {
-            let shown = currentTab
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.hybrid.controller === self else { return }
+                // Resolve ownership when the correction runs: a newer tap
+                // or swipe may have arrived while a native root was mounting.
+                let shown = self.activeTabSwipeTarget ?? self.currentTab
                 guard CraftChrome.shared.selected != shown else { return }
                 CraftChrome.shared.selected = shown
             }
