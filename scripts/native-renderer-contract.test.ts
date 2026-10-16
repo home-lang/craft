@@ -2816,6 +2816,9 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('Open capabilities')
     expect(ios).toContain('CraftChrome.shared.updateTabAccessory(nil)')
     expect(androidShell).toContain('accessorySpec?.optString("path")?.let { onAccessory?.invoke(it) }')
+    expect(guide).toContain('`tabAccessory` adds one destination button beside the tab pill')
+    expect(iosReadme).toContain('`tabAccessory` destination beside the tab pill')
+    expect(androidReadme).toContain('right buttons with badges, `tabAccessory`, `tabBarHidden`')
   })
 
   it('keeps Dynamic Type scaling aligned with Android SP text sizing', () => {

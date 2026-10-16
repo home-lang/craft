@@ -780,6 +780,29 @@ iOS, account-style buttons are independent 44-point custom bar items with
 their own circular material surface; they opt out of iOS 26's shared bar-item
 platter so adjacent buttons cannot merge into one oversized background.
 
+`tabAccessory` adds one destination button beside the tab pill without adding
+it to any tab stack or to the tab-swipe order. Give it an app-local path,
+title, and symbol; an optional badge and accessibility label are shared across
+the iOS, Android, and browser hosts:
+
+```js
+craft.navigation.setOptions({
+  tabAccessory: {
+    path: '/messages',
+    title: 'Messages',
+    symbol: 'message',
+    badge: '3',
+  },
+})
+// Remove it when the destination is no longer relevant.
+craft.navigation.setOptions({ tabAccessory: null })
+```
+
+Paths must begin with one `/` and are handled by the app's native route
+resolver. The button is cleared when a pushed screen goes away, so a
+destination cannot remain over another route. The browser native renderer
+uses the same shape and navigates through its platform adapter.
+
 Both maintained native hosts expose the same tab-swipe contract. In a hybrid
 app, the iOS shell's gesture also covers the WebView. Pass
 `swipeEnabled: false` to `craft.tabBar.set` when the page owns a horizontal

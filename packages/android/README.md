@@ -254,7 +254,7 @@ configured start path against `nativeScreens`; invalid native route tables are
 rejected before a project is generated.
 
 - a tab bar and a navigation bar (`craft.navigation.setOptions`: title, large
-  title, right buttons with badges, `tabBarHidden`), a stack per tab, Android's
+  title, right buttons with badges, `tabAccessory`, `tabBarHidden`), a stack per tab, Android's
   Back key popping it; completed left/right swipes switch between tab roots
   interactively, yield to a horizontal scroll view, and can be disabled per
   screen with `craft.navigation.setOptions({ tabSwipeEnabled: false })`;
