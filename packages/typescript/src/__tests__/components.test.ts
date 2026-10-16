@@ -98,11 +98,12 @@ describe('Component System', () => {
     expect(video.style).toEqual({ width: 120, height: 68 })
     expect(indicator.style).toEqual({ transform: [{ scale: 0.5 }] })
     expect(modal.style).toEqual({ opacity: 0.45 })
-    const text: TextProps = { numberOfLines: 2, ellipsizeMode: 'tail' }
+    const text: TextProps = { numberOfLines: 2, ellipsizeMode: 'tail', onClick: () => {} }
     // Text selection is not implemented by either maintained native host.
     // @ts-expect-error selectable is intentionally outside the native Text contract.
     text.selectable = true
     expect(text.ellipsizeMode).toBe('tail')
+    expect(text.onClick).toBeDefined()
     const pressable: PressableProps = { disabled: false, onPressIn: () => {}, onPressOut: () => {} }
     // These platform-specific press options are not implemented by either native host.
     // @ts-expect-error hitSlop is intentionally outside the native Pressable contract.

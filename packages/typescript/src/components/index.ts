@@ -497,6 +497,8 @@ export interface TextProps extends BaseProps {
   ellipsizeMode?: 'head' | 'middle' | 'tail' | 'clip'
   /** Press handler */
   onPress?: () => void
+  /** DOM-compatible press alias accepted by native hosts. */
+  onClick?: () => void
   /** Long press handler */
   onLongPress?: () => void
 }

@@ -239,6 +239,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('craftNativeEventName(events, "onValueChange", "onChange")')
   })
 
+  it('types the Text press alias exercised by the native fixture', () => {
+    const textProps = componentTypes.match(/export interface TextProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(textProps).toContain('onPress?: () => void')
+    expect(textProps).toContain('onClick?: () => void')
+    expect(navigationHome).toContain('@click="setStatus(\'link pressed\')"')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
