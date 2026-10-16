@@ -170,6 +170,14 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('listRole="header"')
   })
 
+  it('keeps DatePicker presentation platform-neutral', () => {
+    const datePickerProps = componentTypes.match(/export interface DatePickerProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(datePickerProps).toContain("mode?: 'date' | 'time' | 'datetime' | 'countdown'")
+    expect(datePickerProps).not.toContain('display?:')
+    expect(android).not.toContain('props.optString("display")')
+    expect(guide).toContain('platform-default')
+  })
+
   it('exposes the shared transition identity used by both hosts', () => {
     expect(componentTypes).toContain('transitionID?: string')
     expect(ios).toContain('if let transitionID = props["transitionID"] as? String')

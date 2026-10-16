@@ -887,7 +887,6 @@ export interface DatePickerProps extends BaseProps {
   minimumDate?: string | number
   maximumDate?: string | number
   minuteInterval?: number
-  display?: 'compact' | 'inline' | 'wheels'
   onValueChange?: (event: DatePickerChange) => void
   onChange?: (event: DatePickerChange) => void
   disabled?: boolean

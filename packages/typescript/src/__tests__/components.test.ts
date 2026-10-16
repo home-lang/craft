@@ -29,6 +29,7 @@ import type {
   SvgTextProps,
   MapPolylineProps,
   FlatListProps,
+  DatePickerProps,
   SectionListProps,
   TextInputProps,
   ScrollViewProps,
@@ -125,6 +126,11 @@ describe('Component System', () => {
     const unsupportedMeasurement: FlatListProps<string> = { data: [], renderItem: () => null, getItemLayout: () => ({ length: 1, offset: 0, index: 0 }) }
     expect(unsupportedSeparator.data).toHaveLength(0)
     expect(unsupportedMeasurement.data).toHaveLength(0)
+    const datePicker: DatePickerProps = { mode: 'date', value: '2026-10-12' }
+    // Presentation style is iOS-only and is not part of the shared native contract.
+    // @ts-expect-error display is intentionally unsupported cross-platform.
+    datePicker.display = 'inline'
+    expect(datePicker.mode).toBe('date')
     expect(button.title).toBe('Open map')
     expect(map.initialRegion?.span.longitudeDelta).toBe(0.75)
     expect(map.fitToBounds).toBe(true)

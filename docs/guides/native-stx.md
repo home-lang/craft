@@ -201,6 +201,8 @@ primitive, accepts an `items` array or child options plus `value`/`selectedValue
 and sends the selected option's `value` plus `index` through `onValueChange` or
 `onChange`. Numeric option values are normalized to strings consistently on
 both hosts.
+`DatePicker` keeps the mode, bounds, and minute interval shared across hosts;
+its presentation style is platform-default rather than an iOS-only prop.
 `Checkbox` accepts `checked`/`value`, `indeterminate`, and `disabled`, and
 delivers a boolean `nativeEvent.value` through `onValueChange` or `onChange`.
 An indeterminate checkbox is announced as `mixed` and becomes checked or
