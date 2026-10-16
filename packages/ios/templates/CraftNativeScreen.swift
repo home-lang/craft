@@ -5908,13 +5908,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: toggle)
         case "Slider":
             let slider = result as! UISlider
-            let minimum = (props["minimumValue"] as? NSNumber)?.floatValue ?? 0
+            let minimum = Float(number(props["minimumValue"]) ?? 0)
             slider.minimumValue = minimum.isFinite ? minimum : 0
-            let maximum = (props["maximumValue"] as? NSNumber)?.floatValue ?? 1
+            let maximum = Float(number(props["maximumValue"]) ?? 1)
             slider.maximumValue = max(slider.minimumValue + .leastNonzeroMagnitude, maximum.isFinite ? maximum : 1)
-            let authoredValue = (props["value"] as? NSNumber)?.floatValue ?? slider.minimumValue
+            let authoredValue = Float(number(props["value"]) ?? CGFloat(slider.minimumValue))
             let value = authoredValue.isFinite ? authoredValue : slider.minimumValue
-            if let step = (props["step"] as? NSNumber)?.floatValue, step.isFinite, step > 0 { sliderSteps[ObjectIdentifier(slider)] = step }
+            if let step = number(props["step"]).map(Float.init), step.isFinite, step > 0 { sliderSteps[ObjectIdentifier(slider)] = step }
             else { sliderSteps.removeValue(forKey: ObjectIdentifier(slider)) }
             slider.value = snappedSliderValue(value, for: slider)
             slider.minimumTrackTintColor = color(props["minimumTrackTintColor"])

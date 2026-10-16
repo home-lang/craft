@@ -761,6 +761,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertLessThanOrEqual(abs(shown - 0.8), 0.1, "slider landed at \(shownPercent)%")
         XCTAssertEqual(app.staticTexts["slider-value"].label, shown == shown.rounded() ? String(Int(shown)) : String(shown))
         XCTAssertEqual(app.staticTexts["slider-completions"].label, "Slider completions: 1")
+        let booleanSlider = app.sliders["boolean-slider"]
+        XCTAssertTrue(booleanSlider.waitForExistence(timeout: 5))
+        XCTAssertTrue((booleanSlider.value as? String ?? "").contains("50%"), "Boolean slider minimum was treated as numeric")
 
         XCTAssertTrue(app.activityIndicators["native-indicator"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.activityIndicators["stopped-indicator"].waitForExistence(timeout: 5))

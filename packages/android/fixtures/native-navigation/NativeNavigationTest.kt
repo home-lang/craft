@@ -973,6 +973,8 @@ class NativeNavigationTest {
             assertEquals("slider minimum tint was not applied", Color.rgb(0x22, 0xc5, 0x5e), nativeSlider.progressTintList?.getColorForState(intArrayOf(), Color.TRANSPARENT))
             assertEquals("slider maximum tint was not applied", Color.rgb(0x64, 0x74, 0x8b), nativeSlider.progressBackgroundTintList?.getColorForState(intArrayOf(), Color.TRANSPARENT))
             assertEquals("slider thumb tint was not applied", Color.rgb(0x16, 0xa3, 0x4a), nativeSlider.thumbTintList?.getColorForState(intArrayOf(), Color.TRANSPARENT))
+            val booleanSlider = awaitView(activity, "boolean-slider") as SeekBar
+            assertEquals("Boolean slider minimum was treated as numeric", 500, booleanSlider.progress)
             click(activity, "toggle-invalid-slider-colors")
             awaitText(activity, "invalid-slider-style-status", "invalid slider colors on")
             assertTrue("Invalid minimum slider tint should restore the native default", nativeSlider.progressTintList == null)

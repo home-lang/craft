@@ -1093,9 +1093,12 @@ describe('native renderer component contract', () => {
 
   it('keeps native slider controls and completion events aligned', () => {
     expect(ios).toContain('slider.value = snappedSliderValue(value, for: slider)')
-    expect(ios).toContain('let minimum = (props["minimumValue"] as? NSNumber)?.floatValue ?? 0')
+    expect(ios).toContain('let minimum = Float(number(props["minimumValue"]) ?? 0)')
     expect(ios).toContain('slider.minimumValue = minimum.isFinite ? minimum : 0')
     expect(ios).toContain('step.isFinite, step > 0')
+    expect(navigationHome).toContain('testID="boolean-slider"')
+    expect(iosNavigationTest).toContain('Boolean slider minimum was treated as numeric')
+    expect(androidNavigationTest).toContain('Boolean slider minimum was treated as numeric')
     expect(ios).toContain('events["onSlidingComplete"]')
     expect(android).toContain('val minimum = craftNativeFiniteNumber(props, "minimumValue", 0.0)')
     expect(android).toContain('val maximumCandidate = craftNativeFiniteNumber(props, "maximumValue", 1.0)')

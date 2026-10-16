@@ -813,6 +813,7 @@ function toggleScreenBackground() {
     </Modal>
     <Text testID="modal-status" :text="modalStatus" />
     <Slider testID="native-slider" minimumValue={0} maximumValue={1} step={0.1} value={sliderValue} minimumTrackTintColor={invalidSliderColors ? "not-a-color" : "#22c55e"} maximumTrackTintColor={invalidSliderColors ? "not-a-color" : "#64748b"} thumbTintColor={invalidSliderColors ? "not-a-color" : "#16a34a"} @value-change="moveSlider($event)" @sliding-complete="finishSlider()" />
+    <Slider testID="boolean-slider" minimumValue={true} maximumValue={2} value={1} />
     <Text testID="slider-value" :text="sliderValue" />
     <Text testID="slider-completions" :text="'Slider completions: ' + sliderCompletions" />
     <Button testID="toggle-invalid-slider-colors" @click="toggleInvalidSliderColors()">Toggle invalid slider colors</Button>
