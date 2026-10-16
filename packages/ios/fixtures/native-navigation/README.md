@@ -67,9 +67,13 @@ inspection; the normal command remains the CI simulator gate.
 
 The iOS fixture has five native tabs. `NativeNavigationUnitTests` drives the real
 UIKit gesture handler and checks stack geometry during the drag, past halfway,
-and after completion, cancellation and reversal. It also samples the presentation
-layer while settling, so a jump at release cannot pass as an animated transition.
+and after completion, cancellation and reversal. It requires a native Core Animation
+position interpolation with the expected start, destination and 220ms duration,
+and samples the presentation layer while settling. It waits for display frames
+and restored stacks rather than assuming a loaded simulator services a timer on time.
 Mid-drag screenshots are retained in the Xcode result bundle.
+Tab taps interrupt a settling swipe immediately; a stale animation completion
+must neither override that selection nor interfere with the next gesture.
 
 `testTabSwipeSwitchesNativeRootsAndReturns`,
 `testSwipesAcrossAllFiveNativeTabsAndBack`,

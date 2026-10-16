@@ -792,10 +792,12 @@ final class CraftChrome: ObservableObject {
         withAnimation(nil) { selected = id }
     }
 
-    func cancelTabSwipe() {
+    func cancelTabSwipe(restoringSelection: Bool = true) {
         guard let previous = tabSwipePrevious else { return }
         tabSwipePrevious = nil
-        withAnimation(nil) { selected = previous }
+        if restoringSelection {
+            withAnimation(nil) { selected = previous }
+        }
     }
 
     func commitTabSwipe(to id: String) {

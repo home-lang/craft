@@ -1023,6 +1023,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     private var tabSwipeRecognizers: [UIGestureRecognizer] = []
     private var activeTabSwipeTarget: String?
     private var tabSwipeSettling = false
+    private var tabSwipeGeneration: UInt = 0
     /// The edge the incoming tab started from for the current gesture. Keep
     /// this separate from the live frame: deriving it after the drag begins
     /// makes the target jump when the translation crosses the midpoint.
@@ -1195,10 +1196,13 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         let end = completed ? 0 : direction * width
         let settlingDuration = completed ? 0.22 : 0.18
         let duration = CraftChrome.motion(.easeOut(duration: settlingDuration)) == nil ? 0 : settlingDuration
+        let generation = tabSwipeGeneration
         UIView.animate(withDuration: duration, delay: 0, options: [.curveEaseOut, .beginFromCurrentState], animations: {
             target.view.frame.origin.x = end
             current.view.frame.origin.x = completed ? -direction * width : 0
         }, completion: { _ in
+            guard self.tabSwipeGeneration == generation,
+                  self.activeTabSwipeTarget == targetId else { return }
             if completed {
                 current.view.isHidden = true
                 current.view.frame = self.view.bounds
@@ -1214,6 +1218,29 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             }
             completion()
         })
+    }
+
+    /// A newer navigation action wins immediately, including a tap back on
+    /// the outgoing tab. Invalidate the old animation before removing it:
+    /// UIKit may deliver its completion while the replacement is starting.
+    private func interruptTabSwipe(restoringSelection: Bool) {
+        guard let targetId = activeTabSwipeTarget else { return }
+        tabSwipeGeneration &+= 1
+        activeTabSwipeTarget = nil
+        tabSwipeSettling = false
+        for nav in [visibleStack, stacks[targetId]].compactMap({ $0 }) {
+            nav.view.layer.removeAllAnimations()
+            nav.view.frame = view.bounds
+            nav.view.isHidden = nav !== visibleStack
+        }
+        // Cancel the current touch stream, so its later moved/ended events
+        // cannot claim another tab after the explicit navigation.
+        for recognizer in tabSwipeRecognizers {
+            recognizer.isEnabled = false
+            recognizer.isEnabled = true
+        }
+        CraftChrome.shared.cancelTabSwipe(restoringSelection: restoringSelection)
+        if visibleStack?.topViewController is CraftNativeScreenController { parkWeb() }
     }
 
     private func horizontalScrollAt(_ point: CGPoint, in root: UIView) -> Bool {
@@ -1365,6 +1392,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     private func show(tab id: String, rootPath: String? = nil) {
+        interruptTabSwipe(restoringSelection: false)
         cancelPendingTab()
         let nav = stacks[id] ?? makeStack(tab: id, rootPath: rootPath ?? (id.isEmpty ? hybrid.startPath : id))
         // A stack is hidden and shown rather than moved, so UIKit tells its
@@ -1448,6 +1476,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     /// it), a tab's root, or a new one pushed.
     func showNative(path raw: String, replace: Bool, fromLink: Bool = false) {
         guard let match = hybrid.routes.match(raw) else { return }
+        interruptTabSwipe(restoringSelection: true)
         let tabs = hybrid.tabIds
         if let tab = tabs.first(where: { CraftHybridRoutes.normalize($0) == match.path }) {
             if tab != currentTab {
@@ -1483,6 +1512,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     /// slide, then the entry slides in over the screen that opened it.
     private func pushWeb(_ path: String) {
         guard hybrid.hasWeb, !openingWeb, let nav = visibleStack else { return }
+        interruptTabSwipe(restoringSelection: true)
         openingWeb = true
         hybrid.navigatePage(path) { [weak self, weak nav] depth in
             guard let self else { return }
@@ -1557,7 +1587,11 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     // MARK: Tabs
 
     func tabTapped(_ id: String, reselect: Bool) -> Bool {
-        if reselect || id == currentTab {
+        let interruptedSwipe = activeTabSwipeTarget != nil
+        interruptTabSwipe(restoringSelection: false)
+        // The incoming tab is only a preview until the swipe commits, so a
+        // tap on its already-lit indicator is a selection, not a reselect.
+        if (reselect && !interruptedSwipe) || id == currentTab {
             guard let nav = stacks[id] else { return true }
             if nav.viewControllers.count > 1 {
                 nav.popToRootViewController(animated: true)
