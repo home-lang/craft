@@ -574,6 +574,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('DashPathEffect(pattern, style.strokeDashoffset)')
     expect(android).toContain('val pattern: FloatArray')
     expect(ios).toContain('func value(_ key: String) -> Any? { style[key] ?? props[key] }')
+    expect(android).toContain('fun value(name: String): String? = craftNativeOptionalString(style.opt(name))')
     expect(ios).toContain('if let cap = value("strokeLinecap") as? String')
     expect(ios).toContain('if let dashes = value("strokeDasharray") as? [Any]')
     expect(ios).toContain('var vectorEffect: String?')

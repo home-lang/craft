@@ -383,11 +383,8 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         fun merge(node: JSONObject): SvgPaint {
             val props = node.optJSONObject("props") ?: JSONObject()
             val style = node.optJSONObject("style") ?: JSONObject()
-            fun value(name: String): String? = when {
-                style.has(name) && !style.isNull(name) -> style.optString(name)
-                props.has(name) && !props.isNull(name) -> props.optString(name)
-                else -> null
-            }
+            fun value(name: String): String? = craftNativeOptionalString(style.opt(name))
+                ?: craftNativeOptionalString(props.opt(name))
             fun raw(name: String): Any? = when {
                 style.has(name) && !style.isNull(name) -> style.opt(name)
                 props.has(name) && !props.isNull(name) -> props.opt(name)
