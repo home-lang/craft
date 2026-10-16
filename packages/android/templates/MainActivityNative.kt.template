@@ -486,7 +486,7 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         for (index in 0 until children.length()) {
             val node = children.optJSONObject(index) ?: continue
             val style = node.optJSONObject("style") ?: JSONObject()
-            if (style.optString("display") == "none") continue
+            if (craftNativeOptionalString(style.opt("display")) == "none") continue
             val paint = inherited.merge(node)
             when (node.optString("type")) {
                 "G" -> drawNodes(canvas, node.optJSONArray("children") ?: JSONArray(), paint)
@@ -582,7 +582,7 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         }
         var x = craftNativeNumber(props.opt("x"))?.toFloat()?.takeIf { it.isFinite() } ?: 0f
         val y = craftNativeNumber(props.opt("y"))?.toFloat()?.takeIf { it.isFinite() } ?: 0f
-        when (props.optString("textAnchor")) {
+        when (craftNativeOptionalString(props.opt("textAnchor"))) {
             "middle" -> x -= paint.measureText(text) / 2f
             "end" -> x -= paint.measureText(text)
         }
@@ -1027,14 +1027,15 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     }
 
     fun configure(style: JSONObject, density: Float) {
-        orientation = if (style.optString("flexDirection") in setOf("row", "row-reverse")) HORIZONTAL else VERTICAL
-        reverse = style.optString("flexDirection").endsWith("-reverse")
-        val flexWrap = style.optString("flexWrap")
-        wrap = flexWrap == "wrap" || flexWrap == "wrap-reverse" || style.optBoolean("flexWrap", false)
+        val flexDirection = craftNativeOptionalString(style.opt("flexDirection")).orEmpty()
+        orientation = if (flexDirection in setOf("row", "row-reverse")) HORIZONTAL else VERTICAL
+        reverse = flexDirection.endsWith("-reverse")
+        val flexWrap = craftNativeOptionalString(style.opt("flexWrap")).orEmpty()
+        wrap = flexWrap == "wrap" || flexWrap == "wrap-reverse" || craftNativeBoolean(style.opt("flexWrap"))
         wrapReverse = flexWrap == "wrap-reverse"
-        alignItems = style.optString("alignItems", "stretch")
-        alignContent = style.optString("alignContent", "flex-start")
-        justifyContent = style.optString("justifyContent", "flex-start")
+        alignItems = craftNativeOptionalString(style.opt("alignItems")) ?: "stretch"
+        alignContent = craftNativeOptionalString(style.opt("alignContent")) ?: "flex-start"
+        justifyContent = craftNativeOptionalString(style.opt("justifyContent")) ?: "flex-start"
         fun spacing(name: String, fallback: Float): Float {
             val value = craftNativeNumber(style.opt(name)) ?: Double.NaN
             val pixels = value * density
@@ -1044,7 +1045,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val gap = spacing("gap", 0f)
         rowGap = spacing("rowGap", gap)
         columnGap = spacing("columnGap", gap)
-        grid = style.optString("display") == "grid"
+        grid = craftNativeOptionalString(style.opt("display")) == "grid"
         gridColumns = craftNativeGridColumnCount(
             if (style.has("gridTemplateColumns")) style.opt("gridTemplateColumns") else style.opt("gridColumns")
         )
@@ -2095,7 +2096,7 @@ private class CraftNativeKeyboardAvoidingView(context: Context) : FrameLayout(co
     }
 
     fun configure(props: JSONObject, style: JSONObject, density: Float) {
-        behavior = props.optString("behavior", "padding").takeIf { it in setOf("height", "position", "padding") } ?: "padding"
+        behavior = craftNativeOptionalString(props.opt("behavior"))?.takeIf { it in setOf("height", "position", "padding") } ?: "padding"
         val authoredOffset = craftNativeFiniteDouble(props, "keyboardVerticalOffset", 0.0)
         val pixelOffset = (authoredOffset * density.toDouble()).takeIf { it.isFinite() } ?: 0.0
         keyboardVerticalOffset = pixelOffset.roundToInt()
@@ -5248,7 +5249,7 @@ class MainActivity : AppCompatActivity() {
                     // from the previous hidden state when it patches props.
                     craftNativeBoolean(props.opt("visible"))
                 } else {
-                    style.has("display") && style.optString("display") != "none"
+                    style.has("display") && craftNativeOptionalString(style.opt("display")) != "none"
                 }
                 val wasVisible = screen.modalVisibility[this]
                 screen.modalVisibility[this] = visible
@@ -5744,7 +5745,7 @@ class MainActivity : AppCompatActivity() {
         if (type == "ActivityIndicator") {
             val animating = craftNativeBoolean(props.opt("animating"), true)
             val hidesWhenStopped = craftNativeBoolean(props.opt("hidesWhenStopped"), true)
-            control.visibility = if (style.optString("display") == "none" || (!animating && hidesWhenStopped)) {
+            control.visibility = if (craftNativeOptionalString(style.opt("display")) == "none" || (!animating && hidesWhenStopped)) {
                 View.GONE
             } else {
                 View.VISIBLE
@@ -5865,7 +5866,7 @@ class MainActivity : AppCompatActivity() {
                 layout.setChildStyle(childView, child.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)
             }
         }
-        if (style.optString("flexDirection").endsWith("-reverse")) desired.reverse()
+        if (craftNativeOptionalString(style.opt("flexDirection"))?.endsWith("-reverse") == true) desired.reverse()
         val desiredSet = desired.toSet()
         for ((index, childView) in desired.withIndex()) {
             if (layout.getChildAt(index) !== childView) {
@@ -5992,7 +5993,7 @@ class MainActivity : AppCompatActivity() {
         }
         applyTransform(view, style.optJSONArray("transform"))
         if (view !is CraftNativeModalView) {
-            view.visibility = if (style.optString("display") == "none") View.GONE else View.VISIBLE
+            view.visibility = if (craftNativeOptionalString(style.opt("display")) == "none") View.GONE else View.VISIBLE
         }
         view.elevation = dp(craftNativeNonNegativeDouble(style, "elevation", 0.0)).toFloat()
         view.z = craftNativeFiniteFloat(style, "zIndex", 0f)
