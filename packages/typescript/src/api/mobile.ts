@@ -3263,7 +3263,7 @@ export interface LiveActivityState {
   timerStartedAt?: number | null
   timerEndsAt?: number | null
   paused?: boolean
-  remainingSeconds?: number
+  remainingSeconds?: number | null
   heartRate?: number | null
   showsDistance?: boolean
   staleAt?: number | null
