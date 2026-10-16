@@ -540,6 +540,7 @@ export interface TouchableHighlightProps extends ViewProps {
  * Image source type.
  */
 export type ImageSource =
+  | string
   | { uri: string; headers?: Record<string, string> }
 
 export interface ImageErrorEvent {

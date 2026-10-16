@@ -187,8 +187,10 @@ describe('Component System', () => {
       resizeMode: 'center',
       onError: event => expect(event.nativeEvent.error.message).toBe('Image download failed'),
     }
+    const localImage: ImageProps = { source: 'hero.png', defaultSource: 'placeholder.png' }
     expect(image.resizeMode).toBe('center')
     expect(image.onError).toBeDefined()
+    expect(localImage.source).toBe('hero.png')
     // Native hosts do not implement CSS-style image tiling.
     // @ts-expect-error repeat is intentionally outside the native Image contract
     const tiled: ImageProps = { source: { uri: 'https://example.com/image.png' }, resizeMode: 'repeat' }
@@ -205,7 +207,7 @@ describe('Component System', () => {
     image.source.width = 320
     // @ts-expect-error Source dimensions are controlled by Image style/layout.
     image.source.height = 240
-    expect(image.source.uri).toContain('example.com')
+    expect(typeof image.source === 'string' ? image.source : image.source.uri).toContain('example.com')
   })
 
   it('keeps ImageBackground styling on the shared container contract', () => {
@@ -213,7 +215,7 @@ describe('Component System', () => {
     // ImageBackground imageStyle is not consumed by either maintained host.
     // @ts-expect-error Image-specific styling is not part of the native protocol.
     background.imageStyle = { resizeMode: 'cover' }
-    expect(background.source.uri).toBe('hero.png')
+    expect(typeof background.source === 'string' ? background.source : background.source.uri).toBe('hero.png')
   })
 
   describe('Platform', () => {

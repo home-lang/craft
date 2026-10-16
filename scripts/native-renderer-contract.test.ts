@@ -466,6 +466,7 @@ describe('native renderer component contract', () => {
     expect(imageProps).toContain("resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'")
     expect(imageProps).not.toContain("'repeat'")
     expect(componentTypes).toContain('export type ImageSource =')
+    expect(componentTypes).toContain('export type ImageSource =\n  | string')
     expect(componentTypes).toContain('onError?: (event: ImageErrorEvent) => void')
     expect(componentTypes).toContain('nativeEvent: {\n    error: {\n      message: string')
     expect(componentTypes).not.toContain('{ uri: string; width?: number; height?: number;')
