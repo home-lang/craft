@@ -2722,6 +2722,14 @@ describe('native renderer component contract', () => {
     expect(androidShell).toContain('accessorySpec?.optString("path")?.let { onAccessory?.invoke(it) }')
   })
 
+  it('keeps Dynamic Type scaling aligned with Android SP text sizing', () => {
+    expect(ios).toContain('UIFontMetrics(forTextStyle: .body).scaledValue(')
+    expect(ios).toContain('compatibleWith: traitCollection')
+    expect(android).toContain('view.setTextSize(TypedValue.COMPLEX_UNIT_SP')
+    expect(iosNativeUnitTests).toContain('testNativeTextScalesWithTheScreenContentSizeTrait')
+    expect(ios).toContain('UIContentSizeCategory.didChangeNotification')
+  })
+
   it('keeps reverse flex directions covered on both native hosts', () => {
     expect(navigationHome).toContain('testID="reverse-column"')
     expect(navigationHome).toContain('flexDirection":"column-reverse"')

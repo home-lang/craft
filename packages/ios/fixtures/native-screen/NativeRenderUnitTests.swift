@@ -111,6 +111,27 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertNotNil(find(UILabel.self, key: "name-input", below: controller.view))
     }
 
+    func testNativeTextScalesWithTheScreenContentSizeTrait() throws {
+        let host = UIViewController()
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        host.addChild(controller)
+        host.view.addSubview(controller.view)
+        host.setOverrideTraitCollection(
+            UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge),
+            forChild: controller
+        )
+        controller.didMove(toParent: host)
+        controller.render(document([node("Text", key: "dynamic-text", text: "Dynamic", style: ["fontSize": 16])]))
+
+        let label = try XCTUnwrap(find(UILabel.self, key: "dynamic-text", below: controller.view))
+        let expected = UIFontMetrics(forTextStyle: .body).scaledValue(
+            for: 16,
+            compatibleWith: controller.traitCollection
+        )
+        XCTAssertEqual(label.font.pointSize, expected, accuracy: 0.1)
+        XCTAssertGreaterThan(label.font.pointSize, 16)
+    }
+
     func testTextInputTraitsFollowHostNeutralProps() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

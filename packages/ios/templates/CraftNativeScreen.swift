@@ -6951,8 +6951,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "900": weight = .black
         default: weight = .regular
         }
-        var font = (style["fontFamily"] as? String).flatMap { UIFont(name: $0, size: size) }
-            ?? .systemFont(ofSize: size, weight: weight)
+        // Android's TextView uses SP, so its native text scales with the
+        // user's content-size setting. Apply the same Dynamic Type multiplier
+        // here before assigning the font to labels, buttons, and inputs.
+        let scaledSize = UIFontMetrics(forTextStyle: .body).scaledValue(
+            for: size,
+            compatibleWith: traitCollection
+        )
+        var font = (style["fontFamily"] as? String).flatMap { UIFont(name: $0, size: scaledSize) }
+            ?? .systemFont(ofSize: scaledSize, weight: weight)
         if style["fontStyle"] as? String == "italic",
            let descriptor = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
             font = UIFont(descriptor: descriptor, size: size)
