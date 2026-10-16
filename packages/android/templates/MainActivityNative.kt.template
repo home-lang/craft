@@ -3045,6 +3045,10 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         return runCatching { player.setDisplay(holder ?: this.holder) }.isSuccess
     }
 
+    fun notifyPictureInPicture(active: Boolean) {
+        fire(if (active) "onPictureInPictureStart" else "onPictureInPictureStop")
+    }
+
     fun stop() {
         // Released with its screen: nothing more is told to it.
         emit = null
@@ -6863,7 +6867,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        if (isInPictureInPictureMode) showVideoAlone() else putVideoBack()
+        if (isInPictureInPictureMode) {
+            floatingVideo()?.notifyPictureInPicture(true)
+            showVideoAlone()
+        } else {
+            pictureInPictureVideo?.notifyPictureInPicture(false)
+            putVideoBack()
+        }
     }
 
     /**
