@@ -23,6 +23,11 @@ The native mode is opt-in. The generated `Sources/CraftNativeScreen.swift` creat
 
 Run `bun packages/ios/scripts/test-native-render.ts` from the Craft repository on a Mac with XcodeGen and an iOS simulator. It generates a temporary native app and runs simulator-hosted XCTest: a unit test checks that keyed UIKit controls keep their object identity through property changes and moves, while a UI test types through repeated label and button updates without losing the keyboard. The test bundle is deliberately plain JavaScriptCore input so CI does not need a sibling stx checkout. The `.stx` fixture above remains the compiler integration smoke screen.
 
+To select a case, use the full XCTest target/class/method identifier, for example
+`CRAFT_ONLY_TESTING=NativeRenderUITests/NativeRenderUITests/testTypingAndButtonUpdatesDoNotDropTheKeyboard`.
+The runner checks the result bundle and rejects zero tests or skipped cases,
+including Xcode's successful exit for an unmatched selection.
+
 `HeartRateUnitTests.swift` decodes Heart Rate Measurement (0x2A37) payloads (uint8 and uint16 rates, sensor contact, energy, RR intervals, truncated payloads), checks that the simulator's stand-in strap gives RR intervals that vary with the breath and agree with its rate, and checks that the `HeartRate` module answers only in an app built with `enableHeartRate`.
 
 `FilesUnitTests.swift` covers `craft.files`' disk side: file names with no path in them, only files made in tmp/craft-files counted as the app's own, a photo written as an upright JPEG no larger than asked, a FormData sent as multipart with its file's bytes (and an arbitrary path refused), a download kept under the server's name or, refused, answered with its status and body, and what a screen made written as text or base64 bytes.

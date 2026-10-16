@@ -77,6 +77,7 @@ try {
   const device = requested ? { udid: requested, name: requested, state: 'Booted', runtime: 'iOS' } : await pickSimulator()
   if (!device) throw new Error('No iOS simulator is available for native renderer tests')
   if (!requested) await bootSimulator(device)
+  const results = join(workspace, 'TestResults.xcresult')
   run([
     'xcodebuild', '-project', 'NativeRender.xcodeproj', '-scheme', 'NativeRender',
     '-configuration', 'Debug', '-destination', `id=${device.udid}`,
@@ -84,9 +85,15 @@ try {
     '-test-timeouts-enabled', 'YES',
     '-default-test-execution-time-allowance', '300',
     '-maximum-test-execution-time-allowance', '300',
+    '-resultBundlePath', results,
     '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'ENABLE_TESTABILITY=YES',
     'test', ...(process.env.CRAFT_ONLY_TESTING ? [`-only-testing:${process.env.CRAFT_ONLY_TESTING}`] : []),
   ], output)
+  const summary = Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', results], { stdout: 'pipe', stderr: 'pipe' })
+  if (summary.exitCode !== 0) throw new Error(`Could not read XCTest results: ${summary.stderr.toString()}`)
+  const counts = JSON.parse(summary.stdout.toString())
+  if (counts.result !== 'Passed' || counts.totalTestCount < 1 || counts.passedTests !== counts.totalTestCount || counts.failedTests !== 0 || counts.skippedTests !== 0)
+    throw new Error(`Expected passed native tests with no empty selection or skips: ${JSON.stringify(counts)}`)
   console.log('Native renderer unit and simulator UI tests passed')
 }
 finally {
