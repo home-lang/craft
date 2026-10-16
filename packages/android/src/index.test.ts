@@ -297,7 +297,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('mapViews().forEach { it.lowMemory() }')
       expect(nativeActivity).toContain('drawNodes(canvas, drawing.optJSONArray("children") ?: JSONArray(), SvgPaint().merge(drawing))')
       expect(nativeActivity).toContain('val strokeDasharray: List<Float> = emptyList()')
-      expect(nativeActivity).toContain('DashPathEffect(pattern, 0f)')
+      expect(nativeActivity).toContain('DashPathEffect(pattern, style.strokeDashoffset)')
       // A chart stretched to its box keeps its strokes' width.
       expect(nativeActivity).toContain('optString("preserveAspectRatio")?.trim() == "none"')
       expect(nativeActivity).toContain('style.vectorEffect == "non-scaling-stroke"')
