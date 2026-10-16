@@ -626,6 +626,20 @@ class NativeNavigationTest {
             awaitImageTintCleared(activity, "native-image")
             val tintedUnsupported = awaitView(activity, "unsupported-image") as ImageView
             assertEquals(1, tintedUnsupported.contentDescription.toString().split("Unsupported image source").size - 1)
+            val paddingButton = awaitView(activity, "toggle-button-padding") as Button
+            val initialButtonPadding = paddingButton.paddingLeft
+            click(activity, "toggle-button-padding")
+            repeat(75) {
+                if (paddingButton.paddingLeft > initialButtonPadding) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertTrue("button padding style was not applied", paddingButton.paddingLeft > initialButtonPadding)
+            click(activity, "toggle-button-padding")
+            repeat(75) {
+                if (paddingButton.paddingLeft == initialButtonPadding) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertEquals("removed button padding style was retained", initialButtonPadding, paddingButton.paddingLeft)
             val styleToggle = awaitView(activity, "toggle-button-style") as Button
             var styleInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { styleInfo = styleToggle.createAccessibilityNodeInfo() }

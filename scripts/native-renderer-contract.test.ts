@@ -2318,6 +2318,13 @@ describe('native renderer component contract', () => {
     expect(androidNavigationReadme).toContain('toggles a screen\'s explicit `backgroundColor`')
   })
 
+  it('resets recycled Android button padding when a keyed style is removed', () => {
+    expect(navigationHome).toContain('testID="toggle-button-padding"')
+    expect(androidNavigationTest).toContain('removed button padding style was retained')
+    expect(android).toContain('view.javaClass == TextView::class.java || view.javaClass == Button::class.java')
+    expect(android).toContain('clear that old value just as iOS reapplies its padding every')
+  })
+
   it('exercises independent floating iOS navigation buttons in the maintained fixture', () => {
     expect(navigationHome).toContain("id: 'fixture-messages'")
     expect(navigationHome).toContain("id: 'fixture-account'")

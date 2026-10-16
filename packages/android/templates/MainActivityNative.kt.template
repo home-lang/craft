@@ -5875,7 +5875,11 @@ class MainActivity : AppCompatActivity() {
                     craftNativePadding(style, "paddingRight", horizontal, density),
                     craftNativePadding(style, "paddingBottom", vertical, density),
                 )
-            } else if (view.javaClass == TextView::class.java) {
+            } else if (view.javaClass == TextView::class.java || view.javaClass == Button::class.java) {
+                // Plain Android buttons start with zero padding in the native
+                // contract. A keyed button may lose a reactive padding style;
+                // clear that old value just as iOS reapplies its padding every
+                // reconciliation.
                 view.setPadding(0, 0, 0, 0)
             }
         }
