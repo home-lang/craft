@@ -71,6 +71,9 @@ try {
     'xcodebuild', '-project', 'NativeRender.xcodeproj', '-scheme', 'NativeRender',
     '-configuration', 'Debug', '-destination', `id=${device.udid}`,
     '-derivedDataPath', join(workspace, 'DerivedData'),
+    '-test-timeouts-enabled', 'YES',
+    '-default-test-execution-time-allowance', '300',
+    '-maximum-test-execution-time-allowance', '300',
     '-parallel-testing-enabled', 'NO', 'CODE_SIGNING_ALLOWED=NO', 'test', ...(process.env.CRAFT_ONLY_TESTING ? [`-only-testing:${process.env.CRAFT_ONLY_TESTING}`] : []),
   ], output)
   console.log('Native renderer unit and simulator UI tests passed')

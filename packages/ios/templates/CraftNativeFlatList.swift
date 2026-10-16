@@ -21,10 +21,6 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         private(set) var representedIdentity: String?
         private(set) var hostedView: UIView?
         var onRecycle: ((String) -> Void)?
-        /// The width (or, sideways, height) the list gives this row, so a row
-        /// is measured at the list's width rather than the layout's estimate.
-        var fittingExtent: CGFloat?
-
         override func prepareForReuse() {
             super.prepareForReuse()
             releaseHostedView()
@@ -63,6 +59,12 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
             // collection view ancestor.
             var ancestor = superview
             while let view = ancestor, !(view is UICollectionView) { ancestor = view.superview }
+            // A reusable cell can be measured during UIKit's invalidation,
+            // before layoutSubviews updates visible cells. Derive the extent
+            // from the live list bounds on every self-sizing pass.
+            let list = ancestor as? CraftNativeFlatList
+            let isChrome = representedIdentity.flatMap { list?.itemsByIdentity[$0]?.isChrome } ?? false
+            let fittingExtent = list?.itemExtent(isChrome: isChrome)
             if let collectionView = ancestor as? UICollectionView,
                let flowLayout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout,
                flowLayout.scrollDirection == .horizontal {
@@ -155,7 +157,6 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
                   let renderItem = self.renderItem else { return UICollectionViewCell() }
             let view = renderItem(item.node, identity, cell.hostedView)
             cell.onRecycle = self.recycleItem
-            cell.fittingExtent = self.itemExtent(isChrome: item.isChrome)
             cell.host(view, identity: identity)
             return cell
         }
@@ -214,19 +215,6 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         if flowLayout.estimatedItemSize != estimate, bounds.width > 0 {
             flowLayout.estimatedItemSize = estimate
         }
-        // Cells can outlive a change to the list's width (including its first
-        // constrained parent layout). Self-sizing must use the current extent,
-        // or UIKit repeatedly receives a preferred width wider than the list.
-        var changedExtent = false
-        for case let cell as Cell in visibleCells {
-            guard let identity = cell.representedIdentity, let item = itemsByIdentity[identity] else { continue }
-            let extent = itemExtent(isChrome: item.isChrome)
-            if cell.fittingExtent != extent {
-                cell.fittingExtent = extent
-                changedExtent = true
-            }
-        }
-        if changedExtent { flowLayout.invalidateLayout() }
         super.layoutSubviews()
         craftApplyCornerRadius()
     }
