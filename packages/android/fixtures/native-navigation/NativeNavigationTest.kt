@@ -329,6 +329,15 @@ class NativeNavigationTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
         try {
+            val homeState = awaitText(activity, "navigation-home-state", "Home state: Ada/0")
+            click(activity, "navigation-increment")
+            awaitText(activity, "navigation-home-state", "Home state: Ada/1")
+            click(activity, "navigation-open-details")
+            assertEquals("Details for Ada", (awaitView(activity, "details-title") as TextView).text.toString())
+            click(activity, "details-back")
+            awaitText(activity, "navigation-home-state", "Home state: Ada/1")
+            assertEquals("Home state: Ada/1", homeState.text.toString())
+
             val carousel = awaitHorizontalScroller(activity, "tab-swipe-carousel")
             val carouselContent = carousel.getChildAt(0)
                 ?: throw AssertionError("carousel did not mount a content child")

@@ -5,6 +5,11 @@ This uses the same three `.stx` screens as the iOS navigation test in
 bundle, and the generated Android app hosts it in native views with a
 JavaScriptSandbox isolate per screen.
 
+The acceptance path increments home state, opens the details route, returns
+through the native back control, and then continues with the component checks,
+so native button/link routing and retained screen state are exercised on both
+maintained hosts.
+
 With a sibling `stx` checkout and an Android SDK/emulator available:
 
 ```bash
