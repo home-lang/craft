@@ -377,6 +377,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('imageSources[view] == requestKey')
   })
 
+  it('normalizes numeric picker values identically on both hosts', () => {
+    expect(ios).toContain('private func craftNativePickerValue(_ value: Any?) -> String?')
+    expect(ios).toContain('craftNativePickerValue(optionProps["value"])')
+    expect(android).toContain('private fun craftNativePickerValue(value: Any?): String?')
+    expect(android).toContain('craftNativePickerValue(optionProps?.opt("value"))')
+    expect(android).toContain('craftNativePickerValue(props.opt("selectedValue"))')
+  })
+
   it('keeps SVG stroke semantics aligned across hosts', () => {
     expect(ios).toContain('line.lineCapStyle')
     expect(ios).toContain('line.lineJoinStyle')

@@ -147,6 +147,11 @@ private fun craftNativeOptionalString(value: Any?): String? = value
     ?.takeUnless { it == "null" || it == "undefined" }
     ?.takeIf { it.isNotBlank() }
 
+private fun craftNativePickerValue(value: Any?): String? = when (value) {
+    is Number -> value.toDouble().takeIf { it.isFinite() }?.toString()
+    else -> craftNativeOptionalString(value)
+}
+
 private fun craftNativeEventName(events: JSONObject, vararg names: String): String =
     names.firstNotNullOfOrNull { name -> craftNativeOptionalString(events.opt(name)) }.orEmpty()
 
@@ -4896,7 +4901,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     if (label.isBlank()) return@mapNotNull null
                     val optionProps = option.optJSONObject("props")
-                    val value = craftNativeOptionalString(optionProps?.opt("value")) ?: label
+                    val value = craftNativePickerValue(optionProps?.opt("value")) ?: label
                     value to label
                 }
                 val handler = craftNativeEventName(events, "onValueChange", "onChange")
@@ -4908,8 +4913,8 @@ class MainActivity : AppCompatActivity() {
                 adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_item, options.map { it.second }).also {
                     it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
                 }
-                val requested = craftNativeOptionalString(props.opt("selectedValue"))
-                    ?: craftNativeOptionalString(props.opt("value")).orEmpty()
+                val requested = craftNativePickerValue(props.opt("selectedValue"))
+                    ?: craftNativePickerValue(props.opt("value")).orEmpty()
                 val selected = options.indexOfFirst { it.first == requested }.takeIf { it >= 0 } ?: 0
                 isEnabled = !props.optBoolean("disabled", false)
                 // Mounting a controlled picker must not look like a user

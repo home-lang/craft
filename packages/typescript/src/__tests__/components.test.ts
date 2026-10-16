@@ -16,6 +16,7 @@ import type {
   ImageStyle,
   FlexStyle,
   ButtonProps,
+  PickerProps,
   MapProps,
   MapMarkerProps,
   MapPolylineProps,
@@ -55,6 +56,7 @@ describe('Component System', () => {
     }
     const route: MapPolylineProps = { geometry: [47, 11, 47.1, 11.2], strokeWidth: 3 }
     const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], onPress: () => {} }
+    const picker: PickerProps = { items: [{ label: 'One', value: 1 }], selectedValue: 1 }
     const sections: SectionListProps<string> = {
       sections: [{ title: 'Trails', data: ['Alpine'] }],
       renderItem: ({ item }) => item,
@@ -64,6 +66,7 @@ describe('Component System', () => {
     expect(map.fitToBounds).toBe(true)
     expect(route.geometry).toHaveLength(4)
     expect(marker.id).toBe('trailhead')
+    expect(picker.selectedValue).toBe(1)
     expect(sections.sections[0]?.data).toEqual(['Alpine'])
   })
 

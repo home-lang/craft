@@ -21,6 +21,12 @@ private func number(_ value: Any?) -> CGFloat? {
     return value.isFinite ? value : nil
 }
 
+private func craftNativePickerValue(_ value: Any?) -> String? {
+    if let value = value as? String, !value.isEmpty { return value }
+    if let value = value as? NSNumber, value.doubleValue.isFinite { return String(value.doubleValue) }
+    return nil
+}
+
 private func craftNativeGridColumnCount(_ value: Any?) -> Int {
     if let number = value as? NSNumber { return max(1, number.intValue) }
     guard let text = value as? String else { return 1 }
@@ -5490,12 +5496,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 let optionProps = node["props"] as? [String: Any] ?? [:]
                 let label = (node["children"] as? [Any] ?? []).compactMap { $0 as? String }.joined()
                 guard !label.isEmpty else { return nil }
-                return (value: optionProps["value"] as? String ?? label, label: label)
+                return (value: craftNativePickerValue(optionProps["value"]) ?? label, label: label)
             }
             let pickerID = ObjectIdentifier(picker)
             pickerOptions[pickerID] = options
             picker.reloadAllComponents()
-            if let selected = (props["selectedValue"] as? String) ?? (props["value"] as? String),
+            if let selected = craftNativePickerValue(props["selectedValue"]) ?? craftNativePickerValue(props["value"]),
                let row = options.firstIndex(where: { $0.value == selected }) {
                 picker.selectRow(row, inComponent: 0, animated: false)
             } else if !options.isEmpty {
