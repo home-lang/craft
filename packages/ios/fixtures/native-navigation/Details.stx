@@ -49,6 +49,16 @@ function incrementDetails() {
 }
 
 onDestroy(() => globalThis.craft.storage.set('native-navigation-details-destroyed', `${name}/${count()}`))
+
+globalThis.craft.navigation.setOptions({
+  title: 'Details',
+  tabAccessory: {
+    path: '/capabilities',
+    title: 'Capabilities',
+    symbol: 'ellipsis.circle',
+    accessibilityLabel: 'Open capabilities',
+  },
+})
 </script>
 
 <template>

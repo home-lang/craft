@@ -1268,6 +1268,31 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        ) as MainActivity
+        try {
+            click(activity, "open-details")
+            awaitText(activity, "details-title", "Details for ")
+            val accessory = awaitView(activity, "Open capabilities")
+            instrumentation.runOnMainSync { accessory.performClick() }
+            awaitView(activity, "capabilities-title")
+            assertTrue("tab accessory remained visible over its destination", find(activity.window.decorView, "Open capabilities") == null)
+            instrumentation.runOnMainSync { activity.onBackPressedDispatcher.onBackPressed() }
+            awaitText(activity, "details-title", "Details for ")
+            awaitView(activity, "Open capabilities")
+            click(activity, "details-back")
+            awaitView(activity, "home-title")
+            assertTrue("tab accessory was not cleared after leaving the pushed screen", find(activity.window.decorView, "Open capabilities") == null)
+        } finally {
+            activity.finishAndRemoveTask()
+        }
+    }
+
+    @Test
     fun nativeAppearanceReconcilesTraitDefaults() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(

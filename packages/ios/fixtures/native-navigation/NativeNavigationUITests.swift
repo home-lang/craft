@@ -277,6 +277,29 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(link.waitForExistence(timeout: 10))
     }
 
+    func testPushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack() {
+        let app = XCUIApplication()
+        app.launch()
+        let openDetails = app.buttons["open-details"]
+        XCTAssertTrue(openDetails.waitForExistence(timeout: 15))
+        openDetails.tap()
+        XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
+
+        let accessory = app.buttons["craft-tab-accessory"]
+        XCTAssertTrue(accessory.waitForExistence(timeout: 10))
+        XCTAssertEqual(accessory.label, "Open capabilities")
+        accessory.tap()
+        XCTAssertTrue(app.staticTexts["capabilities-title"].waitForExistence(timeout: 10))
+        XCTAssertFalse(accessory.exists, "the accessory from the pushed screen remained over its destination")
+
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["craft-tab-accessory"].waitForExistence(timeout: 10), "the pushed screen accessory was not restored")
+        app.buttons["details-back"].tap()
+        XCTAssertTrue(app.staticTexts["home-title"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["craft-tab-accessory"].exists, "the accessory was not cleared after leaving the pushed screen")
+    }
+
     func testCapabilityPersistenceAndNotificationsAcrossRelaunch() throws {
         let app = XCUIApplication()
         app.launch()

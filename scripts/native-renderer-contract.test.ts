@@ -2711,6 +2711,17 @@ describe('native renderer component contract', () => {
     expect(android).toContain('else setWindowSafeInsets(0, 0, 0, 0)')
   })
 
+  it('exercises the pushed-screen tab accessory on both maintained hosts', () => {
+    expect(navigationDetails).toContain("path: '/capabilities'")
+    expect(navigationDetails).toContain("accessibilityLabel: 'Open capabilities'")
+    expect(iosNavigationTest).toContain('testPushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack')
+    expect(iosNavigationTest).toContain('craft-tab-accessory')
+    expect(androidNavigationTest).toContain('pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack')
+    expect(androidNavigationTest).toContain('Open capabilities')
+    expect(ios).toContain('CraftChrome.shared.updateTabAccessory(nil)')
+    expect(androidShell).toContain('accessorySpec?.optString("path")?.let { onAccessory?.invoke(it) }')
+  })
+
   it('keeps reverse flex directions covered on both native hosts', () => {
     expect(navigationHome).toContain('testID="reverse-column"')
     expect(navigationHome).toContain('flexDirection":"column-reverse"')
