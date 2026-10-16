@@ -289,6 +289,16 @@ final class NativeNavigationUITests: XCTestCase {
         let accessory = app.buttons["craft-tab-accessory"]
         XCTAssertTrue(accessory.waitForExistence(timeout: 10))
         XCTAssertEqual(accessory.label, "Open capabilities")
+        let frame = accessory.frame
+        let window = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(frame.width, 44)
+        XCTAssertGreaterThanOrEqual(frame.height, 44)
+        XCTAssertGreaterThanOrEqual(frame.minX, window.minX)
+        XCTAssertLessThanOrEqual(frame.maxX, window.maxX)
+        let before = XCTAttachment(screenshot: app.screenshot())
+        before.name = "Native tab accessory before tap"
+        before.lifetime = .keepAlways
+        add(before)
         accessory.tap()
         XCTAssertTrue(app.staticTexts["capabilities-title"].waitForExistence(timeout: 10))
         XCTAssertFalse(accessory.exists, "the accessory from the pushed screen remained over its destination")
@@ -296,6 +306,11 @@ final class NativeNavigationUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["craft-tab-accessory"].waitForExistence(timeout: 10), "the pushed screen accessory was not restored")
+        // The glass surface outside the small symbol is a native button too.
+        accessory.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["capabilities-title"].waitForExistence(timeout: 10))
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         app.buttons["details-back"].tap()
         XCTAssertTrue(app.staticTexts["home-title"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["craft-tab-accessory"].exists, "the accessory was not cleared after leaving the pushed screen")
@@ -491,13 +506,13 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["home-title"].label, "Home")
         app.buttons["native-audio-context"].tap()
         XCTAssertTrue(app.staticTexts["AudioContext ready"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.datePickers["native-countdown"].waitForExistence(timeout: 5), "countdown DatePicker did not mount natively")
-        let checkbox = app.buttons["native-checkbox"]
+        XCTAssertTrue(app.descendants(matching: .any)["native-countdown"].waitForExistence(timeout: 5), "countdown DatePicker did not mount natively")
+        let checkbox = app.descendants(matching: .any)["native-checkbox"]
         XCTAssertTrue(checkbox.waitForExistence(timeout: 5), "native Checkbox did not mount natively")
         checkbox.tap()
         XCTAssertTrue(app.staticTexts["checkbox-status"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["checkbox-status"].label, "checkbox on")
-        let indeterminateCheckbox = app.buttons["native-checkbox-indeterminate"]
+        let indeterminateCheckbox = app.descendants(matching: .any)["native-checkbox-indeterminate"]
         XCTAssertTrue(indeterminateCheckbox.waitForExistence(timeout: 5))
         XCTAssertEqual(indeterminateCheckbox.value as? String, "mixed")
         XCTAssertTrue(app.buttons["disabled-button"].waitForExistence(timeout: 5))
