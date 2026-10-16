@@ -1235,6 +1235,11 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta))
     }
 
+    private func nonEmptyHandler(_ handler: String?) -> String? {
+        guard let handler, !handler.isEmpty else { return nil }
+        return handler
+    }
+
     private static func color(_ value: String?) -> UIColor {
         switch value?.lowercased() {
         case "red": return .systemRed
