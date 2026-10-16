@@ -5969,15 +5969,17 @@ class MainActivity : AppCompatActivity() {
     private fun inputTypeFor(props: JSONObject): Int {
         val base = if (props.optBoolean("multiline", false)) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         else InputType.TYPE_CLASS_TEXT
+        // Text variations do not carry their input class or multiline flag.
+        // Preserve both when selecting an email, URL, or search keyboard.
         val keyboard = when (props.optString("keyboardType")) {
-            "email-address" -> InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
-            "url" -> InputType.TYPE_TEXT_VARIATION_URI
+            "email-address" -> base or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+            "url" -> base or InputType.TYPE_TEXT_VARIATION_URI
             "numeric", "number-pad" -> InputType.TYPE_CLASS_NUMBER
             "decimal-pad" -> InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
             "phone-pad" -> InputType.TYPE_CLASS_PHONE
-            "web-search" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT
-            "visible-password" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-            else -> 0
+            "web-search" -> base or InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT
+            "visible-password" -> base or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            else -> base
         }
         val capitalization = when (props.optString("autoCapitalize")) {
             "characters" -> InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
@@ -5987,7 +5989,7 @@ class MainActivity : AppCompatActivity() {
         }
         val correction = if (props.optBoolean("autoCorrect", true)) InputType.TYPE_TEXT_FLAG_AUTO_CORRECT else 0
         val secure = if (props.optBoolean("secureTextEntry", false)) InputType.TYPE_TEXT_VARIATION_PASSWORD else 0
-        return (if (keyboard == 0) base else keyboard) or capitalization or correction or secure
+        return keyboard or capitalization or correction or secure
     }
 
     /// The autofill hint for `textContentType` (iOS's names) or `autoComplete`

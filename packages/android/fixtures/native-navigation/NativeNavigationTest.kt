@@ -114,10 +114,10 @@ class NativeNavigationTest {
         return false
     }
 
-    private fun awaitView(activity: MainActivity, id: String): View {
+    private fun awaitView(activity: MainActivity, id: String, matches: (View) -> Boolean = { true }): View {
         repeat(75) {
             var found: View? = null
-            instrumentation.runOnMainSync { found = find(activity.window.decorView, id) }
+            instrumentation.runOnMainSync { found = find(activity.window.decorView, id)?.takeIf(matches) }
             if (found != null) return found!!
             SystemClock.sleep(200)
         }
@@ -356,6 +356,7 @@ class NativeNavigationTest {
             assertTrue("bubble did not retain its authored horizontal padding", bubble.width > bubbleText.width)
             assertTrue(name is EditText)
             val nameInput = name as EditText
+            assertEquals("email keyboard must retain the text input class", InputType.TYPE_CLASS_TEXT, nameInput.inputType and InputType.TYPE_MASK_CLASS)
             assertEquals(Color.rgb(0x94, 0xa3, 0xb8), nameInput.hintTextColors.defaultColor)
             assertEquals(Color.rgb(0x22, 0xc5, 0x5e), nameInput.highlightColor)
             assertTrue(nameInput.filters.any { it is InputFilter.LengthFilter })
@@ -893,18 +894,21 @@ class NativeNavigationTest {
             awaitText(activity, "greeting", "Hello Ada")
             assertTrue("TextInput lost focus after typing", name.isFocused)
             click(activity, "toggle-name-mode")
-            val multilineName = awaitView(activity, "name-input") as EditText
+            val multilineName = awaitView(activity, "name-input") { it is EditText && !it.isSingleLine } as EditText
             assertFalse("multiline mode did not replace the single-line input", multilineName.isSingleLine)
+            assertTrue("email keyboard lost its multiline flag", multilineName.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0)
+            assertEquals(InputType.TYPE_CLASS_TEXT, multilineName.inputType and InputType.TYPE_MASK_CLASS)
+            assertEquals(InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, multilineName.inputType and InputType.TYPE_MASK_VARIATION)
             assertEquals("Ada", multilineName.text.toString())
-            assertEquals("multiline", (awaitView(activity, "name-mode") as TextView).text.toString())
+            awaitText(activity, "name-mode", "multiline")
             click(activity, "toggle-name-mode")
-            val singleLineName = awaitView(activity, "name-input") as EditText
+            val singleLineName = awaitView(activity, "name-input") { it is EditText && it.isSingleLine } as EditText
             assertTrue("single-line mode did not restore the input", singleLineName.isSingleLine)
             assertEquals("Ada", singleLineName.text.toString())
             // The field's dashed underline, on what was typed (an empty field has nothing to underline).
             val inputDecorations = (singleLineName.text as? Spanned)?.getSpans(0, singleLineName.text.length, ReplacementSpan::class.java).orEmpty()
             assertTrue("TextInput decoration span was not applied", inputDecorations.isNotEmpty())
-            assertEquals("single-line", (awaitView(activity, "name-mode") as TextView).text.toString())
+            awaitText(activity, "name-mode", "single-line")
             instrumentation.runOnMainSync { singleLineName.onEditorAction(EditorInfo.IME_ACTION_DONE) }
             awaitText(activity, "name-submits", "Submits: 1")
             instrumentation.runOnMainSync {
