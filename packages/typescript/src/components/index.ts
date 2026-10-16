@@ -563,10 +563,6 @@ export interface ImageProps extends BaseProps {
   onError?: (error: Error) => void
   /** Default source while loading */
   defaultSource?: ImageSource
-  /** Blur radius */
-  blurRadius?: number
-  /** Fade duration (ms) */
-  fadeDuration?: number
   /** Alt text for accessibility */
   alt?: string
 }

@@ -116,6 +116,15 @@ describe('Component System', () => {
     expect(tiled).toBeDefined()
   })
 
+  it('does not advertise image props the native hosts do not implement', () => {
+    const image: ImageProps = { source: { uri: 'https://example.com/photo.png' } }
+    // @ts-expect-error Native hosts do not implement blurRadius.
+    image.blurRadius = 4
+    // @ts-expect-error Native hosts do not implement fadeDuration.
+    image.fadeDuration = 180
+    expect(image.source.uri).toContain('example.com')
+  })
+
   describe('Platform', () => {
     it('should detect platform OS', () => {
       expect(['ios', 'android', 'macos', 'windows', 'linux', 'web']).toContain(Platform.OS)

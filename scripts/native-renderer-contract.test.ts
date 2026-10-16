@@ -387,6 +387,8 @@ describe('native renderer component contract', () => {
     expect(imageProps).not.toContain("'repeat'")
     expect(componentTypes).toContain('export type ImageSource =')
     expect(componentTypes).not.toContain('| number // For bundled images')
+    expect(imageProps).not.toContain('blurRadius?: number')
+    expect(imageProps).not.toContain('fadeDuration?: number')
     expect(ios).toContain('import MapKit')
     expect(ios).toContain('private final class CraftNativeMapView: MKMapView, MKMapViewDelegate')
     expect(ios).toContain('let points = Self.coordinates(childProps["geometry"])')
