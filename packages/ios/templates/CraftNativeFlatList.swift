@@ -210,12 +210,30 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     /// room again as they are.
     func fittingHeight(width: CGFloat) -> CGFloat {
         guard !isScrollEnabled else { return 0 }
-        if abs(bounds.width - width) > 0.5 {
-            flowLayout.invalidateLayout()
-            frame.size.width = width
+        // Flex measurement proposes several widths before committing a frame.
+        // Mutating the collection here lets self-sizing cache a provisional
+        // width and can reenter parent measurement through contentSize.didSet.
+        // Read the committed measurement, or estimate until layout measures
+        // rows at their actual width and onFittingHeightChanged asks for room.
+        let content: CGFloat
+        if abs(bounds.width - width) <= 0.5, contentSize.height > 0 {
+            content = contentSize.height
+        } else if flowLayout.scrollDirection == .horizontal {
+            content = items.isEmpty ? 0 : 44
+        } else {
+            var rows = 0
+            var pending = 0
+            for item in items {
+                if item.isChrome {
+                    rows += (pending + columns - 1) / columns + 1
+                    pending = 0
+                } else {
+                    pending += 1
+                }
+            }
+            rows += (pending + columns - 1) / columns
+            content = CGFloat(rows) * 44 + CGFloat(max(0, rows - 1)) * flowLayout.minimumLineSpacing
         }
-        layoutIfNeeded()
-        let content = flowLayout.collectionViewContentSize.height
         return max(0, ceil(content + contentInset.top + contentInset.bottom))
     }
 

@@ -302,6 +302,12 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertLessThanOrEqual(title.maxX, listFrame.maxX + 0.5)
         XCTAssertGreaterThanOrEqual(try frame("after", in: controller).minY, listFrame.maxY - 0.5)
 
+        // Proposing another width is measurement, not a committed resize.
+        // The parent may subtract padding after this intrinsic-size pass.
+        let committedFrame = list.frame
+        XCTAssertGreaterThan(list.fittingHeight(width: listFrame.width + 80), 0)
+        XCTAssertEqual(list.frame, committedFrame)
+
         // More rows: the header is redrawn and the list grows.
         controller.render(document(rows: 5))
         settle(controller)
