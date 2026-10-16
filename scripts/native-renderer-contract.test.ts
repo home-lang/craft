@@ -1965,6 +1965,8 @@ describe('native renderer component contract', () => {
 
   it('treats null layout values as unset on both hosts', () => {
     expect(ios).toContain('func number(_ value: Any?) -> CGFloat?')
+    expect(android).toContain('private fun craftNativeNumber(value: Any?): Double?')
+    expect(android).toContain('craftNativeNumber(style?.opt(name))')
     expect(android).toContain('if (value == null || value == JSONObject.NULL) return null')
     expect(android).toContain('fun number(name: String): Int?')
     expect(android).toContain('(raw.opt(name) as? Number)?.toDouble()')

@@ -135,6 +135,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('ViewCompat.requestApplyInsets(root)')
       expect(nativeActivity).toContain('rows.add(mutableListOf())')
       expect(nativeActivity).toContain('private class CraftNativeFlexLayout(context: Context) : LinearLayout(context)')
+      expect(nativeActivity).toContain('private fun craftNativeNumber(value: Any?): Double?')
+      expect(nativeActivity).toContain('craftNativeNumber(style?.opt(name))')
       expect(nativeActivity).toContain('if (value == null || value == JSONObject.NULL) return null')
       expect(nativeActivity).toContain('fun number(name: String): Int?')
       expect(nativeActivity).toContain('(raw.opt(name) as? Number)?.toDouble()')

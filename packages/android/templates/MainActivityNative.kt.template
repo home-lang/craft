@@ -161,20 +161,24 @@ private fun craftNativePickerValue(value: Any?): String? = when (value) {
 private fun craftNativeEventName(events: JSONObject, vararg names: String): String =
     names.firstNotNullOfOrNull { name -> craftNativeOptionalString(events.opt(name)) }.orEmpty()
 
+private fun craftNativeNumber(value: Any?): Double? = (value as? Number)
+    ?.toDouble()
+    ?.takeIf { it.isFinite() }
+
 internal fun craftNativePadding(style: JSONObject?, name: String, fallback: Int, density: Float): Int {
-    val value = style?.optDouble(name, Double.NaN) ?: Double.NaN
+    val value = craftNativeNumber(style?.opt(name)) ?: Double.NaN
     val pixels = value * density
     return if (value.isFinite() && value >= 0 && pixels.isFinite()) pixels.toInt() else fallback
 }
 
 internal fun craftNativeFiniteFloat(style: JSONObject?, name: String, fallback: Float): Float {
-    val value = style?.optDouble(name, Double.NaN) ?: Double.NaN
+    val value = craftNativeNumber(style?.opt(name)) ?: Double.NaN
     val narrowed = value.toFloat()
     return if (value.isFinite() && narrowed.isFinite()) narrowed else fallback
 }
 
 internal fun craftNativeFiniteDouble(style: JSONObject?, name: String, fallback: Double): Double {
-    val value = style?.optDouble(name, Double.NaN) ?: Double.NaN
+    val value = craftNativeNumber(style?.opt(name)) ?: Double.NaN
     return value.takeIf { it.isFinite() } ?: fallback
 }
 
@@ -1026,7 +1030,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         alignContent = style.optString("alignContent", "flex-start")
         justifyContent = style.optString("justifyContent", "flex-start")
         fun spacing(name: String, fallback: Float): Float {
-            val value = style.optDouble(name, Double.NaN)
+            val value = craftNativeNumber(style.opt(name)) ?: Double.NaN
             val pixels = value * density
             val narrowed = pixels.toFloat()
             return if (value.isFinite() && value >= 0 && pixels.isFinite() && narrowed.isFinite()) narrowed else fallback
