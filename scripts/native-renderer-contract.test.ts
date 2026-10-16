@@ -503,6 +503,14 @@ describe('native renderer component contract', () => {
     expect(androidReadme).toContain('`Map`')
   })
 
+  it('retries iOS map fitting after the native viewport is measured', () => {
+    expect(ios).toContain('private var pendingFitKey: String?')
+    expect(ios).toContain('override func layoutSubviews()')
+    expect(ios).toContain('guard bounds.width > 0, bounds.height > 0 else { return false }')
+    expect(iosNativeUnitTests).toContain('testMapFitRetriesAfterItsViewportIsMeasured')
+    expect(android).toContain('override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int)')
+  })
+
   it('forwards native image source headers on both hosts', () => {
     expect(ios).toContain('var request = URLRequest(url: url)')
     expect(ios).toContain('request.setValue(value, forHTTPHeaderField: name)')

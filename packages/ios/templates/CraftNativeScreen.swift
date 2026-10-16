@@ -963,6 +963,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var overlayColors: [ObjectIdentifier: UIColor] = [:]
     private var overlayWidths: [ObjectIdentifier: CGFloat] = [:]
     private var initialCameraKey: String?
+    private var pendingFitKey: String?
     private(set) var markerHandlers: [String: String] = [:]
     var onMarkerTap: ((String) -> Void)?
 
@@ -1067,9 +1068,11 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         if let region = Self.region(props["region"]) {
             // `region` is controlled: an authored change is allowed to move
             // the camera, even when the map itself was already mounted.
+            pendingFitKey = nil
             setRegion(region, animated: false)
             initialCameraKey = nil
         } else if let initial = Self.region(props["initialRegion"]) {
+            pendingFitKey = nil
             let key = "region:\(Self.regionKey(initial))"
             if initialCameraKey != key {
                 setRegion(initial, animated: false)
@@ -1078,24 +1081,46 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         } else if props["fitToBounds"] as? Bool == true {
             let key = "fit:\(Self.overlayKey(markers: nextMarkers.mapValues { $0.coordinate }, polylines: nextPolylines.mapValues { $0.coordinates }))"
             if initialCameraKey != key {
-                fitToOverlays()
-                initialCameraKey = key
+                // A native screen can reconcile before UIKit assigns the map
+                // its final safe-area-constrained bounds. Keep the fit
+                // pending until there is a real viewport, matching Android's
+                // onSizeChanged retry instead of silently accepting a no-op.
+                pendingFitKey = key
+                if fitToOverlays() {
+                    initialCameraKey = key
+                    pendingFitKey = nil
+                }
             }
         } else {
             initialCameraKey = nil
+            pendingFitKey = nil
         }
     }
 
-    private func fitToOverlays() {
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let key = pendingFitKey else { return }
+        pendingFitKey = nil
+        guard fitToOverlays() else {
+            pendingFitKey = key
+            return
+        }
+        initialCameraKey = key
+    }
+
+    @discardableResult
+    private func fitToOverlays() -> Bool {
+        guard bounds.width > 0, bounds.height > 0 else { return false }
         var rect = MKMapRect.null
         for overlay in overlaysByID.values { rect = rect.union(overlay.boundingMapRect) }
         for annotation in annotationsByID.values {
             let point = MKMapPoint(annotation.coordinate)
             rect = rect.union(MKMapRect(x: point.x, y: point.y, width: 0, height: 0))
         }
-        guard !rect.isNull else { return }
+        guard !rect.isNull else { return false }
         let inset = UIEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
         setVisibleMapRect(rect, edgePadding: inset, animated: false)
+        return true
     }
 
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {

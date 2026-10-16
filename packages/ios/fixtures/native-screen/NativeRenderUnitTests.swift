@@ -1,4 +1,5 @@
 import UIKit
+import MapKit
 import XCTest
 @testable import NativeRender
 
@@ -472,6 +473,32 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(update.updatedNodeIds, ["route"])
         XCTAssertEqual(update.affectedNodeIds, ["route"])
         XCTAssertFalse(update.requiresFullRender)
+    }
+
+    func testMapFitRetriesAfterItsViewportIsMeasured() {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render([
+            "type": "View",
+            "children": [[
+                "type": "Map",
+                "props": ["key": "map", "fitToBounds": true],
+                "style": ["width": 320, "height": 240],
+                "children": [[
+                    "type": "MapPolyline",
+                    "props": ["geometry": [47.0, 11.0, 47.1, 11.2]],
+                ]],
+            ]],
+        ])
+        controller.view.frame = CGRect(x: 0, y: 0, width: 320, height: 240)
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        let map = find(MKMapView.self, key: "map", below: controller.view)
+
+        XCTAssertTrue(
+            map?.visibleMapRect.contains(MKMapPoint(CLLocationCoordinate2D(latitude: 47.0, longitude: 11.0))) == true,
+            "fitToBounds did not retry after the map received a real viewport"
+        )
     }
 
     func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace() throws {
