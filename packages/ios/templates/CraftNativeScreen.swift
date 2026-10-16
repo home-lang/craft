@@ -5534,6 +5534,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 scale = 1
             }
             indicator.indicatorScale = scale
+            applyTransform(style["transform"], to: indicator)
             indicator.color = color(props["color"]) ?? .tintColor
             indicator.hidesWhenStopped = props["hidesWhenStopped"] as? Bool ?? true
             if props["animating"] as? Bool == false {

@@ -467,7 +467,7 @@ function captureSectionScroll() {
         @load-end="imageLoaded()"
         style={{"width":24,"height":24,"resizeMode":"cover","tintColor":imageTinted ? "#2563eb" : null}}
       />
-      <Image testID="intrinsic-image" source={intrinsicImage()} @layout="captureIntrinsicImageLayout($event)" />
+      <Image testID="intrinsic-image" source={intrinsicImage()} style={{"alignSelf":"flex-start"}} @layout="captureIntrinsicImageLayout($event)" />
       <Text testID="intrinsic-image-status" :text="intrinsicImageStatus" />
       <Button testID="toggle-intrinsic-image" @click="toggleIntrinsicImage()">Resize intrinsic image</Button>
       <ImageBackground
