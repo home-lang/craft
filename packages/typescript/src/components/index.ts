@@ -817,6 +817,7 @@ export type ReturnKeyType =
   | 'default'
 
 export interface SwitchProps extends BaseProps {
+  /** Controlled boolean state; malformed native bridge values stay off. */
   value?: boolean
   onValueChange?: (value: boolean) => void
   onChange?: (value: boolean) => void

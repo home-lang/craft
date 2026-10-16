@@ -5274,12 +5274,9 @@ class MainActivity : AppCompatActivity() {
                 val requestedValue = props.opt("value")
                 val requestedChecked = props.opt("checked")
                 isChecked = when {
-                    requestedValue != null && requestedValue != JSONObject.NULL -> props.optBoolean("value")
-                    requestedChecked == null || requestedChecked == JSONObject.NULL -> false
+                    requestedValue != null && requestedValue != JSONObject.NULL -> requestedValue as? Boolean ?: false
                     requestedChecked is Boolean -> requestedChecked
-                    requestedChecked is Number -> requestedChecked.toDouble() != 0.0
-                    requestedChecked is String -> requestedChecked.isBlank() || requestedChecked.equals("true", ignoreCase = true)
-                    else -> props.optBoolean("checked", false)
+                    else -> false
                 }
                 isEnabled = !props.optBoolean("disabled", false)
                 props.optJSONObject("trackColor")?.let { track ->

@@ -1291,7 +1291,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('if (screen.suppressedTextChanges.remove(this@apply)) return')
     expect(android).toContain('screen.suppressedTextChanges.remove(it)')
     expect(android).toContain('val requestedValue = props.opt("value")')
-    expect(android).toContain('props.optBoolean("checked", false)')
+    expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
     expect(android).toContain('val tint = style.opt("tintColor") as? String')
     expect(android).toContain('style.optDouble("lineHeight", Double.NaN)')
     expect(android).toContain('.takeIf { it.isFinite() }')
@@ -1545,7 +1545,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)\n        updateSafeAreaViews()')
     expect(android).toContain('A reused View may still carry a')
     expect(android).toContain('val requestedChecked = props.opt("checked")')
-    expect(android).toContain('requestedChecked is String -> requestedChecked.isBlank()')
+    expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
     expect(android).not.toContain('(child.layoutParams?.width ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
     expect(android).not.toContain('(child.layoutParams?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
   })
@@ -2808,6 +2808,13 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('Invalid switch thumb color should restore the native default')
     expect(android).toContain('val falseRaw = craftNativeOptionalString(track.opt("false"))')
     expect(android).toContain('if ((falseRaw != null && falseColor == null) || (trueRaw != null && trueColor == null))')
+  })
+
+  it('keeps malformed Switch state deterministic across native hosts', () => {
+    expect(ios).toContain('toggle.isOn = props["value"] as? Bool ?? props["checked"] as? Bool ?? false')
+    expect(android).toContain('requestedValue as? Boolean ?: false')
+    expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
+    expect(android).not.toContain('requestedChecked.isBlank()')
   })
 
   it('keeps malformed Android refresh colors from crashing or inventing a tint', () => {
