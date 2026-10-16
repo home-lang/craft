@@ -335,6 +335,14 @@ used by `useAmbientSound`; its effects are intentionally conservative and file
 decoding remains outside the native runtime. Both hosts tear the graph down
 with the screen.
 
+Native screens run in JavaScriptCore (iOS) or JavaScriptSandbox (Android), not
+in a DOM. To keep browser-safe SDK bridges usable, both hosts alias `globalThis.window`
+to `globalThis` before installing the native bridge, so
+`window.craft` resolves normally. The alias does not add `document` or DOM
+rendering, and routes that do not opt into `native` continue using the WebView
+renderer. Web APIs that the native capability contract does not advertise
+retain their normal WebView fallback behavior on web routes.
+
 `Svg` is DOM-free in native mode: the compiler emits geometry commands for
 shape nodes, `G` inherits fill/stroke paint, and `SvgText` draws text in the
 same viewBox. Both hosts preserve inherited opacity, fill/stroke colors, fill

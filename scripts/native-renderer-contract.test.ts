@@ -93,6 +93,14 @@ describe('native renderer component contract', () => {
     expect(androidChrome).toContain("if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;")
   })
 
+  it('documents the DOM-free window alias and preserves the WebView boundary', () => {
+    for (const document of [guide, iosReadme, androidReadme]) {
+      expect(document).toMatch(/alias(?:es)?\s+`globalThis\.window`\s+to\s+`globalThis`/)
+      expect(document).toMatch(/does not add `document` or DOM\s+rendering/)
+      expect(document).toMatch(/continue using the WebView\s+renderer/)
+    }
+  })
+
   it('exposes the implemented grid layout controls in the public style type', () => {
     expect(componentTypes).toContain("display?: 'flex' | 'none' | 'grid'")
     expect(componentTypes).toContain('gridTemplateColumns?: number | string')

@@ -200,7 +200,12 @@ JavaScriptSandbox process. Enable `enableLocalDatabase`,
 `enableLocalNotifications`, and `enableDeepLinks` explicitly. Disabled or
 malformed calls reject with stable capability/error codes, and in-flight calls
 have a deadline and cancellation path. The broader browser bridge remains
-specific to WebView mode. Native `TextInput` applies `placeholderTextColor`,
+specific to WebView mode. JavaScriptSandbox has no DOM `window`; Craft aliases
+`globalThis.window` to `globalThis` before installing the native bridge so
+browser-safe SDK calls such as `window.craft.dialog.actionSheet()` reach the
+native capability host. This does not add `document` or DOM rendering; routes
+that do not opt into `native` continue using the WebView renderer. Native
+`TextInput` applies `placeholderTextColor`,
 `selectionColor`, positive `maxLength`, `multiline`, and `numberOfLines` values.
 Native views include
 `ActivityIndicator` and expose
