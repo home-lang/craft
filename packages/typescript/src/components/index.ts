@@ -458,8 +458,6 @@ export interface ViewProps extends BaseProps {
   onLongPress?: () => void
   /** Layout change handler */
   onLayout?: (event: LayoutEvent) => void
-  /** Pointer events behavior */
-  pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only'
 }
 
 /** Safe-area container props used by native iOS and Android screens. */

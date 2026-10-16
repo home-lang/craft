@@ -31,6 +31,7 @@ import type {
   SectionListProps,
   TextInputProps,
   ScrollViewProps,
+  ViewProps,
 } from '../components'
 
 describe('Component System', () => {
@@ -67,6 +68,11 @@ describe('Component System', () => {
 
   it('types the native renderer component contract', () => {
     const button: ButtonProps = { title: 'Open map', onClick: () => {} }
+    const view: ViewProps = { onPress: () => {} }
+    // Pointer-event routing is not implemented by either maintained native host.
+    // @ts-expect-error pointerEvents is intentionally outside the native View contract.
+    view.pointerEvents = 'none'
+    expect(view.onPress).toBeDefined()
     const pressable: PressableProps = { disabled: false, onPressIn: () => {}, onPressOut: () => {} }
     // These platform-specific press options are not implemented by either native host.
     // @ts-expect-error hitSlop is intentionally outside the native Pressable contract.

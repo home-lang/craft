@@ -1093,6 +1093,14 @@ describe('native renderer component contract', () => {
     expect(android).not.toContain('android_ripple')
   })
 
+  it('does not advertise unsupported pointer-event routing', () => {
+    const viewProps = componentTypes.match(/export interface ViewProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(viewProps).toContain('onLayout?: (event: LayoutEvent) => void')
+    expect(viewProps).not.toContain('pointerEvents?:')
+    expect(ios).not.toContain('pointerEvents')
+    expect(android).not.toContain('pointerEvents')
+  })
+
   it('delivers Pressable press-in and press-out callbacks on both hosts', () => {
     expect(ios).toContain('events["onPressIn"]')
     expect(ios).toContain('events["onPressOut"]')

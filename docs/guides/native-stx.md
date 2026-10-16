@@ -190,6 +190,9 @@ same lifecycle on iOS and Android.
 The shared `Pressable` contract intentionally omits platform-specific
 `hitSlop`, ripple, retention-offset, and long-press-delay options until both
 hosts implement them.
+Pointer-event routing (`pointerEvents`, `box-none`, and `box-only`) is likewise
+outside the maintained native contract; use explicit native layout and enabled
+state props instead of relying on DOM hit-testing semantics.
 `Picker` renders option children from `<select>`/`<option>` or the native
 primitive, accepts an `items` array or child options plus `value`/`selectedValue`,
 and sends the selected option's `value` plus `index` through `onValueChange` or
