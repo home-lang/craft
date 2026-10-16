@@ -6272,7 +6272,8 @@ class MainActivity : AppCompatActivity() {
     private fun configureTextStyle(view: TextView, style: JSONObject) {
         view.setTextColor(color(style.optString("color"), defaultTextColor))
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, craftNativeFiniteFloat(style, "fontSize", 16f))
-        val weight = when (style.optString("fontWeight")) {
+        val fontWeight = style.opt("fontWeight") as? String
+        val weight = when (fontWeight) {
             "bold" -> 700
             "100", "200", "300", "400", "500", "600", "700", "800", "900" -> style.optInt("fontWeight")
             else -> 400

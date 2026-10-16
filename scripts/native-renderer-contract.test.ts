@@ -626,6 +626,7 @@ describe('native renderer component contract', () => {
   it('inherits SVG text weights through groups and maps the shared weight range', () => {
     expect(ios).toContain('var fontWeight: String?')
     expect(ios).toContain('if let fontWeight = string(value("fontWeight")) { next.fontWeight = fontWeight }')
+    expect(android).toContain('val fontWeight = style.opt("fontWeight") as? String')
     expect(ios).toContain('case "bold", "700", "800", "900": return .bold')
     expect(android).toContain('typeface = svgTypeface(weight, typeface)')
     expect(android).toContain('"500" -> Typeface.create("sans-serif-medium", Typeface.NORMAL)')
