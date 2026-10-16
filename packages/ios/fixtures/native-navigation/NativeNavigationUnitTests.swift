@@ -96,6 +96,29 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
     }
 
+    func testColdLinkWaitsForTheConstructedShellToLoadItsStacks() async throws {
+        let earlyShell = CraftHybridController(config: CraftHybrid.shared.config)
+        XCTAssertFalse(earlyShell.isViewLoaded)
+        defer {
+            window.rootViewController = shell
+            CraftHybrid.shared.controller = shell
+        }
+
+        let url = try XCTUnwrap(URL(string: "https://example.com/linked-details?name=Cold"))
+        XCTAssertTrue(CraftHybrid.shared.handleDeepLink(url))
+        window.rootViewController = earlyShell
+        earlyShell.view.frame = window.bounds
+        earlyShell.view.layoutIfNeeded()
+
+        await displayWait("the cold link reaches its screen after the shell mounts") {
+            earlyShell.children.compactMap { $0 as? UINavigationController }.contains {
+                guard let screen = $0.topViewController as? CraftNativeScreenController else { return false }
+                return screen.routeParams["path"] as? String == "/linked-details?name=Cold"
+                    && screen.routeParams["name"] as? String == "Cold"
+            }
+        }
+    }
+
     private func displayWait(_ description: String, diagnostic: @escaping () -> String = { "" }, ready: @escaping () -> Bool) async {
         let finished = expectation(description: description)
         let display = DisplayWait(ready: ready, finished: finished)

@@ -854,9 +854,11 @@ final class CraftHybrid: NSObject {
         let show: (CraftHybridController) -> Void = { [weak self] controller in
             if native { controller.showNative(path: path, replace: false, fromLink: true) } else { self?.openOutside(url.absoluteString) }
         }
-        guard let controller else {
+        guard let controller, controller.isViewLoaded else {
             // Before the shell: a hybrid app's page has it; an all-native app
             // opens it once the shell is up (a link that launched the app).
+            // Construction assigns controller before viewDidLoad makes the
+            // navigation stacks; a link in that interval must wait too.
             guard !hasWeb else { return false }
             untilShell.append(show)
             return true
