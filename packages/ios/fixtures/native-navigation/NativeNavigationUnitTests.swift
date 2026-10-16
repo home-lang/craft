@@ -18,6 +18,26 @@ final class NativeNavigationUnitTests: XCTestCase {
         override func velocity(in view: UIView?) -> CGPoint { CGPoint(x: speed, y: 0) }
     }
 
+    @MainActor
+    private final class DisplayWait: NSObject {
+        private let ready: () -> Bool
+        private let finished: XCTestExpectation
+        private var link: CADisplayLink?
+        init(ready: @escaping () -> Bool, finished: XCTestExpectation) {
+            self.ready = ready
+            self.finished = finished
+            super.init()
+        }
+        func start() {
+            link = CADisplayLink(target: self, selector: #selector(frame))
+            link?.add(to: .main, forMode: .common)
+        }
+        @objc private func frame() {
+            if ready() { stop(); finished.fulfill() }
+        }
+        func stop() { link?.invalidate(); link = nil }
+    }
+
     private var shell: CraftHybridController!
     private var window: UIWindow!
     private var previous: CraftHybridController?
@@ -32,13 +52,16 @@ final class NativeNavigationUnitTests: XCTestCase {
         selection = CraftChrome.shared.selected
         CraftChrome.shared.selected = "/"
         shell = CraftHybridController(config: CraftHybrid.shared.config)
-        if let scene = previousWindow?.windowScene {
+        let scene = previousWindow?.windowScene
+            ?? UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        if let scene {
             window = UIWindow(windowScene: scene)
         } else {
             window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         }
         window.rootViewController = shell
         window.makeKeyAndVisible()
+        XCTAssertNotNil(window.windowScene, "hosted UIKit tests need a connected scene")
         shell.view.frame = window.bounds
         shell.view.layoutIfNeeded()
     }
@@ -69,10 +92,27 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
     }
 
+    private func displayWait(_ description: String, ready: @escaping () -> Bool) {
+        let finished = expectation(description: description)
+        let display = DisplayWait(ready: ready, finished: finished)
+        display.start()
+        wait(for: [finished], timeout: 15)
+        display.stop()
+    }
+
+    private func renderFrames() {
+        CATransaction.flush()
+        var frames = 0
+        displayWait("native frames rendered") { frames += 1; return frames >= 2 }
+    }
+
     private func settle() {
-        let finished = expectation(description: "native settle animation")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { finished.fulfill() }
-        wait(for: [finished], timeout: 2)
+        displayWait("native settle animation completed") { [self] in
+            shell.children.compactMap { $0 as? UINavigationController }.allSatisfy {
+                $0.view.frame == shell.view.bounds && ($0.view.layer.animationKeys()?.isEmpty ?? true)
+            }
+        }
+        renderFrames()
     }
 
     private func attachFrame(_ name: String) {
@@ -137,17 +177,33 @@ final class NativeNavigationUnitTests: XCTestCase {
         drag(-width * 0.4)
         let start = details.view.frame.minX
         attachFrame("Incoming native tab follows the finger")
+        // A real drag renders before release; beginning and ending in one
+        // run-loop turn can otherwise animate from an uncommitted layer.
+        renderFrames()
         drag(-width * 0.4, phase: .ended)
+        if !UIAccessibility.isReduceMotionEnabled {
+            let animation = try XCTUnwrap(details.view.layer.animation(forKey: "position") as? CABasicAnimation,
+                                          "UIKit must hand the settle to the native compositor")
+            let from = try XCTUnwrap(animation.fromValue as? NSValue).cgPointValue
+            let to = try XCTUnwrap(animation.toValue as? NSValue).cgPointValue
+            XCTAssertEqual(animation.duration, 0.22, accuracy: 0.001)
+            XCTAssertEqual(from.x - to.x, start, accuracy: 0.5)
+            XCTAssertEqual(to.x, width * 0.5, accuracy: 0.5)
+        }
+        let releasedAt = CACurrentMediaTime()
         let sample = expectation(description: "sample a settling animation frame")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-            if !UIAccessibility.isReduceMotionEnabled {
+            let elapsed = CACurrentMediaTime() - releasedAt
+            // A loaded simulator may schedule this after the animation has
+            // finished. Its native interpolation was still required above.
+            if !UIAccessibility.isReduceMotionEnabled && elapsed < 0.19 {
                 let frame = details.view.layer.presentation()?.frame ?? details.view.frame
                 XCTAssertGreaterThan(frame.minX, 0.5, "the native transition jumped to its final frame")
                 XCTAssertLessThan(frame.minX, start, "the native transition never advanced")
             }
             sample.fulfill()
         }
-        wait(for: [sample], timeout: 2)
+        wait(for: [sample], timeout: 15)
         settle()
         XCTAssertEqual(details.view.frame, shell.view.bounds)
         XCTAssertFalse(details.view.isHidden)
@@ -182,5 +238,45 @@ final class NativeNavigationUnitTests: XCTestCase {
         settle()
         XCTAssertEqual(CraftChrome.shared.selected, "/")
         XCTAssertEqual(home.view.frame, shell.view.bounds)
+    }
+
+    func testTabTapDuringSettlingWinsOverTheSwipeCompletion() throws {
+        mountDetails()
+        let home = try XCTUnwrap(stack("/"))
+        let details = try XCTUnwrap(stack("/details"))
+        for path in ["/", "/third", "/details"] {
+            _ = shell.tabTapped("/", reselect: false)
+            CraftChrome.shared.selected = "/"
+            drag(-shell.view.bounds.width * 0.4)
+            drag(-shell.view.bounds.width * 0.4, phase: .ended)
+            let tab = try XCTUnwrap(CraftChrome.shared.tabs.first { $0.id == path })
+            CraftChrome.shared.tap(tab)
+            let selected = try XCTUnwrap(stack(path))
+            XCTAssertFalse(selected.view.isHidden, "the newer tab tap must take effect immediately")
+            XCTAssertEqual(selected.view.frame, shell.view.bounds)
+            XCTAssertTrue(selected.view.layer.animationKeys()?.isEmpty ?? true)
+            settle()
+            XCTAssertEqual(CraftChrome.shared.selected, path, "a completed swipe overrode the newer tab tap")
+            XCTAssertEqual(home.view.isHidden, path != "/")
+            XCTAssertEqual(details.view.isHidden, path != "/details")
+            XCTAssertEqual(selected.view.frame, shell.view.bounds)
+        }
+    }
+
+    func testSwipeAfterATabTapCannotBeChangedByTheOlderAnimation() throws {
+        mountDetails()
+        let details = try XCTUnwrap(stack("/details"))
+        let width = shell.view.bounds.width
+        drag(-width * 0.4)
+        drag(-width * 0.4, phase: .ended)
+        let homeTab = try XCTUnwrap(CraftChrome.shared.tabs.first { $0.id == "/" })
+        CraftChrome.shared.tap(homeTab)
+        drag(-width * 0.4)
+        XCTAssertEqual(details.view.frame.minX, width * 0.6, accuracy: 0.5)
+        drag(-width * 0.4, phase: .ended)
+        settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/details")
+        XCTAssertFalse(details.view.isHidden)
+        XCTAssertEqual(details.view.frame, shell.view.bounds)
     }
 }
