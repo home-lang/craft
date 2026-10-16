@@ -190,6 +190,49 @@ private enum CraftNativeTreeLayoutBridge {
         var childCount: UInt32
     }
 
+    private struct StyleInputV4 {
+        var direction: UInt32 = 0
+        var width: Float = .nan
+        var height: Float = .nan
+        var intrinsicWidth: Float = .nan
+        var intrinsicHeight: Float = .nan
+        var baseline: Float = .nan
+        var aspectRatio: Float = .nan
+        var flexBasis: Float = .nan
+        var flexGrow: Float = 0
+        var flexShrink: Float = 0
+        var minWidth: Float = .nan
+        var maxWidth: Float = .nan
+        var minHeight: Float = .nan
+        var maxHeight: Float = .nan
+        var gap: Float = 0
+        var justifyContent: UInt32 = 0
+        var alignItems: UInt32 = 3
+        var alignSelf: UInt32 = 0
+        var flexWrap: UInt32 = 0
+        var alignContent: UInt32 = 6
+        var marginTop: Float = 0
+        var marginRight: Float = 0
+        var marginBottom: Float = 0
+        var marginLeft: Float = 0
+        var paddingTop: Float = 0
+        var paddingRight: Float = 0
+        var paddingBottom: Float = 0
+        var paddingLeft: Float = 0
+        var grid: UInt32 = 0
+        var gridColumns: UInt32 = 1
+        var rowGap: Float = 0
+        var columnGap: Float = 0
+        var reverse: UInt32 = 0
+        var gridAutoRows: Float = .nan
+    }
+
+    private struct NodeInputV4 {
+        var style: StyleInputV4
+        var firstChild: UInt32
+        var childCount: UInt32
+    }
+
     fileprivate struct Frame {
         var x: Float
         var y: Float
@@ -213,6 +256,7 @@ private enum CraftNativeTreeLayoutBridge {
         let padding: UIEdgeInsets
         let grid: Bool
         let gridColumns: Int
+        let gridAutoRows: CraftNativeLength?
         let reverse: Bool
         let wrapReverse: Bool
         let children: [TreeNode]
@@ -244,6 +288,11 @@ private enum CraftNativeTreeLayoutBridge {
 
     private static let functionV3: FunctionV2? = {
         guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_layout_tree_v3") else { return nil }
+        return unsafeBitCast(symbol, to: FunctionV2.self)
+    }()
+
+    private static let functionV4: FunctionV2? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_layout_tree_v4") else { return nil }
         return unsafeBitCast(symbol, to: FunctionV2.self)
     }()
 
@@ -359,6 +408,9 @@ private enum CraftNativeTreeLayoutBridge {
 
     fileprivate static func treeFrames(root: TreeNode, width: CGFloat, height: CGFloat) -> TreeResult? {
         guard let function, width.isFinite, height.isFinite, width >= 0, height >= 0, !root.children.isEmpty else { return nil }
+        if containsGridAutoRows(root) {
+            return treeFramesV4(root: root, width: width, height: height, function: functionV4)
+        }
         if containsWrapReverse(root) {
             return treeFramesV2(root: root, width: width, height: height, function: functionV3)
         }
@@ -460,6 +512,10 @@ private enum CraftNativeTreeLayoutBridge {
         node.wrapReverse || node.children.contains(where: containsWrapReverse)
     }
 
+    private static func containsGridAutoRows(_ node: TreeNode) -> Bool {
+        node.gridAutoRows != nil || node.children.contains(where: containsGridAutoRows)
+    }
+
     private static func treeFramesV2(root: TreeNode, width: CGFloat, height: CGFloat, function: FunctionV2?) -> TreeResult? {
         guard let function, width.isFinite, height.isFinite, width >= 0, height >= 0, !root.children.isEmpty else { return nil }
         var nodes: [TreeNode] = []
@@ -529,6 +585,100 @@ private enum CraftNativeTreeLayoutBridge {
         write(root, parentWidth: width, parentHeight: height, rootNode: true)
         let inputs = zip(styles, stride(from: 0, to: metadata.count, by: 2)).map { style, offset in
             NodeInputV2(style: style, firstChild: UInt32(metadata[offset]), childCount: UInt32(metadata[offset + 1]))
+        }
+
+        var output = [Frame](repeating: Frame(x: 0, y: 0, width: 0, height: 0), count: nodes.count)
+        let frameCount = output.count
+        let status = inputs.withUnsafeBufferPointer { inputBuffer in
+            metadata.withUnsafeBufferPointer { metadataBuffer in
+                output.withUnsafeMutableBufferPointer { outputBuffer in
+                    function(
+                        Float(width), Float(height), UnsafeRawPointer(inputBuffer.baseAddress!), inputs.count,
+                        UnsafeMutableRawPointer(outputBuffer.baseAddress!), frameCount
+                    )
+                }
+            }
+        }
+        guard status == 0, output.allSatisfy({ frame in
+            frame.x.isFinite && frame.y.isFinite && frame.width.isFinite && frame.height.isFinite &&
+                frame.width >= 0 && frame.height >= 0
+        }) else { return nil }
+        return TreeResult(nodes: nodes, parents: parents, frames: output)
+    }
+
+    /// v4 is the reverse-aware tree payload with one resolved grid-auto-rows
+    /// value appended. Keeping this as a separate struct preserves the v1–v3
+    /// strides for runtimes that predate the shared auto-row contract.
+    private static func treeFramesV4(root: TreeNode, width: CGFloat, height: CGFloat, function: FunctionV2?) -> TreeResult? {
+        guard let function, width.isFinite, height.isFinite, width >= 0, height >= 0, !root.children.isEmpty else { return nil }
+        var nodes: [TreeNode] = []
+        var parents: [Int] = []
+        func append(_ node: TreeNode, parent: Int) {
+            let index = nodes.count
+            nodes.append(node)
+            parents.append(parent)
+            node.children.forEach { append($0, parent: index) }
+        }
+        append(root, parent: -1)
+
+        func put(_ input: inout StyleInputV4, _ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool) {
+            let contentWidth = max(0, (rootNode ? width : node.intrinsic.width) - node.padding.left - node.padding.right)
+            let contentHeight = max(0, (rootNode ? height : node.intrinsic.height) - node.padding.top - node.padding.bottom)
+            let mainSize = node.direction == .horizontal ? contentWidth : contentHeight
+            input.direction = node.direction == .horizontal ? 0 : 1
+            input.width = rootNode ? Float(width) : length(node.style.width, base: parentWidth)
+            input.height = rootNode ? Float(height) : length(node.style.height, base: parentHeight)
+            input.intrinsicWidth = rootNode ? .nan : Float(max(0, node.intrinsic.width))
+            input.intrinsicHeight = rootNode ? .nan : Float(max(0, node.intrinsic.height))
+            input.baseline = rootNode ? .nan : Float(max(0, node.baseline))
+            input.aspectRatio = finite(node.style.aspectRatio)
+            input.flexBasis = length(node.style.flexBasis, base: mainSize)
+            input.flexGrow = rootNode ? 0 : Float(max(0, node.style.flexGrow))
+            let defaultShrink: CGFloat = node.view is UIScrollView || (node.view is UILabel && node.direction == .horizontal) ? 1 : 0
+            input.flexShrink = rootNode ? 0 : Float(max(0, node.style.flexShrink ?? defaultShrink))
+            input.minWidth = length(node.style.minWidth, base: contentWidth)
+            input.maxWidth = length(node.style.maxWidth, base: contentWidth)
+            input.minHeight = length(node.style.minHeight, base: contentHeight)
+            input.maxHeight = length(node.style.maxHeight, base: contentHeight)
+            input.gap = Float(max(0, node.gap))
+            input.justifyContent = justify(node.justifyContent)
+            input.alignItems = alignment(node.alignItems)
+            input.alignSelf = rootNode ? 0 : alignSelf(node.style.alignSelf)
+            input.flexWrap = node.wrap ? 1 : 0
+            input.alignContent = craftNativeAlignContentCode(node.alignContent)
+            input.marginTop = Float(max(0, node.style.marginTop))
+            input.marginRight = Float(max(0, node.style.marginRight))
+            input.marginBottom = Float(max(0, node.style.marginBottom))
+            input.marginLeft = Float(max(0, node.style.marginLeft))
+            input.paddingTop = Float(max(0, node.padding.top))
+            input.paddingRight = Float(max(0, node.padding.right))
+            input.paddingBottom = Float(max(0, node.padding.bottom))
+            input.paddingLeft = Float(max(0, node.padding.left))
+            input.grid = node.grid ? 1 : 0
+            input.gridColumns = UInt32(max(1, node.gridColumns))
+            input.rowGap = Float(max(0, node.rowGap))
+            input.columnGap = Float(max(0, node.columnGap))
+            input.reverse = (node.reverse ? 1 : 0) | (node.wrapReverse ? 2 : 0)
+            input.gridAutoRows = node.gridAutoRows.map { length($0, base: contentHeight) } ?? .nan
+        }
+
+        var styles = [StyleInputV4](repeating: StyleInputV4(), count: nodes.count)
+        var metadata = [Float](repeating: 0, count: nodes.count * 2)
+        var cursor = 0
+        func write(_ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool) {
+            let index = cursor
+            cursor += 1
+            put(&styles[index], node, parentWidth: parentWidth, parentHeight: parentHeight, rootNode: rootNode)
+            let contentWidth = max(0, (rootNode ? width : node.intrinsic.width) - node.padding.left - node.padding.right)
+            let contentHeight = max(0, (rootNode ? height : node.intrinsic.height) - node.padding.top - node.padding.bottom)
+            let firstChild = cursor
+            node.children.forEach { write($0, parentWidth: contentWidth, parentHeight: contentHeight, rootNode: false) }
+            metadata[index * 2] = Float(firstChild)
+            metadata[index * 2 + 1] = Float(cursor - firstChild)
+        }
+        write(root, parentWidth: width, parentHeight: height, rootNode: true)
+        let inputs = zip(styles, stride(from: 0, to: metadata.count, by: 2)).map { style, offset in
+            NodeInputV4(style: style, firstChild: UInt32(metadata[offset]), childCount: UInt32(metadata[offset + 1]))
         }
 
         var output = [Frame](repeating: Frame(x: 0, y: 0, width: 0, height: 0), count: nodes.count)
@@ -1977,11 +2127,10 @@ private class CraftNativeFlowView: UIStackView {
     }
 
     /// Builds the eligible portion of this container for the host-neutral
-    /// tree ABI. The local algorithm remains authoritative for
-    /// grid-auto-rows, absolute children, and any subtree whose measurement
-    /// cannot be represented by the shared contract.
+    /// tree ABI. The local algorithm remains authoritative for absolute
+    /// children and any subtree whose measurement cannot be represented by
+    /// the shared contract.
     fileprivate func sharedTreeNode(parentWidth: CGFloat, parentHeight: CGFloat) -> CraftNativeTreeLayoutBridge.TreeNode? {
-        guard gridAutoRows == nil else { return nil }
         let children = visibleChildren
         let flow = children.filter { $0.craftLayoutStyle.position != "absolute" }
         guard flow.count == children.count else { return nil }
@@ -2025,6 +2174,7 @@ private class CraftNativeFlowView: UIStackView {
                 padding: nested?.effectivePadding ?? .zero,
                 grid: nested?.grid ?? false,
                 gridColumns: nested?.gridColumns ?? 1,
+                gridAutoRows: nested?.gridAutoRows,
                 reverse: nested?.reverse ?? false,
                 wrapReverse: nested?.wrapReverse ?? false,
                 children: nestedNode?.children ?? []
@@ -2047,6 +2197,7 @@ private class CraftNativeFlowView: UIStackView {
             padding: effectivePadding,
             grid: grid,
             gridColumns: gridColumns,
+            gridAutoRows: gridAutoRows,
             reverse: reverse,
             wrapReverse: wrapReverse,
             children: nodes.compactMap { $0 }
@@ -2054,7 +2205,7 @@ private class CraftNativeFlowView: UIStackView {
     }
 
     private func sharedTreeFrames(_ children: [UIView], width: CGFloat?, height: CGFloat?) -> CraftNativeTreeLayoutBridge.TreeResult? {
-        guard let width, let height, gridAutoRows == nil,
+        guard let width, let height,
               width.isFinite, height.isFinite, width >= 0, height >= 0 else { return nil }
         let nodes = children.map { child -> CraftNativeTreeLayoutBridge.TreeNode? in
             let style = child.craftLayoutStyle
@@ -2078,6 +2229,7 @@ private class CraftNativeFlowView: UIStackView {
                 padding: nested?.effectivePadding ?? .zero,
                 grid: nested?.grid ?? false,
                 gridColumns: nested?.gridColumns ?? 1,
+                gridAutoRows: nested?.gridAutoRows,
                 reverse: nested?.reverse ?? false,
                 wrapReverse: nested?.wrapReverse ?? false,
                 children: nestedNode?.children ?? []
@@ -2100,6 +2252,7 @@ private class CraftNativeFlowView: UIStackView {
             padding: effectivePadding,
             grid: grid,
             gridColumns: gridColumns,
+            gridAutoRows: gridAutoRows,
             reverse: reverse,
             wrapReverse: wrapReverse,
             children: nodes.compactMap { $0 }

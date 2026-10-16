@@ -93,6 +93,9 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('private class CraftNativeFlowView: UIStackView')
     expect(nativeSwift).toContain('let frameCount = output.count')
     expect(nativeSwift).toContain('private func sharedTreeFrames(')
+    expect(nativeSwift).toContain('craft_native_layout_tree_v4')
+    expect(nativeSwift).toContain('private static func treeFramesV4(')
+    expect(nativeSwift).toContain('input.gridAutoRows = node.gridAutoRows.map')
     expect(nativeSwift).toContain('offset.x - parentFrame.x')
     expect(nativeSwift).toContain('let maxContent = label.sizeThatFits(CGSize(width: unbounded, height: unbounded))')
     expect(nativeSwift).toContain('collapses shrink-to-fit bubbles and pills')
@@ -714,6 +717,8 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('private enum CraftNativeLength: Equatable')
     expect(source).toContain('var gridAutoRows: CraftNativeLength?')
     expect(source).toContain('autoRowHeight: gridAutoRows.map { $0.resolve(innerHeight) ?? 0 }')
+    expect(source).toContain('if containsGridAutoRows(root)')
+    expect(source).toContain('gridAutoRows: nested?.gridAutoRows')
   })
 
   it('keeps native scroll views\' sticky headers stuck and scrolls to a target', async () => {
