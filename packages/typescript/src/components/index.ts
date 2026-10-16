@@ -452,7 +452,7 @@ export interface AccessibilityState {
  */
 export interface ViewProps extends BaseProps {
   /** Style object or array */
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   /** Press handler */
   onPress?: () => void
   /** DOM-compatible press alias accepted by native hosts. */
@@ -493,7 +493,7 @@ export interface RefreshControlProps extends BaseProps {
  */
 export interface TextProps extends BaseProps {
   /** Style object or array */
-  style?: TextStyle | TextStyle[]
+  style?: StyleValue<TextStyle>
   /** Number of lines before truncation */
   numberOfLines?: number
   /** Ellipsize mode */
@@ -510,7 +510,7 @@ export interface TextProps extends BaseProps {
 export interface ButtonProps extends BaseProps {
   title?: string
   /** Text and layout styling applied by the native button hosts. */
-  style?: TextStyle | TextStyle[]
+  style?: StyleValue<TextStyle>
   onPress?: () => void
   onClick?: () => void
   disabled?: boolean
@@ -558,7 +558,7 @@ export interface ImageProps extends BaseProps {
   /** Image source */
   source: ImageSource
   /** Style object or array */
-  style?: ImageStyle | ImageStyle[]
+  style?: StyleValue<ImageStyle>
   /** Resize mode */
   resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'
   /** Load start handler */
@@ -576,14 +576,14 @@ export interface ImageProps extends BaseProps {
 }
 
 export interface IconProps extends BaseProps {
-  style?: TextStyle | TextStyle[]
+  style?: StyleValue<TextStyle>
   name?: string
   symbol?: string
   color?: string
 }
 
 export interface VideoProps extends BaseProps {
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   source?: string | { uri: string }
   src?: string
   controls?: boolean
@@ -617,7 +617,7 @@ export interface MapRegion {
 }
 
 export interface MapProps extends BaseProps {
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   region?: MapRegion
   /** Initial camera region; applied once, then controlled by subsequent props. */
   initialRegion?: MapRegion
@@ -650,7 +650,7 @@ export interface ImageBackgroundProps extends ImageProps {
 
 /** Shared paint and accessibility props for DOM-free native SVG nodes. */
 export interface SvgPaintProps extends BaseProps {
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   fill?: string
   stroke?: string
   strokeWidth?: number
@@ -763,7 +763,7 @@ export interface PressableProps extends ViewProps {
  */
 export interface TextInputProps extends BaseProps {
   /** Style object or array */
-  style?: TextStyle | TextStyle[]
+  style?: StyleValue<TextStyle>
   /** Current value */
   value?: string
   /** Default value */
@@ -836,7 +836,7 @@ export type ReturnKeyType =
   | 'default'
 
 export interface SwitchProps extends BaseProps {
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   /** Controlled boolean state; malformed native bridge values stay off. */
   value?: boolean
   onValueChange?: (value: boolean) => void
@@ -848,7 +848,7 @@ export interface SwitchProps extends BaseProps {
 }
 
 export interface CheckboxProps extends BaseProps {
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   /** Controlled boolean state; malformed native bridge values stay off. */
   value?: boolean
   checked?: boolean
@@ -861,7 +861,7 @@ export interface CheckboxProps extends BaseProps {
 }
 
 export interface SliderProps extends BaseProps {
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   value?: number
   minimumValue?: number
   maximumValue?: number
@@ -882,7 +882,7 @@ export interface PickerOption {
 }
 
 export interface PickerProps extends BaseProps {
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   /** Typed options; child options remain supported when omitted. */
   items?: PickerOption[]
   selectedValue?: string | number
@@ -898,7 +898,7 @@ export interface DatePickerChange {
 }
 
 export interface DatePickerProps extends BaseProps {
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   mode?: 'date' | 'time' | 'datetime' | 'datetime-local' | 'countdown'
   value?: string | number
   minimumDate?: string | number
@@ -910,7 +910,7 @@ export interface DatePickerProps extends BaseProps {
 }
 
 export interface ActivityIndicatorProps extends BaseProps {
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   color?: string
   animating?: boolean
   hidesWhenStopped?: boolean
@@ -951,7 +951,7 @@ export interface SectionListProps<T> extends ScrollViewProps {
 }
 
 export interface ModalProps extends BaseProps {
-  style?: ViewStyle | ViewStyle[]
+  style?: StyleValue<ViewStyle>
   visible?: boolean
   transparent?: boolean
   animationType?: 'none' | 'fade' | 'slide'

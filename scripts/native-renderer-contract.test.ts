@@ -134,7 +134,7 @@ describe('native renderer component contract', () => {
 
   it('types the native button styles both hosts already apply', () => {
     expect(componentTypes).toContain('export interface ButtonProps extends BaseProps')
-    expect(componentTypes).toContain('style?: TextStyle | TextStyle[]')
+    expect(componentTypes).toContain('style?: StyleValue<TextStyle>')
     expect(navigationHome).toContain('testID="toggle-button-padding"')
   })
 
@@ -142,8 +142,9 @@ describe('native renderer component contract', () => {
     for (const name of ['IconProps', 'VideoProps', 'MapProps', 'SwitchProps', 'CheckboxProps', 'SliderProps', 'PickerProps', 'DatePickerProps', 'ActivityIndicatorProps', 'ModalProps']) {
       expect(componentTypes).toContain(`export interface ${name} extends`)
     }
-    expect(componentTypes).toContain('style?: TextStyle | TextStyle[]')
-    expect(componentTypes).toContain('style?: ViewStyle | ViewStyle[]')
+    expect(componentTypes).toContain('style?: StyleValue<TextStyle>')
+    expect(componentTypes).toContain('style?: StyleValue<ViewStyle>')
+    expect(componentTypes).toContain('style?: StyleValue<ImageStyle>')
     expect(navigationHome).toContain('<Icon testID="native-icon"')
     expect(navigationHome).toContain('<Video testID="native-video"')
     expect(navigationHome).toContain('<Modal testID="native-modal"')
@@ -152,6 +153,7 @@ describe('native renderer component contract', () => {
 
   it('keeps composed native styles recursively flattenable', () => {
     expect(componentTypes).toContain('export type StyleValue<T> =')
+    expect(componentTypes).toContain('style?: StyleValue<ViewStyle>')
     expect(componentTypes).toContain('const merge = (value: unknown): void =>')
     expect(componentTypes).toContain('value.forEach(merge)')
     expect(componentTypes).toContain('if (!value) return')

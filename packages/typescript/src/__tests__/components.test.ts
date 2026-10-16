@@ -43,6 +43,23 @@ import type {
 } from '../components'
 
 describe('Component System', () => {
+  it('accepts nested conditional native style values on component props', () => {
+    const highlighted = true
+    const view: ViewProps = {
+      style: [
+        { padding: 16 },
+        highlighted && [{ backgroundColor: '#2563eb' }, [false, { opacity: 0.9 }]],
+        undefined,
+      ],
+    }
+    const text: TextProps = { style: [[{ fontWeight: 700 }], false] }
+    const image: ImageProps = { source: 'hero.png', style: [[{ resizeMode: 'contain' }]] }
+
+    expect(view.style).toBeDefined()
+    expect(text.style).toBeDefined()
+    expect(image.style).toBeDefined()
+  })
+
   it('types native interaction and accessibility props', () => {
     const input: TextInputProps = {
       accessibilityValue: 'Ada',
