@@ -188,7 +188,7 @@ final class NativeNavigationUnitTests: XCTestCase {
             let to = try XCTUnwrap(animation.toValue as? NSValue).cgPointValue
             XCTAssertEqual(animation.duration, 0.22, accuracy: 0.001)
             XCTAssertEqual(from.x - to.x, start, accuracy: 0.5)
-            XCTAssertEqual(to.x, width * 0.5, accuracy: 0.5)
+            XCTAssertEqual(to.x, animation.isAdditive ? 0 : width * 0.5, accuracy: 0.5)
         }
         let releasedAt = CACurrentMediaTime()
         let sample = expectation(description: "sample a settling animation frame")
