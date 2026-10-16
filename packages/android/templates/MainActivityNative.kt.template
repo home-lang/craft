@@ -5275,15 +5275,23 @@ class MainActivity : AppCompatActivity() {
                 }
                 isEnabled = !props.optBoolean("disabled", false)
                 props.optJSONObject("trackColor")?.let { track ->
-                    val falseColor = color(track.optString("false"), Color.GRAY)
-                    val trueColor = color(track.optString("true"), falseColor)
-                    trackTintList = ColorStateList(
-                        arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-                        intArrayOf(trueColor, falseColor),
-                    )
+                    val falseRaw = craftNativeOptionalString(track.opt("false"))
+                    val trueRaw = craftNativeOptionalString(track.opt("true"))
+                    val falseColor = falseRaw?.let { runCatching { craftNativeColor(it) }.getOrNull() }
+                    val trueColor = trueRaw?.let { runCatching { craftNativeColor(it) }.getOrNull() }
+                    trackTintList = if ((falseRaw != null && falseColor == null) || (trueRaw != null && trueColor == null)) {
+                        null
+                    } else {
+                        val resolvedFalse = falseColor ?: Color.GRAY
+                        ColorStateList(
+                            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                            intArrayOf(trueColor ?: resolvedFalse, resolvedFalse),
+                        )
+                    }
                 } ?: run { trackTintList = null }
                 craftNativeOptionalString(props.opt("thumbColor"))
-                    ?.let { thumbTintList = ColorStateList.valueOf(color(it, Color.WHITE)) }
+                    ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
+                    ?.let { thumbTintList = ColorStateList.valueOf(it) }
                     ?: run { thumbTintList = null }
                 val handler = craftNativeEventName(events, "onValueChange", "onChange")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)

@@ -1011,7 +1011,7 @@ describe('native renderer component contract', () => {
 
   it('applies native switch thumb colors on Android', () => {
     expect(android).toContain('craftNativeOptionalString(props.opt("thumbColor"))')
-    expect(android).toContain('?.let { thumbTintList = ColorStateList.valueOf(color(it, Color.WHITE)) }')
+    expect(android).toContain('?.let { runCatching { craftNativeColor(it) }.getOrNull() }')
     expect(androidNavigationTest).toContain('native switch should apply thumb tint')
   })
 
@@ -2779,6 +2779,15 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('Invalid activity-indicator color should restore the native default')
     expect(android).toContain('buttonTintList = checkboxColor')
     expect(android).toContain('indeterminateTintList = craftNativeOptionalString(props.opt("color"))')
+  })
+
+  it('restores native Android switch colors when authored values are malformed', () => {
+    expect(navigationHome).toContain('testID="toggle-invalid-switch-colors"')
+    expect(navigationHome).toContain("return invalidSwitchColors() ? { false: 'not-a-color', true: 'not-a-color' }")
+    expect(androidNavigationTest).toContain('Invalid switch track colors should restore the native default')
+    expect(androidNavigationTest).toContain('Invalid switch thumb color should restore the native default')
+    expect(android).toContain('val falseRaw = craftNativeOptionalString(track.opt("false"))')
+    expect(android).toContain('if ((falseRaw != null && falseColor == null) || (trueRaw != null && trueColor == null))')
   })
 
   it('keeps malformed Android refresh colors from crashing or inventing a tint', () => {

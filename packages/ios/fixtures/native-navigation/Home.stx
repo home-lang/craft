@@ -17,6 +17,7 @@ const panelAccessibilityDisabled = state(false)
 const longPressStatus = state('')
 const longPressAccessibilityDisabled = state(false)
 const switchValue = state(false)
+const invalidSwitchColors = state(false)
 const pickerValue = state('one')
 const itemsPickerValue = state('one')
 const pickerItems = [{ label: 'One item', value: 'one' }, { label: 'Two item', value: 2 }]
@@ -171,7 +172,16 @@ function switchAccessibilityState() {
 }
 
 function switchTrackColor() {
-  return { false: '#64748b', true: '#22c55e' }
+  return invalidSwitchColors() ? { false: 'not-a-color', true: 'not-a-color' } : { false: '#64748b', true: '#22c55e' }
+}
+
+function switchThumbColor() {
+  return invalidSwitchColors() ? 'not-a-color' : '#ffffff'
+}
+
+function toggleInvalidSwitchColors() {
+  invalidSwitchColors.update(value => !value)
+  invalidControlStyleStatus.set(invalidSwitchColors() ? 'invalid switch colors on' : 'invalid switch colors off')
 }
 
 function validImage() {
@@ -754,7 +764,8 @@ function toggleScreenBackground() {
     <Button testID="toggle-input-padding" @click="toggleInputPadding()">Toggle input padding</Button>
     <Button testID="toggle-icon-size" @click="toggleIconSize()">Toggle icon size</Button>
     <Button testID="toggle-image-tint" @click="toggleImageTint()">Toggle image tint</Button>
-    <Switch testID="native-switch" value={switchValue} accessibilityState={switchAccessibilityState()} trackColor={switchTrackColor()} thumbColor="#ffffff" ios_backgroundColor="#475569" @value-change="toggleSwitch($event)" />
+    <Switch testID="native-switch" value={switchValue} accessibilityState={switchAccessibilityState()} trackColor={switchTrackColor()} thumbColor={switchThumbColor()} ios_backgroundColor="#475569" @value-change="toggleSwitch($event)" />
+    <Button testID="toggle-invalid-switch-colors" @click="toggleInvalidSwitchColors()">Toggle invalid switch colors</Button>
     <Switch testID="nullable-switch" :value="null" :checked="true" />
     <select testID="native-picker" :value="pickerValue" @change="choosePicker($event)">
       <option value="one">One</option>
