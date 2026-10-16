@@ -109,8 +109,9 @@ Maps SDK for trail polylines and marker taps; its overlays carry flat
 latitude/longitude `geometry` arrays, `strokeWidth` is expressed in logical
 points, and the camera supports controlled `region`, one-time `initialRegion`,
 and `fitToBounds`. Set `mapsApiKey` in the Android config to emit the SDK manifest key;
-Coordinates are range-checked at the native boundary, and invalid points or
-pole-crossing regions are ignored. `fitToBounds` waits for the map viewport to
+Coordinates must be JSON numbers (numeric strings are not coerced), are
+range-checked at the native boundary, and invalid points or pole-crossing
+regions are ignored. `fitToBounds` waits for the map viewport to
 be measured before caching a successful camera fit, so an early map callback
 does not lose the initial route framing.
 without it, the native map remains an explicit opt-in integration that needs
