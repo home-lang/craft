@@ -577,7 +577,8 @@ screen while the app-level appearance remains the fallback.
 `SectionList` currently follows the same native scroll host as
 `ScrollView` for ordinary `.stx` slot children; grouped, virtualized section
 data should use `FlatList` until the section-data protocol is added. Section
-headers therefore are not part of the native `SectionList` contract yet.
+data props (`sections`, `renderItem`, and `keyExtractor`) and section headers
+therefore are not part of the native `SectionList` contract yet.
 
 ## Recycling lists
 

@@ -111,14 +111,16 @@ describe('Component System', () => {
     const group: GProps = { stroke: '#2563eb', strokeLinecap: 'round' }
     const circle: CircleProps = { geometry: [0, 12, 4], fill: '#fff' }
     const label: SvgTextProps = { x: 12, y: 21, textAnchor: 'middle', fontSize: 10 }
-    const sections: SectionListProps<string> = {
-      sections: [{ title: 'Trails', data: ['Alpine'] }],
-      renderItem: ({ item }) => item,
-    }
-    // Grouped section headers are not part of the maintained native protocol.
+    const sections: SectionListProps<string> = { children: ['Header', 'Row'] }
+    // Grouped section data is not part of the maintained native protocol.
+    // @ts-expect-error sections is intentionally unsupported until the section-data protocol exists.
+    sections.sections = [{ title: 'Trails', data: ['Alpine'] }]
+    // @ts-expect-error renderItem is intentionally unsupported on child-based SectionList.
+    sections.renderItem = ({ item }) => item
+    // @ts-expect-error keyExtractor is intentionally unsupported on child-based SectionList.
+    sections.keyExtractor = (item) => item
     // @ts-expect-error renderSectionHeader is intentionally unsupported.
     sections.renderSectionHeader = () => null
-    const childSectionList: SectionListProps<string> = { children: ['Header', 'Row'] }
     // FlatList chrome and virtualization tuning use the native list-role slots.
     // @ts-expect-error ItemSeparatorComponent is not part of the native list protocol.
     const unsupportedSeparator: FlatListProps<string> = { data: [], renderItem: () => null, ItemSeparatorComponent: () => null }
@@ -144,8 +146,7 @@ describe('Component System', () => {
     expect(group.strokeLinecap).toBe('round')
     expect(circle.geometry).toEqual([0, 12, 4])
     expect(label.textAnchor).toBe('middle')
-    expect(sections.sections?.[0]?.data).toEqual(['Alpine'])
-    expect(childSectionList.sections).toBeUndefined()
+    expect(sections.children).toEqual(['Header', 'Row'])
   })
 
   it('keeps image resize modes within the native contract', () => {

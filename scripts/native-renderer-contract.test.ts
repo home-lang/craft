@@ -148,9 +148,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('inverted = props.optBoolean("inverted", false)')
   })
 
-  it('allows the maintained child-based SectionList fallback', () => {
-    expect(componentTypes).toContain('sections?: SectionListSection<T>[]')
-    expect(componentTypes).toContain('renderItem?: (info: { item: T; index: number; section: SectionListSection<T> }) => any')
+  it('keeps SectionList on the maintained child-based fallback', () => {
+    const sectionListProps = componentTypes.match(/export interface SectionListProps<T> extends ScrollViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(sectionListProps).not.toContain('sections?:')
+    expect(sectionListProps).not.toContain('renderItem?:')
+    expect(sectionListProps).not.toContain('keyExtractor?:')
     expect(componentTypes).not.toContain('renderSectionHeader?:')
     expect(guide).toContain('`SectionList` currently follows the same native scroll host')
   })
