@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { bootSimulator, build, init, pickSimulator } from '../src/index'
 import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './insert-project-targets'
@@ -9,6 +9,7 @@ const stxCli = process.env.STX_CLI || resolve(import.meta.dir, '../../../../stx/
 const workspace = createTempDir('craft-hybrid-navigation-')
 const output = join(workspace, 'HybridNavigation')
 const bundle = join(workspace, 'native-screen.js')
+const resultBundle = join(workspace, 'HybridNavigation.xcresult')
 const prepareOnly = process.argv.includes('--prepare-only')
 const page = readFileSync(join(fixture, 'index.html'))
 let servedRequests = 0
@@ -19,8 +20,9 @@ function servePage(body: Buffer) {
     try {
       return Bun.serve({
         port: firstPort + offset,
-        fetch: () => {
+        fetch: (request) => {
           servedRequests++
+          console.log(`Hybrid HTTP fixture request: ${request.method} ${request.url}`)
           return new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8' } })
         },
       })
@@ -124,7 +126,6 @@ try {
     const device = requested ? { udid: requested, name: requested, state: 'Booted', runtime: 'iOS' } : await pickSimulator()
     if (!device) throw new Error('No iOS simulator is available for hybrid navigation tests')
     await bootSimulator(device)
-    const resultBundle = join(workspace, 'HybridNavigation.xcresult')
     const selectedTest = process.env.CRAFT_HYBRID_NAVIGATION_TEST
     const selection = selectedTest
       ? [`-only-testing:HybridNavigationUITests/HybridNavigationUITests/${selectedTest}`]
@@ -148,6 +149,12 @@ try {
   }
 }
 finally {
+  console.log(`Hybrid HTTP fixture served ${servedRequests} requests`)
+  if (process.env.CI && existsSync(resultBundle)) {
+    const evidence = resolve('artifacts/mobile-e2e/ios-simulator/HybridNavigation.xcresult')
+    cpSync(resultBundle, evidence, { recursive: true })
+    console.log(`Saved hybrid Xcode result: ${evidence}`)
+  }
   server?.stop()
   if (process.env.CRAFT_KEEP_HYBRID_NAVIGATION_PROJECT === '1') {
     keepTempDir(workspace)

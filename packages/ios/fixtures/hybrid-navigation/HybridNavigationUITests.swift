@@ -43,6 +43,7 @@ final class HybridNavigationUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.01))
         }
         XCTAssertTrue(sawOutgoingPage, "the outgoing web page went blank during the hybrid push")
+        print("Hybrid navigation accessibility tree: \(app.debugDescription)")
         XCTAssertTrue(app.buttons["Back home"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Hybrid second"].waitForExistence(timeout: 10))
     }
