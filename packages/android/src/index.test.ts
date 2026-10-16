@@ -137,6 +137,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('private class CraftNativeFlexLayout(context: Context) : LinearLayout(context)')
       expect(nativeActivity).toContain('private fun craftNativeNumber(value: Any?): Double?')
       expect(nativeActivity).toContain('craftNativeNumber(style?.opt(name))')
+      expect(nativeActivity).toContain('Typeface.create("sans-serif", weight, false)')
       expect(nativeActivity).toContain('craftNativeNumber(geometry.opt(index))')
       expect(nativeActivity).toContain('craftNativeNumber(values.opt(0))')
       expect(nativeActivity).toContain('if (value == null || value == JSONObject.NULL) return null')

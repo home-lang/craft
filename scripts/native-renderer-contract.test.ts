@@ -696,6 +696,9 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('Android uses the maintained dependency-free\nglyph map')
     expect(iosNavigationReadme).toContain('Icon/Video/SVG accessibility survives native mounting')
     expect(androidNavigationReadme).toContain('`CraftNativeIconView`')
+    expect(android).toContain('"500" -> 500')
+    expect(android).toContain('Typeface.create("sans-serif", weight, false)')
+    expect(ios).toContain('case "500": weight = .medium')
   })
 
   it('keeps Web Audio wired to both hosts', () => {

@@ -6205,10 +6205,21 @@ class MainActivity : AppCompatActivity() {
         view.vector = vector
         view.text = if (vector != null) "" else androidIconGlyph(symbol)
         val weight = when (style.optString("fontWeight")) {
-            "bold", "700", "800", "900" -> Typeface.BOLD
-            else -> Typeface.NORMAL
+            "100" -> 100
+            "200" -> 200
+            "300" -> 300
+            "500" -> 500
+            "600" -> 600
+            "bold", "700" -> 700
+            "800" -> 800
+            "900" -> 900
+            else -> 400
         }
-        view.typeface = Typeface.create("sans-serif", weight)
+        view.typeface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Typeface.create("sans-serif", weight, false)
+        } else {
+            Typeface.create("sans-serif", if (weight >= 600) Typeface.BOLD else Typeface.NORMAL)
+        }
         val hasExplicitWidth = style.has("width") && !style.isNull("width")
         val hasExplicitHeight = style.has("height") && !style.isNull("height")
         if (!hasExplicitWidth && !hasExplicitHeight) {
