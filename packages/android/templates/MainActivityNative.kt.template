@@ -6563,8 +6563,16 @@ class MainActivity : AppCompatActivity() {
                 info.roleDescription = role.takeIf { it !in setOf("view", "text", "textinput", "scrollview") }
                 info.hintText = host.tooltipText
                 info.isEnabled = host.isEnabled && !disabled
-                info.isSelected = craftNativeBoolean(state?.opt("selected"))
-                info.isChecked = craftNativeBoolean(state?.opt("checked"))
+                // Keep the native widget state when no accessibilityState was
+                // authored. Overwriting it with the strict false fallback
+                // made a checked Switch/CheckBox announce as unchecked unless
+                // the screen redundantly mirrored its value into metadata.
+                if (state?.has("selected") == true) {
+                    info.isSelected = craftNativeBoolean(state.opt("selected"))
+                }
+                if (state?.has("checked") == true) {
+                    info.isChecked = craftNativeBoolean(state.opt("checked"))
+                }
             }
         })
         ViewCompat.setImportantForAccessibility(

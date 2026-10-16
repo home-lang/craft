@@ -1,6 +1,6 @@
 {
   "name": "@craft-native/svelte",
-  "version": "0.0.208",
+  "version": "0.0.209",
   "homepage": "https://github.com/craft-native/craft/tree/main/packages/svelte#readme",
   "repository": {
     "type": "git",

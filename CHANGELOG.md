@@ -1,5 +1,24 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.208...v0.0.209)
+
+## 🐛 Bug Fixes
+
+- **build**: restore the locked system toolchains ([fcd3fa8](https://github.com/craft-native/craft/commit/fcd3fa8)) _(by glennmichael123)_
+- **ios**: scale native text with dynamic type ([739accb](https://github.com/craft-native/craft/commit/739accb)) _(by glennmichael123)_
+- **android**: clear safe area on retained view changes ([fccfde9](https://github.com/craft-native/craft/commit/fccfde9)) _(by glennmichael123)_
+- **ios**: clear stale tab accessories on screen exit ([a935e82](https://github.com/craft-native/craft/commit/a935e82)) _(by glennmichael123)_
+- **crypto**: update Ed25519 bridge for Zig 0.18 ([6f17398](https://github.com/craft-native/craft/commit/6f17398)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **mobile**: cover native tab accessories ([95b79b2](https://github.com/craft-native/craft/commit/95b79b2)) _(by glennmichael123)_
+- **mobile**: cover retained safe-area type switches ([7468a97](https://github.com/craft-native/craft/commit/7468a97)) _(by glennmichael123)_
+
+## Contributors
+
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.207...v0.0.208)
 
 ## 🚀 Features

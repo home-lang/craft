@@ -2938,8 +2938,10 @@ describe('native renderer component contract', () => {
 
   it('keeps status, accessibility, and text-input booleans strict on Android', () => {
     expect(android).toContain('craftNativeBoolean(props.opt("hidden"))')
-    expect(android).toContain('info.isSelected = craftNativeBoolean(state?.opt("selected"))')
-    expect(android).toContain('info.isChecked = craftNativeBoolean(state?.opt("checked"))')
+    expect(android).toContain('if (state?.has("selected") == true)')
+    expect(android).toContain('info.isSelected = craftNativeBoolean(state.opt("selected"))')
+    expect(android).toContain('if (state?.has("checked") == true)')
+    expect(android).toContain('info.isChecked = craftNativeBoolean(state.opt("checked"))')
     expect(android).toContain('craftNativeBoolean(props.opt("autoCorrect"), true)')
     expect(android).toContain('craftNativeBoolean(props.opt("secureTextEntry"))')
     expect(android).not.toContain('props.optBoolean("autoCorrect", true)')

@@ -829,7 +829,11 @@ class NativeNavigationTest {
             assertTrue("native switch should start off", !nativeSwitch.isChecked)
             assertTrue("native switch should apply track tint", nativeSwitch.trackTintList != null)
             assertTrue("native switch should apply thumb tint", nativeSwitch.thumbTintList != null)
-            assertTrue("null switch value should fall back to checked", (awaitView(activity, "nullable-switch") as Switch).isChecked)
+            val nullableSwitch = awaitView(activity, "nullable-switch") as Switch
+            assertTrue("null switch value should fall back to checked", nullableSwitch.isChecked)
+            var nullableSwitchInfo: AccessibilityNodeInfo? = null
+            instrumentation.runOnMainSync { nullableSwitchInfo = nullableSwitch.createAccessibilityNodeInfo() }
+            assertTrue("native checked state should remain accessible without accessibilityState", nullableSwitchInfo?.isChecked == true)
             click(activity, "toggle-invalid-switch-colors")
             awaitText(activity, "invalid-control-style-status", "invalid switch colors on")
             assertTrue("Invalid switch track colors should restore the native default", nativeSwitch.trackTintList == null)
@@ -880,6 +884,9 @@ class NativeNavigationTest {
             assertFalse("native checkbox should start unchecked", (checkbox as CheckBox).isChecked)
             instrumentation.runOnMainSync { checkbox.performClick() }
             awaitText(activity, "checkbox-status", "checkbox on")
+            var checkboxInfo: AccessibilityNodeInfo? = null
+            instrumentation.runOnMainSync { checkboxInfo = checkbox.createAccessibilityNodeInfo() }
+            assertTrue("native checkbox checked state should remain accessible without accessibilityState", checkboxInfo?.isChecked == true)
             // Prop updates must retain the dedicated change handler too.
             instrumentation.runOnMainSync { checkbox.performClick() }
             awaitText(activity, "checkbox-status", "checkbox off")
