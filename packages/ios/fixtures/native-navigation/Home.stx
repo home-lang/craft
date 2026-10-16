@@ -58,6 +58,8 @@ const inputPadded = state(false)
 const iconSized = state(false)
 const inputColors = state(true)
 const inputStyleStatus = state('')
+const invalidInputColors = state(false)
+const invalidInputStyleStatus = state('')
 const nameMultiline = state(false)
 const panelStyled = state(true)
 const panelStyleStatus = state('')
@@ -292,6 +294,11 @@ function toggleIconSize() {
 function toggleInputColors() {
   inputColors.update(value => !value)
   inputStyleStatus.set(inputColors() ? 'input colors on' : 'input colors off')
+}
+
+function toggleInvalidInputColors() {
+  invalidInputColors.update(value => !value)
+  invalidInputStyleStatus.set(invalidInputColors() ? 'invalid input colors on' : 'invalid input colors off')
 }
 
 function toggleNameMode() {
@@ -829,10 +836,12 @@ function toggleScreenBackground() {
     <Button testID="toggle-layout-width" @click="toggleLayoutWidth()">Toggle layout width</Button>
     <Button testID="toggle-input-colors" @click="toggleInputColors()">Toggle input colors</Button>
     <Text testID="input-style-status" :text="inputStyleStatus" />
+    <Button testID="toggle-invalid-input-colors" @click="toggleInvalidInputColors()">Toggle invalid input colors</Button>
+    <Text testID="invalid-input-style-status" :text="invalidInputStyleStatus" />
     <Button testID="toggle-name-mode" @click="toggleNameMode()">Toggle name mode</Button>
     <Text testID="name-mode" :text="nameMultiline ? 'multiline' : 'single-line'" />
-    <TextInput testID="name-input" value={name} multiline={nameMultiline} placeholder="Your name" placeholderTextColor={inputColors ? "#94a3b8" : undefined} selectionColor={inputColors ? "#22c55e" : undefined} maxLength={8} keyboardType="email-address" returnKeyType="done" style={{"textDecorationLine":"underline","textDecorationStyle":"dashed","textDecorationColor":"#22c55e","paddingHorizontal":inputPadded ? 24 : null}} @input="changeName($event)" @focus="focusName()" @submit-editing="submitName()" @blur="blurName()" @end-editing="endNameEditing()" />
-    <TextInput testID="notes-input" multiline numberOfLines={3} maxLength={24} defaultValue="Draft" placeholder="Notes" placeholderTextColor={inputColors ? "#94a3b8" : undefined} selectionColor={inputColors ? "#22c55e" : undefined} style={{"paddingVertical":inputPadded ? 12 : null}} @focus="focusNotes($event)" @submit-editing="submitName()" @blur="blurNotes()" @end-editing="endNotesEditing()" />
+    <TextInput testID="name-input" value={name} multiline={nameMultiline} placeholder="Your name" placeholderTextColor={invalidInputColors ? "not-a-color" : (inputColors ? "#94a3b8" : undefined)} selectionColor={invalidInputColors ? "not-a-color" : (inputColors ? "#22c55e" : undefined)} maxLength={8} keyboardType="email-address" returnKeyType="done" style={{"textDecorationLine":"underline","textDecorationStyle":"dashed","textDecorationColor":"#22c55e","paddingHorizontal":inputPadded ? 24 : null}} @input="changeName($event)" @focus="focusName()" @submit-editing="submitName()" @blur="blurName()" @end-editing="endNameEditing()" />
+    <TextInput testID="notes-input" multiline numberOfLines={3} maxLength={24} defaultValue="Draft" placeholder="Notes" placeholderTextColor={invalidInputColors ? "not-a-color" : (inputColors ? "#94a3b8" : undefined)} selectionColor={invalidInputColors ? "not-a-color" : (inputColors ? "#22c55e" : undefined)} style={{"paddingVertical":inputPadded ? 12 : null}} @focus="focusNotes($event)" @submit-editing="submitName()" @blur="blurNotes()" @end-editing="endNotesEditing()" />
     <TextInput testID="readonly-input" :editable="false" defaultValue="Read only" />
     <TextInput testID="password-input" secureTextEntry defaultValue="secret" />
     <Text testID="greeting" :text="'Hello ' + name" />

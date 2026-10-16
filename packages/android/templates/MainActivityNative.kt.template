@@ -5024,11 +5024,12 @@ class MainActivity : AppCompatActivity() {
                 hint = craftNativeOptionalString(props.opt("placeholder")).orEmpty()
                 setHintTextColor(
                     craftNativeOptionalString(props.opt("placeholderTextColor"))
-                        ?.let { ColorStateList.valueOf(color(it, Color.GRAY)) }
+                        ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
+                        ?.let { ColorStateList.valueOf(it) }
                         ?: defaultHintColors,
                 )
                 highlightColor = craftNativeOptionalString(props.opt("selectionColor"))
-                    ?.let { color(it, defaultHighlightColor) }
+                    ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
                     ?: defaultHighlightColor
                 val maxLength = props.optInt("maxLength", 0)
                 val currentLength = (filters.firstOrNull { it is InputFilter.LengthFilter } as? InputFilter.LengthFilter)?.max ?: 0

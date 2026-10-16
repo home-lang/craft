@@ -2751,6 +2751,15 @@ describe('native renderer component contract', () => {
     expect(android).toContain('inputHintDefaults.remove(it)')
   })
 
+  it('ignores malformed Android text-input colors instead of inventing a fallback', () => {
+    expect(navigationHome).toContain('testID="toggle-invalid-input-colors"')
+    expect(navigationHome).toContain('placeholderTextColor={invalidInputColors ? "not-a-color"')
+    expect(navigationHome).toContain('selectionColor={invalidInputColors ? "not-a-color"')
+    expect(androidNavigationTest).toContain('Invalid placeholder color should retain the native default')
+    expect(androidNavigationTest).toContain('Invalid selection color should retain the native default')
+    expect(android).toContain('?.let { runCatching { craftNativeColor(it) }.getOrNull() }')
+  })
+
   it('restores native backgrounds when custom styles are removed', () => {
     expect(ios).toContain('view.backgroundColor = color(style["backgroundColor"]) ?? .clear')
     expect(android).toContain('if (defaultBackgrounds.containsKey(view))')
