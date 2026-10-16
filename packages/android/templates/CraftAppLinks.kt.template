@@ -7,6 +7,14 @@ import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
 import org.json.JSONObject
 
+/** Match the path wildcards supported by website association files. */
+internal fun craftAppLinkPathMatches(pattern: String, path: String): Boolean {
+    val regex = pattern.split('*').joinToString(".*") { part ->
+        part.split('?').joinToString(".") { Regex.escape(it) }
+    }
+    return Regex("^$regex$").matches(path)
+}
+
 /** Ordered website path rules, also publishable as Android 15 dynamic App Links. */
 internal object CraftAppLinks {
     fun opensInBrowser(config: JSONObject?, uri: Uri): Boolean {
@@ -20,8 +28,7 @@ internal object CraftAppLinks {
             for (ruleIndex in 0 until rules.length()) {
                 val rule = rules.optJSONObject(ruleIndex) ?: continue
                 val pattern = rule.optString("pattern")
-                val regex = pattern.split('*').joinToString(".*") { Regex.escape(it) }
-                if (Regex("^$regex$").matches(path)) return rule.optBoolean("exclude", false)
+                if (craftAppLinkPathMatches(pattern, path)) return rule.optBoolean("exclude", false)
             }
             return true
         }

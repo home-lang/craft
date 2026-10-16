@@ -2,6 +2,11 @@
 
 Build native Android apps with web technologies using Craft.
 
+`appLinks` path rules use the website association wildcards: `*` matches zero
+or more characters, `?` matches one, and `?*` matches one or more. The first
+matching rule decides whether a link opens in the app or browser. For example,
+`/gyms/*/?*` excludes a nonempty subpath without excluding `/gyms/trifit/`.
+
 ## Features
 
 ### Core
