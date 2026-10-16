@@ -599,14 +599,19 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(controller.navigationItem.largeTitleDisplayMode, .always)
         XCTAssertTrue(navigation.navigationBar.prefersLargeTitles)
         let solid = try XCTUnwrap(controller.navigationItem.standardAppearance)
-        XCTAssertNil(solid.backgroundEffect)
-        // UIKit may normalize clear to nil; both mean no shadow.
-        XCTAssertEqual(solid.shadowColor?.cgColor.alpha ?? 0, 0)
-        XCTAssertNil(solid.shadowImage)
-        try assertColor(solid.backgroundColor, red: 0x12 / 255, green: 0x34 / 255, blue: 0x56 / 255)
-        XCTAssertNotNil(controller.navigationItem.scrollEdgeAppearance)
-        XCTAssertNotNil(controller.navigationItem.compactAppearance)
-        XCTAssertNotNil(controller.navigationItem.compactScrollEdgeAppearance)
+        let appearances = [
+            solid,
+            try XCTUnwrap(controller.navigationItem.scrollEdgeAppearance),
+            try XCTUnwrap(controller.navigationItem.compactAppearance),
+            try XCTUnwrap(controller.navigationItem.compactScrollEdgeAppearance),
+        ]
+        for appearance in appearances {
+            XCTAssertNil(appearance.backgroundEffect)
+            // UIKit may normalize clear to nil; both mean no shadow.
+            XCTAssertEqual(appearance.shadowColor?.cgColor.alpha ?? 0, 0)
+            XCTAssertNil(appearance.shadowImage)
+            try assertColor(appearance.backgroundColor, red: 0x12 / 255, green: 0x34 / 255, blue: 0x56 / 255)
+        }
 
         // The same fill remains attached when a screen opts out of the large
         // title layout; UIKit must not fall back to its translucent scroll-edge

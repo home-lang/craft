@@ -2670,6 +2670,16 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('overlayRightBeforeScroll')
   })
 
+  it('keeps every iOS navigation appearance slot opaque when requested', () => {
+    expect(ios).toContain('navigationItem.standardAppearance = appearance')
+    expect(ios).toContain('navigationItem.scrollEdgeAppearance = appearance')
+    expect(ios).toContain('navigationItem.compactAppearance = appearance')
+    expect(ios).toContain('navigationItem.compactScrollEdgeAppearance = appearance')
+    expect(iosLayoutUnitTests).toContain('for appearance in appearances')
+    expect(iosLayoutUnitTests).toContain('XCTAssertNil(appearance.backgroundEffect)')
+    expect(iosLayoutUnitTests).toContain('try assertColor(appearance.backgroundColor')
+  })
+
   it('keeps the outgoing hybrid web page visible during navigation transitions', () => {
     const hybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
     const slot = hybrid.slice(hybrid.indexOf('final class CraftHybridWebSlot'))
