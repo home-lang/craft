@@ -636,7 +636,7 @@ print(String(data: try! JSONSerialization.data(withJSONObject: out, options: [.s
     tabIds: ['/m', '/m/calendar', '/me'],
     site: 'https://hq.training/m?x=1#top',
     opens: ['/terms', '/terms?a=1#b', 'https://example.com/x', 'http://hq.training/y', '//evil.example/x', 'terms', 'mailto:a@b.c'],
-    links: ['https://hq.training/terms', 'http://HQ.training/m', 'https://www.hq.training/', 'hqtraining://terms', 'https://example.com/'],
+    links: ['https://hq.training/terms', 'http://HQ.training/m', 'https://www.hq.training/', 'hqtraining://terms', 'https://example.com/', 'https://HQ.training/m', 'https://hq.training:9443/m'],
     messages,
   })], { stderr: 'pipe' })
   if (run.exitCode !== 0) throw new Error(`the Swift probe failed:\n${run.stderr.toString()}`)
@@ -667,7 +667,7 @@ print(String(data: try! JSONSerialization.data(withJSONObject: out, options: [.s
   })
 
   it('knows a link to the app\'s own site', () => {
-    expect(result.onSite).toEqual([true, true, false, false, false])
+    expect(result.onSite).toEqual([true, false, false, false, false, true, false])
   })
 
   it('finds the tab a path belongs to', () => {
