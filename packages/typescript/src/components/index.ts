@@ -360,7 +360,7 @@ export type TextStyle = ViewStyle & TextStyleProps
  */
 export interface ImageStyleProps {
   /** Resize mode */
-  resizeMode?: 'cover' | 'contain' | 'stretch' | 'repeat' | 'center'
+  resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'
   /** Tint color */
   tintColor?: string
 }

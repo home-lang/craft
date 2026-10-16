@@ -194,7 +194,8 @@ unchecked on the next user toggle.
 `ImageBackground` uses the shared image source and load/error lifecycle while
 mounting ordinary native children in a flex container over the image. Its
 `resizeMode` follows the same `cover`, `contain`, `stretch`, and `center`
-semantics as `Image`.
+semantics as `Image`; native tiling (`repeat`) is intentionally not part of
+the native contract.
 
 `Map` is the deliberately small native trail-map primitive. Its children may
 be `MapPolyline` or `MapMarker`; each overlay carries a flat latitude,

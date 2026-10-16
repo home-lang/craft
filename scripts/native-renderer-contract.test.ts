@@ -297,6 +297,7 @@ describe('native renderer component contract', () => {
 
   it('keeps the native trail map contract host-neutral', () => {
     expect(componentTypes).toContain('initialRegion?: MapRegion')
+    expect(componentTypes).toContain("resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'")
     expect(ios).toContain('import MapKit')
     expect(ios).toContain('private final class CraftNativeMapView: MKMapView, MKMapViewDelegate')
     expect(ios).toContain('let points = Self.coordinates(childProps["geometry"])')
