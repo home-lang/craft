@@ -887,7 +887,7 @@ export interface DatePickerChange {
 
 export interface DatePickerProps extends BaseProps {
   style?: ViewStyle | ViewStyle[]
-  mode?: 'date' | 'time' | 'datetime' | 'countdown'
+  mode?: 'date' | 'time' | 'datetime' | 'datetime-local' | 'countdown'
   value?: string | number
   minimumDate?: string | number
   maximumDate?: string | number

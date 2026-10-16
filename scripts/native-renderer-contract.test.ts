@@ -216,7 +216,9 @@ describe('native renderer component contract', () => {
 
   it('keeps DatePicker presentation platform-neutral', () => {
     const datePickerProps = componentTypes.match(/export interface DatePickerProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
-    expect(datePickerProps).toContain("mode?: 'date' | 'time' | 'datetime' | 'countdown'")
+    expect(datePickerProps).toContain("mode?: 'date' | 'time' | 'datetime' | 'datetime-local' | 'countdown'")
+    expect(ios).toContain('case "datetime", "dateAndTime", "datetime-local": return .dateAndTime')
+    expect(android).toContain('"datetime", "dateAndTime", "datetime-local" -> PickerMode.DATE_TIME')
     expect(datePickerProps).not.toContain('display?:')
     expect(android).not.toContain('props.optString("display")')
     expect(guide).toContain('platform-default')
