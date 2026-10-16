@@ -188,7 +188,13 @@ export interface LayoutStyle {
   /** Overflow */
   overflow?: 'visible' | 'hidden' | 'scroll'
   /** Display */
-  display?: 'flex' | 'none'
+  display?: 'flex' | 'none' | 'grid'
+  /** Equal-width grid track count or CSS-shaped `repeat(N, 1fr)` tracks. */
+  gridTemplateColumns?: number | string
+  /** Legacy numeric alias for the grid track count. */
+  gridColumns?: number
+  /** Intrinsic or fixed height for automatically-created grid rows. */
+  gridAutoRows?: number | string
 }
 
 /**

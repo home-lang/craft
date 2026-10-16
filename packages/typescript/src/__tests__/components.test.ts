@@ -218,6 +218,9 @@ describe('Component System', () => {
         borderWidth: 1,
         borderColor: 'gray',
         opacity: 0.5,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridAutoRows: 48,
         shadowColor: 'black',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
@@ -226,6 +229,9 @@ describe('Component System', () => {
 
       expect(viewStyle.backgroundColor).toBe('blue')
       expect(viewStyle.borderRadius).toBe(8)
+      expect(viewStyle.display).toBe('grid')
+      expect(viewStyle.gridTemplateColumns).toBe('repeat(3, 1fr)')
+      expect(viewStyle.gridAutoRows).toBe(48)
     })
 
     it('should support TextStyle properties', () => {

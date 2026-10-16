@@ -87,6 +87,13 @@ const COMPONENTS: Array<[string, string, string]> = [
 ]
 
 describe('native renderer component contract', () => {
+  it('exposes the implemented grid layout controls in the public style type', () => {
+    expect(componentTypes).toContain("display?: 'flex' | 'none' | 'grid'")
+    expect(componentTypes).toContain('gridTemplateColumns?: number | string')
+    expect(componentTypes).toContain('gridColumns?: number')
+    expect(componentTypes).toContain('gridAutoRows?: number | string')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
