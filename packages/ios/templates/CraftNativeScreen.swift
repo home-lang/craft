@@ -5790,7 +5790,6 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "link": return "Link"
         case "checkbox": return "Checkbox"
         case "textinput", "input": return "TextInput"
-        case "keyboardavoidingview": return "KeyboardAvoidingView"
         case "picker", "select": return "Picker"
         case "datepicker", "date-picker", "date": return "DatePicker"
         case "modal": return "Modal"

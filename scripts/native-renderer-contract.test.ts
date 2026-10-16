@@ -247,8 +247,8 @@ describe('native renderer component contract', () => {
   })
 
   it('canonicalizes container and SVG aliases identically on both hosts', () => {
-    expect(ios).toContain('case "keyboardavoidingview": return "KeyboardAvoidingView"')
-    expect(android).toContain('"keyboardavoidingview" -> "KeyboardAvoidingView"')
+    expect(ios.match(/case "keyboardavoidingview": return "KeyboardAvoidingView"/g)?.length).toBe(1)
+    expect(android.match(/"keyboardavoidingview" -> "KeyboardAvoidingView"/g)?.length).toBe(1)
     expect(ios).toContain('case "g": return "G"')
     expect(android).toContain('"g" -> "G"')
     expect(ios).toContain('case "svgtext", "svg-text": return "SvgText"')
