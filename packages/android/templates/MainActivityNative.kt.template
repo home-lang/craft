@@ -6589,7 +6589,7 @@ class MainActivity : AppCompatActivity() {
         else InputType.TYPE_CLASS_TEXT
         // Text variations do not carry their input class or multiline flag.
         // Preserve both when selecting an email, URL, or search keyboard.
-        val keyboard = when (props.optString("keyboardType")) {
+        val keyboard = when (props.opt("keyboardType") as? String) {
             "email-address" -> base or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
             "url" -> base or InputType.TYPE_TEXT_VARIATION_URI
             "numeric", "number-pad" -> InputType.TYPE_CLASS_NUMBER
@@ -6599,7 +6599,7 @@ class MainActivity : AppCompatActivity() {
             "visible-password" -> base or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
             else -> base
         }
-        val capitalization = when (props.optString("autoCapitalize")) {
+        val capitalization = when (props.opt("autoCapitalize") as? String) {
             "characters" -> InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
             "words" -> InputType.TYPE_TEXT_FLAG_CAP_WORDS
             "sentences" -> InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
@@ -6613,7 +6613,8 @@ class MainActivity : AppCompatActivity() {
     /// The autofill hint for `textContentType` (iOS's names) or `autoComplete`
     /// (HTML's), so a password manager fills the field.
     private fun autofillHintFor(props: JSONObject): String? {
-        val raw = props.optString("textContentType").ifBlank { props.optString("autoComplete") }
+        val raw = (props.opt("textContentType") as? String)?.takeIf { it.isNotBlank() }
+            ?: (props.opt("autoComplete") as? String).orEmpty()
         return when (raw.replace("-", "").replace("_", "").lowercase()) {
             "username" -> View.AUTOFILL_HINT_USERNAME
             "nickname" -> "personNickname"
@@ -6644,7 +6645,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun imeOptionsFor(props: JSONObject): Int = when (props.optString("returnKeyType")) {
+    private fun imeOptionsFor(props: JSONObject): Int = when (props.opt("returnKeyType") as? String) {
         "done" -> EditorInfo.IME_ACTION_DONE
         "go" -> EditorInfo.IME_ACTION_GO
         "next" -> EditorInfo.IME_ACTION_NEXT

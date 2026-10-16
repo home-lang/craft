@@ -1308,6 +1308,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('hint = (props.opt("placeholder") as? String).orEmpty()')
     expect(android).toContain('(props.opt("placeholderTextColor") as? String)')
     expect(android).toContain('(props.opt("selectionColor") as? String)')
+    expect(android).toContain('when (props.opt("keyboardType") as? String)')
+    expect(android).toContain('when (props.opt("autoCapitalize") as? String)')
+    expect(android).toContain('when (props.opt("returnKeyType") as? String)')
+    expect(android).toContain('(props.opt("textContentType") as? String)?.takeIf { it.isNotBlank() }')
     expect(android).toContain('text = (props.opt("label") as? String) ?: childText(children)')
     expect(android).toContain('!props.isNull("defaultValue")')
     expect(android).toContain('screen.suppressedTextChanges.add(this)')
@@ -1371,7 +1375,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('if (autofillHint == null) setAutofillHints(*emptyArray()) else setAutofillHints(autofillHint)')
     expect(android).toContain('"characters" -> InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS')
     expect(ios).toContain('props["passwordRules"] as? String')
-    expect(android).toContain('props.optString("textContentType").ifBlank { props.optString("autoComplete") }')
+    expect(android).toContain('(props.opt("textContentType") as? String)?.takeIf { it.isNotBlank() }')
   })
 
   it('keeps blur and end-editing callbacks independent across hosts', () => {
