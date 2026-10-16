@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.218...v0.0.219)
+
+## 🐛 Bug Fixes
+
+- **ios**: preserve newer input focus across delayed updates ([2bcd705](https://github.com/craft-native/craft/commit/2bcd705)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.217...v0.0.218)
 
 ## 🐛 Bug Fixes
