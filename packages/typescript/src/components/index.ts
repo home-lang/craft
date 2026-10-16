@@ -490,7 +490,7 @@ export interface ImageProps extends BaseProps {
   /** Style object or array */
   style?: ImageStyle | ImageStyle[]
   /** Resize mode */
-  resizeMode?: 'cover' | 'contain' | 'stretch' | 'repeat' | 'center'
+  resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'
   /** Load start handler */
   onLoadStart?: () => void
   /** Load handler */

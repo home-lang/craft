@@ -298,6 +298,9 @@ describe('native renderer component contract', () => {
   it('keeps the native trail map contract host-neutral', () => {
     expect(componentTypes).toContain('initialRegion?: MapRegion')
     expect(componentTypes).toContain("resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'")
+    const imageProps = componentTypes.match(/export interface ImageProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(imageProps).toContain("resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'")
+    expect(imageProps).not.toContain("'repeat'")
     expect(componentTypes).toContain('export type ImageSource =')
     expect(componentTypes).not.toContain('| number // For bundled images')
     expect(ios).toContain('import MapKit')

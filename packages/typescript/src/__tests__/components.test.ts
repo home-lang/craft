@@ -16,6 +16,7 @@ import type {
   ImageStyle,
   FlexStyle,
   ButtonProps,
+  ImageProps,
   PickerProps,
   MapProps,
   MapMarkerProps,
@@ -68,6 +69,15 @@ describe('Component System', () => {
     expect(marker.id).toBe('trailhead')
     expect(picker.selectedValue).toBe(1)
     expect(sections.sections[0]?.data).toEqual(['Alpine'])
+  })
+
+  it('keeps image resize modes within the native contract', () => {
+    const image: ImageProps = { source: { uri: 'https://example.com/image.png' }, resizeMode: 'center' }
+    expect(image.resizeMode).toBe('center')
+    // Native hosts do not implement CSS-style image tiling.
+    // @ts-expect-error repeat is intentionally outside the native Image contract
+    const tiled: ImageProps = { source: { uri: 'https://example.com/image.png' }, resizeMode: 'repeat' }
+    expect(tiled).toBeDefined()
   })
 
   describe('Platform', () => {
