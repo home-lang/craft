@@ -972,9 +972,26 @@ final class CraftHybridWebSlot: UIViewController {
     /// page's stack is all the page's.
     var depth: Int?
     let isTabRoot: Bool
-    /// The page has not reached `path` yet: the entry shows its background,
-    /// not the page it is leaving, until it has.
+    /// The page has not reached `path` yet: retain its last rendered content
+    /// until the replacement is ready.
     var awaitingPage = false
+    /// A slow page keeps the last rendered content until its replacement is
+    /// ready. This belongs to the incoming slot, beyond the push animation.
+    private(set) var waitingPageSnapshot: UIView?
+
+    func keepPageVisible(_ snapshot: UIView) {
+        waitingPageSnapshot?.removeFromSuperview()
+        snapshot.frame = view.bounds
+        snapshot.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        snapshot.accessibilityElementsHidden = true
+        view.addSubview(snapshot)
+        waitingPageSnapshot = snapshot
+    }
+
+    func pageBecameVisible() {
+        waitingPageSnapshot?.removeFromSuperview()
+        waitingPageSnapshot = nil
+    }
 
     init(path: String, depth: Int?, isTabRoot: Bool) {
         self.path = path
@@ -1331,6 +1348,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         snapshot.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         source.view.addSubview(snapshot)
         webTransitionSnapshots.append(snapshot)
+        if slot.awaitingPage,
+           let waiting = webHost.view.snapshotView(afterScreenUpdates: false) {
+            slot.keepPageVisible(waiting)
+        }
     }
 
     private var visibleStack: UINavigationController? { stacks[currentTab] }
@@ -1423,6 +1444,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         attachWeb()
         moveWeb(to: slot, in: slot.view)
         webHost.view.alpha = slot.awaitingPage ? 0 : 1
+        if !slot.awaitingPage { slot.pageBecameVisible() }
         hybrid.setPageBase(slot.isTabRoot ? nil : slot.depth)
     }
 
@@ -1534,7 +1556,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     private func reveal(_ slot: CraftHybridWebSlot) {
         slot.awaitingPage = false
         guard let webHost, webHost.view.superview === slot.view else { return }
-        UIView.animate(withDuration: 0.15) { webHost.view.alpha = 1 }
+        // Commit the ready page and remove its placeholder in the same frame.
+        // Fading it up from zero exposed the slot's empty background again.
+        webHost.view.alpha = 1
+        slot.pageBecameVisible()
     }
 
     /// Back from the web entry on top, as the page's Back at that entry asks.

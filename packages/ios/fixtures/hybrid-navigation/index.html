@@ -22,6 +22,18 @@
       var page = document.getElementById('page');
       var title = document.getElementById('title');
       var open = document.getElementById('open-second');
+      var currentDepth = 0;
+      history.replaceState({ fixtureDepth: currentDepth }, '', location.href);
+      var pendingArrival = null;
+      window.hybridFixture = {
+        holdArrival: false,
+        release: function () {
+          this.holdArrival = false;
+          var arrive = pendingArrival;
+          pendingArrival = null;
+          if (arrive) arrive();
+        },
+      };
 
       function render(path) {
         var second = path === '/second';
@@ -31,7 +43,7 @@
       }
 
       window.stxRouter = {
-        screens: function () { return [{ active: true, depth: history.length }]; },
+        screens: function () { return [{ active: true, depth: currentDepth }]; },
         navigate: function (path) {
           var next = new URL(path, location.href).pathname;
           // Deliberately arrive after CraftHybrid's 0.35-second wait. This
@@ -39,9 +51,14 @@
           // the incoming WebView hidden while the outgoing slot still needs
           // its visual snapshot.
           setTimeout(function () {
-            history.pushState({}, '', next);
-            render(next);
-            window.dispatchEvent(new CustomEvent('stx:navigate', { detail: { direction: 'push' } }));
+            var arrive = function () {
+              currentDepth++;
+              history.pushState({ fixtureDepth: currentDepth }, '', next);
+              render(next);
+              window.dispatchEvent(new CustomEvent('stx:navigate', { detail: { direction: 'push' } }));
+            };
+            if (window.hybridFixture.holdArrival) pendingArrival = arrive;
+            else arrive();
           }, 650);
           return Promise.resolve(true);
         },
@@ -52,7 +69,11 @@
         var handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.craftHybrid;
         if (handler) handler.postMessage({ type: 'open', path: path });
       });
-      window.addEventListener('popstate', function () { render(location.pathname); });
+      window.addEventListener('popstate', function (event) {
+        currentDepth = event.state && event.state.fixtureDepth || 0;
+        render(location.pathname);
+        window.dispatchEvent(new CustomEvent('stx:navigate', { detail: { direction: 'pop' } }));
+      });
       render(location.pathname);
     })();
   </script>

@@ -1,0 +1,62 @@
+import UIKit
+import XCTest
+@testable import HybridNavigation
+
+@MainActor
+final class HybridNavigationUnitTests: XCTestCase {
+    private func wait(until condition: () -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(15)
+        while !condition(), Date() < deadline {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return condition()
+    }
+
+    func testSlowWebPushRetainsIncomingContentUntilThePageArrives() async throws {
+        let hybrid = CraftHybrid.shared
+        let ready = await wait {
+            hybrid.pageReady && hybrid.controller != nil && !CraftChrome.shared.splashVisible
+        }
+        XCTAssertTrue(ready, "the real fixture page must load before navigation")
+        let controller = try XCTUnwrap(hybrid.controller)
+        let nav = try XCTUnwrap(controller.children.compactMap { $0 as? UINavigationController }.first)
+        let source = try XCTUnwrap(nav.topViewController as? CraftHybridWebSlot)
+        let webView = try XCTUnwrap(hybrid.webView)
+        let settled = await wait { hybrid.pagePath == "/" && nav.transitionCoordinator == nil }
+        XCTAssertTrue(settled)
+        // Hold the real fixture router, so observing the pending native slot
+        // does not race its 650ms timer on a busy simulator.
+        _ = try await webView.evaluateJavaScript("window.hybridFixture.holdArrival = true")
+        defer {
+            webView.evaluateJavaScript("window.hybridFixture.release()", completionHandler: nil)
+            nav.popToRootViewController(animated: false)
+        }
+
+        controller.open("/second")
+        let pushed = await wait {
+            guard let incoming = nav.topViewController as? CraftHybridWebSlot, incoming !== source else { return false }
+            return incoming.waitingPageSnapshot != nil
+        }
+        XCTAssertTrue(pushed)
+        let destination = try XCTUnwrap(nav.topViewController as? CraftHybridWebSlot)
+        let snapshot = try XCTUnwrap(destination.waitingPageSnapshot,
+                                     "the incoming slot must retain content while its page is pending")
+        XCTAssertTrue(destination.awaitingPage)
+        XCTAssertTrue(snapshot.superview === destination.view)
+        XCTAssertTrue(snapshot.accessibilityElementsHidden)
+        XCTAssertFalse(snapshot.isHidden)
+        XCTAssertEqual(snapshot.alpha, 1)
+        XCTAssertEqual(snapshot.bounds.size, destination.view.bounds.size)
+
+        _ = try await webView.evaluateJavaScript("window.hybridFixture.release(); true")
+        let arrived = await wait { hybrid.pagePath == "/second" && !destination.awaitingPage }
+        XCTAssertTrue(arrived, "the actual page router must complete")
+        XCTAssertNil(destination.waitingPageSnapshot)
+        XCTAssertNil(snapshot.superview, "a committed page must release its snapshot")
+        XCTAssertEqual(destination.view.subviews.last?.alpha, 1)
+
+        controller.popTop()
+        let returned = await wait { hybrid.pagePath == "/" }
+        XCTAssertTrue(returned)
+    }
+}

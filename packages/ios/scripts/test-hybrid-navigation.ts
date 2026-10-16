@@ -11,6 +11,9 @@ const output = join(workspace, 'HybridNavigation')
 const bundle = join(workspace, 'native-screen.js')
 const resultBundle = join(workspace, 'HybridNavigation.xcresult')
 const prepareOnly = process.argv.includes('--prepare-only')
+const testIterations = Number(process.env.CRAFT_HYBRID_NAVIGATION_ITERATIONS ?? 1)
+if (!Number.isSafeInteger(testIterations) || testIterations < 1)
+  throw new Error('CRAFT_HYBRID_NAVIGATION_ITERATIONS must be a positive integer')
 const page = readFileSync(join(fixture, 'index.html'))
 let servedRequests = 0
 
@@ -98,9 +101,25 @@ try {
   await build({ output, htmlPath: fixture, nativeBundlePath: bundle, generateProject: false, runtimeDir: null })
 
   mkdirSync(join(output, 'UITests'))
+  mkdirSync(join(output, 'UnitTests'))
   copyFileSync(join(fixture, 'HybridNavigationUITests.swift'), join(output, 'UITests', 'HybridNavigationUITests.swift'))
+  copyFileSync(join(fixture, 'HybridNavigationUnitTests.swift'), join(output, 'UnitTests', 'HybridNavigationUnitTests.swift'))
   const project = join(output, 'project.yml')
   const projectWithTargets = insertProjectTargetsBeforeSchemes(readFileSync(project, 'utf8'), `
+  HybridNavigationUnitTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - UnitTests
+    settings:
+      TEST_HOST: "$(BUILT_PRODUCTS_DIR)/HybridNavigation.app/HybridNavigation"
+      BUNDLE_LOADER: "$(TEST_HOST)"
+      GENERATE_INFOPLIST_FILE: YES
+      PRODUCT_NAME: "$(TARGET_NAME)"
+      PRODUCT_BUNDLE_IDENTIFIER: dev.craft.hybrid-navigation.tests
+      SWIFT_VERSION: "5.0"
+    dependencies:
+      - target: HybridNavigation
   HybridNavigationUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -115,7 +134,7 @@ try {
     dependencies:
       - target: HybridNavigation
 `)
-  writeFileSync(project, addSchemeTestTargets(projectWithTargets, 'HybridNavigation', ['HybridNavigationUITests']))
+  writeFileSync(project, addSchemeTestTargets(projectWithTargets, 'HybridNavigation', ['HybridNavigationUnitTests', 'HybridNavigationUITests']))
   run(['xcodegen', 'generate'], output)
 
   if (prepareOnly) {
@@ -139,6 +158,7 @@ try {
     run([...xcodeArgs, 'build-for-testing'], output)
     await runXcodeTests([
       ...xcodeArgs,
+      '-test-iterations', String(testIterations),
       '-resultBundlePath', resultBundle,
       ...selection,
       'test-without-building',
