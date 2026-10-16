@@ -105,6 +105,9 @@ of `@stacksjs/stx`, so do not install the historical `stx-native` package or
 compiler. The compiler installs an initial tree atomically before sending
 incremental keyed mutations.
 
+`NativeFlatListTest.kt` also checks paging, disabled-scroll row interaction,
+and `scrollTarget` retention while a RecyclerView submission is pending.
+
 `--prepare-only` compiles the `.stx` bundle and generates the Android fixture
 without needing an emulator. Set `CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1` to keep
 the generated project for inspection. On an emulator failure, the test prints

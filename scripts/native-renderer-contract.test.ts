@@ -2555,6 +2555,9 @@ describe('native renderer component contract', () => {
     expect(androidFlatList).toContain('else if (!isSubmittingList) pendingScrollTarget = null')
     expect(androidFlatListTest).toContain('acceptsVirtualizedScrollTargets')
     expect(iosNativeUnitTests).toContain('testFlatListScrollTargetIsAccepted')
+    expect(guide).toContain('`pagingEnabled` snaps virtualized rows to viewport pages')
+    expect(iosScreenReadme).toContain('FlatList paging and row `scrollTarget` reconciliation')
+    expect(androidNavigationReadme).toContain('paging, disabled-scroll row interaction')
   })
 
   it('routes authored links through both native hosts', () => {

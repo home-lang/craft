@@ -585,6 +585,11 @@ recycling.
 props are omitted, the list's active axis follows `bounces` and the other axis
 does not, so horizontal and vertical lists retain their native direction by
 default.
+`pagingEnabled` snaps virtualized rows to viewport pages on both hosts. A
+`scrollTarget` string or `{ id, animated?, key? }` targets a row by its native
+`testID`, `id`, or stable key; the `key` field retriggers the same target after
+the data snapshot changes. `stickyHeaderIndices` remains a `ScrollView`-only
+capability; list chrome should use the maintained `listRole` slots instead.
 
 `RefreshControl` is a native utility node rather than a visible child: place it
 inside a `ScrollView` when the screen wants the React Native-shaped form. Its
