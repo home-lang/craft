@@ -2209,10 +2209,9 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         }
     }
 
-    fun setRefreshAppearance(props: JSONObject, density: Float) {
+    fun setRefreshAppearance(props: JSONObject, density: Float, fallback: Int) {
         val tint = craftNativeOptionalString(props.opt("tintColor"))
-        if (tint != null) setColorSchemeColors(craftNativeColor(tint))
-        else setColorSchemeColors(Color.WHITE)
+        setColorSchemeColors(tint?.let { runCatching { craftNativeColor(it) }.getOrDefault(fallback) } ?: fallback)
         val background = craftNativeOptionalString(props.opt("progressBackgroundColor"))
         if (background != null) setProgressBackgroundColorSchemeColor(craftNativeColor(background))
         else setProgressBackgroundColorSchemeColor(Color.TRANSPARENT)
@@ -4485,6 +4484,13 @@ class MainActivity : AppCompatActivity() {
         screen.view.setBackgroundColor(configured ?: ContextCompat.getColor(this, R.color.background))
     }
 
+    /** Refresh controls use a contrasting system tint when no color is authored. */
+    private fun refreshTintFallback(screen: Screen): Int {
+        val background = (screen.view.background as? ColorDrawable)?.color
+            ?: ContextCompat.getColor(this, R.color.background)
+        return if (Color.luminance(background) < 0.5f) Color.WHITE else Color.BLACK
+    }
+
     /** The bridge's capability names: Craft's core set and this host's services. */
     private fun capabilityNames(): JSONArray = capabilities.names().apply {
         services.names().forEach { name -> put(name) }
@@ -5456,7 +5462,7 @@ class MainActivity : AppCompatActivity() {
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
                 }
                 setRefreshHandler(refreshHandler, refreshProps.optBoolean("refreshing", props.optBoolean("refreshing", false)))
-                setRefreshAppearance(refreshProps, resources.displayMetrics.density)
+                setRefreshAppearance(refreshProps, resources.displayMetrics.density, refreshTintFallback(screen))
                 val onScroll = craftNativeEventName(events, "onScroll")
                 if (onScroll.isNotBlank()) screen.scrollHandlers[this] = onScroll else screen.scrollHandlers.remove(this)
                 val onBegin = craftNativeEventName(events, "onScrollBeginDrag")
@@ -5534,7 +5540,7 @@ class MainActivity : AppCompatActivity() {
                 configureRefresh(refreshHandlerName?.let { handler ->
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
                 }, propRefresh.optBoolean("refreshing", props.optBoolean("refreshing", false)))
-                setRefreshAppearance(propRefresh)
+                setRefreshAppearance(propRefresh, refreshTintFallback(screen))
                 nativeList.setKeyboardShouldPersistTaps(props.optString("keyboardShouldPersistTaps", "never"))
                 nativeList.setContentContainerStyle(props.optJSONObject("contentContainerStyle"), resources.displayMetrics.density)
                 nativeList.setKeyboardDismissMode(props.optString("keyboardDismissMode")) {

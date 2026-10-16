@@ -1,7 +1,6 @@
 package {{PACKAGE_NAME}}
 
 import android.content.Context
-import android.graphics.Color
 import org.json.JSONObject
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
@@ -23,9 +22,9 @@ internal class CraftNativeRefreshableFlatList(context: Context) : SwipeRefreshLa
         if (handler == null) isRefreshing = false
     }
 
-    fun setRefreshAppearance(props: JSONObject) {
+    fun setRefreshAppearance(props: JSONObject, fallback: Int) {
         val tint = props.optString("tintColor").takeIf { it.isNotBlank() }
-        val resolved = tint?.let { runCatching { craftNativeColor(it) }.getOrDefault(Color.WHITE) } ?: Color.WHITE
+        val resolved = tint?.let { runCatching { craftNativeColor(it) }.getOrDefault(fallback) } ?: fallback
         setColorSchemeColors(resolved)
     }
 

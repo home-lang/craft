@@ -1,10 +1,12 @@
 package dev.craft.navigationtest
 
 import android.content.Context
+import android.graphics.Color
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
@@ -23,6 +25,16 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class NativeFlatListTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+    private fun findImage(view: View): ImageView? {
+        if (view is ImageView) return view
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                findImage(view.getChildAt(index))?.let { return it }
+            }
+        }
+        return null
+    }
 
     private fun row(index: Int): JSONObject = JSONObject()
         .put("id", "row-$index")
@@ -225,6 +237,37 @@ class NativeFlatListTest {
         assertTrue("paging should be enabled", list.isPagingEnabledForTest)
         list.setPagingEnabled(false)
         assertTrue("paging should be disabled", !list.isPagingEnabledForTest)
+    }
+
+    @Test
+    fun refreshAppearanceUsesTheScreenContrastFallback() {
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        lateinit var host: CraftNativeRefreshableFlatList
+        lateinit var indicator: ImageView
+        try {
+            scenario.onActivity { activity ->
+                val root = FrameLayout(activity)
+                activity.setContentView(root)
+                host = CraftNativeRefreshableFlatList(activity)
+                root.addView(host, FrameLayout.LayoutParams(320, 480))
+                host.measure(
+                    View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(480, View.MeasureSpec.EXACTLY),
+                )
+                host.layout(0, 0, 320, 480)
+                host.setRefreshAppearance(JSONObject(), Color.BLACK)
+                indicator = findImage(host) ?: throw AssertionError("refresh indicator did not mount")
+            }
+            assertEquals(Color.BLACK, indicator.imageTintList?.defaultColor)
+            instrumentation.runOnMainSync {
+                host.setRefreshAppearance(JSONObject().put("tintColor", "#123456"), Color.WHITE)
+            }
+            assertEquals(Color.rgb(0x12, 0x34, 0x56), indicator.imageTintList?.defaultColor)
+            instrumentation.runOnMainSync { host.setRefreshAppearance(JSONObject(), Color.WHITE) }
+            assertEquals(Color.WHITE, indicator.imageTintList?.defaultColor)
+        } finally {
+            scenario.close()
+        }
     }
 
     @Test
