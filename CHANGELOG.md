@@ -1,5 +1,46 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.209...v0.0.210)
+
+## 🐛 Bug Fixes
+
+- **ios**: preserve container fills and match tab accessory glass ([6995268](https://github.com/craft-native/craft/commit/6995268)) _(by glennmichael123)_
+- **native**: expose window alias in host runtimes ([a0ae835](https://github.com/craft-native/craft/commit/a0ae835)) _(by glennmichael123)_
+- **types**: type recursive native styles ([9274998](https://github.com/craft-native/craft/commit/9274998)) _(by glennmichael123)_
+- **types**: allow native image source strings ([cc7a491](https://github.com/craft-native/craft/commit/cc7a491)) _(by glennmichael123)_
+- **types**: align native image errors ([6f680f7](https://github.com/craft-native/craft/commit/6f680f7)) _(by glennmichael123)_
+- **styles**: type recursive native style values ([4d23071](https://github.com/craft-native/craft/commit/4d23071)) _(by glennmichael123)_
+- **types**: expose local date-time picker mode ([9906dff](https://github.com/craft-native/craft/commit/9906dff)) _(by glennmichael123)_
+- **types**: expose text click alias ([a4a4f21](https://github.com/craft-native/craft/commit/a4a4f21)) _(by glennmichael123)_
+- **styles**: flatten nested native style arrays ([385c1d2](https://github.com/craft-native/craft/commit/385c1d2)) _(by glennmichael123)_
+- **types**: expose native control styles ([0365572](https://github.com/craft-native/craft/commit/0365572)) _(by glennmichael123)_
+- **types**: expose native button styles ([fada15a](https://github.com/craft-native/craft/commit/fada15a)) _(by glennmichael123)_
+- **ios**: preserve italic dynamic type scaling ([6284be3](https://github.com/craft-native/craft/commit/6284be3)) _(by glennmichael123)_
+- **types**: allow numeric native text weights ([e648cc2](https://github.com/craft-native/craft/commit/e648cc2)) _(by glennmichael123)_
+- **mobile**: normalize numeric text weights ([689595b](https://github.com/craft-native/craft/commit/689595b)) _(by glennmichael123)_
+- **android**: preserve explicit map camera regions ([f29e244](https://github.com/craft-native/craft/commit/f29e244)) _(by glennmichael123)_
+- **ios**: preserve native accessibility control traits ([4fa30e5](https://github.com/craft-native/craft/commit/4fa30e5)) _(by glennmichael123)_
+
+## 📚 Documentation
+
+- **native**: keep tab accessory host docs aligned ([98d53e6](https://github.com/craft-native/craft/commit/98d53e6)) _(by glennmichael123)_
+- **native**: document tab accessories ([ef1cb26](https://github.com/craft-native/craft/commit/ef1cb26)) _(by glennmichael123)_
+- **native**: explain dom-free bridge compatibility ([cb147e4](https://github.com/craft-native/craft/commit/cb147e4)) _(by glennmichael123)_
+- **native**: list shared utility nodes ([e4faf6d](https://github.com/craft-native/craft/commit/e4faf6d)) _(by glennmichael123)_
+- **native**: align style and image contracts ([6105d2f](https://github.com/craft-native/craft/commit/6105d2f)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: verify window alias on iOS ([50c3a14](https://github.com/craft-native/craft/commit/50c3a14)) _(by glennmichael123)_
+- **crypto**: preserve X25519 identity rejection ([bf000ec](https://github.com/craft-native/craft/commit/bf000ec)) _(by glennmichael123)_
+- **android**: align native shell start route ([8dd2c1f](https://github.com/craft-native/craft/commit/8dd2c1f)) _(by glennmichael123)_
+- **android**: align numeric font weight contract ([1d118eb](https://github.com/craft-native/craft/commit/1d118eb)) _(by glennmichael123)_
+- **ios**: cover navigation bar re-entry appearance ([13cfc27](https://github.com/craft-native/craft/commit/13cfc27)) _(by glennmichael123)_
+
+## Contributors
+
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.208...v0.0.209)
 
 ## 🐛 Bug Fixes
