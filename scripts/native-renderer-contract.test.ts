@@ -2349,6 +2349,14 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('craftTextView.applyAuthoredPadding(padding)')
   })
 
+  it('applies ImageBackground tint to the Android inner image', () => {
+    expect(navigationHome).toContain('"tintColor":imageTinted ? "#2563eb" : null')
+    expect(androidNavigationTest).toContain('ImageBackground tint was not applied to its image')
+    expect(androidNavigationTest).toContain('ImageBackground tint was not restored')
+    expect(android).toContain('craftNativeOptionalString(style.opt("tintColor"))')
+    expect(android).toContain('image.clearColorFilter()')
+  })
+
   it('exercises independent floating iOS navigation buttons in the maintained fixture', () => {
     expect(navigationHome).toContain("id: 'fixture-messages'")
     expect(navigationHome).toContain("id: 'fixture-account'")

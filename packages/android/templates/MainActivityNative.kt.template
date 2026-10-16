@@ -5359,6 +5359,9 @@ class MainActivity : AppCompatActivity() {
                     "center" -> ImageView.ScaleType.CENTER
                     else -> ImageView.ScaleType.CENTER_INSIDE
                 }
+                craftNativeOptionalString(style.opt("tintColor"))
+                    ?.let { image.setColorFilter(color(it, Color.TRANSPARENT)) }
+                    ?: image.clearColorFilter()
                 val onLoadStart = craftNativeEventName(events, "onLoadStart")
                 if (onLoadStart.isNotBlank()) screen.imageLoadStartHandlers[image] = onLoadStart else screen.imageLoadStartHandlers.remove(image)
                 val onLoad = craftNativeEventName(events, "onLoad")

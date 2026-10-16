@@ -624,6 +624,7 @@ class NativeNavigationTest {
             click(activity, "toggle-image-tint")
             awaitText(activity, "image-tint-status", "image tint off")
             awaitImageTintCleared(activity, "native-image")
+            assertTrue("ImageBackground tint was not cleared", backgroundImage.colorFilter == null)
             val tintedUnsupported = awaitView(activity, "unsupported-image") as ImageView
             assertEquals(1, tintedUnsupported.contentDescription.toString().split("Unsupported image source").size - 1)
             val paddingButton = awaitView(activity, "toggle-button-padding") as Button
@@ -941,6 +942,7 @@ class NativeNavigationTest {
             val backgroundImage = imageBackground.getChildAt(0) as ImageView
             assertEquals("ImageBackground resizeMode prop did not select cover", ImageView.ScaleType.CENTER_CROP, backgroundImage.scaleType)
             assertTrue("ImageBackground image is empty", backgroundImage.drawable != null)
+            assertTrue("ImageBackground tint was not applied to its image", backgroundImage.colorFilter != null)
             awaitText(activity, "image-background-error-status", "background failed")
             assertTrue("ImageBackground accessibility label was lost on failure", unsupportedBackground.contentDescription.toString().contains("Unsupported background"))
             assertTrue("ImageBackground error did not reach accessibility metadata", unsupportedBackground.contentDescription.toString().contains("Unsupported image source"))
@@ -997,6 +999,7 @@ class NativeNavigationTest {
             awaitText(activity, "image-error-count", "2")
             click(activity, "toggle-image-tint")
             awaitText(activity, "image-tint-status", "image tint on")
+            assertTrue("ImageBackground tint was not restored", backgroundImage.colorFilter != null)
             assertEquals("missing image errors should be deduplicated", "2", (awaitView(activity, "image-error-count") as TextView).text.toString())
             assertNoWebView(activity)
 
