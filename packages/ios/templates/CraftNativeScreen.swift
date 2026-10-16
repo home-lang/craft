@@ -6940,7 +6940,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func textFont(_ style: [String: Any], default fallback: UIFont) -> UIFont {
         let size = number(style["fontSize"]) ?? fallback.pointSize
         let weight: UIFont.Weight
-        switch style["fontWeight"] as? String {
+        switch craftNativeFontWeight(style["fontWeight"]) {
         case "100": weight = .ultraLight
         case "200": weight = .thin
         case "300": weight = .light

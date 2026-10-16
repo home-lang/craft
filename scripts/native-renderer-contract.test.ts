@@ -628,7 +628,7 @@ describe('native renderer component contract', () => {
   it('inherits SVG text weights through groups and maps the shared weight range', () => {
     expect(ios).toContain('var fontWeight: String?')
     expect(ios).toContain('if let fontWeight = string(value("fontWeight")) { next.fontWeight = fontWeight }')
-    expect(android).toContain('val fontWeight = style.opt("fontWeight") as? String')
+    expect(android).toContain('val fontWeight = craftNativeFontWeight(style.opt("fontWeight"))')
     expect(ios).toContain('case "bold", "700", "800", "900": return .bold')
     expect(android).toContain('typeface = svgTypeface(weight, typeface)')
     expect(android).toContain('"500" -> Typeface.create("sans-serif-medium", Typeface.NORMAL)')
@@ -1338,6 +1338,12 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('private var inputDrafts: [String: String] = [:]')
     expect(ios).toContain('inputDrafts[current.identity] ?? props["defaultValue"] as? String')
     expect(ios).toContain('inputIdentities[id].map { inputDrafts[$0] = textView.text ?? "" }')
+  })
+
+  it('normalizes numeric font weights for ordinary native text controls', () => {
+    expect(ios).toContain('switch craftNativeFontWeight(style["fontWeight"])')
+    expect(android).toContain('val fontWeight = craftNativeFontWeight(style.opt("fontWeight"))')
+    expect(android).not.toContain('val fontWeight = style.opt("fontWeight") as? String')
   })
 
   it('restores UIKit TextInput accessibility values when authored metadata is removed', () => {

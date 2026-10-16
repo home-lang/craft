@@ -6278,7 +6278,7 @@ class MainActivity : AppCompatActivity() {
     private fun configureTextStyle(view: TextView, style: JSONObject) {
         view.setTextColor(color(craftNativeOptionalString(style.opt("color")).orEmpty(), defaultTextColor))
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, craftNativeFiniteFloat(style, "fontSize", 16f))
-        val fontWeight = style.opt("fontWeight") as? String
+        val fontWeight = craftNativeFontWeight(style.opt("fontWeight"))
         val weight = when (fontWeight) {
             "bold" -> 700
             "100", "200", "300", "400", "500", "600", "700", "800", "900" -> style.optInt("fontWeight")
