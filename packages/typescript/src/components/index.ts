@@ -745,14 +745,6 @@ export interface PressableProps extends ViewProps {
   onPressIn?: () => void
   /** Press out handler */
   onPressOut?: () => void
-  /** Hit slop for touch area */
-  hitSlop?: number | { top?: number; right?: number; bottom?: number; left?: number }
-  /** Press retention offset */
-  pressRetentionOffset?: number | { top?: number; right?: number; bottom?: number; left?: number }
-  /** Android ripple effect */
-  android_ripple?: { color?: string; borderless?: boolean; radius?: number }
-  /** Delay for long press */
-  delayLongPress?: number
 }
 
 /**

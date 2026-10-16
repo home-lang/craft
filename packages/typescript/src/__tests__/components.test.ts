@@ -16,6 +16,7 @@ import type {
   ImageStyle,
   FlexStyle,
   ButtonProps,
+  PressableProps,
   ImageProps,
   RefreshControlProps,
   StatusBarProps,
@@ -66,6 +67,13 @@ describe('Component System', () => {
 
   it('types the native renderer component contract', () => {
     const button: ButtonProps = { title: 'Open map', onClick: () => {} }
+    const pressable: PressableProps = { disabled: false, onPressIn: () => {}, onPressOut: () => {} }
+    // These platform-specific press options are not implemented by either native host.
+    // @ts-expect-error hitSlop is intentionally outside the native Pressable contract.
+    pressable.hitSlop = 8
+    // @ts-expect-error delayLongPress is intentionally outside the native Pressable contract.
+    pressable.delayLongPress = 400
+    expect(pressable.disabled).toBe(false)
     const map: MapProps = {
       initialRegion: {
         center: { latitude: 47, longitude: 11 },

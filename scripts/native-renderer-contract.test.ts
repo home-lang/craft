@@ -1081,6 +1081,18 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`Pressable`')
   })
 
+  it('does not advertise unsupported Pressable touch options', () => {
+    const pressableProps = componentTypes.match(/export interface PressableProps extends ViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(pressableProps).toContain('onPressIn?: () => void')
+    expect(pressableProps).toContain('onPressOut?: () => void')
+    expect(pressableProps).not.toContain('hitSlop?:')
+    expect(pressableProps).not.toContain('pressRetentionOffset?:')
+    expect(pressableProps).not.toContain('android_ripple?:')
+    expect(pressableProps).not.toContain('delayLongPress?:')
+    expect(ios).not.toContain('hitSlop')
+    expect(android).not.toContain('android_ripple')
+  })
+
   it('delivers Pressable press-in and press-out callbacks on both hosts', () => {
     expect(ios).toContain('events["onPressIn"]')
     expect(ios).toContain('events["onPressOut"]')

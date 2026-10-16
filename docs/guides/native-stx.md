@@ -187,6 +187,9 @@ containers block both press and long-press callbacks on both hosts. On
 `TouchableHighlight`, `underlayColor` temporarily replaces the authored
 background during a press and `onShowUnderlay`/`onHideUnderlay` follow the
 same lifecycle on iOS and Android.
+The shared `Pressable` contract intentionally omits platform-specific
+`hitSlop`, ripple, retention-offset, and long-press-delay options until both
+hosts implement them.
 `Picker` renders option children from `<select>`/`<option>` or the native
 primitive, accepts an `items` array or child options plus `value`/`selectedValue`,
 and sends the selected option's `value` plus `index` through `onValueChange` or
