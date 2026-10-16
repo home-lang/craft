@@ -2,6 +2,11 @@ name: Native tab swipe verification
 
 on:
   workflow_dispatch:
+    inputs:
+      verify_baseline:
+        description: Reproduce the regression against v0.0.200 first
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,6 +36,7 @@ jobs:
         working-directory: .stx-compiler
         run: bun install --no-save
       - name: Verify the previous release loses a newer tab tap
+        if: ${{ inputs.verify_baseline }}
         env:
           STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
           CRAFT_KEEP_NATIVE_NAVIGATION_PROJECT: '1'
@@ -47,7 +53,7 @@ jobs:
           git restore -- packages/ios/templates/CraftHybrid.swift packages/ios/templates/CraftApp.swift
           cat "$RUNNER_TEMP/native-interruption-before.log"
           test "$navigation_baseline_status" -ne 0
-          rg -q 'a completed swipe overrode the newer tab tap' "$RUNNER_TEMP/native-interruption-before.log"
+          bun -e 'const log = await Bun.file(process.env.RUNNER_TEMP + "/native-interruption-before.log").text(); if (!log.includes("a completed swipe overrode the newer tab tap")) throw new Error("The baseline did not reproduce the expected selection failure")'
           navigation_workspaces=("$RUNNER_TEMP"/craft-native-navigation-*)
           mv "${navigation_workspaces[0]}/NativeNavigation.xcresult" "$RUNNER_TEMP/TabInterruptionBefore.xcresult"
       - name: Test native gesture geometry and simulator touches
