@@ -4,6 +4,7 @@
 
 ## 🐛 Bug Fixes
 
+- **native**: canonicalize renderer node aliases ([ca12954](https://github.com/craft-native/craft/commit/ca12954)) _(by glennmichael123)_
 - **ios**: keep slow hybrid pages visible until they commit ([77fc683](https://github.com/craft-native/craft/commit/77fc683)) _(by Chris Breuer)_
 - **ios**: pair simulator runtimes with the selected Xcode SDK ([cdda65f](https://github.com/craft-native/craft/commit/cdda65f)) _(by Chris Breuer)_
 - **ios**: clip nested scroll content to its viewport ([7ed9190](https://github.com/craft-native/craft/commit/7ed9190)) _(by Chris Breuer)_
@@ -20,6 +21,7 @@
 
 ## 📚 Documentation
 
+- synchronize verified native release candidate notes ([6345912](https://github.com/craft-native/craft/commit/6345912)) _(by Chris Breuer)_
 - **native**: document shared transforms and shadows ([4e065e1](https://github.com/craft-native/craft/commit/4e065e1)) _(by glennmichael123)_
 - record cold simulator startup verification ([6177834](https://github.com/craft-native/craft/commit/6177834)) _(by Chris Breuer)_
 - record default simulator test invocation ([a823efd](https://github.com/craft-native/craft/commit/a823efd)) _(by Chris Breuer)_
