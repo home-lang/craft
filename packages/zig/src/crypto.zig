@@ -16,25 +16,38 @@ pub const Crypto = struct {
     pub fn generateKeyPair() !KeyPair {
         var seed: [32]u8 = undefined; // Ed25519 seed is 32 bytes
         compat.randomBytes(&seed);
-        return try Ed25519.KeyPair.create(seed);
+        // Zig 0.18 renamed the seed constructor to generateDeterministic.
+        // Keep the error union: an identity element is still a real failure
+        // and must not be turned into an unchecked key.
+        if (@hasDecl(Ed25519.KeyPair, "create")) {
+            return try Ed25519.KeyPair.create(seed);
+        }
+        return try Ed25519.KeyPair.generateDeterministic(seed);
     }
 
     /// Sign data with a secret key
     pub fn sign(data: []const u8, secret_key: SecretKey) !Signature {
-        return try Ed25519.sign(data, Ed25519.KeyPair{
+        const key_pair = KeyPair{
             .secret_key = secret_key,
-            .public_key = try secret_key.publicKey(),
-        }, null);
+            .public_key = try publicKeyForSecret(secret_key),
+        };
+        if (@hasDecl(KeyPair, "sign")) {
+            return try key_pair.sign(data, null);
+        }
+        return try Ed25519.sign(data, key_pair, null);
     }
 
     /// Verify a signature with a public key
     pub fn verify(signature: Signature, data: []const u8, public_key: PublicKey) !void {
-        try Ed25519.verify(signature, data, public_key);
+        if (@hasDecl(Ed25519, "verify")) {
+            return try Ed25519.verify(signature, data, public_key);
+        }
+        try signature.verify(data, public_key);
     }
 
     /// Encode public key to hex string
     pub fn publicKeyToHex(public_key: PublicKey, allocator: std.mem.Allocator) ![]u8 {
-        return try std.fmt.allocPrint(allocator, "{}", .{std.fmt.fmtSliceHexLower(&public_key.bytes)});
+        return try encodeHex(allocator, &public_key.bytes);
     }
 
     /// Decode public key from hex string
@@ -49,7 +62,8 @@ pub const Crypto = struct {
 
     /// Encode signature to hex string
     pub fn signatureToHex(signature: Signature, allocator: std.mem.Allocator) ![]u8 {
-        return try std.fmt.allocPrint(allocator, "{}", .{std.fmt.fmtSliceHexLower(&signature.toBytes())});
+        const bytes = signature.toBytes();
+        return try encodeHex(allocator, &bytes);
     }
 
     /// Decode signature from hex string
@@ -199,7 +213,7 @@ pub const Crypto = struct {
 
     /// Convert bytes to hex string
     pub fn toHex(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
-        return try std.fmt.allocPrint(allocator, "{}", .{std.fmt.fmtSliceHexLower(bytes)});
+        return try encodeHex(allocator, bytes);
     }
 
     /// Convert hex string to bytes
@@ -210,6 +224,29 @@ pub const Crypto = struct {
         return bytes;
     }
 };
+
+/// Ed25519 exposed `SecretKey.publicKey()` before 0.18. The current API
+/// exposes the embedded public bytes instead; both paths validate the bytes
+/// through `PublicKey.fromBytes` before signing.
+fn publicKeyForSecret(secret_key: Crypto.SecretKey) !Crypto.PublicKey {
+    if (@hasDecl(Crypto.SecretKey, "publicKeyBytes")) {
+        return try Crypto.PublicKey.fromBytes(secret_key.publicKeyBytes());
+    }
+    return try secret_key.publicKey();
+}
+
+/// Keep hex encoding independent of the formatter API, which changed between
+/// the 0.17 and 0.18 development lines.
+fn encodeHex(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
+    const encoded = try allocator.alloc(u8, bytes.len * 2);
+    errdefer allocator.free(encoded);
+    const digits = "0123456789abcdef";
+    for (bytes, 0..) |byte, index| {
+        encoded[index * 2] = digits[byte >> 4];
+        encoded[index * 2 + 1] = digits[byte & 0x0f];
+    }
+    return encoded;
+}
 
 test "generate keypair" {
     const keypair = try Crypto.generateKeyPair();
