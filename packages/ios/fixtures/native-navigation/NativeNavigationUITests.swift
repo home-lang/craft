@@ -506,13 +506,13 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["home-title"].label, "Home")
         app.buttons["native-audio-context"].tap()
         XCTAssertTrue(app.staticTexts["AudioContext ready"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.descendants(matching: .any)["native-countdown"].waitForExistence(timeout: 5), "countdown DatePicker did not mount natively")
-        let checkbox = app.descendants(matching: .any)["native-checkbox"]
+        XCTAssertTrue(app.datePickers["native-countdown"].waitForExistence(timeout: 5), "countdown DatePicker did not mount natively")
+        let checkbox = app.buttons["native-checkbox"]
         XCTAssertTrue(checkbox.waitForExistence(timeout: 5), "native Checkbox did not mount natively")
         checkbox.tap()
         XCTAssertTrue(app.staticTexts["checkbox-status"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["checkbox-status"].label, "checkbox on")
-        let indeterminateCheckbox = app.descendants(matching: .any)["native-checkbox-indeterminate"]
+        let indeterminateCheckbox = app.buttons["native-checkbox-indeterminate"]
         XCTAssertTrue(indeterminateCheckbox.waitForExistence(timeout: 5))
         XCTAssertEqual(indeterminateCheckbox.value as? String, "mixed")
         XCTAssertTrue(app.buttons["disabled-button"].waitForExistence(timeout: 5))
