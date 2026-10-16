@@ -851,6 +851,23 @@ Console symbolicate for you, upload the `.debug` files as the release's native
 debug symbols. A `-Doptimize=Debug` build keeps the debug info in the library
 itself.
 
+## Kotlin fixture tests
+
+`runKotlinFixture` compiles and runs a standalone Kotlin source file containing
+`fun main()`. It requires Gradle and a JDK on PATH and resolves the Android
+builder's Kotlin compiler and its transitive dependencies through Gradle.
+
+```ts
+import { runKotlinFixture } from 'craft-native/android'
+
+await runKotlinFixture('fun main() { check(2 + 2 == 4) }')
+```
+
+Compilation failures and failed checks reject the promise. The temporary
+project is removed after execution. This is also how Craft and consuming apps
+execute the native input reconciler regressions, without assuming a particular
+Gradle cache layout.
+
 ## License
 
 MIT

@@ -9,6 +9,8 @@ import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node
 import { $ } from 'bun'
 import { renderAndroidPromiseRuntime } from './promise-runtime'
 
+export { runKotlinFixture } from './testing.js'
+
 const TEMPLATES_DIR = join(dirname(import.meta.dir), 'templates')
 
 /**
