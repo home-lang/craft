@@ -5491,13 +5491,19 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
         case "Picker":
             let picker = result as! UIPickerView
-            let options = children.compactMap { child -> (value: String, label: String)? in
-                guard let node = child as? [String: Any], node["type"] as? String == "Text" else { return nil }
-                let optionProps = node["props"] as? [String: Any] ?? [:]
-                let label = (node["children"] as? [Any] ?? []).compactMap { $0 as? String }.joined()
-                guard !label.isEmpty else { return nil }
-                return (value: craftNativePickerValue(optionProps["value"]) ?? label, label: label)
-            }
+            let itemOptions = (props["items"] as? [[String: Any]])?.compactMap { item -> (value: String, label: String)? in
+                guard let label = item["label"] as? String, !label.isEmpty else { return nil }
+                return (value: craftNativePickerValue(item["value"]) ?? label, label: label)
+            } ?? []
+            let options = itemOptions.isEmpty
+                ? children.compactMap { child -> (value: String, label: String)? in
+                    guard let node = child as? [String: Any], node["type"] as? String == "Text" else { return nil }
+                    let optionProps = node["props"] as? [String: Any] ?? [:]
+                    let label = (node["children"] as? [Any] ?? []).compactMap { $0 as? String }.joined()
+                    guard !label.isEmpty else { return nil }
+                    return (value: craftNativePickerValue(optionProps["value"]) ?? label, label: label)
+                }
+                : itemOptions
             let pickerID = ObjectIdentifier(picker)
             pickerOptions[pickerID] = options
             picker.reloadAllComponents()

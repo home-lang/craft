@@ -4893,7 +4893,14 @@ class MainActivity : AppCompatActivity() {
                 })
             }
             "Picker" -> (previous as? Spinner ?: Spinner(this)).apply {
-                val options = (0 until children.length()).mapNotNull { index ->
+                val itemOptions = props.optJSONArray("items")?.let { items ->
+                    (0 until items.length()).mapNotNull { index ->
+                        val item = items.optJSONObject(index) ?: return@mapNotNull null
+                        val label = craftNativeOptionalString(item.opt("label")) ?: return@mapNotNull null
+                        craftNativePickerValue(item.opt("value"))?.let { it to label } ?: (label to label)
+                    }
+                }.orEmpty()
+                val options = if (itemOptions.isNotEmpty()) itemOptions else (0 until children.length()).mapNotNull { index ->
                     val option = children.optJSONObject(index) ?: return@mapNotNull null
                     if (option.optString("type") != "Text") return@mapNotNull null
                     val label = (option.optJSONArray("children") ?: JSONArray()).let { text ->

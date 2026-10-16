@@ -185,9 +185,10 @@ delivered.
 containers with `onPress`/`onClick`, long-press, and disabled handling; disabled
 containers block both press and long-press callbacks on both hosts.
 `Picker` renders option children from `<select>`/`<option>` or the native
-primitive, accepts `value`/`selectedValue`, and sends the selected option's
-`value` plus `index` through `onValueChange` or `onChange`. Numeric option
-values are normalized to strings consistently on both hosts.
+primitive, accepts an `items` array or child options plus `value`/`selectedValue`,
+and sends the selected option's `value` plus `index` through `onValueChange` or
+`onChange`. Numeric option values are normalized to strings consistently on
+both hosts.
 `Checkbox` accepts `checked`/`value`, `indeterminate`, and `disabled`, and
 delivers a boolean `nativeEvent.value` through `onValueChange` or `onChange`.
 An indeterminate checkbox is announced as `mixed` and becomes checked or

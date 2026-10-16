@@ -385,6 +385,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('craftNativePickerValue(props.opt("selectedValue"))')
   })
 
+  it('supports typed picker items as well as child options on both hosts', () => {
+    expect(ios).toContain('let itemOptions = (props["items"] as? [[String: Any]])')
+    expect(ios).toContain('let options = itemOptions.isEmpty')
+    expect(android).toContain('val itemOptions = props.optJSONArray("items")')
+    expect(android).toContain('val options = if (itemOptions.isNotEmpty()) itemOptions else')
+  })
+
   it('keeps SVG stroke semantics aligned across hosts', () => {
     expect(ios).toContain('line.lineCapStyle')
     expect(ios).toContain('line.lineJoinStyle')
