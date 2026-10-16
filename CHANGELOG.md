@@ -18,6 +18,7 @@
 
 ## 📚 Documentation
 
+- synchronize native release verification notes ([8d534df](https://github.com/craft-native/craft/commit/8d534df)) _(by Chris Breuer)_
 - record the hybrid device harness fix ([6c19f0f](https://github.com/craft-native/craft/commit/6c19f0f)) _(by Chris Breuer)_
 - complete native device release notes ([233bbd8](https://github.com/craft-native/craft/commit/233bbd8)) _(by Chris Breuer)_
 
@@ -32,6 +33,10 @@
 - **mobile**: verify native link pushes and edge back with tab gestures ([7bd8e85](https://github.com/craft-native/craft/commit/7bd8e85)) _(by Chris Breuer)_
 - **ios**: align color fixture coverage with RGBA assertions ([f329926](https://github.com/craft-native/craft/commit/f329926)) _(by Chris Breuer)_
 - **ios**: assert rendered navigation colors across color spaces ([54c6c5c](https://github.com/craft-native/craft/commit/54c6c5c)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- run required iOS native and protocol suites independently ([1b50fec](https://github.com/craft-native/craft/commit/1b50fec)) _(by Chris Breuer)_
 
 ## 🧹 Chores
 
