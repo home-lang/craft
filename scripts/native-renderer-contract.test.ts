@@ -1300,6 +1300,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val controlledValue = props.opt("value") as? String')
     expect(android).toContain('(props.opt("defaultValue") as? String)?.let(::setText)')
     expect(android).toContain('(0 until text.length()).mapNotNull { text.opt(it) as? String }.joinToString("")')
+    expect(android).toContain('(item.opt("label") as? String)?.takeIf { it.isNotEmpty() }')
     expect(android).toContain('!props.isNull("defaultValue")')
     expect(android).toContain('screen.suppressedTextChanges.add(this)')
     expect(android).toContain('if (screen.suppressedTextChanges.remove(this@apply)) return')

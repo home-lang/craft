@@ -5179,7 +5179,7 @@ class MainActivity : AppCompatActivity() {
                 val itemOptions = props.optJSONArray("items")?.let { items ->
                     (0 until items.length()).mapNotNull { index ->
                         val item = items.optJSONObject(index) ?: return@mapNotNull null
-                        val label = craftNativeOptionalString(item.opt("label")) ?: return@mapNotNull null
+                        val label = (item.opt("label") as? String)?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                         craftNativePickerValue(item.opt("value"))?.let { it to label } ?: (label to label)
                     }
                 }.orEmpty()
