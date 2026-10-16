@@ -901,7 +901,9 @@ class NativeNavigationTest {
             assertEquals("CraftNativeImageBackgroundView", imageBackground.javaClass.simpleName)
             assertTrue("ImageBackground child did not reconcile", awaitView(activity, "native-image-background-label") is TextView)
             assertTrue("ImageBackground image did not decode", (imageBackground as ViewGroup).getChildAt(0) is ImageView)
-            assertTrue("ImageBackground image is empty", (imageBackground.getChildAt(0) as ImageView).drawable != null)
+            val backgroundImage = imageBackground.getChildAt(0) as ImageView
+            assertEquals("ImageBackground resizeMode prop did not select cover", ImageView.ScaleType.CENTER_CROP, backgroundImage.scaleType)
+            assertTrue("ImageBackground image is empty", backgroundImage.drawable != null)
             awaitText(activity, "image-background-error-status", "background failed")
             assertTrue("ImageBackground accessibility label was lost on failure", unsupportedBackground.contentDescription.toString().contains("Unsupported background"))
             assertTrue("ImageBackground error did not reach accessibility metadata", unsupportedBackground.contentDescription.toString().contains("Unsupported image source"))

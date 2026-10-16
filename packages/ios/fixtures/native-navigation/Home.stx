@@ -503,8 +503,9 @@ function toggleSafeAreaEdges() {
       <ImageBackground
         testID="native-image-background"
         source={validImage()}
+        resizeMode="cover"
         accessibilityLabel="Native image background"
-        style={{"width":80,"height":36,"resizeMode":"cover"}}
+        style={{"width":80,"height":36}}
       >
         <Text testID="native-image-background-label" style={{"color":"#ffffff"}}>Background child</Text>
       </ImageBackground>
