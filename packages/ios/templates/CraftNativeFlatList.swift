@@ -595,7 +595,13 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     private func scrollToPendingTarget() {
         guard let target = pendingScrollTarget else { return }
         guard let index = targetIndex(for: target.id), index < numberOfItems(inSection: 0) else {
-            guard target.attempts < 4 else { pendingScrollTarget = nil; return }
+            if target.attempts >= 4 {
+                // A diffable snapshot may still be applying. Keep the target
+                // for finishApplyingSnapshot(), but discard an invalid target
+                // once the list is otherwise idle.
+                if !isApplyingSnapshot { pendingScrollTarget = nil }
+                return
+            }
             pendingScrollTarget = (target.id, target.animated, target.attempts + 1)
             DispatchQueue.main.async { [weak self] in self?.scrollToPendingTarget() }
             return

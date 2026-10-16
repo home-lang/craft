@@ -435,7 +435,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         val position = targetPosition(target.first)
         if (position == null || layoutManager == null || width <= 0 || height <= 0) {
             if (attempt < 4) postDelayed({ scrollToPendingTarget(attempt + 1) }, 16L)
-            else pendingScrollTarget = null
+            else if (!isSubmittingList) pendingScrollTarget = null
             return
         }
         pendingScrollTarget = null

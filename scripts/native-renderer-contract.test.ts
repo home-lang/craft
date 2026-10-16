@@ -2551,6 +2551,8 @@ describe('native renderer component contract', () => {
     expect(iosFlatList).toContain('func setScrollTarget(_ value: Any?)')
     expect(android).toContain('list.setScrollTarget(props.opt("scrollTarget"))')
     expect(androidFlatList).toContain('fun setScrollTarget(value: Any?)')
+    expect(iosFlatList).toContain('if !isApplyingSnapshot { pendingScrollTarget = nil }')
+    expect(androidFlatList).toContain('else if (!isSubmittingList) pendingScrollTarget = null')
     expect(androidFlatListTest).toContain('acceptsVirtualizedScrollTargets')
     expect(iosNativeUnitTests).toContain('testFlatListScrollTargetIsAccepted')
   })
