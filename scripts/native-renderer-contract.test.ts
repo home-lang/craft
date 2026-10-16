@@ -2479,6 +2479,13 @@ describe('native renderer component contract', () => {
     expect(androidFlatListTest).toContain('verticalRowsFillTheListWidthWhenNoWidthIsAuthored')
   })
 
+  it('verifies intrinsic horizontal FlatList row widths on both hosts', () => {
+    expect(iosNativeUnitTests).toContain('testFlatListKeepsHorizontalRowsIntrinsicallySized')
+    expect(androidFlatListTest).toContain('horizontalRowsKeepIntrinsicWidthWhenNoWidthIsAuthored')
+    expect(iosFlatList).toContain('maxWidth: CraftNativeFlexLayout.unbounded')
+    expect(androidFlatList).toContain('if (horizontal) LayoutParams.WRAP_CONTENT else LayoutParams.MATCH_PARENT')
+  })
+
   it('routes authored links through both native hosts', () => {
     expect(navigationHome).toContain('<a testID="native-route-link" href="/linked-details">')
     expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')

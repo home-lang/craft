@@ -770,6 +770,39 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertGreaterThan(tall.size.height, short.size.height + 20)
     }
 
+    func testFlatListKeepsHorizontalRowsIntrinsicallySized() throws {
+        let list = CraftNativeFlatList()
+        list.frame = CGRect(x: 0, y: 0, width: 320, height: 80)
+        let rows: [[String: Any]] = [
+            ["id": "short", "type": "Text", "children": ["short"]],
+            ["id": "long", "type": "Text", "children": ["a much longer horizontal row"]],
+        ]
+        let render: CraftNativeFlatList.RenderItem = { node, _, previous in
+            let label = (previous as? UILabel) ?? UILabel()
+            label.numberOfLines = 1
+            label.font = .systemFont(ofSize: 16)
+            label.text = (node["children"] as? [String])?.first
+            return label
+        }
+
+        list.apply(
+            nodes: rows,
+            horizontal: true,
+            columns: 1,
+            inverted: false,
+            endReachedThreshold: 0.1,
+            renderItem: render,
+            recycleItem: { _ in },
+            endReached: nil
+        )
+        list.layoutIfNeeded()
+
+        let short = try XCTUnwrap(list.layoutAttributesForItem(at: IndexPath(item: 0, section: 0)))
+        let long = try XCTUnwrap(list.layoutAttributesForItem(at: IndexPath(item: 1, section: 0)))
+        XCTAssertLessThan(short.size.width, list.bounds.width)
+        XCTAssertGreaterThan(long.size.width, short.size.width + 20)
+    }
+
     func testFlatListCoalescesAnEndReachedRenderDuringSnapshotApplication() {
         let list = CraftNativeFlatList()
         list.frame = CGRect(x: 0, y: 0, width: 320, height: 480)

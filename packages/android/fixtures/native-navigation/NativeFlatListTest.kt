@@ -265,4 +265,50 @@ class NativeFlatListTest {
             ?: throw AssertionError("first row root did not mount")
         assertEquals("vertical row root should fill its cell", list.width, hosted.width)
     }
+
+    @Test
+    fun horizontalRowsKeepIntrinsicWidthWhenNoWidthIsAuthored() {
+        val context = instrumentation.targetContext
+        lateinit var list: CraftNativeFlatList
+        val rows = listOf(
+            row(0).put("children", JSONArray().put("short")),
+            row(1).put("children", JSONArray().put("a much longer horizontal row")),
+        )
+        instrumentation.runOnMainSync {
+            list = CraftNativeFlatList(context)
+            attach(list)
+            list.apply(
+                rows,
+                true,
+                1,
+                false,
+                0.1,
+                { node, _, previous ->
+                    (previous as? TextView ?: TextView(context)).apply {
+                        text = node.optJSONArray("children")?.optString(0).orEmpty()
+                        minWidth = 0
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                    }
+                },
+                { _ -> },
+                null,
+            )
+        }
+        awaitCount(list, 2)
+        instrumentation.runOnMainSync { attach(list) }
+        SystemClock.sleep(200)
+        val short = list.findViewHolderForAdapterPosition(0)?.itemView
+            ?: throw AssertionError("short horizontal row did not mount")
+        val long = list.findViewHolderForAdapterPosition(1)?.itemView
+            ?: throw AssertionError("long horizontal row did not mount")
+        val shortHosted = (short as ViewGroup).getChildAt(0)
+            ?: throw AssertionError("short horizontal row root did not mount")
+        val longHosted = (long as ViewGroup).getChildAt(0)
+            ?: throw AssertionError("long horizontal row root did not mount")
+        assertTrue("short horizontal row was stretched to the viewport", shortHosted.width < list.width)
+        assertTrue("long horizontal row did not grow intrinsically", longHosted.width > shortHosted.width + 20)
+    }
 }
