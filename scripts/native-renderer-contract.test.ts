@@ -135,6 +135,15 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('refreshControl?: RefreshControlProps')
   })
 
+  it('types the implemented native scroll targeting controls', () => {
+    expect(componentTypes).toContain('stickyHeaderIndices?: number[]')
+    expect(componentTypes).toContain('scrollTarget?: string | { id: string; animated?: boolean; key?: string } | null')
+    expect(componentTypes).toContain('inverted?: boolean')
+    expect(ios).toContain('scroll.setStickyHeaderIndices(props["stickyHeaderIndices"])')
+    expect(ios).toContain('scroll.setScrollTarget(props["scrollTarget"])')
+    expect(android).toContain('inverted = props.optBoolean("inverted", false)')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')

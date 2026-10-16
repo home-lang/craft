@@ -711,6 +711,12 @@ export interface ScrollViewProps extends ViewProps {
   keyboardDismissMode?: 'none' | 'on-drag' | 'interactive'
   /** Keyboard should persist taps */
   keyboardShouldPersistTaps?: 'always' | 'never' | 'handled'
+  /** Keep indexed vertical children pinned while scrolling. */
+  stickyHeaderIndices?: number[]
+  /** Scroll a child into view when this target changes. */
+  scrollTarget?: string | { id: string; animated?: boolean; key?: string } | null
+  /** Render content in reverse order along the scroll axis. */
+  inverted?: boolean
   /** Controlled native pull-to-refresh component. */
   refreshControl?: RefreshControlProps
 }

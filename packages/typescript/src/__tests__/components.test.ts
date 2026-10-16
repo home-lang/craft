@@ -49,11 +49,15 @@ describe('Component System', () => {
       onScroll: event => expect(event.nativeEvent.contentOffset.x).toBe(0),
       onScrollBeginDrag: () => {},
       onScrollEndDrag: () => {},
+      inverted: true,
+      stickyHeaderIndices: [0, 2],
+      scrollTarget: { id: 'today', animated: false, key: 'today-v2' },
       refreshControl: { refreshing: false, title: 'Pull to refresh' },
     }
     expect(input.accessibilityState?.selected).toBe(true)
     expect(input.accessibilityRole).toBe('toolbar')
     expect(scroll.onScroll).toBeDefined()
+    expect(scroll.scrollTarget).toMatchObject({ id: 'today', animated: false })
     expect(scroll.refreshControl?.title).toBe('Pull to refresh')
   })
 
