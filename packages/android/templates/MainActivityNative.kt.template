@@ -718,12 +718,15 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         val explicitRegion = region(pendingProps.optJSONObject("region"))
         val initialRegion = region(pendingProps.optJSONObject("initialRegion"))
         if (explicitRegion != null) {
-            moveCamera(explicitRegion)
+            // A controlled region is an exact camera request. The padding
+            // used for fitToBounds is framing chrome, not part of the region
+            // contract, and would otherwise zoom every Android screen out.
+            moveCamera(explicitRegion, padding = 0)
             initialCameraKey = null
         } else if (initialRegion != null) {
             val key = "region:${pendingProps.optJSONObject("initialRegion")}"
             if (initialCameraKey != key) {
-                moveCamera(initialRegion)
+                moveCamera(initialRegion, padding = 0)
                 initialCameraKey = key
             }
         } else if (craftNativeBoolean(pendingProps.opt("fitToBounds"))) {
@@ -745,9 +748,9 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         }
     }
 
-    private fun moveCamera(bounds: LatLngBounds) {
+    private fun moveCamera(bounds: LatLngBounds, padding: Int = 24) {
         post {
-            if (width > 0 && height > 0) googleMap?.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 24))
+            if (width > 0 && height > 0) googleMap?.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding))
         }
     }
 

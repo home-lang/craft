@@ -1477,6 +1477,15 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('an `initialRegion` applied once')
   })
 
+  it('keeps explicit map regions distinct from padded fit-to-bounds framing', () => {
+    expect(android).toContain('moveCamera(explicitRegion, padding = 0)')
+    expect(android).toContain('moveCamera(initialRegion, padding = 0)')
+    expect(android).toContain('private fun moveCamera(bounds: LatLngBounds, padding: Int = 24)')
+    expect(android).toContain('CameraUpdateFactory.newLatLngBounds(bounds, padding)')
+    expect(guide).toContain('Explicit regions use the')
+    expect(guide).toContain('only `fitToBounds` adds framing padding')
+  })
+
   it('keeps native teardown isolated from the WebView fallback', () => {
     // Native routes own their timers, image requests, capability requests, and
     // observers. A route must release those resources when it disappears, but
