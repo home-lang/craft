@@ -3088,6 +3088,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('compactMap { number($0).map { Int($0) } }')
     expect(iosNativeUnitTests).toContain('"invalid-interval"')
     expect(iosNativeUnitTests).toContain('XCTAssertEqual(invalid.minuteInterval, 1)')
+    expect(iosFlatList).toContain('guard !(value is Bool), let number = value as? NSNumber else { return nil }')
+    expect(iosNativeUnitTests).toContain('testFlatListContentInsetsRejectBooleanNumbers')
     expect(android).toContain('minuteInterval = craftNativeInt(props.opt("minuteInterval"), 1)')
     expect(android).toContain('columns = craftNativeInt(props.opt("numColumns"), 1)')
   })

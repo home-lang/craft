@@ -90,6 +90,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('let interval = Int(number(props["minuteInterval"]) ?? 1)')
     expect(nativeSwift).toContain('columns: Int(number(props["numColumns"]) ?? 1)')
     expect(nativeSwift).toContain('compactMap { number($0).map { Int($0) } }')
+    expect(flatListSwift).toContain('guard !(value is Bool), let number = value as? NSNumber else { return nil }')
     expect(nativeSwift).toContain("module: 'Dialog'")
     expect(nativeSwift).toContain("actionSheet: function(options)")
     expect(nativeSwift).toContain('bridge.addMessageListener')

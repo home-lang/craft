@@ -1265,6 +1265,12 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(scroll.contentInset.bottom, 0)
     }
 
+    func testFlatListContentInsetsRejectBooleanNumbers() {
+        let list = CraftNativeFlatList()
+        list.setContentContainerStyle(["padding": true, "paddingBottom": false])
+        XCTAssertEqual(list.contentInset, .zero)
+    }
+
     func testAPressableWithPressFeedbackStillTakesItsPress() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
