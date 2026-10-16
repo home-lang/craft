@@ -146,7 +146,7 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('refreshControl?: RefreshControlProps')
     expect(ios).toContain('let propRefresh = props["refreshControl"] as? [String: Any] ?? [:]')
     expect(android).toContain('val propRefresh = props.optJSONObject("refreshControl")')
-    expect(android).toContain('setRefreshHandler(refreshHandler, refreshProps.optBoolean("refreshing", props.optBoolean("refreshing", false)))')
+    expect(android).toContain('setRefreshHandler(refreshHandler, craftNativeBoolean(refreshProps.opt("refreshing"), craftNativeBoolean(props.opt("refreshing"))))')
   })
 
   it('types the implemented native scroll targeting controls', () => {
@@ -1195,7 +1195,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('craftNativeOptionalString(events.opt("onShow"))')
     expect(android).toContain('craftNativeOptionalString(events.opt("onDismiss"))')
     expect(android).toContain('val visible = if (props.has("visible") && !props.isNull("visible"))')
-    expect(android).toContain('props.optBoolean("visible", false)')
+    expect(android).toContain('craftNativeBoolean(props.opt("visible"))')
     expect(android).toContain('props.has("visible")')
     expect(android).toContain('if (screen.active && screen.modalVisibility[this] == visible)')
     expect(android).toContain('animate().translationY(0f).setDuration(240L).start()')
@@ -1729,7 +1729,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('fun setRefreshAppearance(props: JSONObject, density: Float, fallback: Int)')
     expect(android).toContain('setRefreshAppearance(refreshProps, resources.displayMetrics.density, refreshTintFallback(screen))')
     expect(android).toContain('background?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: Color.TRANSPARENT')
-    expect(android).toContain('setRefreshHandler(refreshHandler, refreshProps.optBoolean("refreshing", props.optBoolean("refreshing", false)))')
+    expect(android).toContain('setRefreshHandler(refreshHandler, craftNativeBoolean(refreshProps.opt("refreshing"), craftNativeBoolean(props.opt("refreshing"))))')
     expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }')
     const scrollStart = android.indexOf('private class CraftNativeScrollView')
     const scrollEnd = android.indexOf('private class CraftNativeFlexSpacer', scrollStart)
@@ -2293,7 +2293,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('handlers[ObjectIdentifier(view)] != nil || longPressHandlers[ObjectIdentifier(view)] != nil')
     expect(android).toContain('val longPressHandlers = mutableMapOf<View, String>()')
     expect(android).toContain('craftNativeEventName(events, "onLongPress").takeUnless { longPressDisabled } ?: ""')
-    expect(android).toContain('val longPressDisabled = props.optBoolean("disabled", false) ||')
+    expect(android).toContain('val longPressDisabled = craftNativeBoolean(props.opt("disabled")) ||')
     expect(android).toContain('control.setOnLongClickListener {')
     expect(android).toContain('screen.longPressHandlers.keys.removeAll(released)')
     expect(guide).toContain('`onLongPress`')
@@ -2753,7 +2753,7 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('SystemClock.uptimeMillis()')
     expect(iosNavigationTest).toContain('reveal(panelStyleToggle, in: rootScroll)')
     expect(android).toContain('control.setOnClickListener {')
-    expect(android).toContain('val disabled = props.optBoolean("disabled", false) || state?.optBoolean("disabled", false) == true')
+    expect(android).toContain('val disabled = craftNativeBoolean(props.opt("disabled")) || craftNativeBoolean(state?.opt("disabled"))')
     expect(iosLayoutUnitTests).toContain('private func waitForSnapshotFile(')
   })
 
@@ -2827,6 +2827,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('checkboxChecked is Boolean -> checkboxChecked')
     expect(android).toContain('checkboxValue is Boolean -> checkboxValue')
     expect(android).not.toContain('requested.toDouble() != 0.0')
+  })
+
+  it('keeps native boolean props strict at the Android bridge boundary', () => {
+    expect(android).toContain('private fun craftNativeBoolean(value: Any?, fallback: Boolean = false): Boolean = (value as? Boolean) ?: fallback')
+    expect(android).toContain('craftNativeBoolean(refreshProps.opt("refreshing"), craftNativeBoolean(props.opt("refreshing")))')
+    expect(android).not.toContain('optBoolean("disabled"')
+    expect(android).not.toContain('optBoolean("visible"')
+    expect(android).not.toContain('optBoolean("refreshing"')
   })
 
   it('keeps malformed Android refresh colors from crashing or inventing a tint', () => {

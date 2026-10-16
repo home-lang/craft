@@ -148,6 +148,8 @@ private fun craftNativeOptionalString(value: Any?): String? = value
     ?.takeUnless { it == "null" || it == "undefined" }
     ?.takeIf { it.isNotBlank() }
 
+private fun craftNativeBoolean(value: Any?, fallback: Boolean = false): Boolean = (value as? Boolean) ?: fallback
+
 private fun craftNativePickerValue(value: Any?): String? = when (value) {
     is String -> value.takeIf { it.isNotEmpty() }
     is Number -> value.toDouble().takeIf { it.isFinite() }?.toString()
@@ -2784,7 +2786,7 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
         } else {
             pickerDate(props.opt("value"))?.let { applyDate(it) }
         }
-        val enabled = !props.optBoolean("disabled", false)
+        val enabled = !craftNativeBoolean(props.opt("disabled"))
         isEnabled = enabled
         datePicker?.isEnabled = enabled
         timePicker?.isEnabled = enabled
@@ -4948,13 +4950,13 @@ class MainActivity : AppCompatActivity() {
                 val linkColor = craftNativeOptionalString(props.opt("color")) ?: craftNativeOptionalString(style.opt("color"))
                 setTextColor(color(linkColor.orEmpty(), Color.rgb(33, 150, 243)))
                 paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
-                isEnabled = !props.optBoolean("disabled", false)
+                isEnabled = !craftNativeBoolean(props.opt("disabled"))
                 isClickable = true
                 isFocusable = true
                 val target = listOf(props.opt("href"), props.opt("to"))
                     .firstNotNullOfOrNull(::craftNativeOptionalString)
                     ?.trim()
-                    ?.takeIf { !props.optBoolean("disabled", false) }
+                    ?.takeIf { !craftNativeBoolean(props.opt("disabled")) }
                 if (target != null) screen.linkTargets[this] = target else screen.linkTargets.remove(this)
                 val handler = craftNativeEventName(events, "onPress", "onClick")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
@@ -4981,7 +4983,7 @@ class MainActivity : AppCompatActivity() {
                 val buttonColor = craftNativeOptionalString(props.opt("color"))
                     ?: craftNativeOptionalString(style.opt("color"))
                 setTextColor(buttonColor?.let { color(it, defaultTextColor) } ?: defaultTextColor)
-                isEnabled = !props.optBoolean("disabled", false)
+                isEnabled = !craftNativeBoolean(props.opt("disabled"))
                 val handler = craftNativeEventName(events, "onPress", "onClick")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 setOnClickListener {
@@ -5006,7 +5008,7 @@ class MainActivity : AppCompatActivity() {
                 isChecked = checked
                 val indeterminate = (props.opt("indeterminate") as? Boolean) == true
                 isActivated = indeterminate
-                isEnabled = !props.optBoolean("disabled", false)
+                isEnabled = !craftNativeBoolean(props.opt("disabled"))
                 val checkboxColor = craftNativeOptionalString(props.opt("color"))
                     ?: craftNativeOptionalString(style.opt("color"))
                 buttonTintList = checkboxColor
@@ -5185,7 +5187,7 @@ class MainActivity : AppCompatActivity() {
                 val requested = craftNativePickerValue(props.opt("selectedValue"))
                     ?: craftNativePickerValue(props.opt("value")).orEmpty()
                 val selected = options.indexOfFirst { it.first == requested }.takeIf { it >= 0 } ?: 0
-                isEnabled = !props.optBoolean("disabled", false)
+                isEnabled = !craftNativeBoolean(props.opt("disabled"))
                 // Mounting a controlled picker must not look like a user
                 // change. Android may dispatch the initial adapter selection
                 // during the first layout pass; iOS only reports a choice
@@ -5224,7 +5226,7 @@ class MainActivity : AppCompatActivity() {
                     // An explicit visible prop owns modal visibility. The
                     // binding runtime may leave a stale display:none style
                     // from the previous hidden state when it patches props.
-                    props.optBoolean("visible", false)
+                    craftNativeBoolean(props.opt("visible"))
                 } else {
                     style.has("display") && style.optString("display") != "none"
                 }
@@ -5260,7 +5262,7 @@ class MainActivity : AppCompatActivity() {
             }
             "TouchableOpacity", "TouchableHighlight", "Pressable" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 configureContainer(this, style)
-                val disabled = props.optBoolean("disabled", false)
+                val disabled = craftNativeBoolean(props.opt("disabled"))
                 screen.pressActiveOpacities[this] = craftNativeFiniteFloat(props, "activeOpacity", 0.5f)
                 screen.pressBaseOpacities[this] = craftNativeFiniteFloat(style, "opacity", 1f)
                 if (type == "TouchableHighlight" && !disabled) {
@@ -5281,7 +5283,7 @@ class MainActivity : AppCompatActivity() {
                     requestedChecked is Boolean -> requestedChecked
                     else -> false
                 }
-                isEnabled = !props.optBoolean("disabled", false)
+                isEnabled = !craftNativeBoolean(props.opt("disabled"))
                 props.optJSONObject("trackColor")?.let { track ->
                     val falseRaw = craftNativeOptionalString(track.opt("false"))
                     val trueRaw = craftNativeOptionalString(track.opt("true"))
@@ -5345,7 +5347,7 @@ class MainActivity : AppCompatActivity() {
                 thumbTintList = craftNativeOptionalString(props.opt("thumbTintColor"))
                     ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
                     ?.let { ColorStateList.valueOf(it) }
-                isEnabled = !props.optBoolean("disabled", false)
+                isEnabled = !craftNativeBoolean(props.opt("disabled"))
                 val handler = craftNativeEventName(events, "onValueChange", "onChange")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 val complete = craftNativeEventName(events, "onSlidingComplete")
@@ -5485,7 +5487,7 @@ class MainActivity : AppCompatActivity() {
                 val refreshHandler = refreshHandlerName?.let { handler ->
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
                 }
-                setRefreshHandler(refreshHandler, refreshProps.optBoolean("refreshing", props.optBoolean("refreshing", false)))
+                setRefreshHandler(refreshHandler, craftNativeBoolean(refreshProps.opt("refreshing"), craftNativeBoolean(props.opt("refreshing"))))
                 setRefreshAppearance(refreshProps, resources.displayMetrics.density, refreshTintFallback(screen))
                 val onScroll = craftNativeEventName(events, "onScroll")
                 if (onScroll.isNotBlank()) screen.scrollHandlers[this] = onScroll else screen.scrollHandlers.remove(this)
@@ -5563,7 +5565,7 @@ class MainActivity : AppCompatActivity() {
                     ?: craftNativeEventName(events, "onRefresh").takeIf { it.isNotBlank() }
                 configureRefresh(refreshHandlerName?.let { handler ->
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
-                }, propRefresh.optBoolean("refreshing", props.optBoolean("refreshing", false)))
+                }, craftNativeBoolean(propRefresh.opt("refreshing"), craftNativeBoolean(props.opt("refreshing"))))
                 setRefreshAppearance(propRefresh, refreshTintFallback(screen))
                 nativeList.setKeyboardShouldPersistTaps(props.optString("keyboardShouldPersistTaps", "never"))
                 nativeList.setContentContainerStyle(props.optJSONObject("contentContainerStyle"), resources.displayMetrics.density)
@@ -5603,7 +5605,7 @@ class MainActivity : AppCompatActivity() {
         if (underlayHideHandler != null) screen.pressUnderlayHideHandlers[control] = underlayHideHandler else screen.pressUnderlayHideHandlers.remove(control)
         if (type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView" && type != "StatusBar" && type != "RefreshControl" && type != "Map") {
             val handler = craftNativeEventName(events, "onPress", "onClick")
-            val disabled = props.optBoolean("disabled", false)
+            val disabled = craftNativeBoolean(props.opt("disabled"))
             val target = listOf(props.opt("href"), props.opt("to"))
                 .firstNotNullOfOrNull(::craftNativeOptionalString)
                 ?.trim()
@@ -5674,8 +5676,8 @@ class MainActivity : AppCompatActivity() {
             }
             control.isEnabled = !disabled
         }
-        val longPressDisabled = props.optBoolean("disabled", false) ||
-            props.optJSONObject("accessibilityState")?.optBoolean("disabled", false) == true
+        val longPressDisabled = craftNativeBoolean(props.opt("disabled")) ||
+            craftNativeBoolean(props.optJSONObject("accessibilityState")?.opt("disabled"))
         val longPressHandler = craftNativeEventName(events, "onLongPress").takeUnless { longPressDisabled } ?: ""
         if (longPressHandler.isNotBlank()) {
             screen.longPressHandlers[control] = longPressHandler
@@ -6510,7 +6512,7 @@ class MainActivity : AppCompatActivity() {
             if (type == "Icon") "image" else type.lowercase()
         }
         val state = props.optJSONObject("accessibilityState")
-        val disabled = props.optBoolean("disabled", false) || state?.optBoolean("disabled", false) == true
+        val disabled = craftNativeBoolean(props.opt("disabled")) || craftNativeBoolean(state?.opt("disabled"))
         if (type !in setOf("Button", "Link", "Checkbox", "TextInput", "Picker", "DatePicker", "Modal", "Switch", "Slider", "ActivityIndicator")) {
             view.isEnabled = !disabled
         } else if (disabled) {
