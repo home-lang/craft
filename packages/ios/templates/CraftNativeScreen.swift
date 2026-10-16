@@ -3965,6 +3965,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        // The accessory belongs to the visible native screen. Clear the
+        // shared shell state before a hybrid/web route appears, otherwise a
+        // destination from the outgoing screen remains tappable on top of it.
+        CraftChrome.shared.updateTabAccessory(nil)
         // Popped (or its stack dismissed) while the bar was away: it comes
         // back for whatever shows next, a web page included.
         if tabBarHidden, isMovingFromParent || isBeingDismissed || navigationController?.isBeingDismissed == true {
