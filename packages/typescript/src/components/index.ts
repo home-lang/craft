@@ -752,7 +752,8 @@ export interface PickerOption {
 }
 
 export interface PickerProps extends BaseProps {
-  items: PickerOption[]
+  /** Typed options; child options remain supported when omitted. */
+  items?: PickerOption[]
   selectedValue?: string | number
   onValueChange?: (value: string | number, index: number) => void
   disabled?: boolean

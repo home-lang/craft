@@ -389,6 +389,7 @@ describe('native renderer component contract', () => {
   })
 
   it('supports typed picker items as well as child options on both hosts', () => {
+    expect(componentTypes).toContain('items?: PickerOption[]')
     expect(ios).toContain('let itemOptions = (props["items"] as? [[String: Any]])')
     expect(ios).toContain('let options = itemOptions.isEmpty')
     expect(android).toContain('val itemOptions = props.optJSONArray("items")')

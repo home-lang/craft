@@ -58,6 +58,7 @@ describe('Component System', () => {
     const route: MapPolylineProps = { geometry: [47, 11, 47.1, 11.2], strokeWidth: 3 }
     const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], onPress: () => {} }
     const picker: PickerProps = { items: [{ label: 'One', value: 1 }], selectedValue: 1 }
+    const childPicker: PickerProps = { children: ['One', 'Two'], selectedValue: 'Two' }
     const sections: SectionListProps<string> = {
       sections: [{ title: 'Trails', data: ['Alpine'] }],
       renderItem: ({ item }) => item,
@@ -68,6 +69,7 @@ describe('Component System', () => {
     expect(route.geometry).toHaveLength(4)
     expect(marker.id).toBe('trailhead')
     expect(picker.selectedValue).toBe(1)
+    expect(childPicker.items).toBeUndefined()
     expect(sections.sections[0]?.data).toEqual(['Alpine'])
   })
 
