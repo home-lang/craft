@@ -106,7 +106,8 @@ final class NativeNavigationUITests: XCTestCase {
         swipeTab(app, left: true)
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         swipeTab(app, left: false)
-        XCTAssertTrue(app.textFields["name-input"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["home-title"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Home"].isSelected)
     }
 
     func testSwipesAcrossAllFiveNativeTabsAndBack() {
@@ -242,7 +243,7 @@ final class NativeNavigationUITests: XCTestCase {
     func testRefreshedScrollViewKeepsInputFocusAcrossKeyedMoves() {
         let app = XCUIApplication()
         app.launch()
-        app.buttons["open-details"].tap()
+        app.buttons["navigation-open-details"].tap()
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         let people = app.scrollViews["people-list"]
         XCTAssertTrue(people.waitForExistence(timeout: 5))
@@ -280,7 +281,7 @@ final class NativeNavigationUITests: XCTestCase {
     func testPushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack() {
         let app = XCUIApplication()
         app.launch()
-        let openDetails = app.buttons["open-details"]
+        let openDetails = app.buttons["navigation-open-details"]
         XCTAssertTrue(openDetails.waitForExistence(timeout: 15))
         openDetails.tap()
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
@@ -472,7 +473,7 @@ final class NativeNavigationUITests: XCTestCase {
         let unsupportedBackgroundValue = (unsupportedBackground.value as? String) ?? ""
         XCTAssertTrue(unsupportedBackgroundValue.contains("Unsupported image source"), "ImageBackground error did not reach accessibilityValue")
         XCTAssertTrue(app.otherElements["native-keyboard-avoiding"].waitForExistence(timeout: 10), "KeyboardAvoidingView did not mount as a native container")
-        let svg = app.otherElements["native-svg"]
+        let svg = app.descendants(matching: .any)["native-svg"]
         XCTAssertTrue(svg.waitForExistence(timeout: 5), "SVG fixture did not mount as a native view")
         XCTAssertEqual(svg.label, "Native vector", "SVG accessibility metadata did not survive native mounting")
         let icon = app.images["native-icon"]
