@@ -5881,6 +5881,7 @@ class MainActivity : AppCompatActivity() {
             props.optBoolean("showsHorizontalScrollIndicator", true),
         )
         list.setScrollEnabled(props.optBoolean("scrollEnabled", true))
+        list.setPagingEnabled(props.optBoolean("pagingEnabled", false))
         list.setBounceOptions(
             props.optBoolean("bounces", true),
             props.optBoolean("alwaysBounceVertical", !horizontal),

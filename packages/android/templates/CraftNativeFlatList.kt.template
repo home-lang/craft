@@ -8,6 +8,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
 import org.json.JSONObject
 import kotlin.math.ceil
@@ -105,6 +106,8 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     private var alwaysBounceVertical = true
     private var alwaysBounceHorizontal = true
     private var scrollEnabled = true
+    private var pagingEnabled = false
+    private val pagerSnapHelper = PagerSnapHelper()
     private var keyboardShouldPersistTaps = "never"
     private var submissionGeneration = 0
     private var isSubmittingList = false
@@ -132,6 +135,16 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
 
     val isScrollEnabledForTest: Boolean
         get() = scrollEnabled
+
+    fun setPagingEnabled(enabled: Boolean) {
+        if (pagingEnabled == enabled) return
+        pagingEnabled = enabled
+        if (enabled) pagerSnapHelper.attachToRecyclerView(this)
+        else pagerSnapHelper.attachToRecyclerView(null)
+    }
+
+    val isPagingEnabledForTest: Boolean
+        get() = pagingEnabled
 
     override fun onInterceptTouchEvent(event: android.view.MotionEvent): Boolean {
         if (!scrollEnabled) return false
@@ -334,6 +347,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         renderItem = null
         recycleItem = null
         endReached = null
+        setPagingEnabled(false)
         dataContentSignature = ""
         onScrollEvent = null
         onScrollBeginDrag = null

@@ -6204,6 +6204,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let horizontal = props["horizontal"] as? Bool == true
         list.showsVerticalScrollIndicator = props["showsVerticalScrollIndicator"] as? Bool ?? true
         list.showsHorizontalScrollIndicator = props["showsHorizontalScrollIndicator"] as? Bool ?? true
+        list.isPagingEnabled = props["pagingEnabled"] as? Bool ?? false
         list.alwaysBounceVertical = props["alwaysBounceVertical"] as? Bool ?? !horizontal
         list.alwaysBounceHorizontal = props["alwaysBounceHorizontal"] as? Bool ?? horizontal
         parent.children = []
