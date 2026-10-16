@@ -910,24 +910,8 @@ export interface FlatListProps<T> extends ScrollViewProps {
   renderItem: (info: { item: T; index: number }) => any
   /** Key extractor function */
   keyExtractor?: (item: T, index: number) => string
-  /** Item separator component */
-  ItemSeparatorComponent?: any
-  /** List header component */
-  ListHeaderComponent?: any
-  /** List footer component */
-  ListFooterComponent?: any
-  /** Empty list component */
-  ListEmptyComponent?: any
   /** Number of columns */
   numColumns?: number
-  /** Initial number to render */
-  initialNumToRender?: number
-  /** Max to render per batch */
-  maxToRenderPerBatch?: number
-  /** Window size */
-  windowSize?: number
-  /** Get item layout for optimization */
-  getItemLayout?: (data: T[] | null, index: number) => { length: number; offset: number; index: number }
   /** End reached handler */
   onEndReached?: () => void
   /** End reached threshold */

@@ -155,6 +155,21 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`SectionList` currently follows the same native scroll host')
   })
 
+  it('keeps FlatList chrome and virtualization on the native child protocol', () => {
+    const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(flatListProps).toContain('data: T[]')
+    expect(flatListProps).toContain('numColumns?: number')
+    expect(flatListProps).not.toContain('ItemSeparatorComponent?:')
+    expect(flatListProps).not.toContain('ListHeaderComponent?:')
+    expect(flatListProps).not.toContain('ListFooterComponent?:')
+    expect(flatListProps).not.toContain('ListEmptyComponent?:')
+    expect(flatListProps).not.toContain('initialNumToRender?:')
+    expect(flatListProps).not.toContain('maxToRenderPerBatch?:')
+    expect(flatListProps).not.toContain('windowSize?:')
+    expect(flatListProps).not.toContain('getItemLayout?:')
+    expect(guide).toContain('listRole="header"')
+  })
+
   it('exposes the shared transition identity used by both hosts', () => {
     expect(componentTypes).toContain('transitionID?: string')
     expect(ios).toContain('if let transitionID = props["transitionID"] as? String')

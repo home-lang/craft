@@ -28,6 +28,7 @@ import type {
   SvgProps,
   SvgTextProps,
   MapPolylineProps,
+  FlatListProps,
   SectionListProps,
   TextInputProps,
   ScrollViewProps,
@@ -117,6 +118,13 @@ describe('Component System', () => {
     // @ts-expect-error renderSectionHeader is intentionally unsupported.
     sections.renderSectionHeader = () => null
     const childSectionList: SectionListProps<string> = { children: ['Header', 'Row'] }
+    // FlatList chrome and virtualization tuning use the native list-role slots.
+    // @ts-expect-error ItemSeparatorComponent is not part of the native list protocol.
+    const unsupportedSeparator: FlatListProps<string> = { data: [], renderItem: () => null, ItemSeparatorComponent: () => null }
+    // @ts-expect-error getItemLayout is not consumed by either maintained host.
+    const unsupportedMeasurement: FlatListProps<string> = { data: [], renderItem: () => null, getItemLayout: () => ({ length: 1, offset: 0, index: 0 }) }
+    expect(unsupportedSeparator.data).toHaveLength(0)
+    expect(unsupportedMeasurement.data).toHaveLength(0)
     expect(button.title).toBe('Open map')
     expect(map.initialRegion?.span.longitudeDelta).toBe(0.75)
     expect(map.fitToBounds).toBe(true)

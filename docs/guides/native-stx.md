@@ -620,6 +620,9 @@ same key keeps its native row state. `horizontal`, `inverted`, and
 header, separator, empty, and footer content span every column. Empty content
 is shown only when the data set has no items. Separator content is inserted
 between item rows, never before the first or after the last.
+List chrome belongs in child slots marked with `listRole`; component props such
+as `ListHeaderComponent`, `ItemSeparatorComponent`, and render-window tuning
+are intentionally outside the maintained native protocol.
 
 `onEndReachedThreshold` is the fraction of data rows allowed to remain when
 `onEndReached` fires. Header, separator, empty, and footer nodes do not count
