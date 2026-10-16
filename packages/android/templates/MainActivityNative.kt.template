@@ -2753,7 +2753,7 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
     }
 
     fun configure(props: JSONObject) {
-        val requestedMode = when (props.optString("mode")) {
+        val requestedMode = when (props.opt("mode") as? String) {
             "time" -> PickerMode.TIME
             "datetime", "dateAndTime", "datetime-local" -> PickerMode.DATE_TIME
             "countdown" -> PickerMode.COUNTDOWN

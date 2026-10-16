@@ -486,6 +486,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('(item.opt("label") as? String)?.takeIf { it.isNotEmpty() }')
       expect(nativeActivity).toContain('(props.opt("title") as? String) ?: childText(children)')
       expect(nativeActivity).toContain('mapNotNull { it as? String }')
+      expect(nativeActivity).toContain('when (props.opt("mode") as? String)')
       expect(nativeActivity).toContain('configureTextStyle(this, style)')
       expect(nativeActivity).toContain('text = (props.opt("label") as? String) ?: childText(children)')
       expect(nativeActivity).toContain('configureText(this, title, style)')

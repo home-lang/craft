@@ -1304,6 +1304,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('(item.opt("label") as? String)?.takeIf { it.isNotEmpty() }')
     expect(android).toContain('(props.opt("title") as? String) ?: childText(children)')
     expect(android).toContain('mapNotNull { it as? String }')
+    expect(android).toContain('when (props.opt("mode") as? String)')
     expect(android).toContain('text = (props.opt("label") as? String) ?: childText(children)')
     expect(android).toContain('!props.isNull("defaultValue")')
     expect(android).toContain('screen.suppressedTextChanges.add(this)')
