@@ -21,6 +21,9 @@ non-tab route alias so it exercises a native push and pop rather than selecting
 the Details tab. It locates the compiled anchor by its accessibility identifier;
 stx compiles anchors as touchable native controls. Its native `Text` child
 provides the visible label and its link role exposes the control to accessibility.
+An unrelated home-state update precedes the link tap. A hosted UIKit regression
+also retains exactly one link recognizer across updates and removes it while
+disabled, so reconciliation cannot silently make a native link stop responding.
 
 Keyed row replacement releases the previous native root before the new row type
 is hosted, so old event, image, and pull-to-refresh handlers cannot leak across
@@ -80,6 +83,8 @@ and samples the presentation layer while settling. It waits for display frames
 and restored stacks rather than assuming a loaded simulator services a timer on time.
 Async XCTest fulfillment keeps the main actor free for scene startup and native
 animation callbacks; synchronous waits here can block the work being tested.
+Restored frame checks allow half a point of UIKit rounding and report every
+stack's frame and animation keys if settling times out.
 Mid-drag screenshots are retained in the Xcode result bundle.
 Tab taps interrupt a settling swipe immediately; a stale animation completion
 must neither override that selection nor interfere with the next gesture.

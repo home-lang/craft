@@ -6172,7 +6172,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let recognizer = UITapGestureRecognizer(target: self, action: #selector(viewPressed(_:)))
             tapRecognizers[id] = recognizer
             view.addGestureRecognizer(recognizer)
-        } else if handler == nil, let recognizer = tapRecognizers.removeValue(forKey: id) {
+        } else if !actionable, let recognizer = tapRecognizers.removeValue(forKey: id) {
             view.removeGestureRecognizer(recognizer)
         }
         // A container keeps receiving touches without a handler of its own,
