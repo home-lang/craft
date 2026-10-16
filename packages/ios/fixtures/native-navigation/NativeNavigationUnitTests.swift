@@ -328,6 +328,29 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
     }
 
+    func testTabAccessoryRoutePushesAndRestoresTheSelectedNativeStack() async throws {
+        shell.open("/linked-details")
+        let home = try XCTUnwrap(stack("/"))
+        await displayWait("details push completed") {
+            home.transitionCoordinator == nil
+                && (home.topViewController as? CraftNativeScreenController)?.routeParams["path"] as? String == "/linked-details"
+        }
+        XCTAssertTrue(CraftHybrid.shared.controller === shell)
+        XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
+        CraftHybrid.shared.open("/capabilities")
+        await displayWait("the accessory path reaches its native screen") {
+            home.transitionCoordinator == nil
+                && (home.topViewController as? CraftNativeScreenController)?.routeParams["path"] as? String == "/capabilities"
+        }
+        XCTAssertEqual(home.viewControllers.count, 3)
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
+        XCTAssertNil(CraftChrome.shared.tabAccessory)
+        home.popViewController(animated: false)
+        XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
+        home.popViewController(animated: false)
+        XCTAssertNil(CraftChrome.shared.tabAccessory)
+    }
+
     func testDeferredPageSelectionCannotOverrideANewerNativeTabTap() async throws {
         mountDetails()
         // A page reports its tab while a native stack owns the screen. The

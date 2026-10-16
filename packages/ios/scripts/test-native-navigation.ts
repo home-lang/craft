@@ -1,5 +1,5 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { bootSimulator, build, init, pickSimulator } from '../src/index'
 import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './insert-project-targets'
 import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
@@ -22,7 +22,21 @@ function run(args: string[], cwd: string): void {
 function runXcodeTests(args: string[], cwd: string, resultBundle: string): void {
   console.log(args.join(' '))
   const result = Bun.spawnSync(args, { cwd, stdout: 'inherit', stderr: 'inherit' })
-  if (result.exitCode === 0) return
+  const evidence = process.env.CRAFT_NATIVE_NAVIGATION_RESULT
+  if (evidence && existsSync(resultBundle)) {
+    mkdirSync(dirname(resolve(evidence)), { recursive: true })
+    cpSync(resultBundle, resolve(evidence), { recursive: true, force: false, errorOnExist: true })
+  }
+  if (result.exitCode === 0) {
+    const summary = Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', resultBundle], { stdout: 'pipe', stderr: 'pipe' })
+    if (summary.exitCode !== 0) throw new Error(`Could not read XCTest results: ${summary.stderr.toString()}`)
+    const counts = JSON.parse(summary.stdout.toString())
+    if (evidence) writeFileSync(`${resolve(evidence)}.summary.json`, summary.stdout)
+    if (counts.result !== 'Passed' || !Number.isInteger(counts.totalTestCount) || counts.totalTestCount < 1 || counts.passedTests !== counts.totalTestCount || counts.failedTests !== 0 || counts.skippedTests !== 0)
+      throw new Error(`Expected passed native navigation tests with no empty selection or skips: ${JSON.stringify(counts)}`)
+    console.log(`XCTest verified ${counts.passedTests} passed tests, zero failures and skips`)
+    return
+  }
 
   if (existsSync(resultBundle)) {
     console.log('xcodebuild failed; extracting test failure details from the result bundle')

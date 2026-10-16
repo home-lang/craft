@@ -63,6 +63,10 @@ on:
         type: choice
         options: [all, ios-navigation]
         default: all
+      selectors:
+        description: Optional comma-separated XCTest selectors for native iOS navigation
+        type: string
+        default: ''
 
 concurrency:
   group: mobile-e2e-${{ github.head_ref || github.ref }}
@@ -162,6 +166,8 @@ jobs:
         if: ${{ !cancelled() && (inputs.scope == 'ios-navigation' || steps.uikit.outcome != 'skipped') }}
         env:
           STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
+          CRAFT_ONLY_TESTING: ${{ inputs.selectors }}
+          CRAFT_NATIVE_NAVIGATION_RESULT: ${{ github.workspace }}/artifacts/mobile-e2e/ios-native/navigation.xcresult
         run: |
           mkdir -p artifacts/mobile-e2e/ios-native
           bun packages/ios/scripts/test-native-navigation.ts 2>&1 | tee artifacts/mobile-e2e/ios-native/navigation.log
@@ -576,9 +582,12 @@ jobs:
 
     steps:
       - name: Report
+        env:
+          NATIVE_SELECTORS: ${{ inputs.selectors }}
         run: |
           {
             echo "## Mobile E2E (${{ inputs.scope || 'all' }})"
+            echo "Native XCTest selectors: ${NATIVE_SELECTORS:-all}"
             echo
             echo "| Leg | Result |"
             echo "|-----|--------|"
