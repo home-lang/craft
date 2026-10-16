@@ -5056,11 +5056,11 @@ class MainActivity : AppCompatActivity() {
                 if (inputType != wantedType) inputType = wantedType
                 val wantedIme = imeOptionsFor(props)
                 if (imeOptions != wantedIme) imeOptions = wantedIme
-                val multiline = props.optBoolean("multiline", false)
+                val multiline = craftNativeBoolean(props.opt("multiline"))
                 if (isSingleLine == multiline) isSingleLine = !multiline
                 val wantedLines = if (multiline) props.optInt("numberOfLines", Int.MAX_VALUE).coerceAtLeast(1) else 1
                 if (maxLines != wantedLines) maxLines = wantedLines
-                isEnabled = props.optBoolean("editable", true)
+                isEnabled = craftNativeBoolean(props.opt("editable"), true)
                 configureTextStyle(this, style)
                 // The style's padding is where the text starts, as on iOS and
                 // the web; without one the field keeps its own.
@@ -5130,7 +5130,7 @@ class MainActivity : AppCompatActivity() {
                     send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject().put("text", text.toString())))
                     true
                 }
-                if (props.optBoolean("autoFocus", false) && !isFocused) post {
+                if (craftNativeBoolean(props.opt("autoFocus")) && !isFocused) post {
                     if (!isFocused) {
                         requestFocus()
                         (getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
@@ -5381,9 +5381,9 @@ class MainActivity : AppCompatActivity() {
                     else -> 1f
                 }
                 indicatorScale = scale
-                val animating = props.optBoolean("animating", true)
+                val animating = craftNativeBoolean(props.opt("animating"), true)
                 isIndeterminate = animating
-                visibility = if (!animating && props.optBoolean("hidesWhenStopped", true)) View.GONE else View.VISIBLE
+                visibility = if (!animating && craftNativeBoolean(props.opt("hidesWhenStopped"), true)) View.GONE else View.VISIBLE
                 indeterminateTintList = craftNativeOptionalString(props.opt("color"))
                     ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
                     ?.let { ColorStateList.valueOf(it) }
@@ -5439,13 +5439,13 @@ class MainActivity : AppCompatActivity() {
                 onPictureInPictureChanged = { updatePictureInPicture() }
                 configure(
                     source = props.opt("source") ?: props.opt("src"),
-                    autoplay = props.optBoolean("autoplay", props.optBoolean("autoPlay", false)),
-                    paused = props.optBoolean("paused", false),
-                    loop = props.optBoolean("loop", false),
-                    muted = props.optBoolean("muted", false),
-                    controls = props.optBoolean("controls", false),
+                    autoplay = craftNativeBoolean(props.opt("autoplay"), craftNativeBoolean(props.opt("autoPlay"))),
+                    paused = craftNativeBoolean(props.opt("paused")),
+                    loop = craftNativeBoolean(props.opt("loop")),
+                    muted = craftNativeBoolean(props.opt("muted")),
+                    controls = craftNativeBoolean(props.opt("controls")),
                     resizeMode = craftNativeResizeMode(style, props),
-                    pictureInPicture = props.optBoolean("pictureInPicture", false),
+                    pictureInPicture = craftNativeBoolean(props.opt("pictureInPicture")),
                 )
             }
             "Map" -> (previous as? CraftNativeMapView ?: CraftNativeMapView(this)).apply {
@@ -5722,8 +5722,8 @@ class MainActivity : AppCompatActivity() {
         next[identity] = control
         applyViewStyle(control, style)
         if (type == "ActivityIndicator") {
-            val animating = props.optBoolean("animating", true)
-            val hidesWhenStopped = props.optBoolean("hidesWhenStopped", true)
+            val animating = craftNativeBoolean(props.opt("animating"), true)
+            val hidesWhenStopped = craftNativeBoolean(props.opt("hidesWhenStopped"), true)
             control.visibility = if (style.optString("display") == "none" || (!animating && hidesWhenStopped)) {
                 View.GONE
             } else {
@@ -6553,7 +6553,7 @@ class MainActivity : AppCompatActivity() {
     private fun color(raw: String, fallback: Int) = runCatching { craftNativeColor(raw) }.getOrDefault(fallback)
 
     private fun inputTypeFor(props: JSONObject): Int {
-        val base = if (props.optBoolean("multiline", false)) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        val base = if (craftNativeBoolean(props.opt("multiline"))) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         else InputType.TYPE_CLASS_TEXT
         // Text variations do not carry their input class or multiline flag.
         // Preserve both when selecting an email, URL, or search keyboard.

@@ -1285,7 +1285,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"numeric", "number-pad" -> InputType.TYPE_CLASS_NUMBER')
     expect(android).toContain('"web-search" -> base or InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT')
     expect(android).toContain('"visible-password" -> base or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD')
-    expect(android).toContain('if (props.optBoolean("autoFocus", false) && !isFocused) post')
+    expect(android).toContain('if (craftNativeBoolean(props.opt("autoFocus")) && !isFocused) post')
     expect(android).toContain('if (!isFocused) {\n                        requestFocus()')
     expect(android).toContain('reusableInput ?: EditText(this)')
     expect(android).toContain('val controlledValue = props.opt("value")?.takeUnless { it == JSONObject.NULL }?.toString()')
@@ -2238,7 +2238,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val intrinsicScale = (view as? CraftNativeActivityIndicator)?.indicatorScale ?: 1f')
     expect(android).toContain('is Number -> (requestedSize.toDouble() / 24.0).takeIf { it.isFinite() }?.toFloat()?.coerceAtLeast(0.5f) ?: 1f')
     expect(android).toContain('isIndeterminate = animating')
-    expect(android).toContain('props.optBoolean("hidesWhenStopped", true)')
+    expect(android).toContain('craftNativeBoolean(props.opt("hidesWhenStopped"), true)')
     expect(android).toContain('if (style.optString("display") == "none" || (!animating && hidesWhenStopped))')
     expect(android).toContain('indeterminateTintList = craftNativeOptionalString(props.opt("color"))')
     expect(androidNavigationTest).toContain('authored activity-indicator color was not applied')
@@ -2835,6 +2835,16 @@ describe('native renderer component contract', () => {
     expect(android).not.toContain('optBoolean("disabled"')
     expect(android).not.toContain('optBoolean("visible"')
     expect(android).not.toContain('optBoolean("refreshing"')
+  })
+
+  it('keeps TextInput, ActivityIndicator, and Video booleans strict on Android', () => {
+    expect(android).toContain('val multiline = craftNativeBoolean(props.opt("multiline"))')
+    expect(android).toContain('isEnabled = craftNativeBoolean(props.opt("editable"), true)')
+    expect(android).toContain('val animating = craftNativeBoolean(props.opt("animating"), true)')
+    expect(android).toContain('autoplay = craftNativeBoolean(props.opt("autoplay"), craftNativeBoolean(props.opt("autoPlay")))')
+    expect(android).toContain('pictureInPicture = craftNativeBoolean(props.opt("pictureInPicture"))')
+    expect(android).not.toContain('optBoolean("multiline"')
+    expect(android).not.toContain('optBoolean("controls"')
   })
 
   it('keeps malformed Android refresh colors from crashing or inventing a tint', () => {

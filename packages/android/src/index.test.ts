@@ -403,7 +403,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('setOnEditorActionListener')
       expect(nativeActivity).toContain('screen.submitHandlers')
       expect(nativeActivity).toContain('showSoftInput')
-      expect(nativeActivity).toContain('if (props.optBoolean("autoFocus", false) && !isFocused) post')
+      expect(nativeActivity).toContain('if (craftNativeBoolean(props.opt("autoFocus")) && !isFocused) post')
       expect(nativeActivity).toContain('if (!isFocused) {\n                        requestFocus()')
       expect(nativeActivity).toContain('isNestedScrollingEnabled = true')
       expect(nativeActivity).toContain('setNativeNestedScrollingEnabled(true)')
@@ -567,7 +567,7 @@ describe('Craft Android builder', () => {
     // and its frames move to a surface of the floating window's own.
     expect(manifest).toContain('android:supportsPictureInPicture="true"')
     expect(manifest).toContain('smallestScreenSize')
-    expect(native).toContain('pictureInPicture = props.optBoolean("pictureInPicture", false)')
+      expect(native).toContain('pictureInPicture = craftNativeBoolean(props.opt("pictureInPicture"))')
     expect(native).toContain('if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) params.setAutoEnterEnabled(video != null)')
     expect(native).toContain('override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration)')
     expect(native).toContain('player.setDisplay(holder ?: this.holder)')
