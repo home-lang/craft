@@ -69,6 +69,7 @@ const navigationRowSelection = state('none')
 const navigationRowsReordered = state(false)
 const sectionScrolls = state(0)
 const safeAreaBottomOnly = state(false)
+const screenBackgroundSolid = state(false)
 
 globalThis.craft.storage.remove('native-navigation-details-destroyed')
 globalThis.craft.navigation.setOptions({
@@ -443,6 +444,12 @@ function captureSectionScroll() {
 function toggleSafeAreaEdges() {
   safeAreaBottomOnly.update(value => !value)
 }
+
+function toggleScreenBackground() {
+  const solid = !screenBackgroundSolid()
+  screenBackgroundSolid.set(solid)
+  globalThis.craft.navigation.setOptions({ backgroundColor: solid ? '#123456' : null })
+}
 </script>
 
 <template>
@@ -454,6 +461,7 @@ function toggleSafeAreaEdges() {
     <Text testID="home-title">Home</Text>
     <Button testID="toggle-safe-area" @click="toggleSafeAreaEdges()">Toggle safe edges</Button>
     <Text testID="safe-area-status" :text="safeAreaBottomOnly() ? 'Safe edges: bottom' : 'Safe edges: top,bottom'" />
+    <Button testID="toggle-screen-background" @click="toggleScreenBackground()">Toggle screen background</Button>
     <ScrollView testID="tab-swipe-carousel" horizontal style={{"width":240,"height":48}}>
       <View style={{"width":720,"height":40,"flexDirection":"row","alignItems":"center","gap":16,"paddingHorizontal":12,"backgroundColor":"#1e293b"}}>
         <Text testID="tab-swipe-carousel-label" style={{"width":220,"color":"#ffffff"}}>Horizontal carousel content</Text>

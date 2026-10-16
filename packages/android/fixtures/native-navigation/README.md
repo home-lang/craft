@@ -78,6 +78,10 @@ bounded vertical flex column.
 The native form coverage also keeps a keyed input's draft while changing its
 single-line/multiline mode, recreating the incompatible platform control, and
 the iOS fixture runs the same mode-transition and recycled-row assertions.
+The navigation fixture also toggles a screen's explicit `backgroundColor`
+through `craft.navigation.setOptions`, checks the host color, and clears it back
+to the current light/dark resource so per-screen backgrounds cannot become
+permanent after an incremental update.
 The image control also verifies that an explicit `null` tint style clears the
 previous native color filter during an incremental update.
 The shared name field is controlled, so its value and caret remain stable

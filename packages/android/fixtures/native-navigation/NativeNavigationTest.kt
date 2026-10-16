@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.SystemClock
 import android.text.InputFilter
@@ -296,8 +297,11 @@ class NativeNavigationTest {
         throw AssertionError("width did not settle below ${from - (amount * density).toInt()}, was ${view.width}")
     }
 
-    private fun backgroundColor(view: View): Int? =
-        (view.background as? GradientDrawable)?.color?.defaultColor
+    private fun backgroundColor(view: View): Int? = when (val background = view.background) {
+        is GradientDrawable -> background.color?.defaultColor
+        is ColorDrawable -> background.color
+        else -> null
+    }
 
     private fun awaitBackgroundColor(view: View, previous: Int?): Int {
         repeat(75) {
@@ -1144,6 +1148,36 @@ class NativeNavigationTest {
             assertTrue("theme probe label disappeared during trait refresh", awaitView(activity, "theme-probe-label") is TextView)
         }
         finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
+    fun nativeScreenBackgroundOptionAppliesAndResets() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        try {
+            val root = awaitView(activity, "root")
+            val screen = root.parent as? View
+                ?: throw AssertionError("native root is not attached to a screen host")
+            val initial = backgroundColor(screen)
+            assertTrue("screen host did not receive a dynamic background", initial != null)
+
+            click(activity, "toggle-screen-background")
+            repeat(75) {
+                if (backgroundColor(screen) == Color.rgb(0x12, 0x34, 0x56)) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertEquals(Color.rgb(0x12, 0x34, 0x56), backgroundColor(screen))
+
+            click(activity, "toggle-screen-background")
+            awaitBackgroundColor(screen, Color.rgb(0x12, 0x34, 0x56))
+            assertEquals(initial, backgroundColor(screen))
+        } finally {
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
             instrumentation.waitForIdleSync()
         }

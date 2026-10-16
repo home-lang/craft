@@ -2306,6 +2306,14 @@ describe('native renderer component contract', () => {
     expect(navigationDetails).toContain('testID="load-more-people"')
   })
 
+  it('covers Android per-screen background options in the maintained fixture', () => {
+    expect(navigationHome).toContain('testID="toggle-screen-background"')
+    expect(navigationHome).toContain("setOptions({ backgroundColor: solid ? '#123456' : null })")
+    expect(androidNavigationTest).toContain('fun nativeScreenBackgroundOptionAppliesAndResets()')
+    expect(androidNavigationTest).toContain('is ColorDrawable -> background.color')
+    expect(androidNavigationReadme).toContain('toggles a screen\'s explicit `backgroundColor`')
+  })
+
   it('exercises independent floating iOS navigation buttons in the maintained fixture', () => {
     expect(navigationHome).toContain("id: 'fixture-messages'")
     expect(navigationHome).toContain("id: 'fixture-account'")
