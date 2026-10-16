@@ -950,11 +950,11 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('textView.isSecureTextEntry = props["secureTextEntry"] as? Bool == true')
     expect(android).toContain('configureTextStyle(this, style)')
     expect(android).toContain('"numeric", "number-pad" -> InputType.TYPE_CLASS_NUMBER')
-    expect(android).toContain('"web-search" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT')
-    expect(android).toContain('"visible-password" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD')
+    expect(android).toContain('"web-search" -> base or InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT')
+    expect(android).toContain('"visible-password" -> base or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD')
     expect(android).toContain('if (props.optBoolean("autoFocus", false) && !isFocused) post')
     expect(android).toContain('if (!isFocused) {\n                        requestFocus()')
-    expect(android).toContain('reusableInput?.takeIf { it.isSingleLine == !props.optBoolean("multiline", false) }')
+    expect(android).toContain('reusableInput ?: EditText(this)')
     expect(android).toContain('val controlledValue = props.opt("value")?.takeUnless { it == JSONObject.NULL }?.toString()')
     expect(android).toContain('setTextPreservingSelection(this, controlledValue)')
     expect(android).toContain('!props.isNull("defaultValue")')
@@ -994,7 +994,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('case "continue": return .continue')
     expect(ios).toContain('case "emergency-call": return .emergencyCall')
     expect(ios).toContain('case "characters": return .allCharacters')
-    expect(android).toContain('"email-address" -> InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS')
+    expect(android).toContain('"email-address" -> base or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS')
     expect(android).toContain('"decimal-pad" -> InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL')
     expect(android).toContain('"done" -> EditorInfo.IME_ACTION_DONE')
     expect(android).toContain('"join", "route", "emergency-call" -> EditorInfo.IME_ACTION_GO')
@@ -1052,7 +1052,7 @@ describe('native renderer component contract', () => {
     for (const marker of [
       'screen.capabilityTimeouts.values.forEach(capabilityHandler::removeCallbacks)',
       'screen.pendingCapabilities.forEach(capabilities::cancel)',
-      'screen.close()',
+      'screen.close {',
       'imageJobs.values.forEach { it.cancel(true) }',
       'imageExecutor.shutdownNow()',
       'capabilities.close()',
@@ -1064,7 +1064,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('showError("Missing native-screen.js. Build with --native-bundle after compiling STX.")')
     expect(ios).not.toContain('WKWebView')
     expect(android).not.toContain('WebView(')
-    expect(android).toContain('closeScreen(screens.removeAt(screens.lastIndex))\n                }\n                openScreen(route, payload.optJSONObject("params") ?: JSONObject())')
+    expect(android).toContain('closeScreen(removed) {\n                        if (screens === stack && stack.lastOrNull() === previous) openScreen(route, payload.optJSONObject("params") ?: JSONObject())')
     expect(iosNavigationScript).toContain("source.includes('__stxNativeUnmount') || source.includes('mutationProtocolVersion')")
     expect(androidNavigationScript).toContain("source.includes('__stxNativeUnmount') || source.includes('mutationProtocolVersion')")
   })
@@ -1291,7 +1291,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('reconcileChildren(children.filter {')
     expect(android).toContain('val contentStyle = JSONObject(style.toString()).apply')
     expect(android).toContain('props.optJSONObject("contentContainerStyle")')
-    expect(android).toContain('reconcileChildren(screen, content, contentChildren, path, next, contentStyle, previousControls)')
+    expect(android).toContain('reconcileChildren(screen, content, contentChildren, identity, next, contentStyle, previousControls)')
   })
 
   it('keeps ScrollView pull-to-refresh controlled on both hosts', () => {
@@ -2045,7 +2045,7 @@ describe('native renderer component contract', () => {
   })
 
   it('routes authored links through both native hosts', () => {
-    expect(navigationHome).toContain('<a testID="native-route-link" href="/details">')
+    expect(navigationHome).toContain('<a testID="native-route-link" href="/linked-details">')
     expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')
     expect(ios).toContain('hybridEvents?.nativeScreen(self, open: target)')
     expect(android).toContain('val linkTargets = mutableMapOf<View, String>()')
@@ -2162,7 +2162,7 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('awaitText(activity, "long-press-status", "panel long pressed")')
     expect(androidNavigationTest).toContain('awaitText(activity, "long-press-status", "long press disabled")')
     expect(androidNavigationTest).toContain('awaitText(activity, "long-press-status", "long press enabled")')
-    expect(androidNavigationTest).toContain('awaitText(activity, "image-status", "image tint off")')
+    expect(androidNavigationTest).toContain('awaitText(activity, "image-tint-status", "image tint off")')
     expect(androidNavigationTest).toContain('SystemClock.uptimeMillis()')
     expect(iosNavigationTest).toContain('reveal(panelStyleToggle, in: rootScroll)')
     expect(android).toContain('control.setOnClickListener {')
@@ -2307,7 +2307,7 @@ describe('native renderer component contract', () => {
     expect(nativeScreen).toContain('if let tabSwipeEnabled = options["tabSwipeEnabled"] as? Bool {')
     expect(nativeScreen).toContain('private var navigationBarSolid = false')
     expect(nativeScreen).toContain('appearance.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor')
-    expect(iosLayoutUnitTests).toContain('light.isEqual(UIColor.white)')
+    expect(iosLayoutUnitTests).toContain('try assertColor(light, red: 1, green: 1, blue: 1)')
     expect(hybrid).toContain('let recognizer = UIPanGestureRecognizer(target: self, action: #selector(tabSwipeRecognized(_:)))')
     expect(hybrid).toContain('beginInteractiveTabSwipe(to: tabs[next], direction: direction < 0 ? -1 : 1)')
     expect(hybrid).toContain('updateInteractiveTabSwipe(translation: translation)')
@@ -2318,7 +2318,7 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('target.view.frame.origin.x = tabSwipeFrom + offset')
     expect(chrome).toContain('func beginTabSwipe(to id: String)')
     expect(chrome).toContain('func commitTabSwipe(to id: String)')
-    expect(chrome).toContain('func cancelTabSwipe()')
+    expect(chrome).toContain('func cancelTabSwipe(restoringSelection: Bool = true)')
     expect(hybrid).toContain('!(current.topViewController is CraftHybridWebSlot && target.topViewController is CraftHybridWebSlot)')
     expect(hybrid).toContain('target.awaitingPage = false')
     expect(hybrid).toContain('let delta = abs(translation) >= 32 ? translation : velocity')
