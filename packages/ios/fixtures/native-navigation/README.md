@@ -71,6 +71,8 @@ and after completion, cancellation and reversal. It requires a native Core Anima
 position interpolation with the expected start, destination and 220ms duration,
 and samples the presentation layer while settling. It waits for display frames
 and restored stacks rather than assuming a loaded simulator services a timer on time.
+Async XCTest fulfillment keeps the main actor free for scene startup and native
+animation callbacks; synchronous waits here can block the work being tested.
 Mid-drag screenshots are retained in the Xcode result bundle.
 Tab taps interrupt a settling swipe immediately; a stale animation completion
 must neither override that selection nor interfere with the next gesture.
