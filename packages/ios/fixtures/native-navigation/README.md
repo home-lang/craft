@@ -42,7 +42,7 @@ without relying on a screenshot.
 
 From the Craft repository, with `@stacksjs/stx` available as `stx` (the
 maintained CI checkout is pinned to
-`1bb9d581d88517778b10333f57c2be41bae9fd0e`):
+`3dd3240fc9a64f360e9690eee50c483be3325705` / stx `0.2.544`):
 
 ```bash
 bun packages/ios/scripts/test-native-navigation.ts
@@ -67,9 +67,15 @@ inspection; the normal command remains the CI simulator gate.
 
 The iOS fixture has five native tabs. `NativeNavigationUnitTests` drives the real
 UIKit gesture handler and checks stack geometry during the drag, past halfway,
-and after completion, cancellation and reversal. It also samples the presentation
-layer while settling, so a jump at release cannot pass as an animated transition.
+and after completion, cancellation and reversal. It requires a native Core Animation
+position interpolation with the expected start, destination and 220ms duration,
+and samples the presentation layer while settling. It waits for display frames
+and restored stacks rather than assuming a loaded simulator services a timer on time.
+Async XCTest fulfillment keeps the main actor free for scene startup and native
+animation callbacks; synchronous waits here can block the work being tested.
 Mid-drag screenshots are retained in the Xcode result bundle.
+Tab taps interrupt a settling swipe immediately; a stale animation completion
+must neither override that selection nor interfere with the next gesture.
 
 `testTabSwipeSwitchesNativeRootsAndReturns`,
 `testSwipesAcrossAllFiveNativeTabsAndBack`,
