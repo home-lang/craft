@@ -345,15 +345,17 @@ final class NativeNavigationUnitTests: XCTestCase {
 
     func testDeferredPageSelectionPreservesANewerInteractiveSwipePreview() async throws {
         mountDetails()
-        CraftChrome.shared.handle(["type": "selectTab", "id": "/third"])
-        drag(-150)
-        XCTAssertEqual(CraftChrome.shared.selected, "/details")
-        await renderFrames()
-        XCTAssertEqual(CraftChrome.shared.selected, "/details", "a stale page correction cleared the finger's tab preview")
-        drag(-150, phase: .cancelled)
-        await settle()
-        XCTAssertEqual(CraftChrome.shared.selected, "/")
-        XCTAssertFalse(try XCTUnwrap(stack("/")).view.isHidden)
+        for reported in ["/third", "/details"] {
+            CraftChrome.shared.handle(["type": "selectTab", "id": reported])
+            drag(-150)
+            XCTAssertEqual(CraftChrome.shared.selected, "/details")
+            await renderFrames()
+            XCTAssertEqual(CraftChrome.shared.selected, "/details", "a stale page correction cleared the finger's tab preview")
+            drag(-150, phase: .cancelled)
+            await settle()
+            XCTAssertEqual(CraftChrome.shared.selected, "/", "cancellation must restore the native owning tab, not the page's stale report")
+            XCTAssertFalse(try XCTUnwrap(stack("/")).view.isHidden)
+        }
     }
 
     func testSwipeAfterATabTapCannotBeChangedByTheOlderAnimation() async throws {
