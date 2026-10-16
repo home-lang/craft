@@ -122,14 +122,18 @@ pub const Crypto = struct {
     /// Sign data using Ed25519
     pub fn signEd25519(self: *Crypto, secret_key: [64]u8, data: []const u8) ![64]u8 {
         _ = self;
-        const kp = std.crypto.sign.Ed25519.KeyPair{ .secret_key = secret_key, .public_key = secret_key[32..64].* };
-        return try kp.sign(data, null);
+        const secret = try std.crypto.sign.Ed25519.SecretKey.fromBytes(secret_key);
+        const kp = try std.crypto.sign.Ed25519.KeyPair.fromSecretKey(secret);
+        const signature = try kp.sign(data, null);
+        return signature.toBytes();
     }
 
     /// Verify Ed25519 signature
     pub fn verifyEd25519(self: *Crypto, public_key: [32]u8, data: []const u8, signature: [64]u8) !bool {
         _ = self;
-        std.crypto.sign.Ed25519.verify(signature, data, public_key) catch return false;
+        const key = std.crypto.sign.Ed25519.PublicKey.fromBytes(public_key) catch return false;
+        const sig = std.crypto.sign.Ed25519.Signature.fromBytes(signature);
+        std.crypto.sign.Ed25519.Signature.verify(sig, data, key) catch return false;
         return true;
     }
 
@@ -206,4 +210,14 @@ test "X25519 key generation and exchange" {
     const shared = try crypto.x25519(alice.secret_key, bob.public_key);
     const zero = std.mem.zeroes([32]u8);
     try std.testing.expect(!std.mem.eql(u8, &shared, &zero));
+}
+
+test "Ed25519 signing and verification" {
+    var crypto = Crypto.init(std.testing.allocator);
+    const seed: [32]u8 = @splat(0x42);
+    const pair = try std.crypto.sign.Ed25519.KeyPair.generateDeterministic(seed);
+    const signature = try crypto.signEd25519(pair.secret_key.toBytes(), "Craft");
+
+    try std.testing.expect(try crypto.verifyEd25519(pair.public_key.toBytes(), "Craft", signature));
+    try std.testing.expect(!(try crypto.verifyEd25519(pair.public_key.toBytes(), "craft", signature)));
 }
