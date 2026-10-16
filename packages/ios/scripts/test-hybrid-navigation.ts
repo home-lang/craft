@@ -158,7 +158,7 @@ try {
     run([...xcodeArgs, 'build-for-testing'], output)
     await runXcodeTests([
       ...xcodeArgs,
-      '-test-iterations', String(testIterations),
+      ...(testIterations > 1 ? ['-test-iterations', String(testIterations)] : []),
       '-resultBundlePath', resultBundle,
       ...selection,
       'test-without-building',
