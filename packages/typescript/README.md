@@ -522,6 +522,16 @@ app's UI checks for persisted progress and offline content. Neither operation
 uninstalls an app or clears its data. The controls deliberately refuse physical
 devices and implicit device selectors.
 
+For guest-frame evidence on a headless iOS runner, use
+`recordIosSimulatorVideo({ device: simulatorUuid, path: '/absolute/path/video.mp4' })`
+from the same entrypoint. It resolves after Apple's first-frame acknowledgement.
+Call `await recording.stop()` in `finally` before restarting the simulator or
+installing an update; repeated stops share the same finalization. Startup and
+stop are bounded (30 seconds by default, `timeoutMs` to change it), and an empty
+or failed recording rejects. Existing files are preserved unless `overwrite: true`
+is set. Capture retains a display-frame sink independently of the Device Hub viewer;
+it does not change the application's animations or test assertions.
+
 ## Contributing
 
 We love contributions! Please see our [contributing guide](../../CONTRIBUTING.md).

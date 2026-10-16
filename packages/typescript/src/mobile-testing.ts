@@ -1,6 +1,6 @@
 /** Bun-only controls for installed-app recovery tests. Never imports into a phone bundle. */
 import { access } from 'node:fs/promises'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 
 export type MobileTestDeviceOptions =
   | { platform: 'ios', device: string, appId: string, xcrun?: string }
@@ -12,6 +12,96 @@ export interface MobileTestDevice {
   installedBuild: () => Promise<string>
 }
 
+function requireIosSimulator(device: string): void {
+  if (!/^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(device)) throw new Error('An explicit iOS simulator UUID is required')
+}
+
+export interface IosSimulatorRecording {
+  path: string
+  stop: () => Promise<void>
+}
+
+/**
+ * Retains guest display frames, including on a headless runner. Waits for
+ * simctl's documented first-frame acknowledgement; stop finalizes the movie
+ * before a test shuts down the device or replaces its app.
+ */
+export async function recordIosSimulatorVideo(options: {
+  device: string
+  path: string
+  overwrite?: boolean
+  xcrun?: string
+  timeoutMs?: number
+}): Promise<IosSimulatorRecording> {
+  requireIosSimulator(options.device)
+  if (!isAbsolute(options.path)) throw new Error('A local absolute recording path is required')
+  const timeout = options.timeoutMs ?? 30_000
+  if (!Number.isSafeInteger(timeout) || timeout < 1) throw new Error('Recording timeout must be a positive integer')
+  const child = Bun.spawn([
+    options.xcrun || 'xcrun', 'simctl', 'io', options.device, 'recordVideo', '--codec=h264',
+    ...(options.overwrite ? ['--force'] : []), options.path,
+  ], { stdout: 'ignore', stderr: 'pipe' })
+  let diagnostics = ''
+  const firstFrame = Promise.withResolvers<void>()
+  const drained = (async () => {
+    const reader = child.stderr.getReader()
+    const decoder = new TextDecoder()
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        diagnostics += decoder.decode(value, { stream: true })
+        if (/(?:^|\n)Recording started\r?\n/.test(diagnostics)) firstFrame.resolve()
+        diagnostics = diagnostics.slice(-4096)
+      }
+    }
+    finally { reader.releaseLock() }
+  })()
+  // Attach a rejection handler immediately, even when startup wins the race.
+  void drained.catch(() => {})
+  const startupTimeout = Promise.withResolvers<never>()
+  const deadline = setTimeout(() => startupTimeout.reject(new Error('Recorder did not produce its first frame in time')), timeout)
+  try {
+    await Promise.race([
+      firstFrame.promise,
+      child.exited.then(async (code) => { await drained; throw new Error(`Recorder exited before its first frame (${code})`) }),
+      startupTimeout.promise,
+    ])
+  }
+  catch (cause) {
+    child.kill('SIGKILL')
+    await child.exited
+    await drained.catch(() => {})
+    throw new Error(`${cause instanceof Error ? cause.message : cause}\n${diagnostics}`)
+  }
+  finally { clearTimeout(deadline) }
+
+  let stopping: Promise<void> | undefined
+  return {
+    path: options.path,
+    stop: () => stopping ||= (async () => {
+      if (child.exitCode !== null) throw new Error(`Recorder ended before stop\n${diagnostics}`)
+      child.kill('SIGINT')
+      const finalizationTimeout = Promise.withResolvers<never>()
+      const stopDeadline = setTimeout(() => { child.kill('SIGKILL'); finalizationTimeout.reject(new Error('Recorder did not finalize in time')) }, timeout)
+      try {
+        const code = await Promise.race([
+          child.exited,
+          finalizationTimeout.promise,
+        ])
+        await drained
+        if (code !== 0) throw new Error(`Recorder failed (${code})\n${diagnostics}`)
+        const file = Bun.file(options.path)
+        if (!await file.exists() || file.size === 0) throw new Error('Recorder did not write a movie')
+      }
+      finally {
+        clearTimeout(stopDeadline)
+        await child.exited
+      }
+    })(),
+  }
+}
+
 /**
  * Drives an explicitly selected simulator/emulator. Restart preserves its disk;
  * update installs over the existing app, without uninstalling or clearing data.
@@ -19,7 +109,7 @@ export interface MobileTestDevice {
  */
 export function createMobileTestDevice(options: MobileTestDeviceOptions): MobileTestDevice {
   if (!/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(options.appId)) throw new Error('An explicit app identifier is required')
-  if (options.platform === 'ios' && !/^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(options.device)) throw new Error('An explicit iOS simulator UUID is required')
+  if (options.platform === 'ios') requireIosSimulator(options.device)
   if (options.platform === 'android' && !/^emulator-\d+$/.test(options.device)) throw new Error('An explicit Android emulator serial is required')
 
   async function run(args: string[], timeout = 120_000): Promise<string> {
