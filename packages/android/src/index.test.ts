@@ -479,6 +479,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('private fun configureText(view: TextView, value: String, style: JSONObject)')
       expect(nativeActivity).toContain('private fun configureTextStyle(view: TextView, style: JSONObject)')
       expect(nativeActivity).toContain('val fontWeight = style.opt("fontWeight") as? String')
+      expect(nativeActivity).toContain('val controlledValue = props.opt("value") as? String')
+      expect(nativeActivity).toContain('(props.opt("defaultValue") as? String)?.let(::setText)')
       expect(nativeActivity).toContain('configureTextStyle(this, style)')
       expect(nativeActivity).toContain('val title = craftNativeOptionalString(props.opt("title")) ?: childText(children)')
       expect(nativeActivity).toContain('configureText(this, title, style)')
