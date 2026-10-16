@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.220...v0.0.221)
+
+## 🐛 Bug Fixes
+
+- **ios**: resolve cold launch links before returning initial intent ([6e35adc](https://github.com/craft-native/craft/commit/6e35adc)) _(by Chris Breuer)_
+- **test**: validate native renderer arguments before device access ([497e177](https://github.com/craft-native/craft/commit/497e177)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.219...v0.0.220)
 
 ## 🐛 Bug Fixes
