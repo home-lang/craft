@@ -757,6 +757,9 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
     private var timeObserver: Any?
     private var loops = false
     private var wasPlaying: Bool?
+    private var playIntent: Bool?
+    private var userPaused = false
+    private var ended = false
     /// This video holds a claim on the audio session (`CraftNativeSounds`).
     private var claimedSession = false
     /// The screen's handlers by event name (`onEnd`, `onPlay`, `onPause`,
@@ -835,9 +838,17 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
 
     func configure(source: Any?, autoplay: Bool, paused: Bool, loop: Bool, muted: Bool, controls: Bool, resizeMode: String?, pictureInPicture: Bool = false) {
         let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String ?? ""
+        let nextShouldPlay = autoplay && !paused
+        if playIntent != nextShouldPlay {
+            userPaused = false
+            ended = false
+        }
+        playIntent = nextShouldPlay
         if uri != sourceURI {
             detachPlayer()
             sourceURI = uri
+            userPaused = false
+            ended = false
             loops = false
             // The copy `craft.media.keep` put on the phone plays in place of
             // the address, so a kept video plays with no signal.
@@ -877,7 +888,11 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
             playerController.canStartPictureInPictureAutomaticallyFromInline = floating
         }
         loops = loop
-        if paused || !autoplay { player.pause() } else { player.play() }
+        if nextShouldPlay {
+            if !userPaused && !ended { player.play() }
+        } else {
+            player.pause()
+        }
     }
 
     // MARK: AVPlayerViewControllerDelegate
@@ -921,8 +936,12 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
                 queue: .main
             ) { [weak self, weak player] _ in
                 guard let self else { return }
+                self.ended = !self.loops
                 self.fire("onEnd")
-                if self.loops { player?.seek(to: .zero) { _ in player?.play() } }
+                if self.loops {
+                    self.ended = false
+                    player?.seek(to: .zero) { _ in player?.play() }
+                }
             }
         }
         playingObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
@@ -933,6 +952,12 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
                 // Paused before it ever played is where it starts, not news.
                 if self.wasPlaying == nil && !playing { self.wasPlaying = false; return }
                 self.wasPlaying = playing
+                if playing {
+                    self.userPaused = false
+                    self.ended = false
+                } else if self.playIntent == true {
+                    self.userPaused = true
+                }
                 self.fire(playing ? "onPlay" : "onPause")
             }
         }
@@ -946,6 +971,9 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
         detachPlayer()
         playerController.player = nil
         sourceURI = ""
+        playIntent = nil
+        userPaused = false
+        ended = false
         if playerController.parent != nil {
             playerController.willMove(toParent: nil)
             playerController.view.removeFromSuperview()
