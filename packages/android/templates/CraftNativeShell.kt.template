@@ -571,7 +571,7 @@ internal object CraftNativePrelude {
  * The bar above a screen (back, title, the screen's buttons) and the tab bar
  * below it, in plain Android views. A screen sets its bar with
  * `craft.navigation.setOptions` (title, largeTitle, hidden, rightButtons,
- * tabBarHidden); the tabs come from the app's `tabs`.
+ * tabAccessory, tabBarHidden); the tabs come from the app's `tabs`.
  */
 internal class CraftNativeChrome(context: Context, private val tabs: List<CraftNativeTab>) : LinearLayout(context) {
     val content = FrameLayout(context)

@@ -4283,7 +4283,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     ///   `craft.secureStorage.set` wrote.
     /// - `craft.navigation.setOptions({ title, largeTitle, hidden, backTitle,
     ///   tabBarHidden, swipeBack, contentSwipeBack, tabSwipeEnabled,
-    ///   backgroundColor, navigationBarSolid, rightButtons })`;
+    ///   backgroundColor, navigationBarSolid, rightButtons, tabAccessory })`;
     ///   a right button's tap is the event `navButton`.
     ///
     /// A runtime that assigns `craft.storage` (or the others) afterwards keeps

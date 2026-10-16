@@ -2819,6 +2819,8 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`tabAccessory` adds one destination button beside the tab pill')
     expect(iosReadme).toContain('`tabAccessory` destination beside the tab pill')
     expect(androidReadme).toContain('right buttons with badges, `tabAccessory`, `tabBarHidden`')
+    expect(ios).toContain('backgroundColor, navigationBarSolid, rightButtons, tabAccessory })')
+    expect(androidShell).toContain('rightButtons,\n * tabAccessory, tabBarHidden')
   })
 
   it('keeps Dynamic Type scaling aligned with Android SP text sizing', () => {
