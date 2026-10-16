@@ -1005,7 +1005,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             if type == "mapmarker" || type == "marker" {
                 guard let point = points.first else { continue }
                 nextMarkers[id] = (point, childProps["title"] as? String)
-                if let handler = childEvents["onPress"] ?? childEvents["onMarkerPress"], !handler.isEmpty {
+                if let handler = nonEmptyHandler(childEvents["onPress"])
+                    ?? nonEmptyHandler(childEvents["onMarkerPress"]) {
                     nextHandlers[id] = handler
                 }
             } else if type == "mappolyline" || type == "polyline" {
