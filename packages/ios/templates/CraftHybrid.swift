@@ -1403,7 +1403,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     /// The entry for a path: its native screen, or a web entry.
     private func entry(for path: String, isTabRoot: Bool, depth: Int?, params extra: [String: Any] = [:]) -> UIViewController {
-        if let match = hybrid.routes.match(path) {
+        if hybrid.isEnabled, let match = hybrid.routes.match(path) {
             var params = self.params(for: path, match)
             extra.forEach { params[$0.key] = $0.value }
             let screen = CraftNativeScreenController(config: config, routeName: match.screen, routeParams: params)

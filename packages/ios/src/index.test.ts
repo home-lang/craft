@@ -337,6 +337,23 @@ describe('Craft iOS builder', () => {
     expect(native).not.toContain('WKWebView')
   })
 
+  it('keeps hybrid routes on the WebView when the native bundle is absent', async () => {
+    const output = createTempDir('craft-ios-hybrid-missing-bundle-')
+    await init({
+      runtimeDir: null,
+      name: 'HybridFallback',
+      output,
+      config: {
+        renderer: 'web',
+        devServerURL: 'https://example.com/home',
+        nativeScreens: { '/home': 'Home' },
+      },
+    })
+
+    const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
+    expect(hybrid).toContain('if hybrid.isEnabled, let match = hybrid.routes.match(path)')
+  })
+
   it('renders only metadata for enabled native capabilities', () => {
     const config = {
       appName: 'WildLoop',
