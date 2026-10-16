@@ -309,6 +309,17 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(header.text, "5 sessions")
         XCTAssertEqual(try frame("header", in: controller).width, listFrame.width, accuracy: 0.5)
         XCTAssertGreaterThan(try frame("list", in: controller).height, listFrame.height + 44)
+
+        // Reused cells must self-size at the new constrained width, including
+        // while UIKit is invalidating layout before the next layoutSubviews.
+        controller.view.frame.size.width = 320
+        controller.view.setNeedsLayout()
+        settle(controller)
+        let narrower = try frame("list", in: controller)
+        XCTAssertEqual(narrower.width, 320 - 32 - 8, accuracy: 0.5)
+        for cell in list.visibleCells {
+            XCTAssertEqual(cell.frame.width, narrower.width, accuracy: 0.5)
+        }
     }
 
     func testAPlainRootKeepsAnAbsoluteSiblingPinnedBesideItsScrollView() throws {
