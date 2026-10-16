@@ -1,5 +1,41 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.202...v0.0.203)
+
+## 🐛 Bug Fixes
+
+- **ios**: clip nested scroll content to its viewport ([7ed9190](https://github.com/craft-native/craft/commit/7ed9190)) _(by Chris Breuer)_
+- **ios**: preserve native input touches and link activation ([58d672f](https://github.com/craft-native/craft/commit/58d672f)) _(by Chris Breuer)_
+- **android**: drain lifecycle messages before closing screens ([71ea48f](https://github.com/craft-native/craft/commit/71ea48f)) _(by Chris Breuer)_
+- **ios**: invalidate cached item sizes when list width changes ([7dd2571](https://github.com/craft-native/craft/commit/7dd2571)) _(by Chris Breuer)_
+- **android**: retain text inputs when multiline mode changes ([fd32fa6](https://github.com/craft-native/craft/commit/fd32fa6)) _(by Chris Breuer)_
+- **ios**: keep list measurement separate from committed layout ([cce4d5c](https://github.com/craft-native/craft/commit/cce4d5c)) _(by Chris Breuer)_
+- **android**: scope descendants to retained parent identities ([7dbb0fd](https://github.com/craft-native/craft/commit/7dbb0fd)) _(by Chris Breuer)_
+- **android**: include browser dependency for both renderers ([cf67fee](https://github.com/craft-native/craft/commit/cf67fee)) _(by Chris Breuer)_
+- **mobile**: preserve refresh controls and invalidate list metrics ([828bd4a](https://github.com/craft-native/craft/commit/828bd4a)) _(by Chris Breuer)_
+- **ios**: refresh list estimates and retry file sizes ([b95d74e](https://github.com/craft-native/craft/commit/b95d74e)) _(by Chris Breuer)_
+- **android**: preserve text keyboard class and multiline flags ([27ad059](https://github.com/craft-native/craft/commit/27ad059)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: query the floating native tab buttons by role ([b559c4c](https://github.com/craft-native/craft/commit/b559c4c)) _(by Chris Breuer)_
+- **mobile**: verify native link pushes and edge back with tab gestures ([7bd8e85](https://github.com/craft-native/craft/commit/7bd8e85)) _(by Chris Breuer)_
+- **ios**: align color fixture coverage with RGBA assertions ([f329926](https://github.com/craft-native/craft/commit/f329926)) _(by Chris Breuer)_
+- **ios**: assert rendered navigation colors across color spaces ([54c6c5c](https://github.com/craft-native/craft/commit/54c6c5c)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- integrate current native navigation fixes ([075a6f6](https://github.com/craft-native/craft/commit/075a6f6)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/device-ci-native ([1a37724](https://github.com/craft-native/craft/commit/1a37724)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/device-ci-native ([48419a5](https://github.com/craft-native/craft/commit/48419a5)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.201...v0.0.202)
 
 ## 🐛 Bug Fixes
