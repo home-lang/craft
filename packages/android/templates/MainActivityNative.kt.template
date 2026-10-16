@@ -3358,28 +3358,59 @@ class MainActivity : AppCompatActivity() {
         val capabilityTimeouts = mutableMapOf<String, Runnable>()
         val audio = CraftNativeAudio()
         var active = true
+        var closing = false
+            private set
+        private var closed = false
+        private val closeWaiters = mutableListOf<() -> Unit>()
+        private val closeHandler = Handler(Looper.getMainLooper())
+        private val closeDeadline = Runnable { finishClose() }
 
-        fun close() {
-            if (!active) return
+        fun close(done: () -> Unit = {}) {
+            if (closed) { done(); return }
+            closeWaiters.add(done)
+            if (closing) return
             active = false
+            closing = true
             audio.close()
-            val finish = {
-                port?.close()
-                isolate.close()
-            }
+            // Evaluation completion does not mean its outbound messages have
+            // reached the host. Close only after the ordered channel barrier,
+            // so onDestroy's final writes run before navigation continues.
+            closeHandler.postDelayed(closeDeadline, CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS)
             val teardown = runCatching {
                 isolate.evaluateJavaScriptAsync(
-                    "globalThis.__stxNativeUnmount && globalThis.__stxNativeUnmount()"
+                    """
+                    (function() {
+                      var bridge = globalThis.__stxNativeBridge;
+                      if (!bridge || typeof bridge.postMessage !== 'function') return 'unavailable';
+                      try { globalThis.__stxNativeUnmount && globalThis.__stxNativeUnmount(); }
+                      catch (error) { console.error('Screen teardown failed: ' + error); }
+                      bridge.postMessage(JSON.stringify({ type: 'SCREEN_DISPOSED', payload: {} }));
+                      return 'sent';
+                    })()
+                    """.trimIndent()
                 )
             }.getOrNull()
             if (teardown == null) {
-                finish()
+                finishClose()
                 return
             }
             teardown.addListener({
                 runCatching { teardown.get() }
-                finish()
-            }, java.util.concurrent.Executor { command -> command.run() })
+                    .onSuccess { if (it == "unavailable") finishClose() }
+                    .onFailure { finishClose() }
+            }, ContextCompat.getMainExecutor(view.context))
+        }
+
+        fun finishClose() {
+            if (!closing) return
+            closing = false
+            closed = true
+            closeHandler.removeCallbacks(closeDeadline)
+            port?.close()
+            isolate.close()
+            val waiters = closeWaiters.toList()
+            closeWaiters.clear()
+            waiters.forEach { it() }
         }
     }
 
@@ -3766,9 +3797,15 @@ class MainActivity : AppCompatActivity() {
         // Already in this stack (perhaps under others): back to it, with the params it was opened with now.
         val existing = screens.lastOrNull { it.path == match.path }
         if (existing != null) {
-            while (screens.lastOrNull() !== existing) closeScreen(screens.removeAt(screens.lastIndex))
-            show(existing)
-            send(existing, "ROUTE_PARAMS", JSONObject().put("params", match.params))
+            val stack = screens
+            val removed = mutableListOf<Screen>()
+            while (stack.lastOrNull() !== existing) removed.add(stack.removeAt(stack.lastIndex))
+            closeScreens(removed) {
+                if (screens === stack && stack.lastOrNull() === existing) {
+                    show(existing)
+                    send(existing, "ROUTE_PARAMS", JSONObject().put("params", match.params))
+                }
+            }
             return
         }
         openScreen(match.screen, match.params)?.path = match.path
@@ -3793,14 +3830,14 @@ class MainActivity : AppCompatActivity() {
         val port = if (useMessagePorts) {
             isolate.createMessageChannel("craft", executor, MessagePortClient { message ->
                 val current = screen ?: return@MessagePortClient
-                if (current.active && message.type == Message.TYPE_STRING) receiveSafely(current, message.string)
+                if ((current.active || current.closing) && message.type == Message.TYPE_STRING) receiveSafely(current, message.string)
             })
         } else {
             isolate.setConsoleCallback(executor, JavaScriptConsoleCallback { entry ->
                 val current = screen ?: return@JavaScriptConsoleCallback
-                if (current.active && entry.message.startsWith(prefix)) {
+                if ((current.active || current.closing) && entry.message.startsWith(prefix)) {
                     current.chunks.accept(entry.message.removePrefix(prefix))?.let { receiveSafely(current, it) }
-                } else if (current.active) {
+                } else if (current.active || current.closing) {
                     Log.i(TAG, "[${current.route ?: "home"}] ${entry.message}")
                 }
             })
@@ -4249,11 +4286,13 @@ class MainActivity : AppCompatActivity() {
         }
         val payload = message.optJSONObject("payload") ?: JSONObject()
         val type = message.optString("type")
+        if (!screen.active && (!screen.closing || type !in setOf("API_REQUEST", "API_CANCEL", "SYNC_WRITE", "SCREEN_DISPOSED"))) return
         // Timers and frames come many times a second: not worth a log line each.
         if (type != "TIMER" && type != "TIMER_CLEAR" && type != "FRAME" && Log.isLoggable(TAG, Log.DEBUG)) {
             Log.d(TAG, "Native STX $type (${raw.length} chars) for ${screen.route ?: "home"}")
         }
         when (message.optString("type")) {
+            "SCREEN_DISPOSED" -> if (screen.closing) screen.finishClose()
             "RENDER" -> payload.optJSONObject("document")?.let { render(screen, it) }
             "MUTATE" -> try {
                 val result = applyMutation(screen, payload)
@@ -4311,9 +4350,13 @@ class MainActivity : AppCompatActivity() {
                 if (visibleScreen !== screen) return
                 val route = payload.optString("screen").takeIf { it.isNotBlank() } ?: return
                 if (message.optString("type") == "NAVIGATE_REPLACE") {
-                    closeScreen(screens.removeAt(screens.lastIndex))
-                }
-                openScreen(route, payload.optJSONObject("params") ?: JSONObject())
+                    val stack = screens
+                    val removed = stack.removeAt(stack.lastIndex)
+                    val previous = stack.lastOrNull()
+                    closeScreen(removed) {
+                        if (screens === stack && stack.lastOrNull() === previous) openScreen(route, payload.optJSONObject("params") ?: JSONObject())
+                    }
+                } else openScreen(route, payload.optJSONObject("params") ?: JSONObject())
             }
             "NAVIGATE_BACK" -> if (visibleScreen === screen) back()
             "NAVIGATE_POP_TO_ROOT" -> if (visibleScreen === screen) popToRoot()
@@ -4322,9 +4365,9 @@ class MainActivity : AppCompatActivity() {
                 val id = payload.optString("requestId")
                 if (id.isNotBlank()) {
                     val token = "${screen.capabilityScope}/$id"
-                    screen.pendingCapabilities.remove(token)
+                    val pending = screen.pendingCapabilities.remove(token)
                     screen.capabilityTimeouts.remove(token)?.let(capabilityHandler::removeCallbacks)
-                    capabilities.cancel(token)
+                    if (pending) capabilities.cancel(token)
                 }
             }
             "AUDIO" -> screen.audio.handle(payload)
@@ -6105,7 +6148,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         perform { result ->
-            if (!screen.active || !screen.pendingCapabilities.remove(token)) return@perform
+            if ((!screen.active && !screen.closing) || !screen.pendingCapabilities.remove(token)) return@perform
             screen.capabilityTimeouts.remove(token)?.let(capabilityHandler::removeCallbacks)
             val response = JSONObject()
                 .put("version", CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION)
@@ -6340,15 +6383,26 @@ class MainActivity : AppCompatActivity() {
 
     /** Back to the first screen in one move. */
     private fun popToRoot() {
-        while (screens.size > 1) closeScreen(screens.removeAt(screens.lastIndex))
-        screens.lastOrNull()?.let(::show)
+        val stack = screens
+        val removed = mutableListOf<Screen>()
+        while (stack.size > 1) removed.add(stack.removeAt(stack.lastIndex))
+        val target = stack.lastOrNull()
+        closeScreens(removed) {
+            if (target != null && screens === stack && stack.lastOrNull() === target) show(target)
+        }
     }
 
     /** Back: the screen below in this tab, then the first tab, then out of the app. */
     private fun back() {
+        // A previous back is still draining its screen's teardown messages.
+        if (visibleScreen == null) return
         if (screens.size > 1) {
-            closeScreen(screens.removeAt(screens.lastIndex))
-            show(screens.last())
+            val stack = screens
+            val removed = stack.removeAt(stack.lastIndex)
+            val target = stack.last()
+            closeScreen(removed) {
+                if (screens === stack && stack.lastOrNull() === target) show(target)
+            }
         } else if (chrome != null && currentTab != 0) {
             selectTab(0)
         } else {
@@ -6566,7 +6620,17 @@ class MainActivity : AppCompatActivity() {
         screen.modalCloseHandlers.keys.removeAll(released)
     }
 
-    private fun closeScreen(screen: Screen) {
+    private fun closeScreens(screens: List<Screen>, done: () -> Unit) {
+        val iterator = screens.iterator()
+        fun next() {
+            if (iterator.hasNext()) closeScreen(iterator.next()) { next() }
+            else done()
+        }
+        next()
+    }
+
+    private fun closeScreen(screen: Screen, done: () -> Unit = {}) {
+        if (!screen.active) { screen.close(done); return }
         CraftNativeHub.unregister(screen.capabilityScope)
         screen.timers.values.forEach(capabilityHandler::removeCallbacks)
         screen.timers.clear()
@@ -6602,7 +6666,13 @@ class MainActivity : AppCompatActivity() {
         screen.flatListRows.clear()
         screen.flatListOwners.clear()
         screen.flatListOwnerByView.clear()
-        screen.close()
+        screen.close {
+            screen.capabilityTimeouts.values.forEach(capabilityHandler::removeCallbacks)
+            screen.capabilityTimeouts.clear()
+            screen.pendingCapabilities.forEach(capabilities::cancel)
+            screen.pendingCapabilities.clear()
+            done()
+        }
     }
 
     @Deprecated("Uses the activity back callback for native route navigation")

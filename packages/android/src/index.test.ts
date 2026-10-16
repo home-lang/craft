@@ -495,7 +495,7 @@ describe('Craft Android builder', () => {
     expect(native).toContain('showError("Missing native-screen.js. Build with --native-bundle after compiling STX.")')
     expect(native).toContain('screen.capabilityTimeouts.values.forEach(capabilityHandler::removeCallbacks)')
     expect(native).toContain('screen.pendingCapabilities.forEach(capabilities::cancel)')
-    expect(native).toContain('screen.close()')
+    expect(native).toContain('screen.close {')
     expect(native).toContain('imageJobs.values.forEach { it.cancel(true) }')
     expect(native).toContain('imageExecutor.shutdownNow()')
     expect(native).toContain('capabilities.close()')
