@@ -77,6 +77,8 @@ export type SimulatorStep =
   | { command: 'delay', milliseconds: number }
   | { command: 'net', state: 'online' | 'offline' }
   | { command: 'swipe', direction: 'up' | 'down' | 'left' | 'right' }
+  /** A slow drag in app-relative coordinates, held before release to avoid a flick. */
+  | { command: 'drag', fromX: number, fromY: number, toX: number, toY: number }
   /** The system back-swipe: a drag in from the left edge (or the right). */
   | { command: 'edge', direction: 'left' | 'right' }
   | { command: 'tabbar', state: 'shown' | 'hidden' }
@@ -109,6 +111,11 @@ export function serializeSimulatorSteps(steps: readonly SimulatorStep[]): string
     else if ('milliseconds' in step) arg = String(number(step.milliseconds))
     else if ('state' in step) arg = step.state
     else if ('direction' in step) arg = step.direction
+    else if ('fromX' in step) {
+      const coordinates = [step.fromX, step.fromY, step.toX, step.toY]
+      if (coordinates.some(value => number(value) > 1)) throw new Error('drag coordinates must be between 0 and 1')
+      arg = coordinates.join(' ')
+    }
     else if ('x' in step) {
       if (number(step.x) > 1 || number(step.y) > 1) throw new Error('tapxy coordinates must be between 0 and 1')
       arg = `${step.x} ${step.y}`

@@ -200,6 +200,14 @@ journey; it cannot fall back to Safari. This operation does not launch the app
 under test directly, so a preceding `terminate` still tests a cold handoff.
 Use `openurl` for browser fallback checks and custom URL schemes.
 
+Use `drag 0.6 0.32 0.5 0.32` for a short horizontal drag that pauses before
+release, so a tab swipe cancels instead of becoming a velocity-driven flick.
+The four coordinates are relative to the app, between zero and one. The driver
+uses public XCTest input, moves slowly and holds for 0.3 seconds before lifting.
+Follow it with `selected` and content checks, then a full `swipe` to verify the
+next gesture still works. Synchronized XCTest gestures do not replace separate
+direct-input rapid-tap checks.
+
 The iOS host uses the shared tree-layout ABI for eligible definite-size,
 non-grid, non-wrapped containers and retains a local fallback for older
 runtimes or unsupported styles. Both paths implement wrapped-line and grid

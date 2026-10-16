@@ -37,6 +37,7 @@ import XCTest
 ///   tab <name>            tap a tab bar button
 ///   scrollto <text>       swipes up (at most 8 times) until text is hittable
 ///   swipe up|down|left|right
+///   drag x1 y1 x2 y2     slow app-relative drag, held 0.3s before release
 ///   audit <name>          accessibility audit (element descriptions, Dynamic Type, contrast); logs each issue
 ///   unlabelled            logs every hittable button without a label (FAIL if any)
 ///   dismiss [label]       a system prompt's button (default Not Now: "Save Password?")
@@ -367,6 +368,18 @@ final class DriverTests: XCTestCase {
             case "left": app.swipeLeft()
             default: app.swipeRight()
             }
+        case "drag":
+            let parts = arg.split(separator: " ")
+            let coordinates = parts.compactMap { Double($0) }
+            guard parts.count == 4, coordinates.count == 4,
+                  coordinates.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else {
+                check(false, "drag needs four coordinates between 0 and 1")
+                return
+            }
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: CGFloat(coordinates[0]), dy: CGFloat(coordinates[1])))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: CGFloat(coordinates[2]), dy: CGFloat(coordinates[3])))
+            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.3)
+            note("drag \(arg): ok")
         case "edge":
             // The system back-swipe: a drag in from the left edge (or the
             // right one with `edge right`), which a centred swipe never is.

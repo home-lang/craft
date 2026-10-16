@@ -65,6 +65,17 @@ describe('package-owned iOS shells', () => {
     expect(() => serializeSimulatorSteps([{ command: 'universallink', url: 'https://example.org\nterminate' }])).toThrow()
   })
 
+  it('serializes controlled drags and rejects coordinates outside the app', () => {
+    expect(serializeSimulatorSteps([
+      { command: 'drag', fromX: 0.6, fromY: 0.32, toX: 0.5, toY: 0.32 },
+    ])).toBe('drag 0.6 0.32 0.5 0.32\n')
+    for (const coordinate of [-0.1, 1.1, NaN, Infinity]) {
+      expect(() => serializeSimulatorSteps([
+        { command: 'drag', fromX: coordinate, fromY: 0.3, toX: 0.5, toY: 0.3 },
+      ])).toThrow()
+    }
+  })
+
   it('bundles an on-device journey with native XCTest evidence and removes it when returning to server mode', () => {
     const output = folder()
     const options = { output, bundleId: 'org.example.app', script: 'activate\nshot current\ntree current\n' }
@@ -110,7 +121,7 @@ describe('package-owned iOS shells', () => {
     initSimulatorDriver({ output, bundleId: 'org.example.app' })
     const source = readFileSync(join(output, 'UITests/DriverTests.swift'), 'utf8')
     const handled = new Set([...source.matchAll(/case "([a-z]+)"/g)].map(match => match[1]))
-    const commands: SimulatorStep['command'][] = ['launch', 'activate', 'terminate', 'home', 'back', 'return', 'unlabelled', 'background', 'wait', 'delay', 'net', 'swipe', 'edge', 'tabbar', 'tapxy', 'field', 'typeid', 'labelid', 'expect', 'expectexact', 'expectid', 'tap', 'tapif', 'tapid', 'tapexact', 'type', 'absent', 'absentid', 'selected', 'tab', 'scrollto', 'dismiss', 'log', 'shot', 'tree', 'audit', 'exec', 'openurl', 'universallink', 'ifid', 'notifications', 'systemexpect', 'systemabsent', 'systemtap', 'systemtree']
+    const commands: SimulatorStep['command'][] = ['launch', 'activate', 'terminate', 'home', 'back', 'return', 'unlabelled', 'background', 'wait', 'delay', 'net', 'swipe', 'drag', 'edge', 'tabbar', 'tapxy', 'field', 'typeid', 'labelid', 'expect', 'expectexact', 'expectid', 'tap', 'tapif', 'tapid', 'tapexact', 'type', 'absent', 'absentid', 'selected', 'tab', 'scrollto', 'dismiss', 'log', 'shot', 'tree', 'audit', 'exec', 'openurl', 'universallink', 'ifid', 'notifications', 'systemexpect', 'systemabsent', 'systemtap', 'systemtree']
     expect(commands.filter(command => !handled.has(command))).toEqual([])
     // ifid re-enters the same dispatcher, so a guarded command is any command.
     expect(source).toContain('func run(_ line: String)')
