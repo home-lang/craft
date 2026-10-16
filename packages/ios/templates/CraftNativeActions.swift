@@ -258,7 +258,10 @@ enum CraftNativeActions {
             sync = .success(currentAppState())
         case ("DeepLinks", "getInitialURL"):
             if config.enableDeepLinks {
-                sync = .success(claimInitialDeepLink().map(deepLinkData) ?? NSNull())
+                DeepLinkManager.shared.resolveInitialURL { url in
+                    complete(requestToken, .success(claimInitialDeepLink(url).map(deepLinkData) ?? NSNull()), completion)
+                }
+                return
             } else {
                 sync = failure("CAPABILITY_DISABLED", "Deep links are disabled")
             }
@@ -809,12 +812,12 @@ enum CraftNativeActions {
         else { task.resume() }
     }
 
-    private static func claimInitialDeepLink() -> URL? {
+    private static func claimInitialDeepLink(_ url: URL?) -> URL? {
         cancellationLock.lock()
         defer { cancellationLock.unlock() }
         guard !initialDeepLinkClaimed else { return nil }
         initialDeepLinkClaimed = true
-        return DeepLinkManager.shared.getInitialURL()
+        return url
     }
 
     private static func complete(

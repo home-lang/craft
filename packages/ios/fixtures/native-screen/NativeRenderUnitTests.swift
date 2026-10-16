@@ -5,6 +5,33 @@ import XCTest
 
 @MainActor
 final class NativeRenderUnitTests: XCTestCase {
+    func testInitialLinkWaitsForLaunchIntentInsteadOfScreenReadiness() {
+        let launch = CraftInitialLinkState()
+        var answers: [URL?] = []
+        launch.resolve { answers.append($0) }
+        XCTAssertTrue(answers.isEmpty)
+        let url = URL(string: "https://hq.training/diego-ruiz")!
+        launch.receive(url)
+        XCTAssertEqual(answers, [url])
+        launch.resolve { answers.append($0) }
+        XCTAssertEqual(answers, [url, url])
+        launch.receive(URL(string: "https://hq.training/pawel")!)
+        XCTAssertEqual(launch.url, url)
+    }
+
+    func testActivationWithoutALaunchLinkDoesNotClaimTheFirstWarmLink() {
+        let launch = CraftInitialLinkState()
+        var answers: [URL?] = []
+        launch.resolve { answers.append($0) }
+        launch.settle()
+        launch.receive(URL(string: "https://hq.training/pawel")!)
+        launch.resolve { answers.append($0) }
+        XCTAssertTrue(launch.settled)
+        XCTAssertNil(launch.url)
+        XCTAssertEqual(answers.count, 2)
+        XCTAssertTrue(answers.allSatisfy { $0 == nil })
+    }
+
     private func capability(
         _ module: String,
         _ method: String,

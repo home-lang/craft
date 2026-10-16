@@ -1105,23 +1105,58 @@ struct CraftSplashView: View {
 }
 
 // MARK: - Deep Link Manager
+/// Launch intent settles when UIKit delivers its URL or completes activation,
+/// independently of when a page or native screen registers its listeners.
+final class CraftInitialLinkState {
+    private(set) var url: URL?
+    private(set) var settled = false
+    private var readers: [(URL?) -> Void] = []
+
+    func receive(_ url: URL) {
+        guard !settled else { return }
+        self.url = url
+        settle()
+    }
+
+    func settle() {
+        guard !settled else { return }
+        settled = true
+        let waiting = readers
+        readers.removeAll()
+        for reader in waiting { reader(url) }
+    }
+
+    func resolve(_ completion: @escaping (URL?) -> Void) {
+        if settled { completion(url) }
+        else { readers.append(completion) }
+    }
+}
+
 class DeepLinkManager {
     static let shared = DeepLinkManager()
 
-    private var initialURL: URL?
+    private let launch = CraftInitialLinkState()
+    private var initialURL: URL? { launch.url }
+    private var activationObservers: [NSObjectProtocol] = []
     // Every link that arrived while no page could receive it, in order. This
     // was a single slot, so a second link before the bridge was ready replaced
     // the first; on a cold start, that could be the link that launched the app.
     private var pendingURLs: [URL] = []
     private weak var webView: WKWebView?
     private var isReady = false
-    // Whether a page has ever become ready. A link that arrives before that is
-    // the one the app was opened with; a link that arrives later is not, and
-    // is no answer to getInitialURL.
+    // Replay bookkeeping only. A native screen can become ready before UIKit
+    // delivers the launch URL; listener readiness cannot classify that URL.
     private var hasBeenReady = false
     private var nativeListeners: [UUID: (URL, Bool) -> Void] = [:]
 
-    private init() {}
+    private init() {
+        for name in [UIApplication.didBecomeActiveNotification, UIApplication.didEnterBackgroundNotification] {
+            activationObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.launch.settle()
+            })
+        }
+        if UIApplication.shared.applicationState == .active { launch.settle() }
+    }
 
     func setWebView(_ webView: WKWebView) {
         self.webView = webView
@@ -1146,9 +1181,7 @@ class DeepLinkManager {
     }
 
     func handleURL(_ url: URL) {
-        if initialURL == nil && !hasBeenReady {
-            initialURL = url
-        }
+        launch.receive(url)
 
         // A hybrid app opens a native path's screen itself, and tells the
         // native screens that listen; every other link is the page's. An
@@ -1177,6 +1210,17 @@ class DeepLinkManager {
 
     func getInitialURL() -> URL? {
         return initialURL
+    }
+
+    /// A foreground scene can draw before SwiftUI delivers its launch activity.
+    /// A headless background launch has no scene or foreground URL to await.
+    func resolveInitialURL(_ completion: @escaping (URL?) -> Void) {
+        let application = UIApplication.shared
+        if application.applicationState == .active ||
+            (application.applicationState == .background && application.connectedScenes.isEmpty) {
+            launch.settle()
+        }
+        launch.resolve(completion)
     }
 
     @discardableResult
