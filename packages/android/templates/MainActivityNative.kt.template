@@ -230,16 +230,16 @@ private data class CraftNativeLayoutStyle(
     companion object {
         fun from(raw: JSONObject, density: Float): CraftNativeLayoutStyle {
             fun length(name: String): CraftNativeLength? = CraftNativeLength.from(raw.opt(name), density)
-            fun number(name: String): Int? {
+            fun numeric(name: String): Double? {
                 if (!raw.has(name) || raw.isNull(name)) return null
-                return raw.optDouble(name, Double.NaN).takeIf { it.isFinite() }?.let { points ->
+                return (raw.opt(name) as? Number)?.toDouble()?.takeIf { it.isFinite() }
+            }
+            fun number(name: String): Int? {
+                return numeric(name)?.let { points ->
                     (points * density).takeIf { it.isFinite() }?.roundToInt()
                 }
             }
-            fun decimal(name: String): Double? {
-                if (!raw.has(name) || raw.isNull(name)) return null
-                return raw.optDouble(name, Double.NaN).takeIf { it.isFinite() }
-            }
+            fun decimal(name: String): Double? = numeric(name)
             val flex = decimal("flex")
             return CraftNativeLayoutStyle(
                 width = length("width"), height = length("height"),
