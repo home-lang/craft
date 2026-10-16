@@ -964,7 +964,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('label.numberOfLines = max(0, (props["numberOfLines"] as? NSNumber)?.intValue ?? 0)')
     expect(ios).toContain('label.lineBreakMode = textLineBreakMode(props["ellipsizeMode"])')
     expect(ios).toContain('case "middle": return .byTruncatingMiddle')
-    expect(android).toContain('maxLines = props.optInt("numberOfLines", 0).takeIf { it > 0 } ?: Int.MAX_VALUE')
+    expect(android).toContain('maxLines = craftNativeInt(props.opt("numberOfLines"), 0).takeIf { it > 0 } ?: Int.MAX_VALUE')
     expect(android).toContain('"middle" -> TextUtils.TruncateAt.MIDDLE')
     expect(android).toContain('"tail" -> TextUtils.TruncateAt.END')
     expect(guide).toContain('`Text` supports positive `numberOfLines` values')
@@ -2846,6 +2846,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('pictureInPicture = craftNativeBoolean(props.opt("pictureInPicture"))')
     expect(android).not.toContain('optBoolean("multiline"')
     expect(android).not.toContain('optBoolean("controls"')
+  })
+
+  it('keeps native text limits numeric at the Android bridge boundary', () => {
+    expect(android).toContain('private fun craftNativeInt(value: Any?, fallback: Int): Int = (value as? Number)?.toInt() ?: fallback')
+    expect(android).toContain('maxLines = craftNativeInt(props.opt("numberOfLines"), 0).takeIf { it > 0 } ?: Int.MAX_VALUE')
+    expect(android).toContain('val maxLength = craftNativeInt(props.opt("maxLength"), 0)')
+    expect(android).not.toContain('props.optInt("maxLength", 0)')
   })
 
   it('keeps malformed Android refresh colors from crashing or inventing a tint', () => {
