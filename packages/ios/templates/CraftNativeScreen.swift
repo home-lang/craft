@@ -3959,6 +3959,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // Each screen says whether it wants the tab bar, so one that hid it
         // never leaves it hidden for the next.
         CraftChrome.shared.setHiddenByScreen(tabBarHidden)
+        CraftChrome.shared.updateTabAccessory(tabAccessory)
         refreshTraitDefaults()
     }
 
@@ -4529,6 +4530,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var statusBarHiddenOverride: Bool?
     /// The app's tab bar away while this screen shows (`tabBarHidden`).
     private var tabBarHidden = false
+    private var tabAccessory: [String: Any]?
     /// Whether a back-swipe may leave this screen at all, the edge's
     /// included (`swipeBack: false`): a screen that steps through its own
     /// pages with a Back of its own (a first-run tour's questions) would
@@ -4575,6 +4577,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         // The app script has no screen, so no bar and no tab bar to change.
         guard !isAppScript else { return }
+        if options.keys.contains("tabAccessory") {
+            tabAccessory = options["tabAccessory"] as? [String: Any]
+            if navigationController?.topViewController === self, view.window != nil {
+                CraftChrome.shared.updateTabAccessory(tabAccessory)
+            }
+        }
         if options.keys.contains("title") {
             navigationItem.title = options["title"] as? String
             titleFromOptions = true

@@ -578,6 +578,11 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     private val largeTitleView = TextView(context)
     private val buttons = LinearLayout(context)
     private val tabBar = LinearLayout(context)
+    private val tabRow = LinearLayout(context)
+    private val accessory = FrameLayout(context)
+    private val accessoryIcon = ImageView(context)
+    private val accessoryBadge = TextView(context)
+    private var accessorySpec: JSONObject? = null
     private val tabViews = mutableListOf<Pair<TextView, TextView>>()
     private val tabIconText = mutableMapOf<String, String>()
     private val tabImageURLs = mutableMapOf<String, String>()
@@ -596,6 +601,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     var onBack: (() -> Unit)? = null
     var onButton: ((String) -> Unit)? = null
     var onTab: ((Int) -> Unit)? = null
+    var onAccessory: ((String) -> Unit)? = null
     var onTabSwipeStart: ((Float, Float, Float) -> Boolean)? = null
     var onTabSwipeMove: ((Float) -> Unit)? = null
     var onTabSwipeEnd: ((Float, Boolean) -> Unit)? = null
@@ -660,8 +666,22 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             tabBar.addView(cell, LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
             tabViews.add(icon to label)
         }
-        addView(tabBar, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)))
-        tabBar.visibility = if (tabs.isEmpty()) View.GONE else View.VISIBLE
+        tabRow.orientation = HORIZONTAL
+        tabRow.gravity = Gravity.CENTER_VERTICAL
+        tabRow.setPadding(dp(12), dp(4), dp(12), dp(4))
+        tabRow.addView(tabBar, LayoutParams(0, dp(64), 1f))
+        accessory.addView(accessoryIcon, FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER))
+        accessoryBadge.textSize = 10f
+        accessoryBadge.gravity = Gravity.CENTER
+        accessoryBadge.setTextColor(Color.WHITE)
+        accessoryBadge.setPadding(dp(4), 0, dp(4), 0)
+        accessoryBadge.background = GradientDrawable().apply { setColor(Color.RED); cornerRadius = dp(9).toFloat() }
+        accessory.addView(accessoryBadge, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(18), Gravity.TOP or Gravity.END))
+        accessory.setOnClickListener { accessorySpec?.optString("path")?.let { onAccessory?.invoke(it) } }
+        accessory.visibility = View.GONE
+        tabRow.addView(accessory, LayoutParams(dp(64), dp(64)).apply { marginStart = dp(8) })
+        addView(tabRow, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72)))
+        tabRow.visibility = if (tabs.isEmpty()) View.GONE else View.VISIBLE
         refreshColors()
     }
 
@@ -671,7 +691,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
                 val overHorizontalScroll = onTabSwipeShouldDefer?.invoke(event.x, event.y) == true
                 horizontalScrollDeferred = overHorizontalScroll
                 if (overHorizontalScroll) parent?.requestDisallowInterceptTouchEvent(true)
-                swipeTracking = tabs.size > 1 && tabSwipeEnabled && !overHorizontalScroll && tabBar.visibility == View.VISIBLE && event.y < tabBar.top
+                swipeTracking = tabs.size > 1 && tabSwipeEnabled && !overHorizontalScroll && tabRow.visibility == View.VISIBLE && event.y < tabRow.top
                 swipeIntercepted = false
                 swipeDownX = event.x
                 swipeDownY = event.y
@@ -742,7 +762,17 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             buttons.addView(navButton(button))
         }
         val tabBarHidden = options.optBoolean("tabBarHidden", false) || depth > 0 && options.optBoolean("tabBarHiddenWhenPushed", false)
-        tabBar.visibility = if (tabs.isEmpty() || tabBarHidden) View.GONE else View.VISIBLE
+        tabRow.visibility = if (tabs.isEmpty() || tabBarHidden) View.GONE else View.VISIBLE
+        accessorySpec = options.optJSONObject("tabAccessory")?.takeIf {
+            val path = it.optString("path")
+            path.startsWith("/") && !path.startsWith("//") && it.has("title")
+        }
+        accessory.visibility = if (accessorySpec == null) View.GONE else View.VISIBLE
+        accessorySpec?.let {
+            accessory.contentDescription = it.optString("accessibilityLabel").ifBlank { it.optString("title") } + it.optString("badge").takeIf { badge -> badge.isNotBlank() && badge != "null" }?.let { badge -> ", $badge" }.orEmpty()
+            accessoryBadge.text = it.optString("badge").takeUnless { badge -> badge == "null" }.orEmpty().take(8)
+            accessoryBadge.visibility = if (accessoryBadge.text.isEmpty()) View.GONE else View.VISIBLE
+        }
         tabSwipeEnabled = options.optBoolean("tabSwipeEnabled", true)
         refreshColors()
     }
@@ -801,13 +831,10 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         titleView.setTextColor(text)
         largeTitleView.setTextColor(text)
         backButton.imageTintList = ColorStateList.valueOf(accent)
-        tabBar.setBackgroundColor(if (dark) Color.parseColor("#121212") else Color.parseColor("#F9F9F9"))
-        val divider = GradientDrawable().apply { setColor(if (dark) Color.parseColor("#262626") else Color.parseColor("#D8D8DC")) }
-        tabBar.foreground = null
-        tabBar.background = android.graphics.drawable.LayerDrawable(arrayOf(
-            divider,
-            GradientDrawable().apply { setColor(if (dark) Color.parseColor("#121212") else Color.parseColor("#F9F9F9")) },
-        )).apply { setLayerInset(1, 0, maxOf(1, (density / 2).toInt()), 0, 0) }
+        val surface = if (dark) Color.parseColor("#1C1C1E") else Color.parseColor("#F9F9F9")
+        tabBar.background = GradientDrawable().apply { setColor(surface); cornerRadius = dp(32).toFloat() }
+        accessory.background = GradientDrawable().apply { setColor(surface); cornerRadius = dp(32).toFloat() }
+        accessorySpec?.let { accessoryIcon.setImageDrawable(CraftNativeIcons.drawable(context, null, it.optString("symbol"), text)) }
         tabViews.forEachIndexed { index, (icon, label) ->
             val color = if (index == selectedTab) accent else muted
             val number = tabIconText[tabs[index].id]

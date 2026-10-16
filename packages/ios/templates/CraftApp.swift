@@ -621,6 +621,7 @@ final class CraftChrome: ObservableObject {
     }
 
     @Published var tabs: [Tab] = []
+    @Published var tabAccessory: Tab?
     @Published var selected: String?
     @Published var tabBarVisible = false
     @Published var splashVisible = true
@@ -688,6 +689,16 @@ final class CraftChrome: ObservableObject {
             tabs[index].badge = (item["badge"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) }
         }
     }
+    /// A destination beside the tab pill, outside the tab stacks and swipe order.
+    func updateTabAccessory(_ item: [String: Any]?) {
+        guard let item, let path = item["path"] as? String,
+              path.hasPrefix("/"), !path.hasPrefix("//"),
+              let title = item["title"] as? String else { tabAccessory = nil; return }
+        tabAccessory = Tab(id: path, title: title, symbol: item["symbol"] as? String ?? "message",
+            badge: (item["badge"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) },
+            accessibilityLabel: item["accessibilityLabel"] as? String)
+    }
+
     func setHiddenByScreen(_ hidden: Bool) {
         guard hiddenByScreen != hidden else { return }
         hiddenByScreen = hidden
@@ -913,7 +924,31 @@ struct CraftTabBarView: View {
 
     var body: some View {
         if chrome.tabBarVisible && !chrome.tabs.isEmpty {
-            bar
+            HStack(spacing: 8) {
+                bar
+                if let accessory = chrome.tabAccessory {
+                    Button { CraftHybrid.shared.open(accessory.id) } label: {
+                        Image(systemName: accessory.symbol)
+                            .font(.system(size: iconSize))
+                            .frame(width: 62, height: 62)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .overlay(alignment: .topTrailing) {
+                                if let badge = accessory.badge {
+                                    Text(badge)
+                                        .font(.system(size: badgeSize, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 4)
+                                        .frame(minWidth: 18, minHeight: 18)
+                                        .background(Capsule().fill(Color.red))
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(accessory.accessibilityLabel ?? accessory.title)
+                    .accessibilityValue(accessory.badge ?? "")
+                    .accessibilityIdentifier("craft-tab-accessory")
+                }
+            }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 4)
                 .background(GeometryReader { proxy in

@@ -3949,6 +3949,7 @@ class MainActivity : AppCompatActivity() {
         val bars = CraftNativeChrome(this, routes.tabs)
         bars.layoutParams = FrameLayout.LayoutParams(-1, -1)
         bars.onBack = { onBackPressedDispatcherCompat() }
+        bars.onAccessory = { path -> navigateOpen(path) }
         bars.onButton = { id -> visibleScreen?.takeIf { it.active }?.let { send(it, "NAV_BUTTON", JSONObject().put("id", id)) } }
         bars.onTab = { index ->
             haptic()
