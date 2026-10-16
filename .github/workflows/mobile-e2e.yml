@@ -150,6 +150,9 @@ jobs:
 
       - name: Test native multi-screen navigation
         id: navigation
+        # Reconciliation and navigation are independent suites. Keep the
+        # navigation evidence when reconciliation fails; the job still fails.
+        if: ${{ !cancelled() && steps.uikit.outcome != 'skipped' }}
         env:
           STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
         run: |
