@@ -4504,6 +4504,8 @@ class MainActivity : AppCompatActivity() {
         val children = node.optJSONArray("children") ?: JSONArray()
         val protocolId = node.optString("id").takeIf { it.isNotBlank() }
         val explicitKey = authoredKey(node, props)
+        // Descendants are scoped to this retained identity, not its sibling
+        // position. Moving a keyed parent must retain its nested inputs too.
         val identity = explicitKey?.let { "${path.substringBeforeLast('.', "")}/$it" }
             ?: protocolId?.let { "id:$it" }
             ?: path
@@ -4783,7 +4785,7 @@ class MainActivity : AppCompatActivity() {
             "Modal" -> (previous as? CraftNativeModalView ?: CraftNativeModalView(this)).apply {
                 transparent = props.optBoolean("transparent", false)
                 content.configure(style, resources.displayMetrics.density)
-                reconcileChildren(screen, content, children, path, next, style, previousControls)
+                reconcileChildren(screen, content, children, identity, next, style, previousControls)
                 // Dynamic :visible bindings arrive as a display style mutation;
                 // static visible props remain authoritative when present.
                 val visible = if (props.has("visible") && !props.isNull("visible")) {
@@ -4828,7 +4830,7 @@ class MainActivity : AppCompatActivity() {
                 configureContainer(this, style)
                 screen.pressActiveOpacities[this] = craftNativeFiniteFloat(props, "activeOpacity", 0.5f)
                 screen.pressBaseOpacities[this] = craftNativeFiniteFloat(style, "opacity", 1f)
-                reconcileChildren(screen, this, children, path, next, style, previousControls)
+                reconcileChildren(screen, this, children, identity, next, style, previousControls)
             }
             "Switch" -> (previous as? Switch ?: Switch(this)).apply {
                 setOnCheckedChangeListener(null)
@@ -4977,7 +4979,7 @@ class MainActivity : AppCompatActivity() {
                 if (onError.isNotBlank()) screen.imageErrorHandlers[image] = onError else screen.imageErrorHandlers.remove(image)
                 updateImage(screen, image, props.opt("source"), props.opt("defaultSource"))
                 configureContainer(content, style)
-                reconcileChildren(screen, content, children, path, next, style, previousControls)
+                reconcileChildren(screen, content, children, identity, next, style, previousControls)
             }
             "Video" -> (previous as? CraftNativeVideoView ?: CraftNativeVideoView(this)).apply {
                 handlers = events
@@ -5098,7 +5100,7 @@ class MainActivity : AppCompatActivity() {
                     val child = children.opt(index)
                     if (child !is JSONObject || canonicalType(child.optString("type")) != "RefreshControl") contentChildren.put(child)
                 }
-                reconcileChildren(screen, content, contentChildren, path, next, contentStyle, previousControls)
+                reconcileChildren(screen, content, contentChildren, identity, next, contentStyle, previousControls)
             }
             "FlatList" -> (previous as? CraftNativeRefreshableFlatList ?: CraftNativeRefreshableFlatList(this)).apply {
                 val nativeList = list
@@ -5112,21 +5114,21 @@ class MainActivity : AppCompatActivity() {
                         ?.hideSoftInputFromWindow(windowToken, 0)
                 }
                 nativeList.overScrollMode = if (props.optBoolean("bounces", true)) View.OVER_SCROLL_ALWAYS else View.OVER_SCROLL_NEVER
-                reconcileFlatList(screen, nativeList, children, path, protocolId ?: path, props, events)
+                reconcileFlatList(screen, nativeList, children, identity, protocolId ?: identity, props, events)
             }
             "View", "SafeAreaView" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 configureContainer(this, style)
                 if (type == "SafeAreaView") setSafeAreaEdges(props.optJSONArray("edges"))
-                reconcileChildren(screen, this, children, path, next, style, previousControls)
+                reconcileChildren(screen, this, children, identity, next, style, previousControls)
             }
             "KeyboardAvoidingView" -> (previous as? CraftNativeKeyboardAvoidingView ?: CraftNativeKeyboardAvoidingView(this)).apply {
                 configure(props, style, resources.displayMetrics.density)
                 setKeyboardInset(keyboardInset)
-                reconcileChildren(screen, content, children, path, next, style, previousControls)
+                reconcileChildren(screen, content, children, identity, next, style, previousControls)
             }
             else -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 configureContainer(this, style)
-                reconcileChildren(screen, this, children, path, next, style, previousControls)
+                reconcileChildren(screen, this, children, identity, next, style, previousControls)
             }
         }
         if (control is CraftNativeFlexLayout) {
