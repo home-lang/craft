@@ -142,7 +142,7 @@ import kotlin.math.pow
 
 private const val CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS = 30_000L
 
-private fun craftNativeOptionalString(value: Any?): String? = value
+internal fun craftNativeOptionalString(value: Any?): String? = value
     ?.takeUnless { it == JSONObject.NULL }
     ?.toString()
     ?.takeUnless { it == "null" || it == "undefined" }
@@ -2515,7 +2515,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
             }
 
             scroller.setOnScrollChangeListener { _, x, y, _, _ ->
-                if (!horizontal) updateStickyHeaders()
+                if (horizontalMode != true) updateStickyHeaders()
                 onScroll?.invoke(x, y)
             }
             scroller.setOnTouchListener { _, event ->
@@ -6222,7 +6222,7 @@ class MainActivity : AppCompatActivity() {
             else -> 400
         }
         view.typeface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            Typeface.create("sans-serif", weight, false)
+            Typeface.create(Typeface.create("sans-serif", Typeface.NORMAL), weight, false)
         } else {
             Typeface.create("sans-serif", if (weight >= 600) Typeface.BOLD else Typeface.NORMAL)
         }
