@@ -956,6 +956,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var overlayCoordinatesByID: [String: [CLLocationCoordinate2D]] = [:]
     private var overlayColors: [ObjectIdentifier: UIColor] = [:]
     private var overlayWidths: [ObjectIdentifier: CGFloat] = [:]
+    private var initialCameraKey: String?
     private(set) var markerHandlers: [String: String] = [:]
     var onMarkerTap: ((String) -> Void)?
 
@@ -1056,10 +1057,25 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             addOverlay(overlay)
         }
 
-        if let region = Self.region(props["region"] ?? props["initialRegion"]) {
+        if let region = Self.region(props["region"]) {
+            // `region` is controlled: an authored change is allowed to move
+            // the camera, even when the map itself was already mounted.
             setRegion(region, animated: false)
+            initialCameraKey = nil
+        } else if let initial = Self.region(props["initialRegion"]) {
+            let key = "region:\(Self.regionKey(initial))"
+            if initialCameraKey != key {
+                setRegion(initial, animated: false)
+                initialCameraKey = key
+            }
         } else if props["fitToBounds"] as? Bool == true {
-            fitToOverlays()
+            let key = "fit:\(Self.overlayKey(markers: nextMarkers.mapValues { $0.coordinate }, polylines: nextPolylines.mapValues { $0.coordinates }))"
+            if initialCameraKey != key {
+                fitToOverlays()
+                initialCameraKey = key
+            }
+        } else {
+            initialCameraKey = nil
         }
     }
 
@@ -1116,6 +1132,25 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         return zip(lhs, rhs).allSatisfy { left, right in
             left.latitude == right.latitude && left.longitude == right.longitude
         }
+    }
+
+    private static func regionKey(_ region: MKCoordinateRegion) -> String {
+        "\(region.center.latitude),\(region.center.longitude),\(region.span.latitudeDelta),\(region.span.longitudeDelta)"
+    }
+
+    private static func overlayKey(
+        markers: [String: CLLocationCoordinate2D],
+        polylines: [String: [CLLocationCoordinate2D]]
+    ) -> String {
+        let markerKey = markers.keys.sorted().compactMap { id in
+            guard let point = markers[id] else { return nil }
+            return "\(id):\(point.latitude),\(point.longitude)"
+        }.joined(separator: "|")
+        let polylineKey = polylines.keys.sorted().compactMap { id in
+            guard let points = polylines[id] else { return nil }
+            return "\(id):" + points.map { "\($0.latitude),\($0.longitude)" }.joined(separator: ";")
+        }.joined(separator: "|")
+        return "m[\(markerKey)]p[\(polylineKey)]"
     }
 
     private static func region(_ value: Any?) -> MKCoordinateRegion? {

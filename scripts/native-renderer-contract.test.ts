@@ -1052,6 +1052,18 @@ describe('native renderer component contract', () => {
     expect(android).toContain('Missing native-screen.js')
   })
 
+  it('does not recenter native maps on every reconciliation', () => {
+    expect(ios).toContain('private var initialCameraKey: String?')
+    expect(ios).toContain('if let region = Self.region(props["region"])')
+    expect(ios).toContain('else if let initial = Self.region(props["initialRegion"])')
+    expect(ios).toContain('Self.overlayKey(markers: nextMarkers.mapValues { $0.coordinate }, polylines: nextPolylines.mapValues { $0.coordinates })')
+    expect(android).toContain('private var initialCameraKey: String? = null')
+    expect(android).toContain('val explicitRegion = region(pendingProps.optJSONObject("region"))')
+    expect(android).toContain('val initialRegion = region(pendingProps.optJSONObject("initialRegion"))')
+    expect(android).toContain('val key = "fit:${overlayKey(nextMarkers, nextPolylines)}"')
+    expect(guide).toContain('an `initialRegion` applied once')
+  })
+
   it('keeps native teardown isolated from the WebView fallback', () => {
     // Native routes own their timers, image requests, capability requests, and
     // observers. A route must release those resources when it disappears, but

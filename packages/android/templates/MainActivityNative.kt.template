@@ -559,6 +559,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
     private var onMarkerTap: ((String) -> Unit)? = null
     private var lifecycleStarted = false
     private var destroyed = false
+    private var initialCameraKey: String? = null
 
     init {
         addView(mapView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -664,12 +665,45 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
                 map.addPolyline(PolylineOptions().addAll(value.first).color(value.second).width(value.third))?.let { polylines[id] = it }
             }
         }
-        if (pendingProps.optBoolean("fitToBounds", false)) fitToBounds()
-        region(pendingProps.optJSONObject("region") ?: pendingProps.optJSONObject("initialRegion"))?.let { bounds ->
-            post {
-                if (width > 0 && height > 0) map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 24))
+        val explicitRegion = region(pendingProps.optJSONObject("region"))
+        val initialRegion = region(pendingProps.optJSONObject("initialRegion"))
+        if (explicitRegion != null) {
+            moveCamera(explicitRegion)
+            initialCameraKey = null
+        } else if (initialRegion != null) {
+            val key = "region:${pendingProps.optJSONObject("initialRegion")}"
+            if (initialCameraKey != key) {
+                moveCamera(initialRegion)
+                initialCameraKey = key
             }
+        } else if (pendingProps.optBoolean("fitToBounds", false)) {
+            val key = "fit:${overlayKey(nextMarkers, nextPolylines)}"
+            if (initialCameraKey != key) {
+                fitToBounds()
+                initialCameraKey = key
+            }
+        } else {
+            initialCameraKey = null
         }
+    }
+
+    private fun moveCamera(bounds: LatLngBounds) {
+        post {
+            if (width > 0 && height > 0) googleMap?.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 24))
+        }
+    }
+
+    private fun overlayKey(
+        markers: Map<String, Pair<LatLng, String?>>,
+        polylines: Map<String, Triple<List<LatLng>, Int, Float>>,
+    ): String {
+        val markerKey = markers.toSortedMap().entries.joinToString("|") { (id, value) ->
+            "$id:${value.first.latitude},${value.first.longitude}"
+        }
+        val polylineKey = polylines.toSortedMap().entries.joinToString("|") { (id, value) ->
+            "$id:" + value.first.joinToString(";") { point -> "${point.latitude},${point.longitude}" }
+        }
+        return "m[$markerKey]p[$polylineKey]"
     }
 
     private fun fitToBounds() {
