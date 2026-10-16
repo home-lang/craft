@@ -2457,6 +2457,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val propRefresh = props.optJSONObject("refreshControl") ?: JSONObject()')
     expect(android).toContain('setRefreshAppearance(propRefresh)')
     expect(androidRefreshableFlatList).toContain('fun setRefreshAppearance(props: JSONObject)')
+    expect(androidRefreshableFlatList).toContain('runCatching { craftNativeColor(it) }.getOrDefault(Color.WHITE)')
     expect(androidRefreshableFlatList).toContain('SwipeRefreshLayout')
     expect(androidRefreshableFlatList).toContain('isRefreshing = handler != null && refreshing')
     expect(androidRefreshableFlatList).toContain('isRefreshing = false')

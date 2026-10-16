@@ -25,7 +25,8 @@ internal class CraftNativeRefreshableFlatList(context: Context) : SwipeRefreshLa
 
     fun setRefreshAppearance(props: JSONObject) {
         val tint = props.optString("tintColor").takeIf { it.isNotBlank() }
-        setColorSchemeColors(tint?.let(::craftNativeColor) ?: Color.WHITE)
+        val resolved = tint?.let { runCatching { craftNativeColor(it) }.getOrDefault(Color.WHITE) } ?: Color.WHITE
+        setColorSchemeColors(resolved)
     }
 
     override fun onDetachedFromWindow() {
