@@ -4,8 +4,8 @@ import XCTest
 
 @MainActor
 final class HybridNavigationUnitTests: XCTestCase {
-    private func wait(until condition: () -> Bool) async -> Bool {
-        let deadline = Date().addingTimeInterval(15)
+    private func wait(timeout: TimeInterval = 15, until condition: () -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
         while !condition(), Date() < deadline {
             try? await Task.sleep(nanoseconds: 10_000_000)
         }
@@ -14,7 +14,9 @@ final class HybridNavigationUnitTests: XCTestCase {
 
     func testSlowWebPushRetainsIncomingContentUntilThePageArrives() async throws {
         let hybrid = CraftHybrid.shared
-        let ready = await wait {
+        // Match the cold-start UI fixtures: a hosted simulator's first WebKit
+        // network/privacy initialization can take over 45 seconds.
+        let ready = await wait(timeout: 120) {
             hybrid.pageReady && hybrid.controller != nil && !CraftChrome.shared.splashVisible
         }
         XCTAssertTrue(ready, "the real fixture page must load before navigation")
