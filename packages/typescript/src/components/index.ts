@@ -1066,14 +1066,21 @@ export const StyleSheet = {
   },
 
   /**
-   * Flatten an array of styles into a single object.
+   * Flatten nested style arrays and ignore falsy conditional entries.
    */
   flatten<T>(style: T | T[] | undefined): T | undefined {
     if (!style) return undefined
-    if (Array.isArray(style)) {
-      return Object.assign({}, ...style)
+    const flattened: Record<string, unknown> = {}
+    const merge = (value: unknown): void => {
+      if (!value) return
+      if (Array.isArray(value)) {
+        value.forEach(merge)
+        return
+      }
+      if (typeof value === 'object') Object.assign(flattened, value)
     }
-    return style
+    merge(style)
+    return flattened as T
   },
 
   /**

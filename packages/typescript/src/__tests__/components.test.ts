@@ -273,14 +273,12 @@ describe('Component System', () => {
     })
 
     it('should handle nested arrays in flatten', () => {
-      // Note: Current implementation doesn't recursively flatten nested arrays
-      // Just test that it merges top-level styles
       const styles = StyleSheet.flatten([
         { flex: 1 },
-        { padding: 16 },
-        { margin: 8 },
-        { backgroundColor: 'white' }
-      ] as Record<string, unknown>[])
+        [{ padding: 16 }, [false, { margin: 8 }]],
+        undefined,
+        { backgroundColor: 'white' },
+      ] as any)
 
       expect(styles).toEqual({
         flex: 1,
@@ -297,7 +295,7 @@ describe('Component System', () => {
         undefined,
         false && { padding: 16 },
         { margin: 8 }
-      ] as Array<Record<string, unknown> | null | undefined | false>)
+      ] as any)
 
       expect(styles).toEqual({
         flex: 1,

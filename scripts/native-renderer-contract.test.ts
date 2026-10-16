@@ -150,6 +150,12 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<ActivityIndicator testID="scaled-indicator"')
   })
 
+  it('keeps composed native styles recursively flattenable', () => {
+    expect(componentTypes).toContain('const merge = (value: unknown): void =>')
+    expect(componentTypes).toContain('value.forEach(merge)')
+    expect(componentTypes).toContain('if (!value) return')
+  })
+
   it('exposes the semantic accessibility roles handled by both hosts', () => {
     expect(componentTypes).toContain("| 'adjustable'")
     expect(componentTypes).toContain("| 'checkbox'")
