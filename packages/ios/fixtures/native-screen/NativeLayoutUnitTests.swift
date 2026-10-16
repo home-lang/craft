@@ -480,6 +480,10 @@ final class NativeLayoutUnitTests: XCTestCase {
         config.enableSecureStorage = true
         let controller = screen(box("root"), config: config)
 
+        // JavaScriptCore has no DOM window, but browser-safe SDK bridges use
+        // window.craft. The native prelude supplies that compatibility alias.
+        XCTAssertTrue(controller.evaluateScript("window === globalThis")?.toBool() == true)
+
         // The runtime assigns craft.storage after the host installs it; the
         // synchronous calls survive that.
         controller.evaluateScript("globalThis.craft.storage = { get: function() {} };")

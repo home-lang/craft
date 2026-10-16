@@ -91,6 +91,7 @@ describe('native renderer component contract', () => {
   it('keeps browser-safe capability bridges reachable in DOM-free hosts', () => {
     expect(ios).toContain('if (typeof globalThis.window === "undefined") { globalThis.window = globalThis; }')
     expect(androidChrome).toContain("if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;")
+    expect(iosLayoutUnitTests).toContain('XCTAssertTrue(controller.evaluateScript("window === globalThis")?.toBool() == true)')
   })
 
   it('documents the DOM-free window alias and preserves the WebView boundary', () => {
