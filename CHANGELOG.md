@@ -6,6 +6,8 @@
 
 - **native**: keep iOS map overlay colors aligned with Android CSS colors
 - **native**: schedule iOS `onLayout` delivery after targeted geometry mutations
+- **native**: align per-edge dashed and dotted borders across iOS and Android
+- **native**: align linear-gradient directions and stops across native hosts
 - **native**: canonicalize renderer node aliases ([ca12954](https://github.com/craft-native/craft/commit/ca12954)) _(by glennmichael123)_
 - **ios**: keep slow hybrid pages visible until they commit ([77fc683](https://github.com/craft-native/craft/commit/77fc683)) _(by Chris Breuer)_
 - **ios**: pair simulator runtimes with the selected Xcode SDK ([cdda65f](https://github.com/craft-native/craft/commit/cdda65f)) _(by Chris Breuer)_

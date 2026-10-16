@@ -425,7 +425,13 @@ type:
 - `padding`, its four side properties, `paddingHorizontal`, and
   `paddingVertical`;
 - `backgroundColor`, `opacity`, `borderWidth`, `borderColor`, `borderRadius`,
-  `overflow: 'hidden'`, and `display: 'none'`;
+  per-edge `borderTop*`/`borderRight*`/`borderBottom*`/`borderLeft*` values,
+  `borderStyle` (`solid`, `dashed`, or `dotted`), `overflow: 'hidden'`, and
+  `display: 'none'`;
+- linear gradients with `gradientDirection` (`to-t`, `to-tr`, `to-r`,
+  `to-br`, `to-b`, `to-bl`, `to-l`, or `to-tl`), `gradientFrom`, optional
+  `gradientVia`, and `gradientTo`; both hosts follow the same stops and
+  direction while retaining authored corners and borders;
 - for text: `color`, `fontFamily`, `fontSize`, `fontStyle`, `fontWeight`,
   `letterSpacing`, `lineHeight`, `textAlign`, `textDecorationLine`, and
   `textTransform`;
