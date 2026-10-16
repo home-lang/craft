@@ -3458,6 +3458,11 @@ class MainActivity : AppCompatActivity() {
         routes = CraftNativeRoutes(config)
         stores = CraftNativeStores.get(this, config)
         services = CraftNativeServices(this, config) { this }
+        if (savedInstanceState == null && intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0 && intent.data?.let { CraftAppLinks.opensInBrowser(config, it) } == true) {
+            CraftAppLinks.openBrowser(this, intent.data!!)
+            finish()
+            return
+        }
         services.onBackgroundComplete = { ok, id ->
             if (id == null) {
                 val waiting = backgroundWaiters.values.toList()
@@ -6182,6 +6187,10 @@ class MainActivity : AppCompatActivity() {
         }
         intent.data?.let { link ->
             if (::services.isInitialized && services.deepLink(link)) return
+            if (CraftAppLinks.opensInBrowser(config, link)) {
+                CraftAppLinks.openBrowser(this, link)
+                return
+            }
             publish("DEEP_LINK", deepLinkData(link).put("initial", false))
             if (::routes.isInitialized && !routes.isEmpty) routes.appPath(link.toString(), urlSchemes)?.let { navigateOpen(it, fromLink = true) }
         }
