@@ -256,16 +256,9 @@ private data class CraftNativeLayoutStyle(
                 aspectRatio = decimal("aspectRatio")?.takeIf { it.isFinite() && it > 0.0 },
                 minWidth = length("minWidth"), maxWidth = length("maxWidth"),
                 minHeight = length("minHeight"), maxHeight = length("maxHeight"),
-                position = raw.opt("position")
-                    ?.takeUnless { it == JSONObject.NULL }
-                    ?.toString()
-                    ?.takeIf { it.isNotBlank() }
-                    ?: "relative",
+                position = craftNativeOptionalString(raw.opt("position")) ?: "relative",
                 top = number("top"), right = number("right"), bottom = number("bottom"), left = number("left"),
-                alignSelf = raw.opt("alignSelf")
-                    ?.takeUnless { it == JSONObject.NULL }
-                    ?.toString()
-                    ?.takeIf { it.isNotBlank() && it != "auto" },
+                alignSelf = craftNativeOptionalString(raw.opt("alignSelf"))?.takeUnless { it == "auto" },
                 flexGrow = decimal("flexGrow") ?: flex?.coerceAtLeast(0.0) ?: 0.0,
                 flexShrink = decimal("flexShrink") ?: flex?.let { if (it != 0.0) 1.0 else 0.0 },
                 flexBasis = length("flexBasis")

@@ -1905,7 +1905,7 @@ describe('native renderer component contract', () => {
 
   it('inherits parent alignment when alignSelf is auto on both hosts', () => {
     expect(ios).toContain('alignSelf = align == "auto" ? nil : align')
-    expect(android).toContain('it.isNotBlank() && it != "auto"')
+    expect(android).toContain('alignSelf = craftNativeOptionalString(raw.opt("alignSelf"))?.takeUnless { it == "auto" }')
     expect(android).toContain('entry.style.alignSelf ?: alignItems')
   })
 
@@ -2708,6 +2708,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('if (craftNativeOptionalString(style.opt("flexDirection"))?.endsWith("-reverse") == true) desired.reverse()')
     expect(android).toContain('val flexDirection = craftNativeOptionalString(style.opt("flexDirection")).orEmpty()')
     expect(android).toContain('when (craftNativeOptionalString(props.opt("textAnchor")))')
+    expect(android).toContain('position = craftNativeOptionalString(raw.opt("position")) ?: "relative"')
+    expect(android).toContain('alignSelf = craftNativeOptionalString(raw.opt("alignSelf"))?.takeUnless { it == "auto" }')
     expect(ios).toContain('if (style["flexDirection"] as? String)?.hasSuffix("-reverse") == true')
   })
 
