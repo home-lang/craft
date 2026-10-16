@@ -1615,8 +1615,11 @@ describe('native renderer component contract', () => {
   it('maps dashed and dotted border styles on both native hosts', () => {
     expect(ios).toContain('fileprivate func craftApplyBorderStyle(_ style: String?, width: CGFloat, color: UIColor)')
     expect(ios).toContain('border.lineDashPattern = style == "dotted"')
+    expect(ios).toContain('shape.lineDashPattern = style == "dotted"')
     expect(android).toContain('"dashed" -> setStroke(dp(border), borderColor, dp(border * 3).toFloat(), dp(border * 2).toFloat())')
     expect(android).toContain('"dotted" -> setStroke(dp(border), borderColor, dp(border).toFloat(), dp(border * 1.5).toFloat())')
+    expect(android).toContain('private val borderStyle: String?')
+    expect(android).toContain('DashPathEffect(floatArrayOf(width.toFloat(), width * 1.5f), 0f)')
     expect(navigationHome).toContain('"borderStyle":"dashed"')
   })
 
@@ -1635,8 +1638,11 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('fileprivate func craftApplySideBorders(_ hasSideBorders: Bool')
     expect(ios).toContain('sideWidthKeys.map { number(style[$0]) ?? borderWidth }')
     expect(android).toContain('CraftNativeSideBorderDrawable(')
+    expect(android).toContain('style.optString("borderStyle").takeIf { it == "dashed" || it == "dotted" }')
     expect(android).toContain('borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"')
     expect(navigationHome).toContain('testID="side-border"')
+    expect(navigationHome).toContain('testID="side-border" style={{"width":120,"height":24,"borderTopWidth":3')
+    expect(navigationHome).toContain('"borderStyle":"dotted"')
   })
 
   it('maps per-corner radii on both native hosts', () => {

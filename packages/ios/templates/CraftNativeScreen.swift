@@ -1373,11 +1373,30 @@ extension UIView {
             let right = sides[1].frame.width
             let bottom = sides[2].frame.height
             let left = sides[3].frame.width
-            sides[0].frame = CGRect(x: 0, y: 0, width: bounds.width, height: top)
-            sides[1].frame = CGRect(x: max(0, bounds.width - right), y: 0, width: right, height: bounds.height)
-            sides[2].frame = CGRect(x: 0, y: max(0, bounds.height - bottom), width: bounds.width, height: bottom)
-            sides[3].frame = CGRect(x: 0, y: 0, width: left, height: bounds.height)
+            let frames = [
+                CGRect(x: 0, y: 0, width: bounds.width, height: top),
+                CGRect(x: max(0, bounds.width - right), y: 0, width: right, height: bounds.height),
+                CGRect(x: 0, y: max(0, bounds.height - bottom), width: bounds.width, height: bottom),
+                CGRect(x: 0, y: 0, width: left, height: bounds.height),
+            ]
+            for (index, side) in sides.enumerated() {
+                side.frame = frames[index]
+                if let shape = side as? CAShapeLayer {
+                    shape.path = craftSideBorderPath(shape.bounds, index: index)
+                }
+            }
         }
+    }
+
+    private func craftSideBorderPath(_ bounds: CGRect, index: Int) -> CGPath {
+        let path = UIBezierPath()
+        switch index {
+        case 0: path.move(to: CGPoint(x: bounds.minX, y: bounds.midY)); path.addLine(to: CGPoint(x: bounds.maxX, y: bounds.midY))
+        case 1: path.move(to: CGPoint(x: bounds.midX, y: bounds.minY)); path.addLine(to: CGPoint(x: bounds.midX, y: bounds.maxY))
+        case 2: path.move(to: CGPoint(x: bounds.minX, y: bounds.midY)); path.addLine(to: CGPoint(x: bounds.maxX, y: bounds.midY))
+        default: path.move(to: CGPoint(x: bounds.midX, y: bounds.minY)); path.addLine(to: CGPoint(x: bounds.midX, y: bounds.maxY))
+        }
+        return path.cgPath
     }
 
     fileprivate func craftApplyBorderStyle(_ style: String?, width: CGFloat, color: UIColor) {
@@ -1412,6 +1431,7 @@ extension UIView {
         (objc_getAssociatedObject(self, &craftNativeBorderLayerKey) as? CAShapeLayer)?.removeFromSuperlayer()
         objc_setAssociatedObject(self, &craftNativeBorderLayerKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         layer.borderWidth = 0
+        (objc_getAssociatedObject(self, &craftNativeSideBorderLayersKey) as? [CALayer])?.forEach { $0.removeFromSuperlayer() }
         let top = max(0, widths.count > 0 ? widths[0] : 0)
         let right = max(0, widths.count > 1 ? widths[1] : 0)
         let bottom = max(0, widths.count > 2 ? widths[2] : 0)
@@ -1423,9 +1443,25 @@ extension UIView {
             CGRect(x: 0, y: 0, width: left, height: bounds.height),
         ]
         let layers = frames.enumerated().map { index, frame in
-            let side = CALayer()
+            let side: CALayer
+            if style == "dashed" || style == "dotted" {
+                let shape = CAShapeLayer()
+                shape.strokeColor = (colors.count > index ? colors[index] : .clear).cgColor
+                shape.fillColor = nil
+                shape.lineWidth = index % 2 == 0 ? frame.height : frame.width
+                shape.lineCap = style == "dotted" ? .round : .butt
+                shape.lineDashPattern = style == "dotted"
+                    ? [NSNumber(value: Double(shape.lineWidth)), NSNumber(value: Double(shape.lineWidth * 1.5))]
+                    : [NSNumber(value: Double(shape.lineWidth * 3)), NSNumber(value: Double(shape.lineWidth * 2))]
+                shape.contentsScale = window?.screen.scale ?? traitCollection.displayScale
+                shape.frame = frame
+                shape.path = craftSideBorderPath(shape.bounds, index: index)
+                side = shape
+            } else {
+                side = CALayer()
+                side.backgroundColor = (colors.count > index ? colors[index] : .clear).cgColor
+            }
             side.frame = frame
-            side.backgroundColor = (colors.count > index ? colors[index] : .clear).cgColor
             layer.addSublayer(side)
             return side
         }

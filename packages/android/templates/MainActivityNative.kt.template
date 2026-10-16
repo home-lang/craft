@@ -3254,6 +3254,7 @@ private class CraftNativeSideBorderDrawable(
     private val radii: FloatArray,
     private val widths: IntArray,
     private val colors: IntArray,
+    private val borderStyle: String?,
 ) : Drawable() {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -3269,10 +3270,33 @@ private class CraftNativeSideBorderDrawable(
         val right = widths.getOrElse(1) { 0 }
         val bottom = widths.getOrElse(2) { 0 }
         val left = widths.getOrElse(3) { 0 }
-        if (top > 0) { paint.color = colors.getOrElse(0) { Color.TRANSPARENT }; canvas.drawRect(bounds.left, bounds.top, bounds.right, bounds.top + top, paint) }
-        if (right > 0) { paint.color = colors.getOrElse(1) { Color.TRANSPARENT }; canvas.drawRect(bounds.right - right, bounds.top, bounds.right, bounds.bottom, paint) }
-        if (bottom > 0) { paint.color = colors.getOrElse(2) { Color.TRANSPARENT }; canvas.drawRect(bounds.left, bounds.bottom - bottom, bounds.right, bounds.bottom, paint) }
-        if (left > 0) { paint.color = colors.getOrElse(3) { Color.TRANSPARENT }; canvas.drawRect(bounds.left, bounds.top, bounds.left + left, bounds.bottom, paint) }
+        if (borderStyle == "dashed" || borderStyle == "dotted") {
+            paint.style = Paint.Style.STROKE
+            paint.strokeCap = if (borderStyle == "dotted") Paint.Cap.ROUND else Paint.Cap.BUTT
+            paint.pathEffect = null
+            fun drawEdge(index: Int, width: Int, startX: Float, startY: Float, endX: Float, endY: Float) {
+                if (width <= 0) return
+                paint.color = colors.getOrElse(index) { Color.TRANSPARENT }
+                paint.strokeWidth = width.toFloat()
+                paint.pathEffect = if (borderStyle == "dotted") {
+                    DashPathEffect(floatArrayOf(width.toFloat(), width * 1.5f), 0f)
+                } else {
+                    DashPathEffect(floatArrayOf(width * 3f, width * 2f), 0f)
+                }
+                canvas.drawLine(startX, startY, endX, endY, paint)
+            }
+            drawEdge(0, top, bounds.left, bounds.top + top / 2f, bounds.right, bounds.top + top / 2f)
+            drawEdge(1, right, bounds.right - right / 2f, bounds.top, bounds.right - right / 2f, bounds.bottom)
+            drawEdge(2, bottom, bounds.left, bounds.bottom - bottom / 2f, bounds.right, bounds.bottom - bottom / 2f)
+            drawEdge(3, left, bounds.left + left / 2f, bounds.top, bounds.left + left / 2f, bounds.bottom)
+            paint.pathEffect = null
+        } else {
+            paint.style = Paint.Style.FILL
+            if (top > 0) { paint.color = colors.getOrElse(0) { Color.TRANSPARENT }; canvas.drawRect(bounds.left, bounds.top, bounds.right, bounds.top + top, paint) }
+            if (right > 0) { paint.color = colors.getOrElse(1) { Color.TRANSPARENT }; canvas.drawRect(bounds.right - right, bounds.top, bounds.right, bounds.bottom, paint) }
+            if (bottom > 0) { paint.color = colors.getOrElse(2) { Color.TRANSPARENT }; canvas.drawRect(bounds.left, bounds.bottom - bottom, bounds.right, bounds.bottom, paint) }
+            if (left > 0) { paint.color = colors.getOrElse(3) { Color.TRANSPARENT }; canvas.drawRect(bounds.left, bounds.top, bounds.left + left, bounds.bottom, paint) }
+        }
     }
 
     override fun setAlpha(alpha: Int) { paint.alpha = alpha; invalidateSelf() }
@@ -5561,6 +5585,7 @@ class MainActivity : AppCompatActivity() {
                     cornerRadii,
                     sideWidths,
                     sideColors,
+                    style.optString("borderStyle").takeIf { it == "dashed" || it == "dotted" },
                 )
             } else {
                 view.background = GradientDrawable().apply {

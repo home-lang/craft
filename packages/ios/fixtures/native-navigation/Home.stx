@@ -582,7 +582,7 @@ function toggleSafeAreaEdges() {
       <Text testID="styled-first" style={{"width":70,"color":"#fedcba","fontSize":21,"fontWeight":"700","fontStyle":"italic","textAlign":"right","letterSpacing":1,"lineHeight":26,"textTransform":"uppercase","textDecorationLine":"underline","textDecorationStyle":"dotted","textDecorationColor":"#22c55e"}}>first</Text>
       <Text testID="styled-second" style={{"width":70}}>second</Text>
     </View>
-    <View testID="side-border" style={{"width":120,"height":24,"borderTopWidth":3,"borderRightWidth":2,"borderBottomWidth":1,"borderLeftWidth":4,"borderTopColor":"#ef4444","borderRightColor":"#f59e0b","borderBottomColor":"#22c55e","borderLeftColor":"#3b82f6"}} />
+    <View testID="side-border" style={{"width":120,"height":24,"borderTopWidth":3,"borderRightWidth":2,"borderBottomWidth":1,"borderLeftWidth":4,"borderTopColor":"#ef4444","borderRightColor":"#f59e0b","borderBottomColor":"#22c55e","borderLeftColor":"#3b82f6","borderStyle":"dotted"}} />
     <View testID="corner-radii" style={{"width":120,"height":24,"backgroundColor":"#475569","borderTopLeftRadius":2,"borderTopRightRadius":6,"borderBottomRightRadius":10,"borderBottomLeftRadius":14}} />
     <Text testID="justified-text" style={{"width":240,"textAlign":"justify"}}>A justified native paragraph exercises shared text alignment.</Text>
     <View testID="grid-wrap" style={{"display":"grid","gridTemplateColumns":"repeat(2, 1fr)","gridAutoRows":28,"columnGap":6,"rowGap":4,"width":240,"padding":4,"backgroundColor":"#334455"}}>
