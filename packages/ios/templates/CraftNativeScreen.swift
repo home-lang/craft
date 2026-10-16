@@ -1140,7 +1140,9 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         case "orange": return .systemOrange
         case "purple": return .systemPurple
         case "yellow": return .systemYellow
-        default: return .systemBlue
+        default:
+            guard let value else { return .systemBlue }
+            return UIColor(css: value) ?? UIColor(hex: value) ?? .systemBlue
         }
     }
 

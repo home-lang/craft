@@ -304,6 +304,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('fitToOverlays()')
     expect(ios).toContain('overlayWidths[ObjectIdentifier(overlay)] = value.width')
     expect(ios).toContain('renderer.lineWidth = overlayWidths[ObjectIdentifier(overlay)] ?? 3')
+    expect(ios).toContain('return UIColor(css: value) ?? UIColor(hex: value) ?? .systemBlue')
     expect(ios).toContain('let staleOverlays = overlaysByID.keys.filter { nextPolylines[$0] == nil }')
     expect(ios).toContain('Self.coordinatesEqual(coordinates, value.coordinates)')
     expect(ios).toContain('overlayCoordinatesByID[id] = value.coordinates')
