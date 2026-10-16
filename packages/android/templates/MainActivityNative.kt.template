@@ -4961,7 +4961,9 @@ class MainActivity : AppCompatActivity() {
                 val title = craftNativeOptionalString(props.opt("title")) ?: childText(children)
                 isAllCaps = false
                 configureText(this, title, style)
-                craftNativeOptionalString(props.opt("color"))?.let { setTextColor(color(it, defaultTextColor)) }
+                val buttonColor = craftNativeOptionalString(props.opt("color"))
+                    ?: craftNativeOptionalString(style.opt("color"))
+                setTextColor(buttonColor?.let { color(it, defaultTextColor) } ?: defaultTextColor)
                 isEnabled = !props.optBoolean("disabled", false)
                 val handler = craftNativeEventName(events, "onPress", "onClick")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)

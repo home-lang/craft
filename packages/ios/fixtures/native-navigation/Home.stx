@@ -51,6 +51,7 @@ const intrinsicImageWidth = state(0)
 const intrinsicImageHeight = state(0)
 const intrinsicImageStatus = state('intrinsic image pending')
 const buttonAccent = state(false)
+const buttonPropColor = state(false)
 const buttonPadded = state(false)
 const inputPadded = state(false)
 const iconSized = state(false)
@@ -264,6 +265,11 @@ function toggleIntrinsicImage() {
 function toggleButtonAccent() {
   buttonAccent.update(value => !value)
   status.set(buttonAccent() ? 'button style accented' : 'button style default')
+}
+
+function toggleButtonPropColor() {
+  buttonPropColor.update(value => !value)
+  status.set(buttonPropColor() ? 'button prop accented' : 'button prop default')
 }
 
 function toggleButtonPadding() {
@@ -716,6 +722,7 @@ function toggleScreenBackground() {
     <Button testID="toggle-long-press-accessibility" @click="toggleLongPressAccessibility()">Toggle long press accessibility</Button>
     <Text testID="long-press-status" :text="longPressStatus" />
     <Button testID="toggle-button-style" accessibilityState={buttonAccessibilityState()} @click="toggleButtonAccent()" style={{"color":buttonAccent ? "#ef4444" : "#22c55e","fontSize":buttonAccent ? 22 : 16}}>Toggle button style</Button>
+    <Button testID="toggle-button-prop-color" :color="buttonPropColor ? '#ef4444' : null" @click="toggleButtonPropColor()">Toggle button prop color</Button>
     <Button testID="toggle-button-padding" @click="toggleButtonPadding()" style={{"paddingHorizontal":buttonPadded ? 32 : null}}>Toggle button padding</Button>
     <Button testID="toggle-input-padding" @click="toggleInputPadding()">Toggle input padding</Button>
     <Button testID="toggle-icon-size" @click="toggleIconSize()">Toggle icon size</Button>

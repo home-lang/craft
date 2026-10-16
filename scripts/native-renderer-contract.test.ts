@@ -933,7 +933,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('let titleColor = color(props["color"]) ?? color(style["color"]) ?? .systemBlue')
     expect(ios).toContain('button.contentHorizontalAlignment = buttonAlignment(style["textAlign"])')
     expect(android).toContain('configureText(this, title, style)')
-    expect(android).toContain('craftNativeOptionalString(props.opt("color"))?.let { setTextColor(color(it, defaultTextColor)) }')
+    expect(android).toContain('val buttonColor = craftNativeOptionalString(props.opt("color"))')
+    expect(android).toContain('setTextColor(buttonColor?.let { color(it, defaultTextColor) } ?: defaultTextColor)')
     expect(android).toContain('val linkColor = craftNativeOptionalString(props.opt("color")) ?: craftNativeOptionalString(style.opt("color"))')
     expect(android).toContain('setTextColor(color(linkColor.orEmpty(), Color.rgb(33, 150, 243)))')
     expect(android).toContain('(previous as? TextView)?.takeUnless { it is Button } ?: TextView(this)')
@@ -1077,6 +1078,14 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('app.staticTexts["button style default"]')
     expect(iosNavigationTest).toContain('XCTAssertFalse(styleToggle.isSelected)')
     expect(guide).toContain('`Button.color` and `Link.color` set the native action-label color')
+  })
+
+  it('resets a removed direct Android Button color on retained controls', () => {
+    expect(android).toContain('val buttonColor = craftNativeOptionalString(props.opt("color"))')
+    expect(android).toContain('?: craftNativeOptionalString(style.opt("color"))')
+    expect(android).toContain('setTextColor(buttonColor?.let { color(it, defaultTextColor) } ?: defaultTextColor)')
+    expect(navigationHome).toContain('testID="toggle-button-prop-color"')
+    expect(androidNavigationTest).toContain('removing the direct button color did not restore the baseline')
   })
 
   it('keeps native Checkbox state and change events aligned across hosts', () => {
