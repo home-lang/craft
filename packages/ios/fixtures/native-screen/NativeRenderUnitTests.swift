@@ -805,6 +805,10 @@ final class NativeRenderUnitTests: XCTestCase {
 
         list.setRefreshHandler({ refreshCount += 1 }, refreshing: true)
         XCTAssertTrue(control.isRefreshing)
+        list.setRefreshAppearance(["tintColor": "#22c55e"])
+        XCTAssertEqual(control.tintColor, UIColor(hex: "#22c55e"))
+        list.setRefreshAppearance([:])
+        XCTAssertNil(control.tintColor)
         list.setRefreshHandler({ refreshCount += 1 }, refreshing: false)
         XCTAssertFalse(control.isRefreshing)
         list.setRefreshHandler(nil, refreshing: false)
