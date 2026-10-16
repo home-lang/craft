@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.217...v0.0.218)
+
+## 🐛 Bug Fixes
+
+- **test**: reject empty native renderer selections ([70a7a83](https://github.com/craft-native/craft/commit/70a7a83)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **mobile**: retain and finalize iOS simulator frame recordings ([a3d1609](https://github.com/craft-native/craft/commit/a3d1609)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.216...v0.0.217)
 
 ## 🐛 Bug Fixes
