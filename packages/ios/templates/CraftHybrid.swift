@@ -1243,6 +1243,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
                 target.view.isHidden = true
                 target.view.frame = self.view.bounds
                 current.view.frame = self.view.bounds
+                (current.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(true)
                 if target.topViewController is CraftHybridWebSlot,
                    current.topViewController is CraftNativeScreenController {
                     self.parkWeb()
@@ -1272,6 +1273,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             recognizer.isEnabled = true
         }
         CraftChrome.shared.cancelTabSwipe(restoringSelection: restoringSelection)
+        (visibleStack?.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(true)
         if visibleStack?.topViewController is CraftNativeScreenController { parkWeb() }
     }
 
