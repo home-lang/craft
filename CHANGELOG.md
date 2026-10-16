@@ -21,6 +21,7 @@
 
 ## 📚 Documentation
 
+- **native**: synchronize the STX compiler pin in the native guide with mobile CI
 - synchronize verified native release candidate notes ([6345912](https://github.com/craft-native/craft/commit/6345912)) _(by Chris Breuer)_
 - **native**: document shared transforms and shadows ([4e065e1](https://github.com/craft-native/craft/commit/4e065e1)) _(by glennmichael123)_
 - record cold simulator startup verification ([6177834](https://github.com/craft-native/craft/commit/6177834)) _(by Chris Breuer)_
