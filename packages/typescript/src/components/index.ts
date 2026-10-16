@@ -551,6 +551,8 @@ export interface MapRegion {
 
 export interface MapProps extends BaseProps {
   region?: MapRegion
+  /** Initial camera region; applied once, then controlled by subsequent props. */
+  initialRegion?: MapRegion
   fitToBounds?: boolean
   showsUserLocation?: boolean
   scrollEnabled?: boolean

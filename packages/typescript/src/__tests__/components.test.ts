@@ -45,6 +45,10 @@ describe('Component System', () => {
   it('types the native renderer component contract', () => {
     const button: ButtonProps = { title: 'Open map', onPress: () => {} }
     const map: MapProps = {
+      initialRegion: {
+        center: { latitude: 47, longitude: 11 },
+        span: { latitudeDelta: 0.5, longitudeDelta: 0.75 },
+      },
       fitToBounds: true,
       mapType: 'standard',
       onMarkerPress: event => expect(event.nativeEvent.id).toBe('trailhead'),
@@ -56,6 +60,7 @@ describe('Component System', () => {
       renderItem: ({ item }) => item,
     }
     expect(button.title).toBe('Open map')
+    expect(map.initialRegion?.span.longitudeDelta).toBe(0.75)
     expect(map.fitToBounds).toBe(true)
     expect(route.geometry).toHaveLength(4)
     expect(marker.id).toBe('trailhead')
