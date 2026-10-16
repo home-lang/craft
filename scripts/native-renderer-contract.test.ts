@@ -1129,6 +1129,12 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('| `Checkbox` |')
   })
 
+  it('preserves UIKit interaction traits for native controls without authored roles', () => {
+    expect(ios).toContain('case "Slider", "Picker", "DatePicker": traits.insert(.adjustable)')
+    expect(ios).toContain('case "Switch": traits.insert(.button)')
+    expect(iosNativeUnitTests).toContain('testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles')
+  })
+
   it('keeps DatePicker values and change events aligned across hosts', () => {
     expect(ios).toContain('case "DatePicker":')
     expect(ios).toContain('UIDatePicker.Mode')

@@ -7162,7 +7162,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             || controlledVideo
         view.isAccessibilityElement = !container && role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "DatePicker", "Switch", "Slider"].contains(type))
         view.accessibilityContainerType = container && (view.accessibilityLabel != nil || controlledVideo) ? .semanticGroup : .none
+        // Keep the interaction trait native controls expose. Rebuilding this
+        // set from the STX role alone otherwise turns a Slider, Picker,
+        // DatePicker, or Switch into a static VoiceOver item whenever the
+        // screen omits redundant accessibility metadata.
         var traits: UIAccessibilityTraits = []
+        switch type {
+        case "Slider", "Picker", "DatePicker": traits.insert(.adjustable)
+        case "Switch": traits.insert(.button)
+        default: break
+        }
         switch role ?? type.lowercased() {
         case "tablist": traits.insert(.tabBar)
         case "button", "checkbox": traits.insert(.button)

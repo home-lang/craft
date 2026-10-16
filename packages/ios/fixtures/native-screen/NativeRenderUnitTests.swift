@@ -1329,6 +1329,26 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertNil(CraftNativeScreenController.countdownDuration("1:x:3"))
     }
 
+    func testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([
+            ["type": "Switch", "props": ["key": "toggle", "value": true]],
+            ["type": "Slider", "props": ["key": "slider", "value": 0.5]],
+            ["type": "Picker", "props": ["key": "picker", "items": [["label": "One", "value": "one"]]]],
+            ["type": "DatePicker", "props": ["key": "date"]],
+        ]))
+
+        let toggle = try XCTUnwrap(find(UISwitch.self, key: "toggle", below: controller.view))
+        let slider = try XCTUnwrap(find(UISlider.self, key: "slider", below: controller.view))
+        let picker = try XCTUnwrap(find(UIPickerView.self, key: "picker", below: controller.view))
+        let date = try XCTUnwrap(find(UIDatePicker.self, key: "date", below: controller.view))
+        XCTAssertTrue(toggle.accessibilityTraits.contains(.button))
+        XCTAssertTrue(slider.accessibilityTraits.contains(.adjustable))
+        XCTAssertTrue(picker.accessibilityTraits.contains(.adjustable))
+        XCTAssertTrue(date.accessibilityTraits.contains(.adjustable))
+    }
+
     func testTheScriptHearsNewParamsAndTheScreenComingBack() throws {
         let controller = CraftNativeScreenController(config: CraftConfig(), routeName: "Messages", routeParams: ["person": "4"])
         controller.loadViewIfNeeded()
