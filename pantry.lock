@@ -11,6 +11,10 @@
         "@stacksjs/env": "^0.72.50",
         "better-dx": "^0.2.38",
         "buddy-bot": "^0.9.17"
+      },
+      "system": {
+        "bun.sh": "1.3.14",
+        "ziglang.org": "0.17.0-dev.1963_e00c6c439"
       }
     },
     "benchmarks": {
