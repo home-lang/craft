@@ -3255,6 +3255,18 @@ export const health = {
 }
 
 export interface LiveActivityState {
+  /** What to show once staleAt passes without fresh app state. */
+  staleStatus?: string
+  /** Current step, interval or session detail. */
+  detail?: string
+  /** Epoch milliseconds; system-rendered timers keep advancing while the app sleeps. */
+  timerStartedAt?: number | null
+  timerEndsAt?: number | null
+  paused?: boolean
+  remainingSeconds?: number
+  heartRate?: number | null
+  showsDistance?: boolean
+  staleAt?: number | null
   status?: string
   distanceMeters?: number
   durationSeconds?: number
@@ -3262,6 +3274,9 @@ export interface LiveActivityState {
 }
 
 export interface LiveActivityOptions extends LiveActivityState {
+  symbol?: string
+  deepLink?: string
+  tint?: string
   activityId: string
   title: string
 }
@@ -3273,6 +3288,8 @@ export interface LiveActivityHandle {
 }
 
 export interface LiveActivitiesApi {
+  isAvailable(): Promise<boolean>
+  list(): Promise<Array<{ id: string, activityId: string, title: string }>>
   start(options: LiveActivityOptions): Promise<LiveActivityHandle>
   update(id: string, state: LiveActivityState): Promise<void>
   /** @deprecated Pass the activity id returned by start, or use handle.update(state). */
@@ -3303,6 +3320,8 @@ async function endLiveActivity(id?: string, finalState?: LiveActivityState): Pro
 }
 
 export const liveActivities: LiveActivitiesApi = {
+  async isAvailable() { return Boolean(await getCraftRoot()?.liveActivity?.isAvailable?.()) },
+  async list() { return await getCraftRoot()?.liveActivity?.list?.() ?? [] },
   async start(options: LiveActivityOptions): Promise<LiveActivityHandle> {
     const craft = getCraftRoot()
     if (!craft?.liveActivity?.start) throw new Error('Live Activities are unavailable')
@@ -3466,6 +3485,8 @@ interface CraftMobileBridge {
     stopHeartRateUpdates?(): Promise<boolean>
   }
   liveActivity?: {
+    isAvailable?(): Promise<boolean>
+    list?(): Promise<Array<{ id: string, activityId: string, title: string }>>
     start(options: LiveActivityOptions): Promise<{ id: string }>
     update(id: string, state: LiveActivityState): Promise<void>
     update(state: LiveActivityState): Promise<void>
