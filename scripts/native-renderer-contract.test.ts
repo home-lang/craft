@@ -2721,6 +2721,15 @@ describe('native renderer component contract', () => {
     expect(android).toContain('released.forEach(defaultBackgrounds::remove)')
   })
 
+  it('restores Android outline shadow colors when a retained style is removed', () => {
+    expect(navigationHome).toContain('testID="dynamic-shadow-box"')
+    expect(navigationHome).toContain('shadowColor":shadowStyled ? "#123456" : null')
+    expect(androidNavigationTest).toContain('removed shadow style retained ambient color')
+    expect(androidNavigationTest).toContain('removed shadow style retained spot color')
+    expect(android).toContain('view.outlineAmbientShadowColor = Color.BLACK')
+    expect(android).toContain('view.outlineSpotShadowColor = Color.BLACK')
+  })
+
   it('refreshes theme-default native controls when traits change', () => {
     expect(ios).toContain('mutationDocument.node("root")')
     expect(ios).toContain('renderCommitted(document)')

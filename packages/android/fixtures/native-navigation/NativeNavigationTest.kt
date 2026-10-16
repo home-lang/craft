@@ -679,6 +679,20 @@ class NativeNavigationTest {
             click(activity, "toggle-panel-style")
             awaitText(activity, "panel-style-status", "panel style on")
             assertTrue("restoring panel style should recreate its drawable", dynamicStyleBox.background is GradientDrawable)
+            val dynamicShadowBox = awaitView(activity, "dynamic-shadow-box")
+            click(activity, "toggle-shadow-style")
+            awaitText(activity, "shadow-style-status", "shadow style off")
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                assertEquals("removed shadow style retained ambient color", Color.BLACK, dynamicShadowBox.outlineAmbientShadowColor)
+                assertEquals("removed shadow style retained spot color", Color.BLACK, dynamicShadowBox.outlineSpotShadowColor)
+                assertEquals("removed shadow style retained elevation", 0f, dynamicShadowBox.elevation)
+            }
+            click(activity, "toggle-shadow-style")
+            awaitText(activity, "shadow-style-status", "shadow style on")
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                assertTrue("restoring shadow style did not apply a custom ambient color", dynamicShadowBox.outlineAmbientShadowColor != Color.BLACK)
+                assertTrue("restoring shadow style did not install an outline", dynamicShadowBox.outlineProvider !== ViewOutlineProvider.BACKGROUND)
+            }
             val nullWidthText = awaitView(activity, "null-width-text")
             val explicitTextWidth = nullWidthText.width
             assertTrue("explicit text width was not applied", explicitTextWidth > (150 * density).toInt())

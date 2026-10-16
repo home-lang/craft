@@ -6027,6 +6027,15 @@ class MainActivity : AppCompatActivity() {
             view.invalidateOutline()
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             view.outlineProvider = ViewOutlineProvider.BACKGROUND
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                // A retained view may lose an authored shadow while keeping
+                // its native object. Restore Android's default outline colors
+                // too; otherwise a later elevation-only style inherits the
+                // previous shadow's custom ambient/spot tint.
+                view.outlineAmbientShadowColor = Color.BLACK
+                view.outlineSpotShadowColor = Color.BLACK
+                view.invalidateOutline()
+            }
         }
         if (view is ImageView) {
             val tint = style.opt("tintColor") as? String
