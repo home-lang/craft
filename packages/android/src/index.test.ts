@@ -530,6 +530,15 @@ describe('Craft Android builder', () => {
     expect(shell).toContain('(path + query).takeIf { match(it) != null }')
   })
 
+  it('refreshes retained navigation button colors after a theme change', async () => {
+    const output = createTempDir('craft-android-native-chrome-theme-')
+    await init({ name: 'NativeChromeTheme', packageName: 'org.example.nativechrometheme', output, runtimeDir: null, config: { renderer: 'native' } })
+
+    const shell = readFileSync(join(output, 'app/src/main/java/org/example/nativechrometheme/CraftNativeShell.kt'), 'utf8')
+    expect(shell).toContain('navButtonSpecs.forEach { (view, spec) -> applyNavButtonTint(view, spec, dark) }')
+    expect(shell).toContain('private fun applyNavButtonTint(view: TextView, button: JSONObject, dark: Boolean)')
+  })
+
   it('floats a playing video, speaks in the best installed voice and animates a screen\'s next change', async () => {
     const output = createTempDir('craft-android-native-media-')
     await init({ name: 'NativeMedia', packageName: 'org.example.nativemedia', output, runtimeDir: null, config: { renderer: 'native' } })

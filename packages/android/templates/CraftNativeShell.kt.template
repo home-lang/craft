@@ -582,6 +582,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     private val tabIconText = mutableMapOf<String, String>()
     private val tabImageURLs = mutableMapOf<String, String>()
     private val tabImages = mutableMapOf<String, android.graphics.drawable.Drawable>()
+    private val navButtonSpecs = mutableMapOf<TextView, JSONObject>()
     private val density = resources.displayMetrics.density
     private var selectedTab = 0
     private var swipeTracking = false
@@ -724,6 +725,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         largeTitleView.visibility = if (!hidden && large && title.isNotBlank()) View.VISIBLE else View.GONE
         buttons.removeAllViews()
         leadingButtons.removeAllViews()
+        navButtonSpecs.clear()
         val leading = options.optJSONArray("leftButtons") ?: JSONArray()
         for (index in 0 until leading.length()) {
             val button = leading.optJSONObject(index) ?: continue
@@ -808,6 +810,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             icon.foreground = vector
             icon.text = if (vector != null) "" else number ?: CraftNativeSymbols.glyph(tabs[index].symbol)
         }
+        navButtonSpecs.forEach { (view, spec) -> applyNavButtonTint(view, spec, dark) }
     }
 
     private fun navButton(button: JSONObject): View {
@@ -816,8 +819,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         val symbol = button.optString("symbol")
         val view = TextView(context)
         val dark = Color.luminance(ContextCompat.getColor(context, R.color.background)) < 0.5
-        val defaultTint = if (button.optString("variant") == "neutral") { if (dark) Color.WHITE else Color.parseColor("#1C1C1E") } else accentColor(dark)
-        val tint = button.optString("color").takeIf { it.isNotBlank() }?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: defaultTint
+        val tint = navButtonTint(button, dark)
         val vector = if (symbol.isNotBlank()) CraftNativeIcons.drawable(context, null, symbol, tint) else null
         view.text = if (vector != null) "" else if (symbol.isNotBlank()) CraftNativeSymbols.glyph(symbol) else title
         view.textSize = if (symbol.isNotBlank()) 22f else 16f
@@ -831,6 +833,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         view.background = rippleBackground()
         view.contentDescription = button.optString("accessibilityLabel").ifBlank { title.ifBlank { symbol } }
         view.setTextColor(tint)
+        navButtonSpecs[view] = button
         val badge = button.optInt("badge", 0)
         if (badge > 0) {
             view.text = "${view.text}${if (button.optString("badgeStyle") == "dot") " •" else " $badge"}"
@@ -838,6 +841,26 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         view.setOnClickListener { onButton?.invoke(id) }
         view.layoutParams = LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT)
         return view
+    }
+
+    private fun navButtonTint(button: JSONObject, dark: Boolean): Int {
+        val defaultTint = if (button.optString("variant") == "neutral") {
+            if (dark) Color.WHITE else Color.parseColor("#1C1C1E")
+        } else accentColor(dark)
+        return button.optString("color").takeIf { it.isNotBlank() }?.let {
+            runCatching { craftNativeColor(it) }.getOrNull()
+        } ?: defaultTint
+    }
+
+    private fun applyNavButtonTint(view: TextView, button: JSONObject, dark: Boolean) {
+        val tint = navButtonTint(button, dark)
+        view.setTextColor(tint)
+        val symbol = button.optString("symbol")
+        if (symbol.isNotBlank()) {
+            CraftNativeIcons.drawable(context, null, symbol, tint)?.let {
+                view.foreground = android.graphics.drawable.InsetDrawable(it, dp(10), dp(15), dp(10), dp(15))
+            }
+        }
     }
 
     private fun accentColor(dark: Boolean): Int = if (dark) Color.parseColor("#0A84FF") else Color.parseColor("#007AFF")

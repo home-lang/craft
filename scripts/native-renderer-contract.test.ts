@@ -1334,6 +1334,13 @@ describe('native renderer component contract', () => {
     expect(androidShell).toContain('"${scheme}://${uri.host?.lowercase()}$port" != origin')
   })
 
+  it('refreshes Android navigation button tints when appearance changes', () => {
+    expect(androidShell).toContain('private val navButtonSpecs = mutableMapOf<TextView, JSONObject>()')
+    expect(androidShell).toContain('navButtonSpecs.forEach { (view, spec) -> applyNavButtonTint(view, spec, dark) }')
+    expect(androidShell).toContain('private fun navButtonTint(button: JSONObject, dark: Boolean): Int')
+    expect(androidShell).toContain('navButtonSpecs[view] = button')
+  })
+
   it('does not recenter native maps on every reconciliation', () => {
     expect(ios).toContain('private var initialCameraKey: String?')
     expect(ios).toContain('if let region = Self.region(props["region"])')
