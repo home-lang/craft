@@ -635,6 +635,14 @@ describe('Craft Android builder', () => {
     expect(shell).toContain('params.put(expected.removePrefix(":"), Uri.decode(parts[index]))')
   })
 
+  it('keeps plus signs in generated native query keys', async () => {
+    const output = createTempDir('craft-android-native-query-encoding-')
+    await init({ name: 'NativeQueryEncoding', packageName: 'org.example.nativequeryencoding', output, runtimeDir: null, config: { renderer: 'native' } })
+    const shell = readFileSync(join(output, 'app/src/main/java/org/example/nativequeryencoding/CraftNativeShell.kt'), 'utf8')
+    expect(shell).toContain('val key = Uri.decode(pair.substringBefore(\'=\'))')
+    expect(shell).toContain('decode(pair.substringAfter(\'=\', "").replace(\'+\', \' \'))')
+  })
+
   it('rejects Android API levels below the runtime floor before writing a project', async () => {
     const root = createTempDir('craft-android-sdk-floor-')
     try {

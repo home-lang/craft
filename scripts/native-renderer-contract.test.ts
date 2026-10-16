@@ -1353,6 +1353,11 @@ describe('native renderer component contract', () => {
     expect(androidShell).toContain('decode(pair.substringAfter(\'=\', "").replace(\'+\', \' \'))')
   })
 
+  it('preserves plus signs in Android native query keys', () => {
+    expect(androidShell).toContain('val key = Uri.decode(pair.substringBefore(\'=\'))')
+    expect(androidShell).toContain('decode(pair.substringAfter(\'=\', "").replace(\'+\', \' \'))')
+  })
+
   it('does not recenter native maps on every reconciliation', () => {
     expect(ios).toContain('private var initialCameraKey: String?')
     expect(ios).toContain('if let region = Self.region(props["region"])')

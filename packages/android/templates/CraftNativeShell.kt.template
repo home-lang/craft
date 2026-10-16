@@ -163,7 +163,7 @@ internal class CraftNativeRoutes(config: JSONObject) {
             val params = bind(route.segments, parts) ?: continue
             if (query.isNotBlank()) {
                 query.split('&').filter { it.isNotBlank() }.forEach { pair ->
-                    val key = decode(pair.substringBefore('='))
+                    val key = Uri.decode(pair.substringBefore('='))
                     if (key.isNotBlank() && !params.has(key)) params.put(key, decode(pair.substringAfter('=', "").replace('+', ' ')))
                 }
             }
