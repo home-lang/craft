@@ -5590,6 +5590,7 @@ class MainActivity : AppCompatActivity() {
             "View", "SafeAreaView" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 configureContainer(this, style)
                 if (type == "SafeAreaView") setSafeAreaEdges(props.optJSONArray("edges"))
+                else setWindowSafeInsets(0, 0, 0, 0)
                 reconcileChildren(screen, this, children, identity, next, style, previousControls)
             }
             "KeyboardAvoidingView" -> (previous as? CraftNativeKeyboardAvoidingView ?: CraftNativeKeyboardAvoidingView(this)).apply {

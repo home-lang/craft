@@ -1604,6 +1604,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('updateSafeAreaViews()')
     expect(android).toContain('if (safeRoot) 0 else windowSafeInsets[0]')
     expect(android).toContain('if (type == "SafeAreaView") setSafeAreaEdges(props.optJSONArray("edges"))')
+    expect(android).toContain('else setWindowSafeInsets(0, 0, 0, 0)')
     expect(android).toContain('view.requestLayout()')
     expect(android).toContain('view.post { screens.lastOrNull()?.takeIf { it.active }?.let(::emitLayoutEvents) }')
     expect(ios).toContain('UIResponder.keyboardWillChangeFrameNotification')
