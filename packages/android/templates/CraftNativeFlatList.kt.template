@@ -104,6 +104,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     private var bounces = true
     private var alwaysBounceVertical = true
     private var alwaysBounceHorizontal = true
+    private var scrollEnabled = true
     private var keyboardShouldPersistTaps = "never"
     private var submissionGeneration = 0
     private var isSubmittingList = false
@@ -123,6 +124,23 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     fun setScrollIndicators(vertical: Boolean, horizontal: Boolean) {
         isVerticalScrollBarEnabled = vertical
         isHorizontalScrollBarEnabled = horizontal
+    }
+
+    fun setScrollEnabled(enabled: Boolean) {
+        scrollEnabled = enabled
+    }
+
+    val isScrollEnabledForTest: Boolean
+        get() = scrollEnabled
+
+    override fun onInterceptTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (!scrollEnabled) return false
+        return super.onInterceptTouchEvent(event)
+    }
+
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (!scrollEnabled) return false
+        return super.onTouchEvent(event)
     }
 
     fun setBounceOptions(enabled: Boolean, vertical: Boolean, horizontal: Boolean) {

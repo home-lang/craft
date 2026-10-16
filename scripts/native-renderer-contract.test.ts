@@ -2530,6 +2530,13 @@ describe('native renderer component contract', () => {
     expect(androidFlatListTest).toContain('appliesScrollIndicatorsAndBounceAxes')
   })
 
+  it('keeps FlatList scrollEnabled native on Android without disabling row touches', () => {
+    expect(android).toContain('list.setScrollEnabled(props.optBoolean("scrollEnabled", true))')
+    expect(androidFlatList).toContain('override fun onInterceptTouchEvent(event: android.view.MotionEvent): Boolean')
+    expect(androidFlatList).toContain('if (!scrollEnabled) return false')
+    expect(androidFlatListTest).toContain('preservesRowTouchTargetsWhenScrollingIsDisabled')
+  })
+
   it('routes authored links through both native hosts', () => {
     expect(navigationHome).toContain('<a testID="native-route-link" href="/linked-details">')
     expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')

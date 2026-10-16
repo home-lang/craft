@@ -5880,6 +5880,7 @@ class MainActivity : AppCompatActivity() {
             props.optBoolean("showsVerticalScrollIndicator", true),
             props.optBoolean("showsHorizontalScrollIndicator", true),
         )
+        list.setScrollEnabled(props.optBoolean("scrollEnabled", true))
         list.setBounceOptions(
             props.optBoolean("bounces", true),
             props.optBoolean("alwaysBounceVertical", !horizontal),

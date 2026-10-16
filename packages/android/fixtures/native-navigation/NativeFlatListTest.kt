@@ -210,6 +210,15 @@ class NativeFlatListTest {
     }
 
     @Test
+    fun preservesRowTouchTargetsWhenScrollingIsDisabled() {
+        val list = CraftNativeFlatList(instrumentation.targetContext)
+        list.setScrollEnabled(false)
+        assertTrue("scrollEnabled should be false", !list.isScrollEnabledForTest)
+        list.setScrollEnabled(true)
+        assertTrue("scrollEnabled should be restored", list.isScrollEnabledForTest)
+    }
+
+    @Test
     fun usesRenderedHeightsForVariableRows() {
         val context = instrumentation.targetContext
         lateinit var list: CraftNativeFlatList
