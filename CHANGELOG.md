@@ -18,6 +18,9 @@
 
 ## 🧪 Tests
 
+- align native contracts with shared service APIs ([429cc95](https://github.com/craft-native/craft/commit/429cc95)) _(by Chris Breuer)_
+- **android**: share Gradle Kotlin fixture execution ([21161be](https://github.com/craft-native/craft/commit/21161be)) _(by Chris Breuer)_
+- **ios**: assert selected tabs without matching back buttons ([9449168](https://github.com/craft-native/craft/commit/9449168)) _(by Chris Breuer)_
 - **ios**: query the floating native tab buttons by role ([b559c4c](https://github.com/craft-native/craft/commit/b559c4c)) _(by Chris Breuer)_
 - **mobile**: verify native link pushes and edge back with tab gestures ([7bd8e85](https://github.com/craft-native/craft/commit/7bd8e85)) _(by Chris Breuer)_
 - **ios**: align color fixture coverage with RGBA assertions ([f329926](https://github.com/craft-native/craft/commit/f329926)) _(by Chris Breuer)_
@@ -25,6 +28,7 @@
 
 ## 🧹 Chores
 
+- release v0.0.203 ([00fd401](https://github.com/craft-native/craft/commit/00fd401)) _(by Chris Breuer)_
 - integrate current native navigation fixes ([075a6f6](https://github.com/craft-native/craft/commit/075a6f6)) _(by Chris Breuer)_
 
 ## 📄 Miscellaneous
