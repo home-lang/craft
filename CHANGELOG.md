@@ -1,5 +1,18 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.210...v0.0.211)
+
+## 🐛 Bug Fixes
+
+- **ios**: align timers and wrap long Live Activity titles ([6d20fa9](https://github.com/craft-native/craft/commit/6d20fa9)) _(by Chris Breuer)_
+- **ios**: make physical Live Activity journeys fail safely ([ae6fdd1](https://github.com/craft-native/craft/commit/ae6fdd1)) _(by Chris Breuer)_
+- **android**: restore generated native template compilation ([c60175f](https://github.com/craft-native/craft/commit/c60175f)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.209...v0.0.210)
 
 ## 🐛 Bug Fixes
