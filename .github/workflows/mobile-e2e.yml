@@ -106,6 +106,8 @@ jobs:
     timeout-minutes: 45
     env:
       CRAFT_EVIDENCE_LABEL: ios-native
+      # XCTest and WebKit hit testing must come from the runtime's toolchain.
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
 
     steps:
       - uses: actions/checkout@v6
@@ -214,6 +216,7 @@ jobs:
     timeout-minutes: 45
     env:
       CRAFT_EVIDENCE_LABEL: ios-simulator
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
 
     steps:
       - uses: actions/checkout@v6
@@ -500,6 +503,8 @@ jobs:
     name: iOS Zig runtime slice
     runs-on: macos-15
     timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
 
     steps:
       - uses: actions/checkout@v6

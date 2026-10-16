@@ -1660,7 +1660,10 @@ export interface SimulatorDevice {
  * Exported because the choice is worth testing without a simulator present -
  * `pickSimulator` is the policy and this is the data it reads.
  */
-export function orderSimulators(devices: SimulatorDevice[]): SimulatorDevice[] {
+export function orderSimulators(devices: SimulatorDevice[], sdkVersion?: string): SimulatorDevice[] {
+  const sdk = sdkVersion?.match(/^(\d+)\.(\d+)/)
+  if (sdkVersion !== undefined && !sdk)
+    throw new Error(`Invalid iOS Simulator SDK version: ${sdkVersion}`)
   // iOS runtimes only, before anything else is considered. A booted device
   // sorts ahead of every shut-down one, and a developer with an Apple Watch or
   // Apple TV simulator open would otherwise have it handed back as the place
@@ -1668,6 +1671,13 @@ export function orderSimulators(devices: SimulatorDevice[]): SimulatorDevice[] {
   // naming a device nobody asked for.
   return devices
     .filter(device => device.runtime.startsWith('iOS'))
+    .filter((device) => {
+      if (!sdk) return true
+      const runtime = device.runtime.match(/^iOS-(\d+)-(\d+)/)
+      if (!runtime) return false
+      return Number(runtime[1]) < Number(sdk[1])
+        || (Number(runtime[1]) === Number(sdk[1]) && Number(runtime[2]) <= Number(sdk[2]))
+    })
     .sort((left, right) => {
       const booted = Number(right.state === 'Booted') - Number(left.state === 'Booted')
       if (booted !== 0)
@@ -1677,7 +1687,7 @@ export function orderSimulators(devices: SimulatorDevice[]): SimulatorDevice[] {
       if (phone !== 0)
         return phone
 
-      return right.runtime.localeCompare(left.runtime)
+      return right.runtime.localeCompare(left.runtime, undefined, { numeric: true })
     })
 }
 
@@ -1699,6 +1709,13 @@ export async function pickSimulator(): Promise<SimulatorDevice | null> {
   if (listed.exitCode !== 0)
     return null
 
+  // simctl lists runtimes installed by every Xcode. A newer runtime may boot
+  // with an older selected Xcode while its XCTest/WebKit hit testing is wrong.
+  // Use the selected toolchain's SDK as the compatibility boundary.
+  const sdk = await $`xcrun --sdk iphonesimulator --show-sdk-version`.quiet().nothrow()
+  if (sdk.exitCode !== 0)
+    throw new Error('Could not determine the selected Xcode iOS Simulator SDK')
+
   let parsed: { devices?: Record<string, Array<{ name: string, udid: string, state: string }>> }
 
   try {
@@ -1715,7 +1732,7 @@ catch {
       devices.push({ ...device, runtime: runtime.split('.').pop() ?? runtime })
   }
 
-  return orderSimulators(devices)[0] ?? null
+  return orderSimulators(devices, sdk.stdout.toString().trim())[0] ?? null
 }
 
 /**

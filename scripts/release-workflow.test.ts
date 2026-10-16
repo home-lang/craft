@@ -8,6 +8,7 @@ import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/tem
 afterAll(removeAllTempDirs)
 
 type Job = {
+  env?: Record<string, string>
   needs?: string | string[]
   if?: string
   uses?: string
@@ -71,6 +72,8 @@ test('native iOS suites and protocol checks have independent required jobs', () 
   expect(needs(summary)).toContain('ios-native')
   expect(needs(summary)).toContain('ios-simulator')
   expect(summary.steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-native.result')
+  for (const name of ['ios-native', 'ios-simulator', 'ios-zig-slice'])
+    expect(workflow.jobs[name].env?.DEVELOPER_DIR).toBe('/Applications/Xcode_26.2.app/Contents/Developer')
 })
 
 test('mobile device jobs preserve runner diagnostics when the harness fails', () => {

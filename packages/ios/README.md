@@ -996,6 +996,10 @@ Options:
   -s, --simulator           Run on simulator
 ```
 
+Simulator selection uses the active Xcode's iOS Simulator SDK. Runtimes newer
+than that SDK are excluded, including already booted devices. Select a matching
+Xcode or install a compatible runtime when none is available.
+
 ## Requirements
 
 - macOS with Xcode 15+

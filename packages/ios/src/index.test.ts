@@ -2249,6 +2249,30 @@ describe('choosing a simulator', () => {
     expect(chosen?.name).toBe('iPhone 17 Pro')
   })
 
+  it('never chooses a booted runtime newer than the selected Xcode SDK', () => {
+    const chosen = orderSimulators([
+      device('iPhone 17 Pro', 'iOS-26-2', 'Booted'),
+      device('iPhone 16', 'iOS-18-5'),
+    ], '18.5')[0]
+    expect(chosen?.runtime).toBe('iOS-18-5')
+  })
+
+  it('compares runtime versions numerically and respects SDK minor versions', () => {
+    const devices = [
+      device('iPhone', 'iOS-9-3'),
+      device('iPhone', 'iOS-26-3'),
+      device('iPhone', 'iOS-26-2-1'),
+      device('iPhone', 'iOS-18-5'),
+    ]
+    expect(orderSimulators(devices, '26.2')[0]?.runtime).toBe('iOS-26-2-1')
+    expect(orderSimulators(devices)[0]?.runtime).toBe('iOS-26-3')
+  })
+
+  it('reports no compatible simulator instead of using a newer runtime', () => {
+    expect(orderSimulators([device('iPhone 17', 'iOS-26-2')], '18.5')).toEqual([])
+    expect(() => orderSimulators([], 'unknown')).toThrow('Invalid iOS Simulator SDK version')
+  })
+
   it('ignores simulators that cannot run an iOS app', () => {
     // Booted sorts ahead of everything, so an open Apple Watch or Apple TV
     // simulator would otherwise be handed back as the place to install an
