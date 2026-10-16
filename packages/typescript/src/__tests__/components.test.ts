@@ -75,12 +75,17 @@ describe('Component System', () => {
   })
 
   it('types the native renderer component contract', () => {
-    const button: ButtonProps = { title: 'Open map', onClick: () => {} }
+    const button: ButtonProps = {
+      title: 'Open map',
+      onClick: () => {},
+      style: [{ color: '#2563eb' }, { paddingHorizontal: 16, fontWeight: 700 }],
+    }
     const view: ViewProps = { onPress: () => {} }
     // Pointer-event routing is not implemented by either maintained native host.
     // @ts-expect-error pointerEvents is intentionally outside the native View contract.
     view.pointerEvents = 'none'
     expect(view.onPress).toBeDefined()
+    expect(button.style).toHaveLength(2)
     const text: TextProps = { numberOfLines: 2, ellipsizeMode: 'tail' }
     // Text selection is not implemented by either maintained native host.
     // @ts-expect-error selectable is intentionally outside the native Text contract.

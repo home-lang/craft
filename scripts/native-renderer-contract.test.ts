@@ -132,6 +132,12 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain("fontWeight?: number | 'normal' | 'bold'")
   })
 
+  it('types the native button styles both hosts already apply', () => {
+    expect(componentTypes).toContain('export interface ButtonProps extends BaseProps')
+    expect(componentTypes).toContain('style?: TextStyle | TextStyle[]')
+    expect(navigationHome).toContain('testID="toggle-button-padding"')
+  })
+
   it('exposes the semantic accessibility roles handled by both hosts', () => {
     expect(componentTypes).toContain("| 'adjustable'")
     expect(componentTypes).toContain("| 'checkbox'")

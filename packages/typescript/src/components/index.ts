@@ -504,6 +504,8 @@ export interface TextProps extends BaseProps {
 /** Native button/link action props. */
 export interface ButtonProps extends BaseProps {
   title?: string
+  /** Text and layout styling applied by the native button hosts. */
+  style?: TextStyle | TextStyle[]
   onPress?: () => void
   onClick?: () => void
   disabled?: boolean
