@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.215...v0.0.216)
+
+## 🐛 Bug Fixes
+
+- **ios**: preserve numeric zero and one across the JSON bridge ([e7d4d0c](https://github.com/craft-native/craft/commit/e7d4d0c)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.214...v0.0.215)
 
 ## 🐛 Bug Fixes
