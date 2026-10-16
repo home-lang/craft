@@ -167,7 +167,7 @@ final class DriverTests: XCTestCase {
     }
 
     func testScript() throws {
-        continueAfterFailure = true
+        continueAfterFailure = false
         let data: Data?
         if let resource = Bundle(for: DriverTests.self).url(forResource: "journey", withExtension: "txt") {
             bundledJourney = true
@@ -219,7 +219,13 @@ final class DriverTests: XCTestCase {
             check(element(containing: arg, in: springboard) == nil, "systemabsent \(arg)")
         case "systemtap":
             let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-            if let target = poll(10, { element(containing: arg, in: springboard) }) { press(target); note("systemtap \(arg): ok") }
+            // Widget text lives in a remote accessibility host. Its frame can
+            // be visible while XCTest cannot resolve an activation point. Tap
+            // the containing system button (the actual Live Activity card).
+            let predicate = NSPredicate(format: "label CONTAINS[c] %@ OR identifier == %@", arg, arg)
+            let card = springboard.buttons.containing(predicate).firstMatch
+            if card.exists && card.isHittable { press(card); note("systemtap \(arg): ok") }
+            else if let target = poll(10, { element(containing: arg, in: springboard) }) { press(target); note("systemtap \(arg): ok") }
             else { XCTFail("System element not found"); note("FAIL systemtap \(arg): NOT FOUND") }
         case "systemtree":
             let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
