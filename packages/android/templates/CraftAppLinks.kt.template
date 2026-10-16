@@ -1,0 +1,47 @@
+package {{PACKAGE_NAME}}
+
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import androidx.browser.customtabs.CustomTabsClient
+import androidx.browser.customtabs.CustomTabsIntent
+import org.json.JSONObject
+
+/** Ordered website path rules, also publishable as Android 15 dynamic App Links. */
+internal object CraftAppLinks {
+    fun opensInBrowser(config: JSONObject?, uri: Uri): Boolean {
+        if (uri.scheme != "https") return false
+        val hosts = config?.optJSONArray("appLinks") ?: return false
+        for (index in 0 until hosts.length()) {
+            val host = hosts.optJSONObject(index) ?: continue
+            if (!host.optString("host").equals(uri.host, ignoreCase = true)) continue
+            val rules = host.optJSONArray("paths") ?: return false
+            val path = uri.path.orEmpty().ifEmpty { "/" }
+            for (ruleIndex in 0 until rules.length()) {
+                val rule = rules.optJSONObject(ruleIndex) ?: continue
+                val pattern = rule.optString("pattern")
+                val regex = pattern.split('*').joinToString(".*") { Regex.escape(it) }
+                if (Regex("^$regex$").matches(path)) return rule.optBoolean("exclude", false)
+            }
+            return true
+        }
+        return false
+    }
+
+    /** An explicit browser package avoids handing a verified site URL back to ourselves. */
+    fun openBrowser(activity: Activity, uri: Uri) {
+        val customTabsPackage = CustomTabsClient.getPackageName(activity, null)
+        if (customTabsPackage != null && customTabsPackage != activity.packageName) {
+            val tab = CustomTabsIntent.Builder().setShowTitle(true).build()
+            tab.intent.setPackage(customTabsPackage)
+            tab.launchUrl(activity, uri)
+            return
+        }
+        val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)
+        val browser = activity.packageManager.queryIntentActivities(probe, 0)
+            .firstOrNull { it.activityInfo.packageName != activity.packageName }
+            ?.activityInfo?.packageName
+            ?: throw IllegalStateException("No browser is installed")
+        activity.startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE).setPackage(browser))
+    }
+}
