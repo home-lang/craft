@@ -863,6 +863,16 @@ class NativeNavigationTest {
             assertEquals("mixed", ViewCompat.getStateDescription(indeterminateCheckbox))
             instrumentation.runOnMainSync { indeterminateCheckbox.performClick() }
             assertTrue("indeterminate checkbox should become checked on first toggle", indeterminateCheckbox.isChecked)
+            val nativeIndicator = awaitView(activity, "native-indicator") as ProgressBar
+            assertTrue("authored activity-indicator color should be applied", nativeIndicator.indeterminateTintList != null)
+            click(activity, "toggle-invalid-control-colors")
+            awaitText(activity, "invalid-control-style-status", "invalid control colors on")
+            assertTrue("Invalid checkbox color should restore the native default", (checkbox as CheckBox).buttonTintList == null)
+            assertTrue("Invalid activity-indicator color should restore the native default", nativeIndicator.indeterminateTintList == null)
+            click(activity, "toggle-invalid-control-colors")
+            awaitText(activity, "invalid-control-style-status", "invalid control colors off")
+            assertTrue("Restored checkbox color should be applied", (checkbox as CheckBox).buttonTintList != null)
+            assertTrue("Restored activity-indicator color should be applied", nativeIndicator.indeterminateTintList != null)
             val modal = awaitView(activity, "native-modal")
             assertTrue("native modal should be a container", modal is ViewGroup)
             assertEquals("modal should start hidden", View.GONE, modal.visibility)

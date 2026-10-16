@@ -435,7 +435,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('ViewCompat.setStateDescription(')
       expect(nativeActivity).toContain('if (type == "Checkbox" && props.optBoolean("indeterminate", false)) "mixed" else null')
       expect(nativeActivity).toContain('val checkboxColor = craftNativeOptionalString(props.opt("color"))\n                    ?: craftNativeOptionalString(style.opt("color"))')
-      expect(nativeActivity).toContain('buttonTintList = checkboxColor?.let { ColorStateList.valueOf(color(it, defaultTextColor)) }')
+      expect(nativeActivity).toContain('buttonTintList = checkboxColor\n                    ?.let { runCatching { craftNativeColor(it) }.getOrNull() }')
       expect(nativeActivity).not.toContain('if (state != null && state.has("disabled")) view.isEnabled = !disabled')
       expect(nativeActivity).toContain('view.tooltipText = craftNativeOptionalString(props.opt("accessibilityHint"))')
       expect(nativeActivity).toContain('val nodeViews = mutableMapOf<String, View>()')

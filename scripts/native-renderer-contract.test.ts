@@ -1098,7 +1098,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('props.optBoolean("indeterminate", false)')
     expect(android).toContain('isActivated = props.optBoolean("indeterminate", false)')
     expect(android).toContain('val checkboxColor = craftNativeOptionalString(props.opt("color"))\n                    ?: craftNativeOptionalString(style.opt("color"))')
-    expect(android).toContain('buttonTintList = checkboxColor?.let { ColorStateList.valueOf(color(it, defaultTextColor)) }')
+    expect(android).toContain('buttonTintList = checkboxColor\n                    ?.let { runCatching { craftNativeColor(it) }.getOrNull() }')
     expect(android).toContain('ViewCompat.setStateDescription(')
     expect(android).toContain('if (type == "Checkbox" && props.optBoolean("indeterminate", false)) "mixed" else null')
     expect(android).toContain('nativeEvent", JSONObject().put("value", value)')
@@ -2768,6 +2768,16 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('Invalid thumb slider tint should restore the native default')
     expect(android).toContain('progressTintList = craftNativeOptionalString(props.opt("minimumTrackTintColor"))')
     expect(android).toContain('progressBackgroundTintList = craftNativeOptionalString(props.opt("maximumTrackTintColor"))')
+  })
+
+  it('restores native Android checkbox and activity-indicator colors when malformed', () => {
+    expect(navigationHome).toContain('testID="toggle-invalid-control-colors"')
+    expect(navigationHome).toContain(':color="invalidControlColors ? \'not-a-color\' : \'#22c55e\'"')
+    expect(navigationHome).toContain('color={invalidControlColors ? "not-a-color" : "#22c55e"}')
+    expect(androidNavigationTest).toContain('Invalid checkbox color should restore the native default')
+    expect(androidNavigationTest).toContain('Invalid activity-indicator color should restore the native default')
+    expect(android).toContain('buttonTintList = checkboxColor')
+    expect(android).toContain('indeterminateTintList = craftNativeOptionalString(props.opt("color"))')
   })
 
   it('restores native backgrounds when custom styles are removed', () => {
