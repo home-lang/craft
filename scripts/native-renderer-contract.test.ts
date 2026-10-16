@@ -1713,7 +1713,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('fun setRefreshHandler(handler: (() -> Unit)?, refreshing: Boolean)')
     expect(android).toContain('fun setRefreshAppearance(props: JSONObject, density: Float, fallback: Int)')
     expect(android).toContain('setRefreshAppearance(refreshProps, resources.displayMetrics.density, refreshTintFallback(screen))')
-    expect(android).toContain('setProgressBackgroundColorSchemeColor(craftNativeColor(background))')
+    expect(android).toContain('background?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: Color.TRANSPARENT')
     expect(android).toContain('setRefreshHandler(refreshHandler, refreshProps.optBoolean("refreshing", props.optBoolean("refreshing", false)))')
     expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }')
     const scrollStart = android.indexOf('private class CraftNativeScrollView')
@@ -2472,7 +2472,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('setRefreshAppearance(propRefresh, refreshTintFallback(screen))')
     expect(android).toContain('private fun refreshTintFallback(screen: Screen): Int')
     expect(androidRefreshableFlatList).toContain('fun setRefreshAppearance(props: JSONObject, fallback: Int)')
-    expect(androidRefreshableFlatList).toContain('runCatching { craftNativeColor(it) }.getOrDefault(fallback)')
+    expect(androidRefreshableFlatList).toContain('runCatching { craftNativeColor(it) }.getOrNull() } ?: fallback')
+    expect(androidFlatListTest).toContain('invalid refresh tint should use the screen fallback')
     expect(androidRefreshableFlatList).toContain('SwipeRefreshLayout')
     expect(androidRefreshableFlatList).toContain('isRefreshing = handler != null && refreshing')
     expect(androidRefreshableFlatList).toContain('isRefreshing = false')
@@ -2778,6 +2779,12 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('Invalid activity-indicator color should restore the native default')
     expect(android).toContain('buttonTintList = checkboxColor')
     expect(android).toContain('indeterminateTintList = craftNativeOptionalString(props.opt("color"))')
+  })
+
+  it('keeps malformed Android refresh colors from crashing or inventing a tint', () => {
+    expect(android).toContain('setColorSchemeColors(tint?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: fallback)')
+    expect(android).toContain('background?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: Color.TRANSPARENT')
+    expect(ios).toContain('pullToRefresh.tintColor = (props["tintColor"] as? String).flatMap { UIColor(hex: $0) }')
   })
 
   it('restores native backgrounds when custom styles are removed', () => {

@@ -211,7 +211,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('setRefreshAppearance(propRefresh, refreshTintFallback(screen))')
       expect(nativeActivity).toContain('private fun refreshTintFallback(screen: Screen): Int')
       expect(refreshableFlatList).toContain('fun setRefreshAppearance(props: JSONObject, fallback: Int)')
-      expect(refreshableFlatList).toContain('runCatching { craftNativeColor(it) }.getOrDefault(fallback)')
+      expect(refreshableFlatList).toContain('runCatching { craftNativeColor(it) }.getOrNull() } ?: fallback')
       expect(nativeActivity).toContain('val wantedType = inputTypeFor(props)')
       expect(nativeActivity).toContain('val wantedIme = imeOptionsFor(props)')
       // Setting these unchanged put the caret back at the start of the field.

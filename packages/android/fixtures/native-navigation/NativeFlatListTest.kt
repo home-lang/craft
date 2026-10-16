@@ -263,6 +263,10 @@ class NativeFlatListTest {
                 host.setRefreshAppearance(JSONObject().put("tintColor", "#123456"), Color.WHITE)
             }
             assertEquals(Color.rgb(0x12, 0x34, 0x56), indicator.imageTintList?.defaultColor)
+            instrumentation.runOnMainSync {
+                host.setRefreshAppearance(JSONObject().put("tintColor", "not-a-color"), Color.WHITE)
+            }
+            assertEquals("invalid refresh tint should use the screen fallback", Color.WHITE, indicator.imageTintList?.defaultColor)
             instrumentation.runOnMainSync { host.setRefreshAppearance(JSONObject(), Color.WHITE) }
             assertEquals(Color.WHITE, indicator.imageTintList?.defaultColor)
         } finally {

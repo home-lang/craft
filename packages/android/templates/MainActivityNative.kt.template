@@ -2211,10 +2211,11 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
 
     fun setRefreshAppearance(props: JSONObject, density: Float, fallback: Int) {
         val tint = craftNativeOptionalString(props.opt("tintColor"))
-        setColorSchemeColors(tint?.let { runCatching { craftNativeColor(it) }.getOrDefault(fallback) } ?: fallback)
+        setColorSchemeColors(tint?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: fallback)
         val background = craftNativeOptionalString(props.opt("progressBackgroundColor"))
-        if (background != null) setProgressBackgroundColorSchemeColor(craftNativeColor(background))
-        else setProgressBackgroundColorSchemeColor(Color.TRANSPARENT)
+        setProgressBackgroundColorSchemeColor(
+            background?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: Color.TRANSPARENT,
+        )
         val offset = props.optDouble("progressViewOffset", Double.NaN)
         val requested = if (offset.isFinite()) (offset * density).roundToInt() else null
         if (configuredProgressOffset != requested) {
