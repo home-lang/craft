@@ -331,6 +331,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["disabled-button"].isEnabled)
         XCTAssertEqual(image.label, "Native pixel")
         XCTAssertTrue(app.staticTexts["image loaded"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["image load ended"].waitForExistence(timeout: 5))
         image.tap()
         XCTAssertEqual(app.staticTexts["native-caption"].label, "Image taps: 1")
         XCTAssertTrue(app.images["unsupported-image"].waitForExistence(timeout: 5))
@@ -338,7 +339,7 @@ final class NativeNavigationUITests: XCTestCase {
         let imageSourceToggle = app.buttons["toggle-image-source"]
         reveal(imageSourceToggle, in: scroll, within: rootScroll)
         imageSourceToggle.tap()
-        XCTAssertTrue(app.staticTexts["image loaded"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["image recovered"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.images["unsupported-image"].label, "Unsupported image")
         let imageTintToggle = app.buttons["toggle-image-tint"]
         reveal(imageTintToggle, in: rootScroll)

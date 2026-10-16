@@ -34,6 +34,9 @@ const layoutWidth = state(0)
 const layoutWide = state(true)
 const hiddenLayoutEvents = state(0)
 const imageStatus = state('')
+const imageLoadEndStatus = state('')
+const imageRecoveryStatus = state('')
+const imageTintStatus = state('')
 const imageErrorStatus = state('')
 const imageBackgroundErrorStatus = state('')
 const imageFailureCount = state(0)
@@ -195,6 +198,14 @@ function imageLoaded() {
   imageStatus.set('image loaded')
 }
 
+function imageLoadEnded() {
+  imageLoadEndStatus.set('image load ended')
+}
+
+function imageRecovered() {
+  imageRecoveryStatus.set('image recovered')
+}
+
 function imageFailed() {
   imageErrorStatus.set('image failed')
   imageFailureCount.update(value => value + 1)
@@ -206,19 +217,19 @@ function imageBackgroundFailed() {
 
 function toggleImageSource() {
   imageSource.set(imageSource().startsWith('http') ? validImageSource : 'http://example.com/image.png')
-  imageStatus.set('')
+  imageRecoveryStatus.set('')
   imageErrorStatus.set('')
 }
 
 function clearImageSource() {
   imageSource.set('')
-  imageStatus.set('')
+  imageRecoveryStatus.set('')
   imageErrorStatus.set('')
 }
 
 function toggleImageTint() {
   imageTinted.update(value => !value)
-  imageStatus.set(imageTinted() ? 'image tint on' : 'image tint off')
+  imageTintStatus.set(imageTinted() ? 'image tint on' : 'image tint off')
 }
 
 function captureIntrinsicImageLayout(event) {
@@ -464,7 +475,7 @@ function captureSectionScroll() {
         @click="tapImage()"
         @load-start="imageLoadStart()"
         @load="imageLoaded()"
-        @load-end="imageLoaded()"
+        @load-end="imageLoadEnded()"
         style={{"width":24,"height":24,"resizeMode":"cover","tintColor":imageTinted ? "#2563eb" : null}}
       />
       <Image testID="intrinsic-image" source={intrinsicImage()} style={{"alignSelf":"flex-start"}} @layout="captureIntrinsicImageLayout($event)" />
@@ -517,13 +528,15 @@ function captureSectionScroll() {
       <Video testID="native-video" source={{"uri":""}} style={{"width":120,"height":68}} />
       <Text testID="native-caption" :text="'Image taps: ' + imageTaps" />
       <Text testID="image-status" :text="imageStatus" />
+      <Text testID="image-load-end-status" :text="imageLoadEndStatus" />
+      <Text testID="image-recovery-status" :text="imageRecoveryStatus" />
+      <Text testID="image-tint-status" :text="imageTintStatus" />
       <Text testID="image-error-status" :text="imageErrorStatus" />
       <Image
         testID="unsupported-image"
         source={currentImage()}
         accessibilityLabel="Unsupported image"
-        @load="imageLoaded()"
-        @load-end="imageLoaded()"
+        @load="imageRecovered()"
         @error="imageFailed()"
         style={{"width":16,"height":16}}
       />

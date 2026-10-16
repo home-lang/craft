@@ -558,7 +558,7 @@ class NativeNavigationTest {
             assertTrue("re-enabled long-press view did not accept a click", longPressPanel.performLongClick())
             awaitText(activity, "long-press-status", "panel long pressed")
             click(activity, "toggle-image-tint")
-            awaitText(activity, "image-status", "image tint off")
+            awaitText(activity, "image-tint-status", "image tint off")
             awaitImageTintCleared(activity, "native-image")
             val tintedUnsupported = awaitView(activity, "unsupported-image") as ImageView
             assertEquals(1, tintedUnsupported.contentDescription.toString().split("Unsupported image source").size - 1)
@@ -863,6 +863,7 @@ class NativeNavigationTest {
             assertTrue("Image data did not decode", (image as ImageView).drawable != null)
             assertEquals("Native pixel", image.contentDescription.toString())
             awaitText(activity, "image-status", "image loaded")
+            awaitText(activity, "image-load-end-status", "image load ended")
             var imageInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { imageInfo = image.createAccessibilityNodeInfo() }
             assertEquals(ImageView::class.java.name, imageInfo?.className?.toString())
@@ -874,13 +875,13 @@ class NativeNavigationTest {
             assertTrue(unsupported.contentDescription.toString().contains("Unsupported image source"))
             awaitText(activity, "image-error-status", "image failed")
             click(activity, "toggle-image-source")
-            awaitText(activity, "image-status", "image loaded")
+            awaitText(activity, "image-recovery-status", "image recovered")
             assertTrue("image source recovery did not decode", unsupported.drawable != null)
             assertEquals("image error metadata was not cleared on recovery", "Unsupported image", unsupported.contentDescription.toString())
             click(activity, "clear-image-source")
             awaitText(activity, "image-error-count", "2")
             click(activity, "toggle-image-tint")
-            awaitText(activity, "image-status", "image tint on")
+            awaitText(activity, "image-tint-status", "image tint on")
             assertEquals("missing image errors should be deduplicated", "2", (awaitView(activity, "image-error-count") as TextView).text.toString())
             assertNoWebView(activity)
 
