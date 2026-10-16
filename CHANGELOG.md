@@ -1,5 +1,25 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.201...v0.0.202)
+
+## 🐛 Bug Fixes
+
+- **ios**: let newer navigation interrupt native tab settling ([a3dfe7f](https://github.com/craft-native/craft/commit/a3dfe7f)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: isolate pending transitions during fixture cleanup ([6f4da5f](https://github.com/craft-native/craft/commit/6f4da5f)) _(by Chris Breuer)_
+- **ios**: yield the main actor while waiting for native frames ([58e1bc3](https://github.com/craft-native/craft/commit/58e1bc3)) _(by Chris Breuer)_
+- **ios**: handle additive UIKit position interpolation ([9c47515](https://github.com/craft-native/craft/commit/9c47515)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- **mobile**: verify navigation with published stx 0.2.544 ([b5ef9bd](https://github.com/craft-native/craft/commit/b5ef9bd)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.200...v0.0.201)
 
 ## 🚀 Features
