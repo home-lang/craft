@@ -604,6 +604,14 @@ class NativeNavigationTest {
             assertTrue("native Pressable should be a container", pressable is ViewGroup)
             instrumentation.runOnMainSync { pressable.performClick() }
             awaitText(activity, "native-link-status", "pressable pressed")
+            val rawPressable = awaitView(activity, "native-raw-pressable") as ViewGroup
+            val rawLabel = (0 until rawPressable.childCount)
+                .map { rawPressable.getChildAt(it) }
+                .filterIsInstance<TextView>()
+                .firstOrNull { it.text.toString() == "RAW PRESSABLE" }
+            assertTrue("raw native text child was not created", rawLabel != null)
+            assertEquals("raw native text did not inherit its parent colour", Color.rgb(0xef, 0x44, 0x44), rawLabel!!.currentTextColor)
+            assertEquals("raw native text did not inherit its parent font size", 18f, rawLabel.textSize / activity.resources.displayMetrics.scaledDensity, 0.1f)
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()
                 val x = pressable.width / 2f

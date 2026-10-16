@@ -2626,6 +2626,15 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('awaitText(activity, "navigation-home-state", "Home state: Ada/1")\n            val link = awaitView(activity, "native-route-link")')
   })
 
+  it('inherits parent typography for raw native text children on both hosts', () => {
+    expect(navigationHome).toContain('<Pressable testID="native-raw-pressable"')
+    expect(navigationHome).toContain('textTransform":"uppercase"')
+    expect(ios).toContain('return ["type": "Text", "style": typography, "children": [text]]')
+    expect(android).toContain('configureText(this, child, craftNativeTypography(style))')
+    expect(android).toContain('private fun craftNativeTypography(style: JSONObject): JSONObject')
+    expect(androidNavigationTest).toContain('raw native text did not inherit its parent colour')
+  })
+
   it('proves shared-runtime keyed rows through the maintained iOS host', () => {
     expect(navigationHome).toContain("globalThis.craft.storage.remove('native-navigation-details-destroyed')")
     expect(navigationHome).toContain('const navigationRows = state([')

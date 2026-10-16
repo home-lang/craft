@@ -5826,8 +5826,7 @@ class MainActivity : AppCompatActivity() {
                 is JSONObject -> makeView(screen, child, "$path.$index", next, previousControls)
                 is String -> TextView(this).apply {
                     includeFontPadding = false
-                    text = child
-                    setTextColor(defaultTextColor)
+                    configureText(this, child, craftNativeTypography(style))
                 }
                 else -> null
             }
@@ -6147,6 +6146,22 @@ class MainActivity : AppCompatActivity() {
             else -> value
         }
         configureTextStyle(view, style)
+    }
+
+    /**
+     * Raw strings inside a native container are implicit Text nodes. Keep
+     * their typography, but not the parent's padding or layout, just like
+     * the iOS reconciler does for the same child shape.
+     */
+    private fun craftNativeTypography(style: JSONObject): JSONObject = JSONObject().also { typography ->
+        listOf(
+            "color", "letterSpacing", "lineHeight", "fontSize", "fontFamily",
+            "fontWeight", "fontStyle", "textAlign", "textTransform",
+            "textDecorationLine", "textDecorationStyle", "textDecorationColor",
+            "textShadowColor", "textShadowRadius", "textShadowOffset",
+        ).forEach { key ->
+            if (style.has(key) && !style.isNull(key)) typography.put(key, style.opt(key))
+        }
     }
 
     private fun configureIcon(view: CraftNativeIconView, props: JSONObject, style: JSONObject) {

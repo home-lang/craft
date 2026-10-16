@@ -752,6 +752,7 @@ function toggleScreenBackground() {
     <Button testID="toggle-link-accessibility" @click="toggleLinkAccessibility()">Toggle link accessibility</Button>
     <View testID="native-panel" accessibilityState={panelAccessibilityState()} @click="pressPanel()" style={{"height":24}}><Text>Native panel</Text></View>
     <Pressable testID="native-pressable" @click="pressNativePressable()" @press-in="pressNativePressableIn()" @press-out="pressNativePressableOut()" style={{"height":24}}><Text>Native pressable</Text></Pressable>
+    <Pressable testID="native-raw-pressable" style={{"height":24,"color":"#ef4444","fontSize":18,"textTransform":"uppercase"}}>Raw pressable</Pressable>
     <Text testID="pressable-lifecycle" :text="'Press lifecycle: ' + pressIns + '/' + pressOuts" />
     <Pressable testID="disabled-pressable" disabled @click="pressNativePressable()" style={{"height":24}}><Text>Disabled pressable</Text></Pressable>
     <Button testID="toggle-panel-accessibility" @click="togglePanelAccessibility()">Toggle panel accessibility</Button>
