@@ -1,5 +1,23 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.200...v0.0.201)
+
+## 🚀 Features
+
+- **android**: declare verified HTTPS links and explicit browser handoff ([ddae1c2](https://github.com/craft-native/craft/commit/ddae1c2)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **android**: respect app link exclusions on cold and warm launches ([486bd39](https://github.com/craft-native/craft/commit/486bd39)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: separate native fixture builds from XCTest launch ([c44555d](https://github.com/craft-native/craft/commit/c44555d)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.199...v0.0.200)
 
 ## 🐛 Bug Fixes
