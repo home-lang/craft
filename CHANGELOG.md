@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.198...v0.0.199)
+
+## 🐛 Bug Fixes
+
+- **mobile**: recover interrupted offline media downloads ([aa9f494](https://github.com/craft-native/craft/commit/aa9f494)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.197...v0.0.198)
 
 ## 🐛 Bug Fixes
