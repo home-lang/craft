@@ -18,11 +18,13 @@
 
 ## 📚 Documentation
 
+- record the hybrid device harness fix ([6c19f0f](https://github.com/craft-native/craft/commit/6c19f0f)) _(by Chris Breuer)_
 - complete native device release notes ([233bbd8](https://github.com/craft-native/craft/commit/233bbd8)) _(by Chris Breuer)_
 
 ## 🧪 Tests
 
 - **ios**: keep hybrid fixture HTTP serving during Xcode checks ([877cdad](https://github.com/craft-native/craft/commit/877cdad)) _(by Chris Breuer)_
+- **ios**: verify native link retention and diagnose tab settling ([e3b34f5](https://github.com/craft-native/craft/commit/e3b34f5)) _(by Chris Breuer)_
 - align native contracts with shared service APIs ([429cc95](https://github.com/craft-native/craft/commit/429cc95)) _(by Chris Breuer)_
 - **android**: share Gradle Kotlin fixture execution ([21161be](https://github.com/craft-native/craft/commit/21161be)) _(by Chris Breuer)_
 - **ios**: assert selected tabs without matching back buttons ([9449168](https://github.com/craft-native/craft/commit/9449168)) _(by Chris Breuer)_
@@ -33,6 +35,7 @@
 
 ## 🧹 Chores
 
+- integrate current native link retention coverage ([4306c99](https://github.com/craft-native/craft/commit/4306c99)) _(by Chris Breuer)_
 - release v0.0.203 ([00fd401](https://github.com/craft-native/craft/commit/00fd401)) _(by Chris Breuer)_
 - integrate current native navigation fixes ([075a6f6](https://github.com/craft-native/craft/commit/075a6f6)) _(by Chris Breuer)_
 
