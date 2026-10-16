@@ -5747,13 +5747,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let refreshNode = children.compactMap { $0 as? [String: Any] }.first {
                 canonicalType($0["type"] as? String ?? "") == "RefreshControl"
             }
-            let refreshProps = refreshNode?["props"] as? [String: Any] ?? [:]
+            let propRefresh = props["refreshControl"] as? [String: Any] ?? [:]
+            let refreshProps = refreshNode?["props"] as? [String: Any] ?? propRefresh
             let refreshEvents = refreshNode?["events"] as? [String: String] ?? [:]
             let refreshHandlerName = nonEmptyHandler(refreshEvents["onRefresh"])
                 ?? nonEmptyHandler(events["onRefresh"])
+            let refreshing = (refreshProps["refreshing"] ?? props["refreshing"]) as? Bool == true
             scroll.setRefreshHandler(refreshHandlerName.map { [weak self] handler in
                 { self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
-            }, refreshing: (refreshNode == nil ? props["refreshing"] : refreshProps["refreshing"]) as? Bool == true)
+            }, refreshing: refreshing)
             scroll.setRefreshAppearance(refreshProps)
             var contentStyle = style
             if let override = props["contentContainerStyle"] as? [String: Any] {

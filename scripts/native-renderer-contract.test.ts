@@ -142,6 +142,9 @@ describe('native renderer component contract', () => {
 
   it('types ScrollView refresh controls instead of falling back to any', () => {
     expect(componentTypes).toContain('refreshControl?: RefreshControlProps')
+    expect(ios).toContain('let propRefresh = props["refreshControl"] as? [String: Any] ?? [:]')
+    expect(android).toContain('val propRefresh = props.optJSONObject("refreshControl")')
+    expect(android).toContain('setRefreshHandler(refreshHandler, refreshProps.optBoolean("refreshing", props.optBoolean("refreshing", false)))')
   })
 
   it('types the implemented native scroll targeting controls', () => {
@@ -1566,14 +1569,15 @@ describe('native renderer component contract', () => {
 
   it('keeps ScrollView pull-to-refresh controlled on both hosts', () => {
     expect(ios).toContain('scroll.setRefreshHandler(refreshHandlerName.map')
-    expect(ios).toContain('refreshNode == nil ? props["refreshing"] : refreshProps["refreshing"]')
+    expect(ios).toContain('let propRefresh = props["refreshControl"] as? [String: Any] ?? [:]')
+    expect(ios).toContain('let refreshing = (refreshProps["refreshing"] ?? props["refreshing"]) as? Bool == true')
     expect(ios).toContain('func setRefreshAppearance(_ props: [String: Any])')
     expect(ios).toContain('scroll.setRefreshAppearance(refreshProps)')
     expect(android).toContain('private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context)')
     expect(android).toContain('fun setRefreshHandler(handler: (() -> Unit)?, refreshing: Boolean)')
     expect(android).toContain('fun setRefreshAppearance(props: JSONObject, density: Float)')
     expect(android).toContain('setProgressBackgroundColorSchemeColor(craftNativeColor(background))')
-    expect(android).toContain('setRefreshHandler(refreshHandler, if (refreshNode == null) props.optBoolean("refreshing", false) else refreshProps.optBoolean("refreshing", false))')
+    expect(android).toContain('setRefreshHandler(refreshHandler, refreshProps.optBoolean("refreshing", props.optBoolean("refreshing", false)))')
     expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }')
     const scrollStart = android.indexOf('private class CraftNativeScrollView')
     const scrollEnd = android.indexOf('private class CraftNativeFlexSpacer', scrollStart)

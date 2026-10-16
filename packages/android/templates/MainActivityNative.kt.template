@@ -5353,7 +5353,8 @@ class MainActivity : AppCompatActivity() {
                 val refreshNode = (0 until children.length()).asSequence()
                     .mapNotNull { children.optJSONObject(it) }
                     .firstOrNull { canonicalType(it.optString("type")) == "RefreshControl" }
-                val refreshProps = refreshNode?.optJSONObject("props") ?: JSONObject()
+                val propRefresh = props.optJSONObject("refreshControl")
+                val refreshProps = refreshNode?.optJSONObject("props") ?: propRefresh ?: JSONObject()
                 val refreshEvents = refreshNode?.optJSONObject("events") ?: JSONObject()
                 val refreshHandlerName = craftNativeEventName(refreshEvents, "onRefresh")
                     .takeIf { it.isNotBlank() }
@@ -5361,7 +5362,7 @@ class MainActivity : AppCompatActivity() {
                 val refreshHandler = refreshHandlerName?.let { handler ->
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
                 }
-                setRefreshHandler(refreshHandler, if (refreshNode == null) props.optBoolean("refreshing", false) else refreshProps.optBoolean("refreshing", false))
+                setRefreshHandler(refreshHandler, refreshProps.optBoolean("refreshing", props.optBoolean("refreshing", false)))
                 setRefreshAppearance(refreshProps, resources.displayMetrics.density)
                 val onScroll = craftNativeEventName(events, "onScroll")
                 if (onScroll.isNotBlank()) screen.scrollHandlers[this] = onScroll else screen.scrollHandlers.remove(this)
