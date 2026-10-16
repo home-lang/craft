@@ -140,6 +140,8 @@ become checked on their first user toggle.
 horizontal and inverted layouts, list chrome, and end-reached pagination.
 Flex items support `flex`, `flexGrow`, `flexShrink`, and numeric or percentage
 `flexBasis` for main-axis space distribution while preserving gaps and margins.
+Shared transforms, z-order, view shadows, text shadows, and Android `elevation`
+are applied with the same style keys as the iOS renderer.
 `gap`, `rowGap`, and `columnGap` retain fractional density-independent values
 through line distribution and round only the final native frames.
 Numeric lengths and percentage widths/heights resolve against the native parent

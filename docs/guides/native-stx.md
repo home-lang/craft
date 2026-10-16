@@ -446,9 +446,12 @@ resolution, wrapped-line distribution, absolute inset, grid-track, and
 stretch/center/flex-end rules; text and image intrinsic
 sizes are measured by the host-native control, and `Button`/`Link` text uses the
 same font, color, alignment, and decoration styles as `Text`. Generated hosts
-pin the native screen root to the platform safe-area insets. Transforms and
-shadows remain outside the native renderer
-contract. Unsupported values are ignored rather than interpreted as CSS. Explicit `null`
+pin the native screen root to the platform safe-area insets. View transforms
+(`translateX/Y`, `scale`, `rotate`, and `skew`) and z-order (`zIndex`) are
+applied by both hosts. View shadows use `shadowColor`, `shadowOpacity`,
+`shadowRadius`, and `shadowOffset`; Android also maps `elevation` to its native
+outline/elevation model. Unsupported values are ignored rather than interpreted
+as CSS. Explicit `null`
 layout values, including `alignSelf` and `position`, clear the previous value
 and restore the host default during reconciliation.
 

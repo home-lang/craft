@@ -1600,6 +1600,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val offsetX = dp(craftNativeFiniteDouble(offset, "width", 0.0))')
     expect(android).toContain('outline.setRoundRect(offsetX, offsetY, target.width + offsetX, target.height + offsetY, radius)')
     expect(navigationHome).toContain('"shadowOpacity":0.35')
+    expect(guide).toContain('View shadows use `shadowColor`, `shadowOpacity`,')
   })
 
   it('maps per-edge border widths and colors on both native hosts', () => {
@@ -1635,6 +1636,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('CraftNativeSkewTransforms.matrix(child)')
     expect(navigationHome).toContain('"transform":[{"translateX":4},{"scaleX":0.9},{"rotate":"2deg"},{"skewX":"6deg"},{"skewY":"-3deg"}]')
     expect(androidNavigationTest).toContain('transform translateX was not applied')
+    expect(guide).toContain('View transforms\n(`translateX/Y`, `scale`, `rotate`, and `skew`)')
   })
 
   it('keeps horizontal list rows intrinsically sized across hosts', () => {
