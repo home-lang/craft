@@ -533,15 +533,21 @@ function toggleSafeAreaEdges() {
         width="24"
         height="24"
         fill="none"
+        fill-rule="evenodd"
+        fill-opacity="0.75"
         stroke="currentColor"
+        stroke-opacity="0.8"
         stroke-width="2"
+        stroke-dasharray="2 1"
+        stroke-dashoffset="0.5"
+        stroke-miterlimit="3"
         stroke-linecap="round"
         stroke-linejoin="round"
         accessibilityLabel="Native vector"
       >
         <g stroke="#2563eb">
           <path d="M4 12h16" />
-          <text x="12" y="21" text-anchor="middle" fill="#111827" stroke="none" font-size="4">SVG</text>
+          <text x="12" y="21" text-anchor="middle" dominant-baseline="middle" fill="#111827" stroke="none" font-size="4">SVG</text>
         </g>
       </svg>
       <Icon testID="native-icon" symbol="sun.max" accessibilityLabel="Native icon" style={{"width":24,"height":24,"color":"#f59e0b"}} />

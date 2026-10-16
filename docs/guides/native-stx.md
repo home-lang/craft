@@ -328,10 +328,11 @@ with the screen.
 
 `Svg` is DOM-free in native mode: the compiler emits geometry commands for
 shape nodes, `G` inherits fill/stroke paint, and `SvgText` draws text in the
-same viewBox. Both hosts preserve inherited opacity, fill/stroke colors, line
-caps, joins, and dash patterns; the iOS host applies those styles to each
-`CGPath` before stroking. An SVG string that requires DOM APIs remains a WebView
-concern.
+same viewBox. Both hosts preserve inherited opacity, fill/stroke colors, fill
+rules, fill/stroke opacity, line caps, joins, miter limits, dash patterns, and
+dash offsets; `SvgText` also accepts `dominantBaseline` values for centered or
+edge-aligned labels. The iOS host applies those styles to each `CGPath` before
+stroking. An SVG string that requires DOM APIs remains a WebView concern.
 
 `key` is scoped to sibling nodes. `testID` is also accepted as an identity for
 existing screens. Unkeyed children reconcile by position. A rerender updates an

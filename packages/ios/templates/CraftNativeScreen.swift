@@ -3255,10 +3255,16 @@ private final class CraftNativeSvgView: UIView {
         var strokeWidth: CGFloat = 1
         var color: String? = "#000000"
         var opacity: CGFloat = 1
+        var fillOpacity: CGFloat = 1
+        var strokeOpacity: CGFloat = 1
+        var strokeDashoffset: CGFloat = 0
+        var strokeMiterlimit: CGFloat = 4
+        var fillRule: String = "nonzero"
         var linecap: String?
         var linejoin: String?
         var dashes: [CGFloat]?
         var vectorEffect: String?
+        var dominantBaseline: String?
 
         func merged(_ node: [String: Any]) -> Paint {
             var next = self
@@ -3277,10 +3283,16 @@ private final class CraftNativeSvgView: UIView {
             // Computed style wins over the component prop, matching Android
             // and the browser's cascade when both provide opacity.
             if let opacity = finite(style["opacity"] ?? props["opacity"]) { next.opacity *= opacity }
+            if let opacity = finite(value("fillOpacity")) { next.fillOpacity = opacity }
+            if let opacity = finite(value("strokeOpacity")) { next.strokeOpacity = opacity }
+            if let offset = finite(value("strokeDashoffset")) { next.strokeDashoffset = offset }
+            if let limit = finite(value("strokeMiterlimit")), limit > 0 { next.strokeMiterlimit = limit }
+            if let rule = value("fillRule") as? String { next.fillRule = rule }
             if let cap = value("strokeLinecap") as? String { next.linecap = cap }
             if let join = value("strokeLinejoin") as? String { next.linejoin = join }
             if let dashes = value("strokeDasharray") as? [Any] { next.dashes = dashes.compactMap(finite).filter { $0 >= 0 } }
             if let vectorEffect = value("vectorEffect") as? String { next.vectorEffect = vectorEffect }
+            if let baseline = value("dominantBaseline") as? String { next.dominantBaseline = baseline }
             return next
         }
 
@@ -3338,10 +3350,13 @@ private final class CraftNativeSvgView: UIView {
             default:
                 guard let path = CraftNativeSvgView.path((shape["props"] as? [String: Any])?["geometry"]) else { continue }
                 context.saveGState()
-                context.setAlpha(own.opacity)
+                path.usesEvenOddFillRule = own.fillRule == "evenodd"
                 if let fill = own.resolve(own.fill) {
+                    context.saveGState()
+                    context.setAlpha(max(0, min(1, own.opacity * own.fillOpacity)))
                     fill.setFill()
                     path.fill()
+                    context.restoreGState()
                 }
                 if let stroke = own.resolve(own.stroke), own.strokeWidth > 0 {
                     // `vector-effect="non-scaling-stroke"`: the stroke is in the
@@ -3358,10 +3373,12 @@ private final class CraftNativeSvgView: UIView {
                         line = path
                     }
                     stroke.setStroke()
+                    context.setAlpha(max(0, min(1, own.opacity * own.strokeOpacity)))
                     line.lineWidth = own.strokeWidth
+                    line.miterLimit = own.strokeMiterlimit
                     line.lineCapStyle = own.linecap == "round" ? .round : own.linecap == "square" ? .square : .butt
                     line.lineJoinStyle = own.linejoin == "round" ? .round : own.linejoin == "bevel" ? .bevel : .miter
-                    if let dashes = own.dashes, !dashes.isEmpty { line.setLineDash(dashes, count: dashes.count, phase: 0) }
+                    if let dashes = own.dashes, !dashes.isEmpty { line.setLineDash(dashes, count: dashes.count, phase: own.strokeDashoffset) }
                     line.stroke()
                 }
                 context.restoreGState()
@@ -3376,9 +3393,13 @@ private final class CraftNativeSvgView: UIView {
         let style = node["style"] as? [String: Any] ?? [:]
         let size = number(props["fontSize"]) ?? number(style["fontSize"]) ?? 12
         let weight: UIFont.Weight = (props["fontWeight"] as? String ?? style["fontWeight"] as? String).map { ["500": .medium, "600": .semibold, "700": .bold, "bold": .bold][$0] ?? .regular } ?? .regular
+        let font = UIFont.systemFont(ofSize: size, weight: weight)
+        let resolvedTextColor = paint.resolve(paint.fill) ?? UIColor.label
+        let textAlpha = max(0, min(1, paint.opacity * paint.fillOpacity))
+        let textColor = resolvedTextColor.withAlphaComponent(resolvedTextColor.cgColor.alpha * textAlpha)
         let string = NSAttributedString(string: text, attributes: [
-            .font: UIFont.systemFont(ofSize: size, weight: weight),
-            .foregroundColor: paint.resolve(paint.fill) ?? UIColor.label,
+            .font: font,
+            .foregroundColor: textColor,
         ])
         var x = number(props["x"]) ?? 0
         let y = number(props["y"]) ?? 0
@@ -3387,8 +3408,14 @@ private final class CraftNativeSvgView: UIView {
         case "end": x -= string.size().width
         default: break
         }
-        // y is the baseline, as in SVG.
-        string.draw(at: CGPoint(x: x, y: y - UIFont.systemFont(ofSize: size).ascender))
+        let baseline: CGFloat
+        switch paint.dominantBaseline {
+        case "middle", "central", "mathematical": baseline = y - (font.ascender + font.descender) / 2
+        case "hanging", "text-before-edge", "before-edge": baseline = y + font.ascender
+        case "text-after-edge", "after-edge": baseline = y + font.descender
+        default: baseline = y
+        }
+        string.draw(at: CGPoint(x: x, y: baseline - font.ascender))
     }
 
     static func path(_ value: Any?) -> UIBezierPath? {

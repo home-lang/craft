@@ -340,11 +340,17 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         val strokeWidth: Float = 1f,
         val color: String = "#000000",
         val opacity: Float = 1f,
+        val fillOpacity: Float = 1f,
+        val strokeOpacity: Float = 1f,
+        val strokeDashoffset: Float = 0f,
+        val strokeMiterlimit: Float = 4f,
+        val fillRule: String = "nonzero",
         val typeface: Typeface = Typeface.DEFAULT,
         val strokeLinecap: String? = null,
         val strokeLinejoin: String? = null,
         val strokeDasharray: List<Float> = emptyList(),
         val vectorEffect: String? = null,
+        val dominantBaseline: String? = null,
     ) {
         fun merge(node: JSONObject): SvgPaint {
             val props = node.optJSONObject("props") ?: JSONObject()
@@ -369,17 +375,24 @@ private class CraftNativeSvgView(context: Context) : View(context) {
             // when both provide the same SVG paint value.
             val weight = value("fontWeight")
             val ownOpacity = value("opacity")?.toFloatOrNull()?.takeIf { it.isFinite() } ?: 1f
+            fun number(name: String): Float? = value(name)?.toFloatOrNull()?.takeIf { it.isFinite() }
             return copy(
                 fill = value("fill") ?: fill,
                 stroke = value("stroke") ?: stroke,
                 strokeWidth = value("strokeWidth")?.toFloatOrNull()?.takeIf { it.isFinite() } ?: strokeWidth,
                 color = value("color") ?: color,
                 opacity = ownOpacity * opacity,
+                fillOpacity = number("fillOpacity") ?: fillOpacity,
+                strokeOpacity = number("strokeOpacity") ?: strokeOpacity,
+                strokeDashoffset = number("strokeDashoffset") ?: strokeDashoffset,
+                strokeMiterlimit = number("strokeMiterlimit")?.takeIf { it > 0 } ?: strokeMiterlimit,
+                fillRule = value("fillRule") ?: fillRule,
                 typeface = if (weight in setOf("bold", "700")) Typeface.DEFAULT_BOLD else typeface,
                 strokeLinecap = value("strokeLinecap") ?: strokeLinecap,
                 strokeLinejoin = value("strokeLinejoin") ?: strokeLinejoin,
                 strokeDasharray = dashes(raw("strokeDasharray")) ?: strokeDasharray,
                 vectorEffect = value("vectorEffect") ?: vectorEffect,
+                dominantBaseline = value("dominantBaseline") ?: dominantBaseline,
             )
         }
     }
@@ -475,16 +488,18 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         }
         val fill = android.graphics.Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = resolveColor(style.fill, style.color, Color.TRANSPARENT)
-            alpha = (style.opacity * 255f).roundToInt().coerceIn(0, 255)
+            alpha = (style.opacity * style.fillOpacity * 255f).roundToInt().coerceIn(0, 255)
             this.style = Paint.Style.FILL
         }
+        path.fillType = if (style.fillRule == "evenodd") Path.FillType.EVEN_ODD else Path.FillType.WINDING
         if (style.fill != "none" && style.fill != "transparent") canvas.drawPath(path, fill)
         if (!style.stroke.isNullOrBlank() && style.stroke != "none" && style.stroke != "transparent" && style.strokeWidth > 0) {
             val stroke = android.graphics.Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = resolveColor(style.stroke, style.color, Color.TRANSPARENT)
-                alpha = (style.opacity * 255f).roundToInt().coerceIn(0, 255)
+                alpha = (style.opacity * style.strokeOpacity * 255f).roundToInt().coerceIn(0, 255)
                 this.style = Paint.Style.STROKE
                 strokeWidth = style.strokeWidth
+                strokeMiter = style.strokeMiterlimit
                 strokeCap = when (style.strokeLinecap) {
                     "round" -> Paint.Cap.ROUND
                     "square" -> Paint.Cap.SQUARE
@@ -502,7 +517,7 @@ private class CraftNativeSvgView(context: Context) : View(context) {
                     } else {
                         dashPattern
                     }
-                    pathEffect = DashPathEffect(pattern, 0f)
+                    pathEffect = DashPathEffect(pattern, style.strokeDashoffset)
                 }
             }
             // `vector-effect="non-scaling-stroke"`: the stroke is in the view's
@@ -533,7 +548,7 @@ private class CraftNativeSvgView(context: Context) : View(context) {
             ?: 12f
         val paint = android.graphics.Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = resolveColor(style.fill, style.color, Color.BLACK)
-            alpha = (style.opacity * 255f).roundToInt().coerceIn(0, 255)
+            alpha = (style.opacity * style.fillOpacity * 255f).roundToInt().coerceIn(0, 255)
             textSize = size
             typeface = style.typeface
         }
@@ -543,7 +558,14 @@ private class CraftNativeSvgView(context: Context) : View(context) {
             "middle" -> x -= paint.measureText(text) / 2f
             "end" -> x -= paint.measureText(text)
         }
-        canvas.drawText(text, x, y, paint)
+        val metrics = paint.fontMetrics
+        val baseline = when (style.dominantBaseline) {
+            "middle", "central", "mathematical" -> y - (metrics.ascent + metrics.descent) / 2f
+            "hanging", "text-before-edge", "before-edge" -> y - metrics.ascent
+            "text-after-edge", "after-edge" -> y - metrics.descent
+            else -> y
+        }
+        canvas.drawText(text, x, baseline, paint)
     }
 
     private fun resolveColor(value: String?, current: String, fallback: Int): Int = runCatching {
