@@ -1,5 +1,44 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.206...v0.0.207)
+
+## 🐛 Bug Fixes
+
+- **ios**: hold cold links until native stacks mount ([13f4903](https://github.com/craft-native/craft/commit/13f4903)) _(by Chris Breuer)_
+- **ios**: scope native map marker handlers ([16ea4f7](https://github.com/craft-native/craft/commit/16ea4f7)) _(by Chris Breuer)_
+- **android**: keep text input metadata typed ([03381f4](https://github.com/craft-native/craft/commit/03381f4)) _(by glennmichael123)_
+- **android**: keep text input visuals typed ([b8ea329](https://github.com/craft-native/craft/commit/b8ea329)) _(by glennmichael123)_
+- **android**: keep date picker modes typed ([9ff141d](https://github.com/craft-native/craft/commit/9ff141d)) _(by glennmichael123)_
+- **android**: keep map marker titles typed ([cd9e278](https://github.com/craft-native/craft/commit/cd9e278)) _(by glennmichael123)_
+- **android**: keep native labels string typed ([042d9ae](https://github.com/craft-native/craft/commit/042d9ae)) _(by glennmichael123)_
+- **android**: keep picker item labels typed ([5b1e31b](https://github.com/craft-native/craft/commit/5b1e31b)) _(by glennmichael123)_
+- **android**: keep picker labels string typed ([15a505c](https://github.com/craft-native/craft/commit/15a505c)) _(by glennmichael123)_
+- **android**: keep text input values typed ([a1ea541](https://github.com/craft-native/craft/commit/a1ea541)) _(by glennmichael123)_
+- **native**: normalize numeric icon weights ([943548a](https://github.com/craft-native/craft/commit/943548a)) _(by glennmichael123)_
+- **android**: reject malformed text weights ([2d5555a](https://github.com/craft-native/craft/commit/2d5555a)) _(by glennmichael123)_
+- **android**: preserve icon font weights ([b5fd680](https://github.com/craft-native/craft/commit/b5fd680)) _(by glennmichael123)_
+- **android**: keep text metrics numeric ([a7fd868](https://github.com/craft-native/craft/commit/a7fd868)) _(by glennmichael123)_
+- **android**: align SVG numeric parsing ([5c62475](https://github.com/craft-native/craft/commit/5c62475)) _(by glennmichael123)_
+- **android**: reject malformed style numerics ([c8df728](https://github.com/craft-native/craft/commit/c8df728)) _(by glennmichael123)_
+- **android**: keep layout numerics strict ([c9da45b](https://github.com/craft-native/craft/commit/c9da45b)) _(by glennmichael123)_
+- **android**: align remaining boolean props ([36eea85](https://github.com/craft-native/craft/commit/36eea85)) _(by glennmichael123)_
+- **android**: align map boolean props ([70907a1](https://github.com/craft-native/craft/commit/70907a1)) _(by glennmichael123)_
+- **android**: reject malformed integer props ([1edecef](https://github.com/craft-native/craft/commit/1edecef)) _(by glennmichael123)_
+- **android**: reject malformed text limits ([8446f7a](https://github.com/craft-native/craft/commit/8446f7a)) _(by glennmichael123)_
+- **android**: reject malformed slider numbers ([d97b478](https://github.com/craft-native/craft/commit/d97b478)) _(by glennmichael123)_
+- **android**: align media and input booleans ([cd9b7a9](https://github.com/craft-native/craft/commit/cd9b7a9)) _(by glennmichael123)_
+- **android**: align scroll boolean defaults ([f93faaa](https://github.com/craft-native/craft/commit/f93faaa)) _(by glennmichael123)_
+- **android**: keep native booleans strict ([1f2ec7d](https://github.com/craft-native/craft/commit/1f2ec7d)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **ios**: match site links by their full origin ([e0c14eb](https://github.com/craft-native/craft/commit/e0c14eb)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.205...v0.0.206)
 
 ## 🚀 Features
