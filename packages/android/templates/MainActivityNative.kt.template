@@ -638,16 +638,16 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
 
     private fun applyPending() {
         val map = googleMap ?: return
-        map.uiSettings.isScrollGesturesEnabled = pendingProps.optBoolean("scrollEnabled", true)
-        map.uiSettings.isZoomGesturesEnabled = pendingProps.optBoolean("zoomEnabled", true)
-        map.uiSettings.isRotateGesturesEnabled = pendingProps.optBoolean("rotateEnabled", false)
+        map.uiSettings.isScrollGesturesEnabled = craftNativeBoolean(pendingProps.opt("scrollEnabled"), true)
+        map.uiSettings.isZoomGesturesEnabled = craftNativeBoolean(pendingProps.opt("zoomEnabled"), true)
+        map.uiSettings.isRotateGesturesEnabled = craftNativeBoolean(pendingProps.opt("rotateEnabled"))
         map.mapType = when (craftNativeOptionalString(pendingProps.opt("mapType")).orEmpty().lowercase()) {
             "satellite" -> GoogleMap.MAP_TYPE_SATELLITE
             "hybrid" -> GoogleMap.MAP_TYPE_HYBRID
             "terrain" -> GoogleMap.MAP_TYPE_TERRAIN
             else -> GoogleMap.MAP_TYPE_NORMAL
         }
-        val showUserLocation = pendingProps.optBoolean("showsUserLocation", false) && hasLocationPermission()
+        val showUserLocation = craftNativeBoolean(pendingProps.opt("showsUserLocation")) && hasLocationPermission()
         runCatching { map.isMyLocationEnabled = showUserLocation }
         val nextMarkers = mutableMapOf<String, Pair<LatLng, String?>>()
         val nextHandlers = mutableMapOf<String, String>()
@@ -726,7 +726,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
                 moveCamera(initialRegion)
                 initialCameraKey = key
             }
-        } else if (pendingProps.optBoolean("fitToBounds", false)) {
+        } else if (craftNativeBoolean(pendingProps.opt("fitToBounds"))) {
             val key = "fit:${overlayKey(nextMarkers, nextPolylines)}"
             if (initialCameraKey != key) {
                 if (fitToBounds()) initialCameraKey = key
@@ -740,7 +740,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         super.onSizeChanged(width, height, oldWidth, oldHeight)
         // MapView can become ready before its host has a usable viewport. Do
         // not mark a fit as complete until the camera update can be issued.
-        if (width > 0 && height > 0 && pendingProps.optBoolean("fitToBounds", false) && initialCameraKey == null) {
+        if (width > 0 && height > 0 && craftNativeBoolean(pendingProps.opt("fitToBounds")) && initialCameraKey == null) {
             applyPending()
         }
     }

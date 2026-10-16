@@ -478,7 +478,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val latitude = finiteNumber(geometry.opt(index))')
     expect(android).toContain('val latitude = finiteNumber(center.opt("latitude"))')
     expect(android).toContain('private fun finiteNumber(value: Any?): Double?')
-    expect(android).toContain('val showUserLocation = pendingProps.optBoolean("showsUserLocation", false) && hasLocationPermission()')
+    expect(android).toContain('val showUserLocation = craftNativeBoolean(pendingProps.opt("showsUserLocation")) && hasLocationPermission()')
     expect(android).toContain('mapView.onStart()')
     expect(android).toContain('mapView.onStop()')
     expect(android).toContain('private var lifecycleStarted = false')
@@ -2860,6 +2860,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('columns = craftNativeInt(props.opt("numColumns"), 1)')
     expect(android).not.toContain('props.optInt("minuteInterval", 1)')
     expect(android).not.toContain('columns = props.optInt("numColumns", 1)')
+  })
+
+  it('keeps native Map boolean props strict across hosts', () => {
+    expect(ios).toContain('isScrollEnabled = props["scrollEnabled"] as? Bool ?? true')
+    expect(android).toContain('map.uiSettings.isScrollGesturesEnabled = craftNativeBoolean(pendingProps.opt("scrollEnabled"), true)')
+    expect(android).toContain('val showUserLocation = craftNativeBoolean(pendingProps.opt("showsUserLocation")) && hasLocationPermission()')
+    expect(android).toContain('craftNativeBoolean(pendingProps.opt("fitToBounds"))')
+    expect(android).not.toContain('pendingProps.optBoolean("fitToBounds", false)')
   })
 
   it('keeps malformed Android refresh colors from crashing or inventing a tint', () => {
