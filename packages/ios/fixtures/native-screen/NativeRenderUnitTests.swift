@@ -604,7 +604,7 @@ final class NativeRenderUnitTests: XCTestCase {
             ]],
         ])
         controller.view.layoutIfNeeded()
-        let svg = try XCTUnwrap(find("boolean-svg", below: controller.view))
+        let svg = try XCTUnwrap(find(UIView.self, key: "boolean-svg", below: controller.view))
         XCTAssertLessThanOrEqual(svg.frame.height, 1, "Boolean SVG viewBox values were treated as numeric")
     }
 
