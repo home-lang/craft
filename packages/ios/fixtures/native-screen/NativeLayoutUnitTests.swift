@@ -17,6 +17,23 @@ final class NativeLayoutUnitTests: XCTestCase {
         return controller
     }
 
+    func testOnlyLeadingScrollContentEscapesItsViewport() throws {
+        func scroll(_ key: String, overflow: String? = nil) -> [String: Any] {
+            var style: [String: Any] = ["height": 80]
+            if let overflow { style["overflow"] = overflow }
+            return ["type": "ScrollView", "props": ["testID": key], "style": style,
+                    "children": [box("content", style: ["height": 240])]]
+        }
+        let nested = screen(box("form", style: ["paddingTop": 16], [scroll("nested")]))
+        XCTAssertTrue(try XCTUnwrap(find("nested", below: nested.view)).clipsToBounds)
+        let leading = screen(scroll("leading"))
+        XCTAssertFalse(try XCTUnwrap(find("leading", below: leading.view)).clipsToBounds)
+        let hidden = screen(scroll("hidden", overflow: "hidden"))
+        XCTAssertTrue(try XCTUnwrap(find("hidden", below: hidden.view)).clipsToBounds)
+        let visible = screen(box("form", style: ["paddingTop": 16], [scroll("visible", overflow: "visible")]))
+        XCTAssertFalse(try XCTUnwrap(find("visible", below: visible.view)).clipsToBounds)
+    }
+
     func testUncontrolledInputReceivesTouchesWithoutEventHandlers() throws {
         let controller = screen(box("root", [
             ["type": "TextInput", "props": ["testID": "draft", "placeholder": "Note"]],

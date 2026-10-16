@@ -1572,8 +1572,9 @@ describe('Craft iOS builder', () => {
     // A screen that starts with its scroll view runs edge to edge, so what
     // scrolls up goes under the bar, not over its back button; the bottom
     // stays unclipped, under the floating tab bar.
-    expect(screen).toContain('let edgeToEdge = scroll != nil && (prefersLargeTitle == true || scroll === leading(renderedRoot))')
-    expect(screen).not.toContain('view is UIScrollView && overflow != "visible"')
+    expect(screen).toContain('let edgeToEdge = scroll != nil && (prefersLargeTitle == true || scroll === leadingScroll?.view)')
+    expect(screen).toContain('view is UIScrollView && overflow != "visible"')
+    expect(screen).toContain('leadingScroll.style["overflow"] as? String != "hidden"')
     // Speech: an interrupting cue speaks on a fresh synthesizer (one handed an
     // utterance right after stopSpeaking can drop it), the session lingers a
     // moment after the last word, and claiming it never blocks the main thread.
