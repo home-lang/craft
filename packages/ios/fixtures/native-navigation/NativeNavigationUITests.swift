@@ -224,7 +224,7 @@ final class NativeNavigationUITests: XCTestCase {
         link.tap()
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.webViews.firstMatch.exists, "native link opened a WebView")
-        XCTAssertTrue(app.buttons["Home"].isSelected, "link selected the Details tab instead of pushing")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@ AND selected == true", "Home")).count, 1, "link selected the Details tab instead of pushing")
         app.buttons["details-back"].tap()
         XCTAssertTrue(link.waitForExistence(timeout: 10))
     }
@@ -328,7 +328,7 @@ final class NativeNavigationUITests: XCTestCase {
 
         XCTAssertTrue(homeState.waitForExistence(timeout: 10), "native back gesture did not pop the pushed screen")
         XCTAssertEqual(homeState.label, "Home state: Ada/1")
-        XCTAssertTrue(app.buttons["Home"].isSelected, "back gesture changed the selected tab")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@ AND selected == true", "Home")).count, 1, "back gesture changed the selected tab")
         XCTAssertFalse(app.webViews.firstMatch.exists, "native back gesture created a WebView")
     }
 
