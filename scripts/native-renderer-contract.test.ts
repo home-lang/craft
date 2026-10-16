@@ -39,6 +39,7 @@ const navigationDetails = readFileSync(join(root, 'packages/ios/fixtures/native-
 const iosNavigationScript = readFileSync(join(root, 'packages/ios/scripts/test-native-navigation.ts'), 'utf8')
 const hybridNavigationScript = readFileSync(join(root, 'packages/ios/scripts/test-hybrid-navigation.ts'), 'utf8')
 const hybridNavigationTest = readFileSync(join(root, 'packages/ios/fixtures/hybrid-navigation/HybridNavigationUITests.swift'), 'utf8')
+const hybridNavigationUnitTest = readFileSync(join(root, 'packages/ios/fixtures/hybrid-navigation/HybridNavigationUnitTests.swift'), 'utf8')
 const androidNavigationScript = readFileSync(join(root, 'packages/android/scripts/test-native-navigation.ts'), 'utf8')
 const iosNativeUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeRenderUnitTests.swift'), 'utf8')
 const iosMutation = readFileSync(join(root, 'packages/ios/templates/CraftNativeMutation.swift'), 'utf8')
@@ -2377,6 +2378,13 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('source.view.addSubview(snapshot)')
     expect(hybrid).toContain('for snapshot in webTransitionSnapshots { snapshot.removeFromSuperview() }')
     expect(hybrid).toContain('webTransitionSnapshots.removeAll()')
+  })
+
+  it('reconciles a canceled hybrid tab swipe before reattaching its web slot', () => {
+    const hybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
+    expect(hybrid).toContain('slot.markArrivedIfNeeded(hybrid.pagePath)')
+    expect(hybrid).toContain('func markArrivedIfNeeded(_ currentPath: String?) -> Bool')
+    expect(hybridNavigationUnitTest).toContain('testCanceledTabSwipeRevealsAWebSlotThatAlreadyReachedItsRoute')
   })
 
   it('keeps Android tab swipes interactive and screen-configurable', () => {

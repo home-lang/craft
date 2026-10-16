@@ -61,4 +61,15 @@ final class HybridNavigationUnitTests: XCTestCase {
         let returned = await wait { hybrid.pagePath == "/" }
         XCTAssertTrue(returned)
     }
+
+    func testCanceledTabSwipeRevealsAWebSlotThatAlreadyReachedItsRoute() {
+        let slot = CraftHybridWebSlot(path: "/second", depth: nil, isTabRoot: true)
+        slot.awaitingPage = true
+
+        XCTAssertFalse(slot.markArrivedIfNeeded("/"))
+        XCTAssertTrue(slot.awaitingPage)
+        XCTAssertTrue(slot.markArrivedIfNeeded("/second"))
+        XCTAssertFalse(slot.awaitingPage)
+        XCTAssertFalse(slot.markArrivedIfNeeded("/second"))
+    }
 }

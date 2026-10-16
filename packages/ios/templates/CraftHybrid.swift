@@ -979,6 +979,17 @@ final class CraftHybridWebSlot: UIViewController {
     /// ready. This belongs to the incoming slot, beyond the push animation.
     private(set) var waitingPageSnapshot: UIView?
 
+    /// A canceled tab swipe may leave this slot hidden after the page has
+    /// already reported its destination. Reconcile that route before the
+    /// WebView is adopted again, so the slot cannot stay transparent forever.
+    @discardableResult
+    func markArrivedIfNeeded(_ currentPath: String?) -> Bool {
+        guard awaitingPage, let currentPath,
+              CraftHybridRoutes.normalize(currentPath) == CraftHybridRoutes.normalize(path) else { return false }
+        awaitingPage = false
+        return true
+    }
+
     func keepPageVisible(_ snapshot: UIView) {
         waitingPageSnapshot?.removeFromSuperview()
         snapshot.frame = view.bounds
@@ -1441,6 +1452,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     func adoptWeb(into slot: CraftHybridWebSlot, allowHiddenStack: Bool = false) {
         guard let webHost,
               allowHiddenStack || slot.navigationController === visibleStack || visibleStack == nil else { return }
+        slot.markArrivedIfNeeded(hybrid.pagePath)
         attachWeb()
         moveWeb(to: slot, in: slot.view)
         webHost.view.alpha = slot.awaitingPage ? 0 : 1
