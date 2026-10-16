@@ -4,6 +4,10 @@ import XCTest
 /// `/script`), one command a line:
 ///
 ///   launch | activate | terminate | home
+///   notifications          Home, then reveal Notification Center's Lock Screen presentation
+///   systemexpect <text> [| secs] / systemabsent <text> / systemtap <text>
+///                          assert or tap SpringBoard content, including Live Activities
+///   systemtree <name>      SpringBoard accessibility tree → shots/<name>.txt
 ///   background <secs>     Home, wait, back to the app
 ///   wait <seconds>
 ///   net offline|online
@@ -71,9 +75,10 @@ final class DriverTests: XCTestCase {
         XCTAssertTrue(ok, what)
     }
 
-    func element(containing text: String) -> XCUIElement? {
+    func element(containing text: String, in target: XCUIApplication? = nil) -> XCUIElement? {
+        let root = target ?? app
         let predicate = NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@ OR identifier == %@", text, text, text)
-        for query in [app.buttons, app.links, app.staticTexts, app.otherElements, app.cells, app.textFields] {
+        for query in [root.buttons, root.links, root.staticTexts, root.otherElements, root.cells, root.textFields] {
             let matches = query.matching(predicate)
             let count = min(matches.count, 25)
             for index in 0..<count {
@@ -81,7 +86,7 @@ final class DriverTests: XCTestCase {
                 if candidate.exists && candidate.isHittable { return candidate }
             }
         }
-        let any = app.descendants(matching: .any).matching(predicate).firstMatch
+        let any = root.descendants(matching: .any).matching(predicate).firstMatch
         return any.exists ? any : nil
     }
 
@@ -141,6 +146,9 @@ final class DriverTests: XCTestCase {
     }
 
     func answerOpenPrompt() {
+        // A direct app link has already arrived. Querying an invisible
+        // SpringBoard here can stall its accessibility snapshot on iOS 27.
+        if app.wait(for: .runningForeground, timeout: 2) { return }
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let open = springboard.buttons["Open"]
         if open.waitForExistence(timeout: 4) { open.tap() }
@@ -172,6 +180,27 @@ final class DriverTests: XCTestCase {
         case "activate": app.activate()
         case "terminate": app.terminate()
         case "home": XCUIDevice.shared.press(.home)
+        case "notifications":
+            XCUIDevice.shared.press(.home)
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            let start = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.005))
+            let end = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.85))
+            start.press(forDuration: 0.1, thenDragTo: end)
+            note("notifications: opened")
+        case "systemexpect":
+            let (text, seconds) = split(arg)
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            check(poll(seconds, { element(containing: text, in: springboard) }) != nil, "systemexpect \(text)")
+        case "systemabsent":
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            check(element(containing: arg, in: springboard) == nil, "systemabsent \(arg)")
+        case "systemtap":
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            if let target = poll(10, { element(containing: arg, in: springboard) }) { press(target); note("systemtap \(arg): ok") }
+            else { XCTFail("System element not found"); note("FAIL systemtap \(arg): NOT FOUND") }
+        case "systemtree":
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            post("/save?name=\(arg).txt", Data(springboard.debugDescription.utf8))
         case "background":
             XCUIDevice.shared.press(.home)
             Thread.sleep(forTimeInterval: Double(arg) ?? 3)

@@ -62,7 +62,7 @@ export function initSimulatorDriver(options: SimulatorDriverOptions): void {
 }
 
 export type SimulatorStep =
-  | { command: 'launch' | 'activate' | 'terminate' | 'home' | 'back' | 'return' | 'unlabelled' }
+  | { command: 'launch' | 'activate' | 'terminate' | 'home' | 'back' | 'return' | 'unlabelled' | 'notifications' }
   | { command: 'background' | 'wait', seconds: number }
   | { command: 'delay', milliseconds: number }
   | { command: 'net', state: 'online' | 'offline' }
@@ -73,9 +73,9 @@ export type SimulatorStep =
   | { command: 'tapxy', x: number, y: number }
   | { command: 'field', index: number, text: string }
   | { command: 'typeid' | 'labelid', id: string, text: string }
-  | { command: 'expect' | 'expectexact' | 'expectid', text: string, seconds?: number }
-  | { command: 'tap' | 'tapif' | 'tapid' | 'tapexact' | 'type' | 'absent' | 'absentid' | 'selected' | 'tab' | 'scrollto' | 'dismiss' | 'log', text: string }
-  | { command: 'shot' | 'tree' | 'audit' | 'exec', name: string }
+  | { command: 'expect' | 'expectexact' | 'expectid' | 'systemexpect', text: string, seconds?: number }
+  | { command: 'tap' | 'tapif' | 'tapid' | 'tapexact' | 'type' | 'absent' | 'absentid' | 'selected' | 'tab' | 'scrollto' | 'dismiss' | 'log' | 'systemtap' | 'systemabsent', text: string }
+  | { command: 'shot' | 'tree' | 'audit' | 'exec' | 'systemtree', name: string }
   | { command: 'openurl', url: string }
   /** Runs `step` only when the element with this identifier is there (a screen shown the first time). */
   | { command: 'ifid', id: string, step: SimulatorStep }
