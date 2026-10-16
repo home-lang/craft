@@ -78,5 +78,8 @@ Mid-drag screenshots are retained in the Xcode result bundle.
 the compiled stx screens. The normal CI navigation command runs both targets.
 To use a dedicated simulator, set `CRAFT_NATIVE_NAVIGATION_SIMULATOR=<udid>`.
 To run only the geometry checks, set
-`CRAFT_ONLY_TESTING=NativeNavigationUnitTests`; `CRAFT_NATIVE_NAVIGATION_TEST`
-continues to select a single UI test by method name.
+`CRAFT_ONLY_TESTING=NativeNavigationUnitTests`. This variable also accepts
+comma-separated XCTest selectors to run geometry and selected UI journeys in
+one session. `CRAFT_NATIVE_NAVIGATION_TEST` continues to select a single UI test
+by method name. The runner builds for testing first, then starts a separate
+test session to avoid Xcode stalling between compilation and test launch.

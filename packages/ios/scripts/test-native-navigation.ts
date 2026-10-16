@@ -124,16 +124,23 @@ try {
     const resultBundle = join(workspace, 'NativeNavigation.xcresult')
     const selectedTest = process.env.CRAFT_NATIVE_NAVIGATION_TEST
     const selectedTarget = process.env.CRAFT_ONLY_TESTING
-    const selection = selectedTarget ? [`-only-testing:${selectedTarget}`] : selectedTest
+    const selection = selectedTarget ? selectedTarget.split(',').map(target => target.trim()).filter(Boolean).map(target => `-only-testing:${target}`) : selectedTest
       ? [`-only-testing:NativeNavigationUITests/NativeNavigationUITests/${selectedTest}`]
       : []
-    runXcodeTests([
+    const xcodeArgs = [
       'xcodebuild', '-quiet', '-project', 'NativeNavigation.xcodeproj', '-scheme', 'NativeNavigation',
       '-configuration', 'Debug', '-destination', `id=${device.udid}`,
       '-derivedDataPath', join(workspace, 'DerivedData'),
+      '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'ENABLE_TESTABILITY=YES',
+    ]
+    // Separate build and test sessions: the combined action can stall before
+    // launching a hosted XCTest bundle, even after compilation has finished.
+    run([...xcodeArgs, 'build-for-testing'], output)
+    runXcodeTests([
+      ...xcodeArgs,
       '-resultBundlePath', resultBundle,
       ...selection,
-      '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'ENABLE_TESTABILITY=YES', 'test',
+      'test-without-building',
     ], output, resultBundle)
     console.log('Native navigation simulator tests passed')
   }
