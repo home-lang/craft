@@ -24,6 +24,15 @@ private final class CraftNativeFlatListLayout: UICollectionViewFlowLayout {
         if shouldInvalidateLayout(forBoundsChange: newBounds), let flow = context as? UICollectionViewFlowLayoutInvalidationContext {
             flow.invalidateFlowLayoutDelegateMetrics = true
             flow.invalidateFlowLayoutAttributes = true
+            // Self-sized item dimensions are cached separately from flow
+            // metrics. Clear them before a narrower viewport validates old
+            // widths, while keeping the cells and their rendered state.
+            if let collectionView {
+                let paths = (0..<collectionView.numberOfSections).flatMap { section in
+                    (0..<collectionView.numberOfItems(inSection: section)).map { IndexPath(item: $0, section: section) }
+                }
+                flow.invalidateItems(at: paths)
+            }
         }
         return context
     }
