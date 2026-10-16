@@ -3041,7 +3041,8 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps malformed Switch state deterministic across native hosts', () => {
-    expect(ios).toContain('toggle.isOn = props["value"] as? Bool ?? props["checked"] as? Bool ?? false')
+    expect(ios).toContain('let value = props["value"] as? Bool ?? props["checked"] as? Bool ?? false')
+    expect(ios).toContain('if toggle.isOn != value { toggle.isOn = value }')
     expect(android).toContain('requestedValue as? Boolean ?: false')
     expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
     expect(android).not.toContain('requestedChecked.isBlank()')

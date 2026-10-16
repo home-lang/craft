@@ -1422,6 +1422,29 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertNil(CraftNativeScreenController.countdownDuration("1:x:3"))
     }
 
+    func testSwitchKeepsItsControlAndUserValueWhenTheScriptAcknowledgesATap() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        func screen(_ value: Bool, _ label: String) -> [String: Any] {
+            document([
+                ["type": "Switch", "props": ["key": "consent", "value": value], "events": ["onValueChange": "consentChanged"]],
+                ["type": "Text", "children": [label]],
+            ])
+        }
+        controller.render(screen(false, "Confirm both"))
+        let toggle = try XCTUnwrap(find(UISwitch.self, key: "consent", below: controller.view))
+        toggle.setOn(true, animated: true)
+        toggle.sendActions(for: .valueChanged)
+        controller.render(screen(true, "Ready"))
+        XCTAssertTrue(toggle === find(UISwitch.self, key: "consent", below: controller.view))
+        XCTAssertTrue(toggle.isOn)
+        controller.render(screen(true, "Saving"))
+        XCTAssertTrue(toggle.isOn)
+        // A document refresh still clears consent when the script asks it to.
+        controller.render(screen(false, "Read the updated documents"))
+        XCTAssertFalse(toggle.isOn)
+    }
+
     func testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
