@@ -278,6 +278,9 @@ string or `{ uri }`, while `autoplay`/`autoPlay`, `paused`, `loop`, `muted`,
 `controls`, and `resizeMode` configure playback without creating a DOM video
 element. The native player is stopped when its node is removed or replaced;
 unsupported or empty sources remain inert instead of falling back to a WebView.
+Reconciliation does not restart a video paused from its native controls, or a
+non-looping video that has ended, unless the `autoplay`/`autoPlay` or `paused`
+play intent changes.
 `@play`, `@pause`, `@timeupdate`, `@ended`, `@load` and `@error` reach the screen
 on both platforms, from the system controls as well as from props; `@play` waits
 for the native player to report active playback. A video with sound

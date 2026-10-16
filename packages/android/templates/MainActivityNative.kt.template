@@ -2933,6 +2933,9 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     private var sourceUri = ""
     private var shouldLoop = false
     private var shouldPlay = false
+    private var playIntent: Boolean? = null
+    private var userPaused = false
+    private var ended = false
     private var muted = false
     private var resizeMode = "contain"
     private var preparedPlayer: MediaPlayer? = null
@@ -2970,7 +2973,13 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
             else -> ""
         }
         shouldLoop = loop
-        shouldPlay = autoplay && !paused
+        val nextShouldPlay = autoplay && !paused
+        if (playIntent != nextShouldPlay) {
+            userPaused = false
+            ended = false
+        }
+        playIntent = nextShouldPlay
+        shouldPlay = nextShouldPlay
         this.muted = muted
         val floating = pictureInPicture && !muted
         if (floating != this.pictureInPicture) {
@@ -2982,6 +2991,8 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         setMediaController(if (controls) MediaController(context).also { it.setAnchorView(this) } else null)
         if (uri != sourceUri) {
             sourceUri = uri
+            userPaused = false
+            ended = false
             stopPlayback()
             setPlaying(false)
             preparedPlayer = null
@@ -3001,7 +3012,10 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
             }
             setOnCompletionListener {
                 if (shouldLoop && !isPlaying) start()
-                else setPlaying(false)
+                else {
+                    ended = true
+                    setPlaying(false)
+                }
                 fire("onEnd")
             }
             setOnErrorListener { _, what, extra ->
@@ -3012,13 +3026,15 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         }
         if (uri.isBlank()) return
         runCatching {
-            if (shouldPlay && !isPlaying) start()
+            if (shouldPlay && !isPlaying && !userPaused && !ended) start()
             else if (!shouldPlay && isPlaying) pause()
         }
     }
 
     override fun start() {
         super.start()
+        userPaused = false
+        ended = false
         // VideoView accepts start() before its MediaPlayer is prepared. Do
         // not announce playback until the player reports that it is actually
         // running; iOS follows the same rule through AVPlayer's time status.
@@ -3027,6 +3043,7 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
 
     override fun pause() {
         super.pause()
+        userPaused = true
         setPlaying(false)
     }
 
@@ -3071,6 +3088,9 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         stopPlayback()
         setPlaying(false)
         sourceUri = ""
+        playIntent = null
+        userPaused = false
+        ended = false
         preparedPlayer = null
         if (pictureInPicture) {
             pictureInPicture = false
