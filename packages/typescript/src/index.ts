@@ -206,6 +206,8 @@ export type {
   ViewProps,
   SafeAreaViewProps,
   KeyboardAvoidingViewProps,
+  StatusBarProps,
+  RefreshControlProps,
   TextProps,
   ButtonProps,
   LinkProps,

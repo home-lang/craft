@@ -101,6 +101,15 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('gradientTo?: string')
   })
 
+  it('exposes the implemented utility-node prop contracts', () => {
+    expect(componentTypes).toContain("barStyle?: 'default' | 'light-content' | 'dark-content'")
+    expect(componentTypes).toContain('hidden?: boolean')
+    expect(componentTypes).toContain('progressBackgroundColor?: string')
+    expect(componentTypes).toContain('progressViewOffset?: number')
+    expect(ios).toContain('let hidden = props["hidden"] as? Bool')
+    expect(android).toContain('val offset = props.optDouble("progressViewOffset", Double.NaN)')
+  })
+
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')

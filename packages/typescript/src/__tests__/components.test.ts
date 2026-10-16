@@ -17,6 +17,8 @@ import type {
   FlexStyle,
   ButtonProps,
   ImageProps,
+  RefreshControlProps,
+  StatusBarProps,
   PickerProps,
   MapProps,
   MapMarkerProps,
@@ -62,6 +64,8 @@ describe('Component System', () => {
     const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], onPress: () => {} }
     const picker: PickerProps = { items: [{ label: 'One', value: 1 }], selectedValue: 1 }
     const childPicker: PickerProps = { children: ['One', 'Two'], selectedValue: 'Two' }
+    const statusBar: StatusBarProps = { barStyle: 'dark-content', hidden: false }
+    const refresh: RefreshControlProps = { refreshing: true, tintColor: '#2563eb', progressViewOffset: 8, onRefresh: () => {} }
     const sections: SectionListProps<string> = {
       sections: [{ title: 'Trails', data: ['Alpine'] }],
       renderItem: ({ item }) => item,
@@ -73,6 +77,8 @@ describe('Component System', () => {
     expect(marker.id).toBe('trailhead')
     expect(picker.selectedValue).toBe(1)
     expect(childPicker.items).toBeUndefined()
+    expect(statusBar.barStyle).toBe('dark-content')
+    expect(refresh.progressViewOffset).toBe(8)
     expect(sections.sections[0]?.data).toEqual(['Alpine'])
   })
 

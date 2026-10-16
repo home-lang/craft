@@ -444,6 +444,23 @@ export interface KeyboardAvoidingViewProps extends ViewProps {
   keyboardVerticalOffset?: number
 }
 
+/** Native status-bar appearance for the current screen. */
+export interface StatusBarProps extends BaseProps {
+  barStyle?: 'default' | 'light-content' | 'dark-content'
+  hidden?: boolean
+}
+
+/** Pull-to-refresh control consumed by a parent ScrollView or FlatList. */
+export interface RefreshControlProps extends BaseProps {
+  refreshing?: boolean
+  onRefresh?: () => void
+  tintColor?: string
+  title?: string
+  titleColor?: string
+  progressBackgroundColor?: string
+  progressViewOffset?: number
+}
+
 /**
  * Text component props.
  */
