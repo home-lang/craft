@@ -3787,6 +3787,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var imageSources: [ObjectIdentifier: String] = [:]
     private var imageTasks: [ObjectIdentifier: URLSessionDataTask] = [:]
     private var imageErrors: [ObjectIdentifier: String] = [:]
+    /// Text inputs retain UIKit's generated accessibility value unless the
+    /// bundle authored one; remember that distinction so removing the prop
+    /// restores the native value instead of leaving stale metadata behind.
+    private var authoredAccessibilityValues = Set<ObjectIdentifier>()
     private var checkboxIndeterminate: [ObjectIdentifier: Bool] = [:]
     private var tintedImages = Set<ObjectIdentifier>()
     private var imageLoadStartHandlers: [ObjectIdentifier: String] = [:]
@@ -6282,6 +6286,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         imageSources.removeValue(forKey: id)
         imageTasks.removeValue(forKey: id)?.cancel()
         imageErrors.removeValue(forKey: id)
+        authoredAccessibilityValues.remove(id)
         tintedImages.remove(id)
         imageLoadStartHandlers.removeValue(forKey: id)
         imageLoadHandlers.removeValue(forKey: id)
@@ -7061,11 +7066,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func applyAccessibility(_ props: [String: Any], type: String, to view: UIView) {
+        let id = ObjectIdentifier(view)
         view.accessibilityLabel = (props["accessibilityLabel"] as? String)
             ?? ((type == "Image" || type == "ImageBackground") ? props["alt"] as? String : nil)
         view.accessibilityHint = props["accessibilityHint"] as? String
         if let value = props["accessibilityValue"] {
             view.accessibilityValue = (value as? String) ?? (value as? NSNumber)?.stringValue
+            authoredAccessibilityValues.insert(id)
+        } else if authoredAccessibilityValues.remove(id) != nil {
+            // Clearing an authored value lets UIKit expose the field's live
+            // value again (particularly important for TextInput).
+            view.accessibilityValue = nil
         } else if type != "TextInput" {
             view.accessibilityValue = nil
         }

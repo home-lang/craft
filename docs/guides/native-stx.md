@@ -689,7 +689,8 @@ native text inputs. When `fontSize` is omitted, text uses the shared 16-point
 default on both hosts. Configuration changes are applied only when
 their values change, so state reconciliation preserves the focused field and
 its keyboard; UIKit text inputs retain their dynamic accessibility value unless
-an explicit `accessibilityValue` prop overrides it. The host also restores the first responder around synchronous
+an explicit `accessibilityValue` prop overrides it, and removing that prop
+restores UIKit's live value. The host also restores the first responder around synchronous
 native event callbacks and after a native tree reconciliation on the main UI
 thread. The host keeps a weak anchor to the last focused field so a control
 callback restores focus after dispatch and schedules a short delayed main-queue

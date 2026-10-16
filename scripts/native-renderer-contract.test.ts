@@ -1282,6 +1282,13 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('inputIdentities[id].map { inputDrafts[$0] = textView.text ?? "" }')
   })
 
+  it('restores UIKit TextInput accessibility values when authored metadata is removed', () => {
+    expect(ios).toContain('private var authoredAccessibilityValues = Set<ObjectIdentifier>()')
+    expect(ios).toContain('else if authoredAccessibilityValues.remove(id) != nil')
+    expect(iosNativeUnitTests).toContain('XCTAssertNil(field.accessibilityValue)')
+    expect(guide).toContain('removing that prop')
+  })
+
   it('uses the shared 16-point default text size across hosts', () => {
     expect(ios).toContain('textFont(style, default: .systemFont(ofSize: 16))')
     expect(ios).toContain('field.font = textFont(style, default: .systemFont(ofSize: 16))')

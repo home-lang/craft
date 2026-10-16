@@ -154,6 +154,24 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(multi.autocorrectionType, .default)
     }
 
+    func testTextInputAccessibilityValueRestoresNativeValueWhenPropIsRemoved() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([[
+            "type": "TextInput",
+            "props": ["key": "field", "value": "Draft", "accessibilityValue": "Custom value"],
+        ]]))
+
+        let field = try XCTUnwrap(find(UITextField.self, key: "field", below: controller.view))
+        XCTAssertEqual(field.accessibilityValue, "Custom value")
+
+        controller.render(document([[
+            "type": "TextInput",
+            "props": ["key": "field", "value": "Draft"],
+        ]]))
+        XCTAssertNil(field.accessibilityValue)
+    }
+
     func testPersistentStorageAndDatabaseCapabilitiesRoundTripJSONValues() async throws {
         _ = await capability("Storage", "clear")
         let stored = await capability("Storage", "set", ["profile", ["name": "Ada", "visits": 2]])
