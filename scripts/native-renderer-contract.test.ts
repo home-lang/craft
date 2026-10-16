@@ -416,7 +416,8 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('reveal(sectionList, in: rootScroll)')
     expect(iosNavigationTest).toContain('app.textFields["navigation-input-b"]')
     expect(iosNavigationTest).not.toContain('app.textFields.element(boundBy: 1)')
-    expect(iosNavigationTest).toContain('let svg = app.otherElements["native-svg"]')
+    expect(iosNavigationTest).toContain('["native-svg"]')
+    expect(iosNavigationTest).toContain('XCTAssertEqual(svg.label, "Native vector"')
     expect(iosNavigationTest).toContain('svg.waitForExistence(timeout: 5)')
     expect(iosNavigationTest).toContain('let link = app.staticTexts["native-link"]')
     expect(androidNavigationTest).toContain('assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)')
@@ -3272,7 +3273,10 @@ describe('native renderer component contract', () => {
     // the whole gesture; recomputing it from the moving frame makes it jump.
     expect(hybrid).toContain('tabSwipeFrom = -direction * width')
     expect(hybrid).toContain('target.view.frame.origin.x = tabSwipeFrom + offset')
-    expect(chrome).toContain('func beginTabSwipe(to id: String)')
+    // The owning native stack supplies the origin even when the chrome is
+    // already previewing another selection.
+    expect(chrome).toContain('func beginTabSwipe(to id: String, from previous: String)')
+    expect(hybrid).toContain('CraftChrome.shared.beginTabSwipe(to: id, from: currentTab)')
     expect(chrome).toContain('func commitTabSwipe(to id: String)')
     expect(chrome).toContain('func cancelTabSwipe(restoringSelection: Bool = true)')
     expect(hybrid).toContain('!(current.topViewController is CraftHybridWebSlot && target.topViewController is CraftHybridWebSlot)')
