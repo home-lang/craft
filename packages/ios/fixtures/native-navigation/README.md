@@ -19,7 +19,8 @@ CRAFT_NATIVE_NAVIGATION_TEST=testSharedRuntimePushBackReplaceLifecycleAndStateIs
 gesture while the tab gestures are installed. `testNativeLinkOpensRoute` uses a
 non-tab route alias so it exercises a native push and pop rather than selecting
 the Details tab. It locates the compiled anchor by its accessibility identifier;
-stx compiles anchors as touchable native controls.
+stx compiles anchors as touchable native controls. Its native `Text` child
+provides the visible label and its link role exposes the control to accessibility.
 
 Keyed row replacement releases the previous native root before the new row type
 is hosted, so old event, image, and pull-to-refresh handlers cannot leak across
