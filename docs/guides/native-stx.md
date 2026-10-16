@@ -473,6 +473,8 @@ type:
 
 `textTransform: 'capitalize'` uppercases the first character of each
 space-delimited word while preserving the remaining characters on both hosts.
+`fontWeight` accepts `normal`, `bold`, and numeric `100`–`900` values; both
+hosts normalize those forms before selecting the closest native type weight.
 `textAlign: 'justify'` uses UIKit justification on iOS and inter-word
 justification on Android when the platform API supports it.
 Explicit `null` image style values are treated as unset, so a prop-level

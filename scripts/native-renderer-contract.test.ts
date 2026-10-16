@@ -130,6 +130,9 @@ describe('native renderer component contract', () => {
 
   it('types ordinary native text weights the hosts accept', () => {
     expect(componentTypes).toContain("fontWeight?: number | 'normal' | 'bold'")
+    expect(guide).toContain('`fontWeight` accepts `normal`, `bold`, and numeric `100`–`900` values')
+    expect(ios).toContain('switch craftNativeFontWeight(style["fontWeight"])')
+    expect(android).toContain('val fontWeight = craftNativeFontWeight(style.opt("fontWeight"))')
   })
 
   it('types the native button styles both hosts already apply', () => {
