@@ -1,5 +1,20 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.212...v0.0.213)
+
+## 🚀 Features
+
+- **native**: add shared grid auto-row tree ABI ([d7e295a](https://github.com/craft-native/craft/commit/d7e295a)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **ios**: stop simulator test ID queries at the first exact match ([06f58de](https://github.com/craft-native/craft/commit/06f58de)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.211...v0.0.212)
 
 ## 🧪 Tests
