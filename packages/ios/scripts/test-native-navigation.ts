@@ -53,6 +53,7 @@ try {
       nativeScreens: {
         '/': 'home',
         '/details': 'details',
+        '/linked-details': 'details',
         '/summary': 'summary',
         '/capabilities': 'capabilities',
         '/third': 'summary',

@@ -15,6 +15,12 @@ Run only that acceptance path with:
 CRAFT_NATIVE_NAVIGATION_TEST=testSharedRuntimePushBackReplaceLifecycleAndStateIsolation bun packages/ios/scripts/test-native-navigation.ts
 ```
 
+`testNativeBackSwipeKeepsTheSelectedTabAndHomeState` verifies UIKit's edge-back
+gesture while the tab gestures are installed. `testNativeLinkOpensRoute` uses a
+non-tab route alias so it exercises a native push and pop rather than selecting
+the Details tab. It locates the compiled anchor by its accessibility identifier;
+stx compiles anchors as touchable native controls.
+
 Keyed row replacement releases the previous native root before the new row type
 is hosted, so old event, image, and pull-to-refresh handlers cannot leak across
 reuse. Both native hosts attach the details screen's `ScrollView` refresh
