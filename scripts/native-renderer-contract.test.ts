@@ -877,6 +877,16 @@ describe('native renderer component contract', () => {
     }
   })
 
+  it('documents the shared utility nodes on both native hosts', () => {
+    for (const readme of [iosReadme, androidReadme]) {
+      expect(readme).toContain('`KeyboardAvoidingView`')
+      expect(readme).toContain('`StatusBar`')
+      expect(readme).toContain('`RefreshControl`')
+    }
+    expect(iosReadme).toContain('screen/scroll utility nodes rather than visible children')
+    expect(androidReadme).toContain('Native mode maps STX `View`, `SafeAreaView`, `KeyboardAvoidingView`, `StatusBar`,')
+  })
+
   it('documents the DOM-free SVG primitives on both native hosts', () => {
     for (const readme of [iosReadme, androidReadme]) {
       expect(readme).toContain('`Svg`')

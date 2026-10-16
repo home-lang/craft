@@ -102,7 +102,8 @@ stx native compile --config ../screens/native.config.json --format bundle --outp
 craft android build --native-bundle ../native-screen.js
 ```
 
-Native mode maps STX `View`, `SafeAreaView`, `Text`, `Button`, `Link`, `Icon`,
+Native mode maps STX `View`, `SafeAreaView`, `KeyboardAvoidingView`, `StatusBar`,
+`RefreshControl`, `Text`, `Button`, `Link`, `Icon`,
 `Pressable`, `TouchableOpacity`, `TouchableHighlight`, `Checkbox`, `TextInput`, `Picker`, `DatePicker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `ImageBackground`, `Video`, `Svg`, `G`, `SvgText`, `ScrollView`,
 `Map`, `SectionList`, and `FlatList` to Android views. `Map` uses the Google
 Maps SDK for trail polylines and marker taps; its overlays carry flat
