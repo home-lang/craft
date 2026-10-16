@@ -104,8 +104,13 @@ describe('native renderer component contract', () => {
   it('exposes the implemented utility-node prop contracts', () => {
     expect(componentTypes).toContain("barStyle?: 'default' | 'light-content' | 'dark-content'")
     expect(componentTypes).toContain('hidden?: boolean')
-    expect(componentTypes).toContain('progressBackgroundColor?: string')
-    expect(componentTypes).toContain('progressViewOffset?: number')
+    const refreshProps = componentTypes.match(/export interface RefreshControlProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(refreshProps).toContain('refreshing?: boolean')
+    expect(refreshProps).toContain('tintColor?: string')
+    expect(refreshProps).not.toContain('title?:')
+    expect(refreshProps).not.toContain('titleColor?:')
+    expect(refreshProps).not.toContain('progressBackgroundColor?:')
+    expect(refreshProps).not.toContain('progressViewOffset?:')
     expect(ios).toContain('let hidden = props["hidden"] as? Bool')
     expect(android).toContain('val offset = props.optDouble("progressViewOffset", Double.NaN)')
   })

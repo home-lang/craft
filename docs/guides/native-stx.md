@@ -568,8 +568,10 @@ recycling.
 
 `RefreshControl` is a native utility node rather than a visible child: place it
 inside a `ScrollView` when the screen wants the React Native-shaped form. Its
-`refreshing` and `onRefresh` props control the platform refresh control, and
-the node is removed from the scroll content so it cannot consume layout space.
+`refreshing`, `onRefresh`, and `tintColor` props control the platform refresh
+control, and the node is removed from the scroll content so it cannot consume
+layout space. Host-specific presentation props are intentionally not part of
+the shared contract.
 `StatusBar` likewise contributes no layout; its `barStyle` (`default`,
 `light-content`, or `dark-content`) and `hidden` props apply to the active
 screen while the app-level appearance remains the fallback.

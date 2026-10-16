@@ -59,14 +59,14 @@ describe('Component System', () => {
       inverted: true,
       stickyHeaderIndices: [0, 2],
       scrollTarget: { id: 'today', animated: false, key: 'today-v2' },
-      refreshControl: { refreshing: false, title: 'Pull to refresh' },
+      refreshControl: { refreshing: false, tintColor: '#2563eb' },
     }
     expect(input.accessibilityState?.selected).toBe(true)
     expect(input.accessibilityRole).toBe('tab')
     expect(input.transitionID).toBe('profile-avatar')
     expect(scroll.onScroll).toBeDefined()
     expect(scroll.scrollTarget).toMatchObject({ id: 'today', animated: false })
-    expect(scroll.refreshControl?.title).toBe('Pull to refresh')
+    expect(scroll.refreshControl?.tintColor).toBe('#2563eb')
   })
 
   it('types the native renderer component contract', () => {
@@ -106,7 +106,16 @@ describe('Component System', () => {
     const picker: PickerProps = { items: [{ label: 'One', value: 1 }], selectedValue: 1, onChange: () => {} }
     const childPicker: PickerProps = { children: ['One', 'Two'], selectedValue: 'Two' }
     const statusBar: StatusBarProps = { barStyle: 'dark-content', hidden: false }
-    const refresh: RefreshControlProps = { refreshing: true, tintColor: '#2563eb', progressViewOffset: 8, onRefresh: () => {} }
+    const refresh: RefreshControlProps = { refreshing: true, tintColor: '#2563eb', onRefresh: () => {} }
+    // Host-specific refresh presentation stays out of the shared contract.
+    // @ts-expect-error title is iOS-only and has no Android equivalent.
+    refresh.title = 'Pull to refresh'
+    // @ts-expect-error titleColor is iOS-only and has no Android equivalent.
+    refresh.titleColor = '#64748b'
+    // @ts-expect-error progressBackgroundColor is Android-only.
+    refresh.progressBackgroundColor = '#0f172a'
+    // @ts-expect-error progressViewOffset is Android-only.
+    refresh.progressViewOffset = 8
     const svg: SvgProps = { viewBox: [0, 0, 24, 24], preserveAspectRatio: 'xMidYMid meet', fill: 'none' }
     const group: GProps = { stroke: '#2563eb', strokeLinecap: 'round' }
     const circle: CircleProps = { geometry: [0, 12, 4], fill: '#fff' }
@@ -141,7 +150,7 @@ describe('Component System', () => {
     expect(picker.selectedValue).toBe(1)
     expect(childPicker.items).toBeUndefined()
     expect(statusBar.barStyle).toBe('dark-content')
-    expect(refresh.progressViewOffset).toBe(8)
+    expect(refresh.tintColor).toBe('#2563eb')
     expect(svg.viewBox).toEqual([0, 0, 24, 24])
     expect(group.strokeLinecap).toBe('round')
     expect(circle.geometry).toEqual([0, 12, 4])

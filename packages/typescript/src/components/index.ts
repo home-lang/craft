@@ -483,10 +483,6 @@ export interface RefreshControlProps extends BaseProps {
   refreshing?: boolean
   onRefresh?: () => void
   tintColor?: string
-  title?: string
-  titleColor?: string
-  progressBackgroundColor?: string
-  progressViewOffset?: number
 }
 
 /**
