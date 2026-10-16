@@ -4,59 +4,112 @@ import WidgetKit
 
 @main
 struct CraftLiveActivityBundle: WidgetBundle {
-    var body: some Widget {
-        CraftLiveActivityWidget()
-    }
+    var body: some Widget { CraftLiveActivityWidget() }
 }
 
 struct CraftLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CraftActivityAttributes.self) { context in
             HStack(spacing: 12) {
-                Image(systemName: "figure.run")
-                    .foregroundStyle(.green)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(context.attributes.title).font(.headline)
-                    Text(context.state.status).font(.caption).foregroundStyle(.secondary)
+                Image(systemName: symbol(context)).font(.title2).foregroundStyle(tint(context))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(context.attributes.title).font(.headline).lineLimit(1)
+                    if let detail = context.state.detail, !detail.isEmpty {
+                        Text(detail).font(.subheadline).lineLimit(1)
+                    }
+                    Text(context.isStale ? context.state.staleStatus ?? context.state.status : context.state.status).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(distance(context.state.distanceMeters)).font(.headline.monospacedDigit())
-                    Text(duration(context.state.durationSeconds)).font(.caption.monospacedDigit())
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 4) {
+                    timer(context).font(.title2.monospacedDigit().weight(.semibold))
+                    metrics(context).font(.caption.monospacedDigit())
                 }
             }
             .padding()
-            .activityBackgroundTint(Color(red: 0, green: 0.24, blue: 0.18))
+            .activityBackgroundTint(Color(red: 0.07, green: 0.10, blue: 0.16))
             .activitySystemActionForegroundColor(.white)
+            .widgetURL(context.attributes.deepLink.flatMap(URL.init(string:)))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label(context.state.status, systemImage: "figure.run")
+                    Image(systemName: symbol(context)).foregroundStyle(tint(context)).font(.title2)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(distance(context.state.distanceMeters)).monospacedDigit()
+                    timer(context).font(.title2.monospacedDigit().weight(.semibold))
+                }
+                DynamicIslandExpandedRegion(.center) {
+                    VStack(spacing: 3) {
+                        Text(context.attributes.title).font(.headline).lineLimit(1)
+                        Text(context.isStale ? context.state.staleStatus ?? context.state.status : context.state.status).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    ProgressView(value: context.state.progress)
-                        .tint(.green)
+                    VStack(spacing: 8) {
+                        HStack {
+                            Text(context.state.detail ?? "").font(.subheadline).lineLimit(1)
+                            Spacer()
+                            metrics(context).font(.caption.monospacedDigit())
+                        }
+                        if let end = context.state.timerEndsAt, context.state.paused != true, let start = context.state.timerStartedAt, end > start {
+                            ProgressView(timerInterval: date(start)...date(end), countsDown: false).labelsHidden().tint(tint(context))
+                        } else {
+                            ProgressView(value: context.state.progress).tint(tint(context))
+                        }
+                    }
                 }
             } compactLeading: {
-                Image(systemName: "figure.run")
+                Image(systemName: symbol(context)).foregroundStyle(tint(context))
             } compactTrailing: {
-                Text(distance(context.state.distanceMeters)).monospacedDigit()
+                timer(context).monospacedDigit().frame(maxWidth: 64)
             } minimal: {
-                Image(systemName: "figure.run")
+                Image(systemName: symbol(context)).foregroundStyle(tint(context))
             }
-            .keylineTint(.green)
+            .widgetURL(context.attributes.deepLink.flatMap(URL.init(string:)))
+            .keylineTint(tint(context))
         }
     }
 
-    private func distance(_ meters: Double) -> String {
-        String(format: "%.2f km", meters / 1000)
+    private func symbol(_ context: ActivityViewContext<CraftActivityAttributes>) -> String {
+        context.state.paused == true ? "pause.fill" : context.attributes.symbol ?? "timer"
+    }
+
+    private func tint(_ context: ActivityViewContext<CraftActivityAttributes>) -> Color {
+        let raw = context.attributes.tint?.trimmingCharacters(in: CharacterSet(charactersIn: "#")) ?? "007aff"
+        guard raw.count == 6, let value = UInt32(raw, radix: 16) else { return .blue }
+        return Color(red: Double((value >> 16) & 255) / 255, green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255)
+    }
+
+    private func date(_ milliseconds: Double) -> Date { Date(timeIntervalSince1970: milliseconds / 1000) }
+
+    @ViewBuilder
+    private func timer(_ context: ActivityViewContext<CraftActivityAttributes>) -> some View {
+        if context.state.paused == true {
+            Text(duration(context.state.remainingSeconds ?? context.state.durationSeconds))
+        } else if let end = context.state.timerEndsAt {
+            // Clamped at zero, with no JavaScript timer or per-second Activity.update.
+            let start = min(date(context.state.timerStartedAt ?? end - 1), date(end))
+            Text(timerInterval: start...date(end), countsDown: true)
+        } else if let start = context.state.timerStartedAt {
+            Text(date(start), style: .timer)
+        } else {
+            Text(duration(context.state.durationSeconds))
+        }
+    }
+
+    @ViewBuilder
+    private func metrics(_ context: ActivityViewContext<CraftActivityAttributes>) -> some View {
+        HStack(spacing: 8) {
+            if let bpm = context.state.heartRate, bpm > 0 {
+                Label("\(Int(bpm))", systemImage: "heart.fill").foregroundStyle(.pink).privacySensitive()
+            }
+            if context.state.showsDistance != false {
+                Text(Measurement(value: context.state.distanceMeters, unit: UnitLength.meters), format: .measurement(width: .abbreviated, usage: .road)).privacySensitive()
+            }
+        }
     }
 
     private func duration(_ seconds: Double) -> String {
         let value = max(Int(seconds), 0)
-        return String(format: "%02d:%02d", value / 60, value % 60)
+        return value >= 3600 ? String(format: "%d:%02d:%02d", value / 3600, value / 60 % 60, value % 60) : String(format: "%d:%02d", value / 60, value % 60)
     }
 }
