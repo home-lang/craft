@@ -61,6 +61,23 @@ describe('package-owned iOS shells', () => {
     expect(() => serializeSimulatorSteps([{ command: 'typeid', id: 'two words', text: 'x' }])).toThrow()
   })
 
+  it('bundles an on-device journey with native XCTest evidence and removes it when returning to server mode', () => {
+    const output = folder()
+    const options = { output, bundleId: 'org.example.app', script: 'activate\nshot current\ntree current\n' }
+    initSimulatorDriver(options)
+    const path = join(output, 'UITests/journey.txt')
+    expect(readFileSync(path, 'utf8')).toBe(options.script)
+    const mtime = statSync(path).mtimeMs
+    initSimulatorDriver(options)
+    expect(statSync(path).mtimeMs).toBe(mtime)
+    const source = readFileSync(join(output, 'UITests/DriverTests.swift'), 'utf8')
+    expect(source).toContain('Bundle(for: DriverTests.self).url(forResource: "journey", withExtension: "txt")')
+    expect(source).toContain('attachment.lifetime = .keepAlways')
+    expect(source).toContain('if !bundledJourney { post("/note"')
+    initSimulatorDriver({ output, bundleId: options.bundleId })
+    expect(() => readFileSync(path)).toThrow()
+  })
+
   it('serializes guarded steps and exact label checks', () => {
     expect(serializeSimulatorSteps([
       { command: 'ifid', id: 'welcome-skip', step: { command: 'tapid', text: 'welcome-skip' } },

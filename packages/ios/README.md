@@ -172,6 +172,16 @@ the [Native STX guide](../../docs/guides/native-stx.md). On macOS,
 `bun packages/ios/scripts/test-native-render.ts` runs the renderer's unit and
 simulator UI tests.
 
+`initSimulatorDriver` can also drive an installed release on a paired iPhone.
+Pass `script: serializeSimulatorSteps(steps)` to bundle a journey in the test
+target. `shot`, `tree` and `systemtree` then save native XCTest attachments;
+checks appear in the Xcode test log. Generate the project with XcodeGen, sign
+the test runner for your team and run it against the device. The installed app
+under test is activated by its bundle identifier and is not rebuilt by the
+driver. Export evidence with `xcrun xcresulttool export attachments --path
+<result.xcresult> --output-path <evidence>`. Omitting `script` restores the
+control-server protocol, required for the `net`, `delay` and `exec` hooks.
+
 The iOS host uses the shared tree-layout ABI for eligible definite-size,
 non-grid, non-wrapped containers and retains a local fallback for older
 runtimes or unsupported styles. Both paths implement wrapped-line and grid

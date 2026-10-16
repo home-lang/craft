@@ -14,6 +14,8 @@ export interface SimulatorDriverOptions {
   deploymentTarget?: string
   controlUrl?: string
   tabs?: readonly string[]
+  /** Bundle a wire-protocol journey and save native XCTest attachments. No control server is needed on physical devices. */
+  script?: string
 }
 
 function bundleIdentifier(value: string): void {
@@ -58,6 +60,14 @@ export function initSimulatorDriver(options: SimulatorDriverOptions): void {
     try { previous = readFileSync(path, 'utf8') }
     catch { /* First generation. */ }
     if (previous !== content) writeFileSync(path, content)
+  }
+  const script = join(output, 'UITests/journey.txt')
+  if (options.script === undefined) rmSync(script, { force: true })
+  else {
+    let previous: string | undefined
+    try { previous = readFileSync(script, 'utf8') }
+    catch { /* First bundled journey. */ }
+    if (previous !== options.script) writeFileSync(script, options.script)
   }
 }
 

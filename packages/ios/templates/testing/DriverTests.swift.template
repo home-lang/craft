@@ -42,11 +42,14 @@ import XCTest
 ///   ifid <id> <command…>  runs the command only when that element is there (a screen shown the first time)
 ///   log <text>
 ///
-/// Checks log `PASS …` / `FAIL …` lines into driver.log; matrix.sh counts them.
+/// With a bundled journey.txt, evidence is kept as native XCTest attachments
+/// and PASS/FAIL lines appear in the test log. Control-server journeys also
+/// write driver.log; matrix.sh counts those checks.
 final class DriverTests: XCTestCase {
     let control = ProcessInfo.processInfo.environment["CRAFT_TEST_CONTROL"] ?? {{CONTROL_URL}}
     let app = XCUIApplication(bundleIdentifier: {{BUNDLE_ID}})
     let tabs: [String] = {{TABS}}
+    private var bundledJourney = false
 
     func get(_ path: String, timeout: Double = 15) -> Data? {
         var result: Data?
@@ -57,6 +60,15 @@ final class DriverTests: XCTestCase {
     }
 
     func post(_ path: String, _ body: Data) {
+        if bundledJourney {
+            guard path.hasPrefix("/save?"),
+                  let name = URLComponents(string: path)?.queryItems?.first(where: { $0.name == "name" })?.value else { return }
+            let attachment = XCTAttachment(data: body, uniformTypeIdentifier: name.hasSuffix(".png") ? "public.png" : "public.plain-text")
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            return
+        }
         var request = URLRequest(url: URL(string: control + path)!)
         request.httpMethod = "POST"
         request.httpBody = body
@@ -67,7 +79,7 @@ final class DriverTests: XCTestCase {
 
     func note(_ text: String) {
         print("DRIVER \(text)")
-        post("/note", Data(text.utf8))
+        if !bundledJourney { post("/note", Data(text.utf8)) }
     }
 
     func check(_ ok: Bool, _ what: String) {
@@ -156,7 +168,14 @@ final class DriverTests: XCTestCase {
 
     func testScript() throws {
         continueAfterFailure = true
-        guard let data = get("/script"), let script = String(data: data, encoding: .utf8) else {
+        let data: Data?
+        if let resource = Bundle(for: DriverTests.self).url(forResource: "journey", withExtension: "txt") {
+            bundledJourney = true
+            data = try Data(contentsOf: resource)
+        } else {
+            data = get("/script")
+        }
+        guard let data, let script = String(data: data, encoding: .utf8) else {
             XCTFail("no script")
             return
         }
@@ -171,6 +190,10 @@ final class DriverTests: XCTestCase {
         let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
         let command = parts[0]
         let arg = parts.count > 1 ? parts[1] : ""
+        if bundledJourney && ["net", "delay", "exec"].contains(command) {
+            check(false, "\(command) requires a control-server journey")
+            return
+        }
         switch command {
         case "ifid":
             let rest = arg.split(separator: " ", maxSplits: 1).map(String.init)
