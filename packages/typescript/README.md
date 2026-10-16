@@ -499,6 +499,29 @@ cd packages/examples-ts
 bun run hello-world
 ```
 
+## Mobile restart and update tests
+
+Use the Bun-only `craft-native/testing` entrypoint to interrupt an installed app
+on an explicitly selected iOS Simulator or Android emulator:
+
+```ts
+import { createMobileTestDevice } from 'craft-native/testing'
+
+const device = createMobileTestDevice({
+  platform: 'android', device: 'emulator-5582', appId: 'org.example.app',
+})
+await device.restart()
+const { previousBuild, build } = await device.installUpdate('/path/to/update.apk')
+```
+
+For iOS use `platform: 'ios'`, the simulator UUID, and an `.app` directory.
+`restart()` waits for a new boot; `installUpdate()` requires an existing app and
+preserves its data. Android updates must use the original signing key. Supply a
+higher build number and assert the returned installed builds, then run your
+app's UI checks for persisted progress and offline content. Neither operation
+uninstalls an app or clears its data. The controls deliberately refuse physical
+devices and implicit device selectors.
+
 ## Contributing
 
 We love contributions! Please see our [contributing guide](../../CONTRIBUTING.md).

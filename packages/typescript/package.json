@@ -39,6 +39,11 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./testing": {
+      "browser": null,
+      "types": "./dist/mobile-testing.d.ts",
+      "import": "./dist/mobile-testing.js"
+    },
     "./mobile": {
       "types": "./dist/mobile.d.ts",
       "import": "./dist/mobile.js",
@@ -67,6 +72,9 @@
   },
   "typesVersions": {
     "*": {
+      "testing": [
+        "./dist/mobile-testing.d.ts"
+      ],
       "mobile": [
         "./dist/mobile.d.ts"
       ],

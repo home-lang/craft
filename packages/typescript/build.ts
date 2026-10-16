@@ -40,6 +40,8 @@ await cp(resolve(root, '../ios/templates/CraftNativeMutation.swift'), resolve(di
 await cp(resolve(root, '../../templates/projects'), resolve(dist, 'templates/projects'), { recursive: true })
 
 await build(['src/index.ts'], 'dist')
+await build(['src/mobile-testing.ts'], 'dist')
+await Bun.$`bun ${resolve(root, "scripts/tsc.ts")} ${resolve(root, 'src/mobile-testing.ts')} --declaration --emitDeclarationOnly --module esnext --target esnext --moduleResolution bundler --types bun --skipLibCheck --ignoreConfig --outDir ${dist}`
 const mobileResult = await Bun.build({
   entrypoints: [resolve(root, 'src/mobile.ts'), resolve(root, 'src/browser.ts')],
   outdir: dist,
