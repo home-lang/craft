@@ -1199,7 +1199,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
                 }
             } else if type == "mappolyline" || type == "polyline" {
                 guard points.count > 1 else { continue }
-                let authoredWidth = (childProps["strokeWidth"] as? NSNumber)?.doubleValue ?? 3
+                let authoredWidth = Self.numeric(childProps["strokeWidth"]) ?? 3
                 let width = CGFloat(authoredWidth)
                 guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }
                 nextPolylines[id] = (points, Self.color(childProps["strokeColor"] as? String), width)
@@ -1334,8 +1334,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     }
 
     private static func coordinates(_ value: Any?) -> [CLLocationCoordinate2D] {
-        let numbers = (value as? [Any])?.compactMap { ($0 as? NSNumber)?.doubleValue }
-            ?? (value as? [NSNumber])?.map(\.doubleValue)
+        let numbers = (value as? [Any])?.compactMap(Self.numeric)
+            ?? (value as? [NSNumber])?.compactMap(Self.numeric)
             ?? []
         return stride(from: 0, to: numbers.count - 1, by: 2).compactMap {
             let latitude = numbers[$0]
@@ -1376,15 +1376,20 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         guard let value = value as? [String: Any],
               let center = value["center"] as? [String: Any],
               let span = value["span"] as? [String: Any],
-              let latitude = (center["latitude"] as? NSNumber)?.doubleValue,
-              let longitude = (center["longitude"] as? NSNumber)?.doubleValue,
-              let latitudeDelta = (span["latitudeDelta"] as? NSNumber)?.doubleValue ?? (span["latitude_delta"] as? NSNumber)?.doubleValue,
-              let longitudeDelta = (span["longitudeDelta"] as? NSNumber)?.doubleValue ?? (span["longitude_delta"] as? NSNumber)?.doubleValue,
-              latitude.isFinite, longitude.isFinite, latitudeDelta.isFinite, longitudeDelta.isFinite,
+              let latitude = numeric(center["latitude"]),
+              let longitude = numeric(center["longitude"]),
+              let latitudeDelta = numeric(span["latitudeDelta"]) ?? numeric(span["latitude_delta"]),
+              let longitudeDelta = numeric(span["longitudeDelta"]) ?? numeric(span["longitude_delta"]),
               (-90...90).contains(latitude), (-180...180).contains(longitude),
               latitudeDelta > 0, latitudeDelta <= 180, longitudeDelta > 0, longitudeDelta <= 360,
               latitude - latitudeDelta / 2 >= -90, latitude + latitudeDelta / 2 <= 90 else { return nil }
         return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta))
+    }
+
+    private static func numeric(_ value: Any?) -> Double? {
+        guard !(value is Bool), let number = value as? NSNumber else { return nil }
+        let value = number.doubleValue
+        return value.isFinite ? value : nil
     }
 
     private func nonEmptyHandler(_ handler: String?) -> String? {

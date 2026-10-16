@@ -566,6 +566,31 @@ final class NativeRenderUnitTests: XCTestCase {
         )
     }
 
+    func testMapIgnoresBooleanNumericCoordinates() {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render([
+            "type": "View",
+            "children": [[
+                "type": "Map",
+                "props": [
+                    "key": "boolean-map",
+                    "region": [
+                        "center": ["latitude": true, "longitude": 11.0],
+                        "span": ["latitudeDelta": 1.0, "longitudeDelta": 1.0],
+                    ],
+                ],
+                "style": ["width": 320, "height": 240],
+                "children": [[
+                    "type": "MapPolyline",
+                    "props": ["geometry": [true, 11.0, 47.1, 11.2]],
+                ]],
+            ]],
+        ])
+        let map = find(MKMapView.self, key: "boolean-map", below: controller.view)
+        XCTAssertEqual(map?.overlays.count, 0, "Boolean map coordinates were treated as numeric")
+    }
+
     func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace() throws {
         // A chart behind an `:if` (stx): the drawing and its shapes arrive in
         // one batch after the first paint. The shapes were refused as
