@@ -132,6 +132,32 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertGreaterThan(label.font.pointSize, 16)
     }
 
+    func testItalicNativeTextKeepsDynamicTypeScaling() throws {
+        let host = UIViewController()
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        host.addChild(controller)
+        host.view.addSubview(controller.view)
+        host.setOverrideTraitCollection(
+            UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge),
+            forChild: controller
+        )
+        controller.didMove(toParent: host)
+        controller.render(document([node(
+            "Text",
+            key: "italic-dynamic-text",
+            text: "Italic",
+            style: ["fontSize": 16, "fontStyle": "italic"]
+        )]))
+
+        let label = try XCTUnwrap(find(UILabel.self, key: "italic-dynamic-text", below: controller.view))
+        let expected = UIFontMetrics(forTextStyle: .body).scaledValue(
+            for: 16,
+            compatibleWith: controller.traitCollection
+        )
+        XCTAssertEqual(label.font.pointSize, expected, accuracy: 0.1)
+        XCTAssertTrue(label.font.fontDescriptor.symbolicTraits.contains(.traitItalic))
+    }
+
     func testTextInputTraitsFollowHostNeutralProps() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

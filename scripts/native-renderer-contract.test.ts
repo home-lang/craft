@@ -2750,8 +2750,10 @@ describe('native renderer component contract', () => {
   it('keeps Dynamic Type scaling aligned with Android SP text sizing', () => {
     expect(ios).toContain('UIFontMetrics(forTextStyle: .body).scaledValue(')
     expect(ios).toContain('compatibleWith: traitCollection')
+    expect(ios).toContain('UIFont(descriptor: descriptor, size: scaledSize)')
     expect(android).toContain('view.setTextSize(TypedValue.COMPLEX_UNIT_SP')
     expect(iosNativeUnitTests).toContain('testNativeTextScalesWithTheScreenContentSizeTrait')
+    expect(iosNativeUnitTests).toContain('testItalicNativeTextKeepsDynamicTypeScaling')
     expect(ios).toContain('UIContentSizeCategory.didChangeNotification')
   })
 

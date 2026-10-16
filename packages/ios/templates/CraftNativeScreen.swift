@@ -6962,7 +6962,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             ?? .systemFont(ofSize: scaledSize, weight: weight)
         if style["fontStyle"] as? String == "italic",
            let descriptor = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
-            font = UIFont(descriptor: descriptor, size: size)
+            font = UIFont(descriptor: descriptor, size: scaledSize)
         }
         return font
     }
