@@ -128,6 +128,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('drawing.optJSONObject("props")?.optJSONArray("viewBox")')
   })
 
+  it('types ordinary native text weights the hosts accept', () => {
+    expect(componentTypes).toContain("fontWeight?: number | 'normal' | 'bold'")
+  })
+
   it('exposes the semantic accessibility roles handled by both hosts', () => {
     expect(componentTypes).toContain("| 'adjustable'")
     expect(componentTypes).toContain("| 'checkbox'")

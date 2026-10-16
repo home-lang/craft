@@ -352,7 +352,7 @@ describe('Component System', () => {
       const textStyle: TextStyle = {
         color: 'black',
         fontSize: 16,
-        fontWeight: 'bold',
+        fontWeight: 700,
         fontFamily: 'System',
         textAlign: 'center',
         lineHeight: 24,
@@ -360,7 +360,7 @@ describe('Component System', () => {
       }
 
       expect(textStyle.fontSize).toBe(16)
-      expect(textStyle.fontWeight).toBe('bold')
+      expect(textStyle.fontWeight).toBe(700)
     })
 
     it('should support ImageStyle properties', () => {
