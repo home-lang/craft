@@ -752,6 +752,11 @@ app, the iOS shell's gesture also covers the WebView. Pass
 gesture of its own; native screens can still opt out independently with
 `tabSwipeEnabled`.
 
+Both native hosts also accept `backgroundColor` in
+`craft.navigation.setOptions`. It paints the screen behind its native content;
+passing `null` or omitting the option follows the app's light/dark background
+resource, while an explicit colour remains the screen's requested fill.
+
 On iOS, a native screen can opt into an opaque navigation bar that uses its
 screen background, including the light/dark variant from `craft.config.json`:
 

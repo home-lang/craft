@@ -200,6 +200,9 @@ screen background (including light/dark trait changes) with
 UIKit's translucent material; set it back to `false` when a screen no longer
 needs a solid bar.
 
+The `backgroundColor` navigation option is shared with the Android native host;
+omitting it or passing `null` returns to the app's dynamic light/dark colour.
+
 The optional Liquid Glass tab-bar styling is compiler-gated for Xcode 26/Swift 6.2 and later. Older SDKs compile the same tab bar with the material fallback, so generated projects remain buildable on Xcode 16.
 
 The iOS host overlays `craft.config.json` on its defaults. Missing or `null` capability flags stay disabled; explicitly set a flag to `true` to enable it. Both the Swift host and Zig bridge reject malformed values and fall back to all capabilities disabled.

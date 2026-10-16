@@ -1364,6 +1364,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('screen.options.opt("backgroundColor")')
     expect(android).toContain('ContextCompat.getColor(this, R.color.background)')
     expect(androidReadme).toContain('each screen may also set `backgroundColor`')
+    expect(guide).toContain('Both native hosts also accept `backgroundColor`')
+    expect(iosReadme).toContain('The `backgroundColor` navigation option is shared with the Android native host')
   })
 
   it('does not recenter native maps on every reconciliation', () => {
