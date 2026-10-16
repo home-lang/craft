@@ -1,5 +1,47 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.213...v0.0.214)
+
+## 🚀 Features
+
+- **ios**: route auto rows through shared layout ([55c503a](https://github.com/craft-native/craft/commit/55c503a)) _(by glennmichael123)_
+- **android**: route auto rows through shared layout ([cac4e0b](https://github.com/craft-native/craft/commit/cac4e0b)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **ios**: preserve native switch animations after value changes ([f54a075](https://github.com/craft-native/craft/commit/f54a075)) _(by Chris Breuer)_
+- **native**: reject boolean navigation badges ([d130dae](https://github.com/craft-native/craft/commit/d130dae)) _(by glennmichael123)_
+- **native**: reject boolean picker values ([39c6e99](https://github.com/craft-native/craft/commit/39c6e99)) _(by glennmichael123)_
+- **native**: reject boolean screen numbers ([0bc1912](https://github.com/craft-native/craft/commit/0bc1912)) _(by glennmichael123)_
+- **native**: reject boolean FlatList insets ([9cfb7b4](https://github.com/craft-native/craft/commit/9cfb7b4)) _(by glennmichael123)_
+- **native**: keep iOS integer props strict ([abdc4f6](https://github.com/craft-native/craft/commit/abdc4f6)) _(by glennmichael123)_
+- **native**: route legacy dialogs through capability bridge ([7ccfacd](https://github.com/craft-native/craft/commit/7ccfacd)) _(by glennmichael123)_
+- **native**: reject boolean svg numerics ([9369039](https://github.com/craft-native/craft/commit/9369039)) _(by glennmichael123)_
+- **native**: reject boolean map numerics ([07f7f6e](https://github.com/craft-native/craft/commit/07f7f6e)) _(by glennmichael123)_
+- **native**: keep multiline input limits strict ([fef7439](https://github.com/craft-native/craft/commit/fef7439)) _(by glennmichael123)_
+- **native**: keep indicator sizes strict ([c58bf6b](https://github.com/craft-native/craft/commit/c58bf6b)) _(by glennmichael123)_
+- **native**: keep input limits strict ([9d32545](https://github.com/craft-native/craft/commit/9d32545)) _(by glennmichael123)_
+- **native**: keep text line limits strict ([7bb7d0b](https://github.com/craft-native/craft/commit/7bb7d0b)) _(by glennmichael123)_
+- **native**: keep slider numerics strict ([5ccb361](https://github.com/craft-native/craft/commit/5ccb361)) _(by glennmichael123)_
+- **native**: reject boolean style numerics ([427aec7](https://github.com/craft-native/craft/commit/427aec7)) _(by glennmichael123)_
+- **native**: reject boolean layout lengths ([29d1e1c](https://github.com/craft-native/craft/commit/29d1e1c)) _(by glennmichael123)_
+- **native**: align nested flex shrink defaults ([5538a1e](https://github.com/craft-native/craft/commit/5538a1e)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: cover nested shrink axes ([d2d39a2](https://github.com/craft-native/craft/commit/d2d39a2)) _(by glennmichael123)_
+- **native**: cover nested grid auto rows ([253ed66](https://github.com/craft-native/craft/commit/253ed66)) _(by glennmichael123)_
+- **native**: cover shared auto-row ABI ([9016faa](https://github.com/craft-native/craft/commit/9016faa)) _(by glennmichael123)_
+
+## 🧹 Chores
+
+- integrate current native layout changes ([ca93406](https://github.com/craft-native/craft/commit/ca93406)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.212...v0.0.213)
 
 ## 🚀 Features
