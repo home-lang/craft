@@ -117,6 +117,7 @@ export interface CraftAndroidConfig {
   enableLocalNetwork?: boolean
   urlSchemes?: string[]
   /** HTTPS hosts owned by the app; path rules are ordered, with `*` matching any path text. */
+  /** Ordered path rules: * matches zero or more characters, ? one, and ?* one or more. */
   appLinks?: Array<{ host: string, paths?: Array<{ pattern: string, exclude?: boolean }> }>
   trustedOrigins?: string[]
   appIconPath?: string

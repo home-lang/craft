@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.203...v0.0.204)
+
+## 🐛 Bug Fixes
+
+- **android**: match nonempty App Link path segments ([ee9018f](https://github.com/craft-native/craft/commit/ee9018f)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.202...v0.0.203)
 
 ## 🐛 Bug Fixes
