@@ -5740,8 +5740,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             )
         case "Map":
             let map = result as! CraftNativeMapView
+            let mapMarkerHandler = nonEmptyHandler(events["onMarkerPress"])
             map.configure(props: props, children: children) { [weak self, weak map] markerID in
-                guard let self, let map, let handler = map.markerHandlers[markerID], !handler.isEmpty else { return }
+                guard let self, let map,
+                      let handler = map.markerHandlers[markerID] ?? mapMarkerHandler else { return }
                 self.send(type: "EVENT", payload: [
                     "handlerName": handler,
                     "nativeEvent": ["id": markerID],

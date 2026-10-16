@@ -5347,8 +5347,9 @@ class MainActivity : AppCompatActivity() {
                 )
             }
             "Map" -> (previous as? CraftNativeMapView ?: CraftNativeMapView(this)).apply {
+                val mapMarkerHandler = craftNativeOptionalString(events.opt("onMarkerPress"))
                 configure(props, children) { markerId ->
-                    markerHandler(markerId)?.let { handler ->
+                    (markerHandler(markerId) ?: mapMarkerHandler)?.let { handler ->
                         send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject().put("id", markerId)))
                     }
                 }
