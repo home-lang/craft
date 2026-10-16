@@ -1208,6 +1208,50 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertNil(CraftNativeScreenController.textContentType(["autoComplete": "off"]))
     }
 
+    func testDelayedInputAcknowledgementDoesNotStealFocusFromTheNextField() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["type": "TextInput", "props": ["key": "name"], "events": ["onChangeText": "nameChanged"]],
+            ["type": "TextInput", "props": ["key": "email"]],
+        ]))
+        let name = try XCTUnwrap(find(UITextField.self, key: "name", below: controller.view))
+        let email = try XCTUnwrap(find(UITextField.self, key: "email", below: controller.view))
+        XCTAssertTrue(name.becomeFirstResponder())
+        name.text = "Runner"
+        name.sendActions(for: .editingChanged)
+        XCTAssertTrue(email.becomeFirstResponder())
+        let settled = expectation(description: "input acknowledgement settled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
+        wait(for: [settled], timeout: 2)
+        XCTAssertTrue(email.isFirstResponder, "The previous field's delayed acknowledgement must respect the newer focus")
+        XCTAssertFalse(name.isFirstResponder)
+    }
+
+    func testDelayedInputAcknowledgementDoesNotReopenADismissedKeyboard() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["type": "TextInput", "props": ["key": "name"], "events": ["onChangeText": "nameChanged"]],
+        ]))
+        let name = try XCTUnwrap(find(UITextField.self, key: "name", below: controller.view))
+        XCTAssertTrue(name.becomeFirstResponder())
+        name.text = "Runner"
+        name.sendActions(for: .editingChanged)
+        controller.forgetFocusedInput(name)
+        window.endEditing(true)
+        let settled = expectation(description: "dismissed input acknowledgement settled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
+        wait(for: [settled], timeout: 2)
+        XCTAssertFalse(name.isFirstResponder, "A completed edit must not undo an explicit keyboard dismissal")
+    }
+
     func testReturnOnANextFieldMovesToTheNextOne() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()

@@ -5709,7 +5709,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func restoreFocus(_ focused: UIView?) {
-        guard let focused, focused.window != nil, !focused.isFirstResponder else { return }
+        guard let focused, focused.window != nil, !focused.isFirstResponder,
+              lastFocusedInput === focused, firstResponder(in: rootStack) == nil else { return }
+        // A delayed acknowledgement belongs to the input that scheduled it.
+        // A newer field or an explicit dismissal owns focus now.
         _ = focused.becomeFirstResponder()
     }
 
