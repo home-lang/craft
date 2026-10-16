@@ -1093,6 +1093,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('private func layoutFrame(of view: UIView) -> CGRect')
     expect(ios).toContain('guard !view.transform.isIdentity else { return view.frame }')
     expect(ios).toContain('let frame = layoutFrame(of: node.view)')
+    expect(ios).toContain('if !applied.isEmpty {')
+    expect(ios).toContain('scheduleLayoutEvents()')
     expect(ios).toContain('isEffectivelyVisible(node.view)')
     expect(ios).toContain('if current.isHidden { return false }')
     // A key is a node's own, or a lone wrapped child's: never a sibling-

@@ -5140,6 +5140,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             // reads the node's new layout style on its next pass.
             CraftNativeFlexLayout.invalidateAncestors(of: next.view)
         }
+        if !applied.isEmpty {
+            // A targeted mutation can change geometry without causing UIKit
+            // to call viewDidLayoutSubviews again. Keep onLayout delivery
+            // aligned with Android's post-mutation layout pass.
+            scheduleLayoutEvents()
+        }
         restoreFocus(focused)
         return true
     }
