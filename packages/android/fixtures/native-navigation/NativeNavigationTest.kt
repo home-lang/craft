@@ -361,6 +361,18 @@ class NativeNavigationTest {
             val name = awaitView(activity, "name-input")
             val root = awaitView(activity, "root")
             assertTrue("View did not render as LinearLayout", root is LinearLayout)
+            val authoredRootPadding = (16 * activity.resources.displayMetrics.density).toInt()
+            val initialRootTop = root.paddingTop
+            val initialRootBottom = root.paddingBottom
+            assertTrue("SafeAreaView did not retain its authored top padding", initialRootTop >= authoredRootPadding)
+            click(activity, "toggle-safe-area")
+            awaitText(activity, "safe-area-status", "Safe edges: bottom")
+            assertSame("SafeAreaView edge updates replaced the root", root, awaitView(activity, "root"))
+            assertEquals("Removing the top edge did not remove the window inset", authoredRootPadding, root.paddingTop)
+            assertTrue("Removing the top edge changed the bottom inset", root.paddingBottom >= initialRootBottom)
+            click(activity, "toggle-safe-area")
+            awaitText(activity, "safe-area-status", "Safe edges: top,bottom")
+            assertTrue("Restoring the top edge did not restore the window inset", root.paddingTop > authoredRootPadding)
             val rootHost = awaitView(activity, "native-root-scroll")
             val rootScroll = findType(rootHost, ScrollView::class.java)
                 ?: throw AssertionError("native-root-scroll did not contain an Android ScrollView")

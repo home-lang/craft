@@ -171,6 +171,33 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
     }
 
+    func testSafeAreaEdgesUpdateTheNativeRootWithoutRecreatingItsScrollView() {
+        let app = XCUIApplication()
+        app.launch()
+        let rootScroll = app.scrollViews["native-root-scroll"]
+        XCTAssertTrue(rootScroll.waitForExistence(timeout: 15))
+        let toggle = app.buttons["toggle-safe-area"]
+        reveal(toggle, in: rootScroll)
+
+        let baseline = rootScroll.frame.minY
+        toggle.tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["safe-area-status"], "Safe edges: bottom"))
+        let removed = XCTNSPredicateExpectation(predicate: NSPredicate { object, _ in
+            guard let candidate = object as? XCUIElement else { return false }
+            return candidate.frame.minY < baseline - 4
+        }, object: rootScroll)
+        XCTAssertEqual(XCTWaiter.wait(for: [removed], timeout: 5), .completed,
+                       "removing the top edge did not remove the native top inset")
+
+        toggle.tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["safe-area-status"], "Safe edges: top,bottom"))
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate { object, _ in
+            abs(((object as? XCUIElement)?.frame.minY ?? baseline) - baseline) <= 2
+        }, object: rootScroll)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed,
+                       "restoring the top edge did not restore the native inset")
+    }
+
     func testMultipleFloatingNavigationButtonsStayIndependent() {
         let app = XCUIApplication()
         app.launch()

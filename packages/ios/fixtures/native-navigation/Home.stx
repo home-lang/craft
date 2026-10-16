@@ -65,6 +65,7 @@ const navigationRows = state([
 const navigationRowSelection = state('none')
 const navigationRowsReordered = state(false)
 const sectionScrolls = state(0)
+const safeAreaBottomOnly = state(false)
 
 globalThis.craft.storage.remove('native-navigation-details-destroyed')
 globalThis.craft.navigation.setOptions({
@@ -426,15 +427,21 @@ function openCapabilities() {
 function captureSectionScroll() {
   sectionScrolls.set(1)
 }
+
+function toggleSafeAreaEdges() {
+  safeAreaBottomOnly.update(value => !value)
+}
 </script>
 
 <template>
-  <SafeAreaView testID="root" edges={['top', 'bottom']} class="p-4">
+  <SafeAreaView testID="root" :edges="safeAreaBottomOnly() ? ['bottom'] : ['top', 'bottom']" class="p-4">
     <ScrollView testID="native-root-scroll" style={{"flex":1}}>
     <View testID="theme-probe" class="bg-white dark:bg-slate-950" style={{"height":24}}>
       <Text testID="theme-probe-label" class="text-slate-900 dark:text-white">Theme probe</Text>
     </View>
     <Text testID="home-title">Home</Text>
+    <Button testID="toggle-safe-area" @click="toggleSafeAreaEdges()">Toggle safe edges</Button>
+    <Text testID="safe-area-status" :text="safeAreaBottomOnly() ? 'Safe edges: bottom' : 'Safe edges: top,bottom'" />
     <ScrollView testID="tab-swipe-carousel" horizontal style={{"width":240,"height":48}}>
       <View style={{"width":720,"height":40,"flexDirection":"row","alignItems":"center","gap":16,"paddingHorizontal":12,"backgroundColor":"#1e293b"}}>
         <Text testID="tab-swipe-carousel-label" style={{"width":220,"color":"#ffffff"}}>Horizontal carousel content</Text>

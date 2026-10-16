@@ -1173,7 +1173,9 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('self.additionalSafeAreaInsets.bottom = globalInset')
     expect(iosLayoutUnitTests).toContain('testKeyboardFrameUpdatesAndRestoresTheAdditionalSafeArea')
     expect(iosReadme).toContain("Keyboard frame changes update the native controller's additional safe area")
-    expect(navigationHome).toContain('<SafeAreaView testID="root" edges={[\'top\', \'bottom\']}')
+    expect(navigationHome).toContain('<SafeAreaView testID="root" :edges="safeAreaBottomOnly() ? [\'bottom\'] : [\'top\', \'bottom\']"')
+    expect(iosNavigationTest).toContain('testSafeAreaEdgesUpdateTheNativeRootWithoutRecreatingItsScrollView')
+    expect(androidNavigationTest).toContain('Removing the top edge did not remove the window inset')
   })
 
   it('lets both hosts use the shared tree ABI for definite simple containers and fall back otherwise', () => {
