@@ -928,10 +928,12 @@ struct CraftTabBarView: View {
                 bar
                 if let accessory = chrome.tabAccessory {
                     Button { CraftHybrid.shared.open(accessory.id) } label: {
-                        Image(systemName: accessory.symbol)
-                            .font(.system(size: iconSize))
-                            .frame(width: 62, height: 62)
-                            .background(.ultraThinMaterial, in: Circle())
+                        surface {
+                            Image(systemName: accessory.symbol)
+                                .font(.system(size: iconSize))
+                                .foregroundStyle(Color.primary)
+                                .frame(width: 62, height: 62)
+                        }
                             .overlay(alignment: .topTrailing) {
                                 if let badge = accessory.badge {
                                     Text(badge)
@@ -967,24 +969,27 @@ struct CraftTabBarView: View {
         chrome.layoutChanged(max(0, screen - proxy.frame(in: .global).minY))
     }
 
-    @ViewBuilder private var bar: some View {
+    private var bar: some View {
+        surface { items.padding(4) }
+    }
+
+    /// Both the tab capsule and its circular accessory use the same material,
+    /// outline and shadow. A square capsule forms the accessory's circle.
+    @ViewBuilder private func surface<Content: View>(@ViewBuilder content: () -> Content) -> some View {
 #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
             GlassEffectContainer {
-                items
-                    .padding(4)
+                content()
                     .glassEffect(.regular.interactive(), in: .capsule)
             }
         } else {
-            items
-                .padding(4)
+            content()
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.12), radius: 18, y: 6)
         }
 #else
-        items
-            .padding(4)
+        content()
             .background(.ultraThinMaterial, in: Capsule())
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5))
             .shadow(color: .black.opacity(0.12), radius: 18, y: 6)

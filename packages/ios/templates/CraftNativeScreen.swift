@@ -5735,7 +5735,6 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 ? nil : number(props["activeOpacity"]) ?? 0.5
             pressable.pressBaseOpacity = number(style["opacity"]) ?? 1
             pressable.pressUnderlayColor = type == "TouchableHighlight" && !disabled ? color(props["underlayColor"]) : nil
-            pressable.pressBaseBackgroundColor = pressable.backgroundColor
         case "Switch":
             let toggle = result as! UISwitch
             toggle.isOn = props["value"] as? Bool ?? props["checked"] as? Bool ?? false
@@ -6693,6 +6692,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         updateDimension(width, constraint: &node.widthConstraint, anchor: view.widthAnchor)
         updateDimension(height, constraint: &node.heightConstraint, anchor: view.heightAnchor)
         view.backgroundColor = color(style["backgroundColor"]) ?? .clear
+        // Every flow container can receive press feedback, including ordinary
+        // Views. Capture its current authored fill before feedback cleanup or
+        // release restores it; otherwise avatars and button wrappers go clear.
+        (view as? CraftNativeFlowView)?.pressBaseBackgroundColor = view.backgroundColor
         // A field the style dresses itself (`border-0`, a border or a
         // background, as a search field inside its own pill is) draws no
         // system box of its own; a bare one keeps the rounded rectangle.

@@ -17,6 +17,34 @@ final class NativeLayoutUnitTests: XCTestCase {
         return controller
     }
 
+    func testContainerFillsSurvivePressFeedbackReconciliation() throws {
+        func document(_ fill: String?) -> [String: Any] {
+            var style: [String: Any] = ["width": 100, "height": 44, "borderRadius": 12]
+            if let fill { style["backgroundColor"] = fill }
+            return box("root", [
+                box("avatar", style: style),
+                ["id": "follow", "type": "View", "props": ["testID": "follow"],
+                 "style": style, "events": ["onPress": "follow"]],
+                ["id": "feedback", "type": "View", "props": ["testID": "feedback"],
+                 "style": style, "events": fill == "#ff0000" ? ["onPressIn": "pressed"] : [:]],
+                ["id": "touchable", "type": "TouchableHighlight", "props": ["testID": "touchable"],
+                 "style": style],
+            ])
+        }
+        let controller = screen(document("#ff0000"))
+        for key in ["avatar", "follow", "feedback", "touchable"] {
+            try assertColor(try XCTUnwrap(find(key, below: controller.view)).backgroundColor, red: 1, green: 0, blue: 0)
+        }
+        controller.render(document("#0000ff"))
+        for key in ["avatar", "follow", "feedback", "touchable"] {
+            try assertColor(try XCTUnwrap(find(key, below: controller.view)).backgroundColor, red: 0, green: 0, blue: 1)
+        }
+        controller.render(document(nil))
+        for key in ["avatar", "follow", "feedback", "touchable"] {
+            XCTAssertEqual(try XCTUnwrap(find(key, below: controller.view)).backgroundColor?.cgColor.alpha, 0)
+        }
+    }
+
     func testOnlyLeadingScrollContentEscapesItsViewport() throws {
         func scroll(_ key: String, overflow: String? = nil) -> [String: Any] {
             var style: [String: Any] = ["height": 80]
