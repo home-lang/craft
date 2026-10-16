@@ -320,6 +320,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val points = coordinates(props.optJSONArray("geometry"))')
     expect(android).toContain('nativeEvent", JSONObject().put("id", markerId)')
     expect(android).toContain('mutableMapOf<String, Triple<List<LatLng>, Int, Float>>()')
+    expect(android).toContain('private fun color(value: String): Int = runCatching { craftNativeColor(value) }')
     expect(android).toContain('PolylineOptions().addAll(value.first).color(value.second).width(value.third)')
     expect(android).toContain('polylines.keys.filter { nextPolylines[it] == null }.forEach')
     expect(android).toContain('polyline.points = value.first')

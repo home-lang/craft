@@ -755,7 +755,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         return LatLngBounds(LatLng(latitude - latitudeDelta / 2, longitude - longitudeDelta / 2), LatLng(latitude + latitudeDelta / 2, longitude + longitudeDelta / 2))
     }
 
-    private fun color(value: String): Int = runCatching { Color.parseColor(value) }.getOrDefault(Color.BLUE)
+    private fun color(value: String): Int = runCatching { craftNativeColor(value) }.getOrDefault(Color.BLUE)
 }
 
 /** A deterministic flex-shaped container shared by normal views and scroll content. */

@@ -5,6 +5,7 @@
 ## 🐛 Bug Fixes
 
 - **native**: keep iOS map overlay colors aligned with Android CSS colors
+- **native**: parse Android map overlay colors through the shared CSS color path
 - **native**: schedule iOS `onLayout` delivery after targeted geometry mutations
 - **native**: align per-edge dashed and dotted borders across iOS and Android
 - **native**: align linear-gradient directions and stops across native hosts
