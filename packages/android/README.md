@@ -6,6 +6,7 @@ Build native Android apps with web technologies using Craft.
 or more characters, `?` matches one, and `?*` matches one or more. The first
 matching rule decides whether a link opens in the app or browser. For example,
 `/gyms/*/?*` excludes a nonempty subpath without excluding `/gyms/trifit/`.
+The `?` and `?*` wildcards require Craft 0.0.204 or later.
 
 ## Features
 
