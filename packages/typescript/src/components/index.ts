@@ -615,7 +615,8 @@ export interface MapProps extends BaseProps {
   scrollEnabled?: boolean
   zoomEnabled?: boolean
   rotateEnabled?: boolean
-  mapType?: 'standard' | 'satellite' | 'hybrid' | 'terrain'
+  /** Map styles implemented consistently by the maintained iOS and Android hosts. */
+  mapType?: 'standard' | 'satellite' | 'hybrid'
   onMarkerPress?: (event: { nativeEvent: { id: string } }) => void
 }
 

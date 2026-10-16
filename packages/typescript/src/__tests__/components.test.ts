@@ -75,6 +75,10 @@ describe('Component System', () => {
       mapType: 'standard',
       onMarkerPress: event => expect(event.nativeEvent.id).toBe('trailhead'),
     }
+    // The shared public contract only exposes map styles both hosts implement.
+    // @ts-expect-error terrain is Android-only and has no MapKit equivalent.
+    const androidOnlyMap: MapProps = { mapType: 'terrain' }
+    expect(androidOnlyMap).toBeDefined()
     const route: MapPolylineProps = { geometry: [47, 11, 47.1, 11.2], strokeWidth: 3 }
     const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], onPress: () => {} }
     const picker: PickerProps = { items: [{ label: 'One', value: 1 }], selectedValue: 1, onChange: () => {} }

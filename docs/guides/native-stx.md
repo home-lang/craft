@@ -213,8 +213,10 @@ controlled `region` (with `center` and `span`), an `initialRegion` applied once,
 or `fitToBounds`, which recenters only when its overlay geometry changes. A marker's `onPress` receives
 `nativeEvent.id`. It is backed by MapKit on iOS and the Google Maps SDK on
 Android; the Android template adds that dependency only for screens that opt
-into the native map host. Tile styling, clustering, directions, and offline
-tiles remain outside this contract. Set `showsUserLocation` to opt into the
+into the native map host. The shared `mapType` values are `standard`,
+`satellite`, and `hybrid`; Android's terrain-only style is intentionally not
+part of the cross-platform contract. Tile styling, clustering, directions, and
+offline tiles remain outside this contract. Set `showsUserLocation` to opt into the
 platform location dot; the host only enables it when the app's existing
 location permission is already granted, and never prompts from a renderer
 pass. Android also forwards `MapView` start/stop lifecycle callbacks as map
