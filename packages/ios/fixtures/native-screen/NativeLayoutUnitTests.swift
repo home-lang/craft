@@ -618,6 +618,18 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertTrue(items.allSatisfy { $0.customView is UIButton })
     }
 
+    func testBooleanNavigationBadgeIsIgnored() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let navigation = UINavigationController(rootViewController: controller)
+        navigation.loadViewIfNeeded()
+        controller.loadViewIfNeeded()
+        controller.evaluateScript("craft.navigation.setOptions({ rightButtons: [{ id: 'boolean-badge', symbol: 'bell', badge: true }] });")
+
+        let button = try XCTUnwrap(controller.navigationItem.rightBarButtonItems?.first?.customView as? UIButton)
+        XCTAssertNil(button.accessibilityValue)
+        XCTAssertFalse(button.subviews.contains { $0 is UILabel }, "Boolean badge was treated as a numeric unread count")
+    }
+
     func testNavigationOptionsSetTheBarAndTheRootTitleIsNeverUndefined() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let navigation = UINavigationController(rootViewController: controller)

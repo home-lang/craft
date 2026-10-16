@@ -1473,6 +1473,7 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('navigationItem.leftItemsSupplementBackButton = true')
     expect(swift).toContain('navigationItem.leftBarButtonItems = buttons.compactMap(navigationButton)')
     expect(swift).toContain('if spec["variant"] as? String == "neutral" { item.tintColor = .label }')
+    expect(swift).toContain('if !(spec["badge"] is Bool), let value = spec["badge"] as? NSNumber, value.intValue > 0 {')
   })
 
   it('floats a native bar\'s round buttons, as the tab bar floats: glass, else the thin material', () => {

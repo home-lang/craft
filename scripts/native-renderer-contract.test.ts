@@ -2339,6 +2339,8 @@ describe('native renderer component contract', () => {
     // item's plain backgroundColor white.
     expect(ios).toContain('let fill = UIImageView(image: UIImage(systemName: "circle.fill"))')
     expect(ios).toContain('fill.tintColor = dot ? .systemRed : .systemBlue')
+    expect(ios).toContain('if !(spec["badge"] is Bool), let value = spec["badge"] as? NSNumber, value.intValue > 0 {')
+    expect(iosLayoutUnitTests).toContain('testBooleanNavigationBadgeIsIgnored')
   })
 
   it('lets the keyboard cover the tab bar rather than carry it up', () => {

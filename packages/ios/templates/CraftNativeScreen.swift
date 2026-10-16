@@ -5000,7 +5000,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         else if let symbol = spec["symbol"] as? String { button.setImage(UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .regular)), for: .normal) }
         button.accessibilityIdentifier = spec["id"] as? String
         button.accessibilityLabel = spec["accessibilityLabel"] as? String
-        if let value = spec["badge"] as? NSNumber, value.intValue > 0 {
+        if !(spec["badge"] is Bool), let value = spec["badge"] as? NSNumber, value.intValue > 0 {
             let dot = spec["badgeStyle"] as? String == "dot"
             let size: CGFloat = dot ? 9 : 18
             // The fill is a tinted symbol, not a background colour: on iOS 26
