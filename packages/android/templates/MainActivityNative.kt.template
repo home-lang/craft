@@ -5004,7 +5004,8 @@ class MainActivity : AppCompatActivity() {
                 // an indeterminate control must announce "mixed" and its next
                 // user toggle should transition to checked, not unchecked.
                 isChecked = checked
-                isActivated = props.optBoolean("indeterminate", false)
+                val indeterminate = (props.opt("indeterminate") as? Boolean) == true
+                isActivated = indeterminate
                 isEnabled = !props.optBoolean("disabled", false)
                 val checkboxColor = craftNativeOptionalString(props.opt("color"))
                     ?: craftNativeOptionalString(style.opt("color"))
@@ -6517,7 +6518,7 @@ class MainActivity : AppCompatActivity() {
         }
         ViewCompat.setStateDescription(
             view,
-            if (type == "Checkbox" && props.optBoolean("indeterminate", false)) "mixed" else null,
+            if (type == "Checkbox" && (props.opt("indeterminate") as? Boolean) == true) "mixed" else null,
         )
         ViewCompat.setAccessibilityDelegate(view, object : AccessibilityDelegateCompat() {
             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
