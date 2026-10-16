@@ -101,6 +101,9 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     private var dataContentSignature = ""
     private var horizontal = false
     private var columns = 1
+    private var bounces = true
+    private var alwaysBounceVertical = true
+    private var alwaysBounceHorizontal = true
     private var keyboardShouldPersistTaps = "never"
     private var submissionGeneration = 0
     private var isSubmittingList = false
@@ -116,6 +119,23 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         if (horizontal) LayoutParams.WRAP_CONTENT else LayoutParams.MATCH_PARENT,
         LayoutParams.WRAP_CONTENT,
     )
+
+    fun setScrollIndicators(vertical: Boolean, horizontal: Boolean) {
+        isVerticalScrollBarEnabled = vertical
+        isHorizontalScrollBarEnabled = horizontal
+    }
+
+    fun setBounceOptions(enabled: Boolean, vertical: Boolean, horizontal: Boolean) {
+        bounces = enabled
+        alwaysBounceVertical = vertical
+        alwaysBounceHorizontal = horizontal
+        applyBounceMode()
+    }
+
+    private fun applyBounceMode() {
+        val axisEnabled = if (this.horizontal) alwaysBounceHorizontal else alwaysBounceVertical
+        overScrollMode = if (bounces && axisEnabled) View.OVER_SCROLL_ALWAYS else View.OVER_SCROLL_NEVER
+    }
 
     private fun updateVisibleHolderLayoutParams() {
         for (index in 0 until childCount) {
@@ -246,6 +266,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         val retainedState = if (layoutChanged) null else layoutManager?.onSaveInstanceState()
         this.horizontal = horizontal
         this.columns = nextColumns
+        applyBounceMode()
         if (layoutChanged || layoutManager == null) {
             configureLayoutManager()
             updateVisibleHolderLayoutParams()

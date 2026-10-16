@@ -5530,7 +5530,6 @@ class MainActivity : AppCompatActivity() {
                     (getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
                         ?.hideSoftInputFromWindow(windowToken, 0)
                 }
-                nativeList.overScrollMode = if (props.optBoolean("bounces", true)) View.OVER_SCROLL_ALWAYS else View.OVER_SCROLL_NEVER
                 reconcileFlatList(screen, nativeList, children, identity, protocolId ?: identity, props, events)
             }
             "View", "SafeAreaView" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
@@ -5853,9 +5852,10 @@ class MainActivity : AppCompatActivity() {
         }
         val threshold = craftNativeNonNegativeDouble(props, "threshold", 0.1)
         val authoredThreshold = craftNativeNonNegativeDouble(props, "onEndReachedThreshold", threshold)
+        val horizontal = props.optBoolean("horizontal", false)
         list.apply(
             nodes = nodes,
-            horizontal = props.optBoolean("horizontal", false),
+            horizontal = horizontal,
             columns = props.optInt("numColumns", 1),
             inverted = props.optBoolean("inverted", false),
             endReachedThreshold = authoredThreshold,
@@ -5875,6 +5875,15 @@ class MainActivity : AppCompatActivity() {
             endReached = craftNativeEventName(events, "onEndReached").takeIf { it.isNotBlank() }?.let { handler ->
                 { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
             },
+        )
+        list.setScrollIndicators(
+            props.optBoolean("showsVerticalScrollIndicator", true),
+            props.optBoolean("showsHorizontalScrollIndicator", true),
+        )
+        list.setBounceOptions(
+            props.optBoolean("bounces", true),
+            props.optBoolean("alwaysBounceVertical", !horizontal),
+            props.optBoolean("alwaysBounceHorizontal", horizontal),
         )
     }
 

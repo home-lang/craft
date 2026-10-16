@@ -6201,6 +6201,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 { self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
             }
         )
+        let horizontal = props["horizontal"] as? Bool == true
+        list.showsVerticalScrollIndicator = props["showsVerticalScrollIndicator"] as? Bool ?? true
+        list.showsHorizontalScrollIndicator = props["showsHorizontalScrollIndicator"] as? Bool ?? true
+        list.alwaysBounceVertical = props["alwaysBounceVertical"] as? Bool ?? !horizontal
+        list.alwaysBounceHorizontal = props["alwaysBounceHorizontal"] as? Bool ?? horizontal
         parent.children = []
     }
 

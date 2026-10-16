@@ -2519,6 +2519,17 @@ describe('native renderer component contract', () => {
     expect(androidFlatList).toContain('if (horizontal) LayoutParams.WRAP_CONTENT else LayoutParams.MATCH_PARENT')
   })
 
+  it('keeps FlatList scroll indicators and bounce axes configurable on both hosts', () => {
+    expect(ios).toContain('list.showsVerticalScrollIndicator = props["showsVerticalScrollIndicator"] as? Bool ?? true')
+    expect(ios).toContain('list.alwaysBounceHorizontal = props["alwaysBounceHorizontal"] as? Bool ?? horizontal')
+    expect(iosNativeUnitTests).toContain('testFlatListScrollIndicatorsAndBounceAxesFollowProps')
+    expect(android).toContain('list.setScrollIndicators(')
+    expect(android).toContain('list.setBounceOptions(')
+    expect(androidFlatList).toContain('fun setScrollIndicators(vertical: Boolean, horizontal: Boolean)')
+    expect(androidFlatList).toContain('fun setBounceOptions(enabled: Boolean, vertical: Boolean, horizontal: Boolean)')
+    expect(androidFlatListTest).toContain('appliesScrollIndicatorsAndBounceAxes')
+  })
+
   it('routes authored links through both native hosts', () => {
     expect(navigationHome).toContain('<a testID="native-route-link" href="/linked-details">')
     expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')
