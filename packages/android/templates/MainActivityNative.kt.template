@@ -4412,6 +4412,7 @@ class MainActivity : AppCompatActivity() {
         visibleScreen = screen
         if (screen.frameRequested) postFrame(screen)
         if (bars != null) applyChrome(screen)
+        applyScreenBackground(screen)
         if (previous !== screen) {
             if (previous != null && previous.active) send(previous, "SCREEN_FOCUS", JSONObject().put("focused", false))
             if (screen.shown) send(screen, "SCREEN_FOCUS", JSONObject().put("focused", true))
@@ -4445,6 +4446,15 @@ class MainActivity : AppCompatActivity() {
         val depth = screens.indexOf(screen).coerceAtLeast(0)
         val fallback = if (depth == 0) routes.tabs.getOrNull(currentTab)?.title else null
         bars.apply(screen.options, depth, fallback)
+    }
+
+    /** Applies a screen-specific background, falling back to the dynamic app colour. */
+    private fun applyScreenBackground(screen: Screen) {
+        val configured = screen.options.opt("backgroundColor")
+            ?.takeUnless { it == JSONObject.NULL }
+            ?.let { craftNativeOptionalString(it) }
+            ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
+        screen.view.setBackgroundColor(configured ?: ContextCompat.getColor(this, R.color.background))
     }
 
     /** The bridge's capability names: Craft's core set and this host's services. */
@@ -4512,6 +4522,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshScreenTheme(screen: Screen) {
+        applyScreenBackground(screen)
         screen.mutations.node("root")?.let { renderCommitted(screen, it) }
         screen.controls.values.mapNotNull {
             when (it) {
@@ -4636,6 +4647,7 @@ class MainActivity : AppCompatActivity() {
                 if (screen !== appScreen) {
                     payload.keys().forEach { key -> screen.options.put(key, payload.opt(key)) }
                     if (visibleScreen === screen) applyChrome(screen)
+                    if (payload.has("backgroundColor")) applyScreenBackground(screen)
                 }
             }
             "ANIMATE_NEXT" -> if (screen !== appScreen && visibleScreen === screen) animateNextChange(screen, payload)

@@ -643,6 +643,16 @@ describe('Craft Android builder', () => {
     expect(shell).toContain('decode(pair.substringAfter(\'=\', "").replace(\'+\', \' \'))')
   })
 
+  it('applies per-screen navigation backgrounds and restores the dynamic app color', async () => {
+    const output = createTempDir('craft-android-native-screen-background-')
+    await init({ name: 'NativeScreenBackground', packageName: 'org.example.nativescreenbackground', output, runtimeDir: null, config: { renderer: 'native' } })
+    const activity = readFileSync(join(output, 'app/src/main/java/org/example/nativescreenbackground/MainActivity.kt'), 'utf8')
+    expect(activity).toContain('private fun applyScreenBackground(screen: Screen)')
+    expect(activity).toContain('screen.options.opt("backgroundColor")')
+    expect(activity).toContain('ContextCompat.getColor(this, R.color.background)')
+    expect(activity).toContain('if (payload.has("backgroundColor")) applyScreenBackground(screen)')
+  })
+
   it('rejects Android API levels below the runtime floor before writing a project', async () => {
     const root = createTempDir('craft-android-sdk-floor-')
     try {

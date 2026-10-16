@@ -251,6 +251,8 @@ rejected before a project is generated.
   Back key popping it; completed left/right swipes switch between tab roots
   interactively, yield to a horizontal scroll view, and can be disabled per
   screen with `craft.navigation.setOptions({ tabSwipeEnabled: false })`;
+  each screen may also set `backgroundColor`; omitting it or passing `null`
+  follows the app's light/dark background resource;
 - `craft.navigation.open(path)` matched in the iOS shell's order (fixed segments
   before parameters), a tab's path selecting its tab, a path no screen draws
   opening the site in a Custom Tab; deep links and tapped notifications route

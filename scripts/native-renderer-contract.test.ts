@@ -1358,6 +1358,14 @@ describe('native renderer component contract', () => {
     expect(androidShell).toContain('decode(pair.substringAfter(\'=\', "").replace(\'+\', \' \'))')
   })
 
+  it('keeps per-screen navigation backgrounds aligned across native hosts', () => {
+    expect(ios).toContain('screenBackgroundColor = color(options["backgroundColor"])')
+    expect(android).toContain('private fun applyScreenBackground(screen: Screen)')
+    expect(android).toContain('screen.options.opt("backgroundColor")')
+    expect(android).toContain('ContextCompat.getColor(this, R.color.background)')
+    expect(androidReadme).toContain('each screen may also set `backgroundColor`')
+  })
+
   it('does not recenter native maps on every reconciliation', () => {
     expect(ios).toContain('private var initialCameraKey: String?')
     expect(ios).toContain('if let region = Self.region(props["region"])')
