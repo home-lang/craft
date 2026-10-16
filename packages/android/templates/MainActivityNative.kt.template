@@ -176,6 +176,11 @@ internal fun craftNativeFiniteDouble(style: JSONObject?, name: String, fallback:
     return value.takeIf { it.isFinite() } ?: fallback
 }
 
+internal fun craftNativeFiniteNumber(props: JSONObject?, name: String, fallback: Double): Double {
+    val value = (props?.opt(name) as? Number)?.toDouble() ?: Double.NaN
+    return value.takeIf { it.isFinite() } ?: fallback
+}
+
 internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double {
     val value = craftNativeFiniteDouble(style, name, Double.NaN)
     return if (value.isFinite() && value >= 0) value else fallback
@@ -5311,11 +5316,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             "Slider" -> (previous as? SeekBar ?: SeekBar(this)).apply {
-                val minimum = craftNativeFiniteDouble(props, "minimumValue", 0.0)
-                val maximumCandidate = craftNativeFiniteDouble(props, "maximumValue", 1.0)
+                val minimum = craftNativeFiniteNumber(props, "minimumValue", 0.0)
+                val maximumCandidate = craftNativeFiniteNumber(props, "maximumValue", 1.0)
                 val maximum = if (maximumCandidate > minimum) maximumCandidate else minimum + Double.MIN_VALUE
                 setOnSeekBarChangeListener(null)
-                val step = craftNativeFiniteDouble(props, "step", 0.0).takeIf { it > 0 }
+                val step = craftNativeFiniteNumber(props, "step", 0.0).takeIf { it > 0 }
                 // A stepped slider needs one native position per authored
                 // step; a fixed 1,000-position SeekBar silently made large
                 // ranges unable to represent most valid values. Continuous
@@ -5329,7 +5334,7 @@ class MainActivity : AppCompatActivity() {
                         .toInt()
                 } ?: 1000
                 max = progressMax
-                val requested = craftNativeFiniteDouble(props, "value", minimum)
+                val requested = craftNativeFiniteNumber(props, "value", minimum)
                 val value = (if (step != null) minimum + ((requested - minimum) / step).roundToInt() * step else requested)
                     .coerceIn(minimum, maximum)
                 progress = if (step != null) {
