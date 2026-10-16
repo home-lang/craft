@@ -16,7 +16,9 @@ private let craftNativeCapabilityTimeoutMilliseconds = 30_000
 /// which has its own: the keyboard-avoiding view and SVG text read theirs
 /// with it, and without it the template did not compile.
 private func number(_ value: Any?) -> CGFloat? {
-    guard let number = value as? NSNumber else { return nil }
+    // JavaScript booleans bridge to NSNumber on Apple platforms; they are
+    // invalid numeric styles and must stay unset like Android's Number cast.
+    guard !(value is Bool), let number = value as? NSNumber else { return nil }
     let value = CGFloat(truncating: number)
     return value.isFinite ? value : nil
 }

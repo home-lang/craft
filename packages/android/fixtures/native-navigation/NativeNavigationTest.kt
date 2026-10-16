@@ -793,6 +793,11 @@ class NativeNavigationTest {
                 "boolean width was treated as a numeric layout length",
                 booleanWidthText.width > 20.0 * density,
             )
+            val booleanFontSizeText = awaitView(activity, "boolean-font-size-text") as TextView
+            assertTrue(
+                "boolean font size was treated as a numeric style",
+                booleanFontSizeText.textSize > 10.0f * density,
+            )
             val nestedShrinkRowText = awaitView(activity, "nested-shrink-row-text")
             val nestedShrinkColumnText = awaitView(activity, "nested-shrink-column-text")
             assertEquals(
