@@ -151,6 +151,7 @@ describe('native renderer component contract', () => {
   it('allows the maintained child-based SectionList fallback', () => {
     expect(componentTypes).toContain('sections?: SectionListSection<T>[]')
     expect(componentTypes).toContain('renderItem?: (info: { item: T; index: number; section: SectionListSection<T> }) => any')
+    expect(componentTypes).not.toContain('renderSectionHeader?:')
     expect(guide).toContain('`SectionList` currently follows the same native scroll host')
   })
 

@@ -113,6 +113,9 @@ describe('Component System', () => {
       sections: [{ title: 'Trails', data: ['Alpine'] }],
       renderItem: ({ item }) => item,
     }
+    // Grouped section headers are not part of the maintained native protocol.
+    // @ts-expect-error renderSectionHeader is intentionally unsupported.
+    sections.renderSectionHeader = () => null
     const childSectionList: SectionListProps<string> = { children: ['Header', 'Row'] }
     expect(button.title).toBe('Open map')
     expect(map.initialRegion?.span.longitudeDelta).toBe(0.75)

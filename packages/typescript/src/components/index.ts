@@ -948,7 +948,6 @@ export interface SectionListProps<T> extends ScrollViewProps {
   /** Optional grouped data; the native host also supports ordinary children. */
   sections?: SectionListSection<T>[]
   renderItem?: (info: { item: T; index: number; section: SectionListSection<T> }) => any
-  renderSectionHeader?: (info: { section: SectionListSection<T> }) => any
   keyExtractor?: (item: T, index: number) => string
 }
 
