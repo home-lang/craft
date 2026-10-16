@@ -20,6 +20,7 @@
 
 ## 📚 Documentation
 
+- record simulator compatibility and hybrid rendering fixes ([2431f89](https://github.com/craft-native/craft/commit/2431f89)) _(by Chris Breuer)_
 - record complete parallel device verification ([eeb471f](https://github.com/craft-native/craft/commit/eeb471f)) _(by Chris Breuer)_
 - synchronize native release verification notes ([8d534df](https://github.com/craft-native/craft/commit/8d534df)) _(by Chris Breuer)_
 - record the hybrid device harness fix ([6c19f0f](https://github.com/craft-native/craft/commit/6c19f0f)) _(by Chris Breuer)_
@@ -27,6 +28,7 @@
 
 ## 🧪 Tests
 
+- **ios**: declare complete UIKit test target metadata ([51f2f5a](https://github.com/craft-native/craft/commit/51f2f5a)) _(by Chris Breuer)_
 - **ios**: use ad hoc signing for UIKit simulator fixtures ([b1d8b00](https://github.com/craft-native/craft/commit/b1d8b00)) _(by Chris Breuer)_
 - **ios**: retain hybrid HTTP and Xcode failure evidence ([f2f9cfc](https://github.com/craft-native/craft/commit/f2f9cfc)) _(by Chris Breuer)_
 - **ios**: keep hybrid fixture HTTP serving during Xcode checks ([877cdad](https://github.com/craft-native/craft/commit/877cdad)) _(by Chris Breuer)_
