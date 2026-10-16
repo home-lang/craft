@@ -2783,7 +2783,7 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
         }
 
         suppressChanges = true
-        minuteInterval = props.optInt("minuteInterval", 1).takeIf { it in 1..30 && 60 % it == 0 } ?: 1
+        minuteInterval = craftNativeInt(props.opt("minuteInterval"), 1).takeIf { it in 1..30 && 60 % it == 0 } ?: 1
         val defaults = defaultDateBounds
         datePicker?.minDate = pickerDate(props.opt("minimumDate"))?.timeInMillis ?: defaults?.first ?: datePicker?.minDate ?: 0L
         datePicker?.maxDate = pickerDate(props.opt("maximumDate"))?.timeInMillis ?: defaults?.second ?: datePicker?.maxDate ?: Long.MAX_VALUE
@@ -5905,7 +5905,7 @@ class MainActivity : AppCompatActivity() {
         list.apply(
             nodes = nodes,
             horizontal = horizontal,
-            columns = props.optInt("numColumns", 1),
+            columns = craftNativeInt(props.opt("numColumns"), 1),
             inverted = craftNativeBoolean(props.opt("inverted")),
             endReachedThreshold = authoredThreshold,
             renderItem = { node, itemIdentity, _ ->

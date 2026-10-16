@@ -176,6 +176,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('val requested = craftNativeFiniteNumber(props, "value", minimum)')
       expect(nativeActivity).toContain('maxLines = craftNativeInt(props.opt("numberOfLines"), 0).takeIf { it > 0 } ?: Int.MAX_VALUE')
       expect(nativeActivity).toContain('val maxLength = craftNativeInt(props.opt("maxLength"), 0)')
+      expect(nativeActivity).toContain('minuteInterval = craftNativeInt(props.opt("minuteInterval"), 1)')
+      expect(nativeActivity).toContain('columns = craftNativeInt(props.opt("numColumns"), 1)')
       expect(nativeActivity).toContain('val width = craftNativeFiniteDouble(style, "width", Double.NaN)')
       expect(nativeActivity).toContain('dp(craftNativeFiniteDouble(style, "marginLeft", horizontal))')
       expect(nativeActivity).toContain('view.translationX += dp(craftNativeFiniteDouble(transform, key, 0.0)).toFloat()')

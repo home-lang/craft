@@ -2855,6 +2855,13 @@ describe('native renderer component contract', () => {
     expect(android).not.toContain('props.optInt("maxLength", 0)')
   })
 
+  it('keeps native integer component props numeric at the Android bridge boundary', () => {
+    expect(android).toContain('minuteInterval = craftNativeInt(props.opt("minuteInterval"), 1)')
+    expect(android).toContain('columns = craftNativeInt(props.opt("numColumns"), 1)')
+    expect(android).not.toContain('props.optInt("minuteInterval", 1)')
+    expect(android).not.toContain('columns = props.optInt("numColumns", 1)')
+  })
+
   it('keeps malformed Android refresh colors from crashing or inventing a tint', () => {
     expect(android).toContain('setColorSchemeColors(tint?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: fallback)')
     expect(android).toContain('background?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: Color.TRANSPARENT')
