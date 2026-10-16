@@ -612,6 +612,22 @@ describe('Craft Android builder', () => {
     expect(existsSync(output)).toBe(false)
   })
 
+  it('rejects native route tables whose tabs or start path are not native', async () => {
+    const root = createTempDir('craft-android-native-routes-')
+    await expect(init({
+      name: 'InvalidNativeRoutes',
+      output: join(root, 'tab'),
+      runtimeDir: null,
+      config: { renderer: 'native', nativeScreens: { '/home': 'Home' }, tabs: [{ id: '/settings', title: 'Settings' }] },
+    })).rejects.toThrow('Tab "/settings" is not a nativeScreens path')
+    await expect(init({
+      name: 'InvalidNativeStart',
+      output: join(root, 'start'),
+      runtimeDir: null,
+      config: { renderer: 'native', devServerURL: 'https://example.com/settings', nativeScreens: { '/home': 'Home' } },
+    })).rejects.toThrow('start path "/settings"')
+  })
+
   it('rejects Android API levels below the runtime floor before writing a project', async () => {
     const root = createTempDir('craft-android-sdk-floor-')
     try {

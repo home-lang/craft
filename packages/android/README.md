@@ -242,6 +242,10 @@ With `nativeScreens` (paths to the screens that draw them), `tabs` and
 `nativeApp` in craft.config.json, the same keys as the iOS builder, the
 native renderer is a whole app rather than one bundle route:
 
+`craft android init` and `craft android build` validate every tab and the
+configured start path against `nativeScreens`; invalid native route tables are
+rejected before a project is generated.
+
 - a tab bar and a navigation bar (`craft.navigation.setOptions`: title, large
   title, right buttons with badges, `tabBarHidden`), a stack per tab, Android's
   Back key popping it; completed left/right swipes switch between tab roots

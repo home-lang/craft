@@ -455,6 +455,91 @@ function validateAndroidConfig(config: CraftAndroidConfig): void {
   }
 }
 
+function normalizeNativeRoutePath(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  let path = raw
+  const cut = path.search(/[?#]/)
+  if (cut >= 0) path = path.slice(0, cut)
+  if (!path.startsWith('/')) return null
+  path = path.replace(/\/{2,}/g, '/')
+  if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1)
+  return path
+}
+
+function nativeRouteSegments(path: string): string[] {
+  return path === '/' ? [] : path.slice(1).split('/')
+}
+
+function matchesNativeRoute(nativeScreens: Record<string, string> | undefined, raw: string): boolean {
+  const path = normalizeNativeRoutePath(raw)
+  if (path === null) return false
+  const parts = nativeRouteSegments(path)
+  return Object.entries(nativeScreens ?? {}).some(([pattern, screen]) => {
+    if (!screen) return false
+    const normalized = normalizeNativeRoutePath(pattern)
+    if (normalized === null) return false
+    const route = nativeRouteSegments(normalized)
+    for (let index = 0; index < route.length; index++) {
+      const segment = route[index]
+      if (segment === '*') return index === route.length - 1
+      if (index >= parts.length) return false
+      if (segment.startsWith(':')) {
+        if (!parts[index]) return false
+      }
+      else if (segment !== parts[index]) return false
+    }
+    return route.length === parts.length
+  })
+}
+
+function nativeStartPath(config: CraftAndroidConfig): string {
+  if (!config.devServerURL) return '/'
+  try {
+    const url = new URL(config.devServerURL)
+    return `${url.pathname || '/'}${url.search}`
+  }
+  catch {
+    return '/'
+  }
+}
+
+function validateNativeRouteConfig(config: CraftAndroidConfig): void {
+  const screens = Object.entries(config.nativeScreens ?? {})
+  for (const [pattern, screen] of screens) {
+    if (normalizeNativeRoutePath(pattern) !== pattern || /[?#]/.test(pattern))
+      throw new Error(`nativeScreens path "${pattern}" must be an absolute path with no query, hash or trailing slash.`)
+    if (nativeRouteSegments(normalizeNativeRoutePath(pattern) ?? '/').slice(0, -1).includes('*'))
+      throw new Error(`nativeScreens path "${pattern}" may only end in *.`)
+    if (typeof screen !== 'string' || !/^[A-Za-z_$][\w$-]*$/.test(screen))
+      throw new Error(`nativeScreens screen "${String(screen)}" for "${pattern}" must be a screen name from the native bundle.`)
+  }
+
+  const ids = new Set<string>()
+  for (const tab of config.tabs ?? []) {
+    if (!tab || typeof tab.id !== 'string' || !tab.id || typeof tab.title !== 'string' || !tab.title)
+      throw new Error('Each tab needs an id (its root path) and a title.')
+    if (ids.has(tab.id)) throw new Error(`Tab "${tab.id}" is listed twice.`)
+    ids.add(tab.id)
+  }
+
+  if (config.renderer === 'native' && screens.length > 0) {
+    for (const id of ids) {
+      if (!matchesNativeRoute(config.nativeScreens, id))
+        throw new Error(`Tab "${id}" is not a nativeScreens path; with renderer: "native" every tab must be a native screen.`)
+    }
+    const start = nativeStartPath(config)
+    if (!matchesNativeRoute(config.nativeScreens, start))
+      throw new Error(`The start path "${start}" (from devServerURL) is not a nativeScreens path; with renderer: "native" the app must start on a native screen.`)
+  }
+
+  if (config.nativeApp !== undefined) {
+    if (typeof config.nativeApp !== 'string' || !/^[A-Za-z_$][\w$-]*$/.test(config.nativeApp))
+      throw new Error(`nativeApp "${String(config.nativeApp)}" must be a route name from the native bundle.`)
+    if (config.renderer !== 'native' && screens.length === 0)
+      throw new Error('nativeApp runs in the native bundle; it needs nativeScreens or renderer: "native".')
+  }
+}
+
 function writeAndroidConfig(output: string, config: CraftAndroidConfig): void {
   writeFileSync(join(output, 'craft.config.json'), JSON.stringify(config, null, 2))
 
@@ -749,6 +834,7 @@ export async function init(options: InitOptions): Promise<void> {
   }
   normalizeAndroidNetworkConfig(config)
   validateAndroidConfig(config)
+  validateNativeRouteConfig(config)
   if (config.enablePushNotifications && !config.googleServicesFile) {
     throw new Error('Android push notifications require a googleServicesFile')
   }
@@ -1176,6 +1262,7 @@ export async function build(options: BuildOptions): Promise<void> {
 
   const config: CraftAndroidConfig = JSON.parse(readFileSync(configPath, 'utf-8'))
   validateAndroidConfig(config)
+  validateNativeRouteConfig(config)
 
   if (config.renderer === 'native') {
     if (htmlPath || devServer) throw new Error('A native Android screen cannot use --html-path or --dev-server.')

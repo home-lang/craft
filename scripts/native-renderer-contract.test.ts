@@ -1341,6 +1341,13 @@ describe('native renderer component contract', () => {
     expect(androidShell).toContain('navButtonSpecs[view] = button')
   })
 
+  it('validates Android native route tables before generation', () => {
+    expect(androidBuilder).toContain('function validateNativeRouteConfig(config: CraftAndroidConfig): void')
+    expect(androidBuilder).toContain('validateNativeRouteConfig(config)')
+    expect(androidBuilder).toContain('every tab must be a native screen')
+    expect(androidBuilder).toContain('the app must start on a native screen')
+  })
+
   it('does not recenter native maps on every reconciliation', () => {
     expect(ios).toContain('private var initialCameraKey: String?')
     expect(ios).toContain('if let region = Self.region(props["region"])')
