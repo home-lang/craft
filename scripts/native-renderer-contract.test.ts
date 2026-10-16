@@ -2082,6 +2082,7 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('click(activity, "navigation-open-details")')
     expect(androidNavigationTest).toContain('click(activity, "details-back")')
     expect(androidNavigationTest).toContain('fun nativeLinkOpensRoute()')
+    expect(androidNavigationTest).toContain('awaitText(activity, "navigation-home-state", "Home state: Ada/1")\n            val link = awaitView(activity, "native-route-link")')
   })
 
   it('proves shared-runtime keyed rows through the maintained iOS host', () => {

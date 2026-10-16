@@ -1075,6 +1075,8 @@ class NativeNavigationTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
         try {
+            click(activity, "navigation-increment")
+            awaitText(activity, "navigation-home-state", "Home state: Ada/1")
             val link = awaitView(activity, "native-route-link")
             instrumentation.runOnMainSync { link.performClick() }
             assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())

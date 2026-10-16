@@ -8,7 +8,8 @@ JavaScriptSandbox isolate per screen.
 The acceptance path increments home state, opens the details route, returns
 through the native back control, and then continues with the component checks,
 so native button/link routing and retained screen state are exercised on both
-maintained hosts.
+maintained hosts. The route-link test also mutates home state before tapping,
+which verifies that reconciliation does not detach the link's native target.
 
 With a sibling `stx` checkout and an Android SDK/emulator available:
 
