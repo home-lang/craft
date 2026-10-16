@@ -3082,6 +3082,16 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('Boolean TextInput numberOfLines was treated as numeric')
   })
 
+  it('keeps iOS integer component props strict at the native bridge boundary', () => {
+    expect(ios).toContain('let interval = Int(number(props["minuteInterval"]) ?? 1)')
+    expect(ios).toContain('columns: Int(number(props["numColumns"]) ?? 1)')
+    expect(ios).toContain('compactMap { number($0).map { Int($0) } }')
+    expect(iosNativeUnitTests).toContain('"invalid-interval"')
+    expect(iosNativeUnitTests).toContain('XCTAssertEqual(invalid.minuteInterval, 1)')
+    expect(android).toContain('minuteInterval = craftNativeInt(props.opt("minuteInterval"), 1)')
+    expect(android).toContain('columns = craftNativeInt(props.opt("numColumns"), 1)')
+  })
+
   it('keeps native integer component props numeric at the Android bridge boundary', () => {
     expect(android).toContain('minuteInterval = craftNativeInt(props.opt("minuteInterval"), 1)')
     expect(android).toContain('columns = craftNativeInt(props.opt("numColumns"), 1)')

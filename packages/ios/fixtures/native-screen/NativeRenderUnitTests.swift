@@ -1378,12 +1378,15 @@ final class NativeRenderUnitTests: XCTestCase {
         controller.render(document([
             ["type": "DatePicker", "props": ["key": "time", "mode": "time", "value": "07:30", "minuteInterval": 5], "events": ["onValueChange": "picked"]],
             ["type": "DatePicker", "props": ["key": "day", "value": "2026-10-12", "minimumDate": "2026-10-01", "maximumDate": "2026-12-31"]],
+            ["type": "DatePicker", "props": ["key": "invalid-interval", "mode": "time", "minuteInterval": true]],
         ]))
         let time = try XCTUnwrap(find(UIDatePicker.self, key: "time", below: controller.view))
         let day = try XCTUnwrap(find(UIDatePicker.self, key: "day", below: controller.view))
+        let invalid = try XCTUnwrap(find(UIDatePicker.self, key: "invalid-interval", below: controller.view))
         XCTAssertEqual(time.datePickerMode, .time)
         XCTAssertEqual(time.preferredDatePickerStyle, .compact)
         XCTAssertEqual(time.minuteInterval, 5)
+        XCTAssertEqual(invalid.minuteInterval, 1)
         let parts = Calendar.current.dateComponents([.hour, .minute], from: time.date)
         XCTAssertEqual(parts.hour, 7)
         XCTAssertEqual(parts.minute, 30)

@@ -3234,7 +3234,7 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
     /// these indices stay at the top of the visible area once scrolled to,
     /// each pushed up by the next. Vertical scroll views only.
     func setStickyHeaderIndices(_ value: Any?) {
-        let next = Array(Set(((value as? [Any]) ?? []).compactMap { ($0 as? NSNumber)?.intValue }.filter { $0 >= 0 })).sorted()
+        let next = Array(Set(((value as? [Any]) ?? []).compactMap { number($0).map { Int($0) } }.filter { $0 >= 0 })).sorted()
         guard next != stickyIndices else { return }
         stickyIndices = next
         setNeedsLayout()
@@ -5910,7 +5910,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 if picker.preferredDatePickerStyle != display { picker.preferredDatePickerStyle = display }
             }
             // UIKit takes an interval that divides an hour, and ignores others.
-            let interval = (props["minuteInterval"] as? NSNumber)?.intValue ?? 1
+            let interval = Int(number(props["minuteInterval"]) ?? 1)
             picker.minuteInterval = (1...30).contains(interval) && 60 % interval == 0 ? interval : 1
             picker.minimumDate = Self.pickerDate(props["minimumDate"])
             picker.maximumDate = Self.pickerDate(props["maximumDate"])
@@ -6459,7 +6459,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         list.apply(
             nodes: children,
             horizontal: props["horizontal"] as? Bool == true,
-            columns: (props["numColumns"] as? NSNumber)?.intValue ?? 1,
+            columns: Int(number(props["numColumns"]) ?? 1),
             inverted: props["inverted"] as? Bool == true,
             endReachedThreshold: threshold,
             renderItem: { [weak self] node, identity, _ in
