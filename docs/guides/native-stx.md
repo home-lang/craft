@@ -513,7 +513,8 @@ as the keyboard animates and returns to the original inset when it hides.
 
 ## Images and scrolling
 
-Use `{ uri: value }` for an image source. Data-image URIs and HTTPS URLs work on
+Use `{ uri: value }` for an image source. `headers` on an object source are
+forwarded to HTTPS requests on both hosts. Data-image URIs and HTTPS URLs work on
 both platforms. A source with no URI scheme resolves from the iOS asset catalog
 or Android app assets, so the asset must be packaged separately under the same
 name for a shared bundle. Plain HTTP, file URLs, and other schemes are rejected.

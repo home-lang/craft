@@ -5992,6 +5992,17 @@ class MainActivity : AppCompatActivity() {
         else -> ""
     }
 
+    private fun imageHeaders(source: Any?): Map<String, String> {
+        val objectSource = source as? JSONObject ?: return emptyMap()
+        val raw = objectSource.optJSONObject("headers") ?: return emptyMap()
+        return linkedMapOf<String, String>().apply {
+            raw.keys().forEach { name -> craftNativeOptionalString(raw.opt(name))?.let { put(name, it) } }
+        }
+    }
+
+    private fun imageRequestKey(uri: String, headers: Map<String, String>): String =
+        uri + "\u0000" + headers.toSortedMap().entries.joinToString("\u0000") { "${it.key}=${it.value}" }
+
     private fun immediateImage(uri: String): Bitmap? {
         if (uri.startsWith("data:image/") && uri.contains(',')) {
             val bytes = runCatching { Base64.decode(uri.substringAfter(','), Base64.DEFAULT) }.getOrNull()
@@ -6003,6 +6014,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateImage(screen: Screen, view: ImageView, source: Any?, defaultSource: Any? = null) {
         val uri = imageUri(source)
+        val headers = imageHeaders(source)
+        val requestKey = imageRequestKey(uri, headers)
         if (uri.isBlank()) {
             if (imageSources[view] == "") return
             imageJobs.remove(view)?.cancel(true)
@@ -6013,9 +6026,9 @@ class MainActivity : AppCompatActivity() {
             imageFailure(screen, view, uri, "Image source is missing")
             return
         }
-        if (imageSources[view] == uri) return
+        if (imageSources[view] == requestKey) return
         imageJobs.remove(view)?.cancel(true)
-        imageSources[view] = uri
+        imageSources[view] = requestKey
         imageErrors.remove(view)
         view.setImageDrawable(null)
         imageDidChange(view)
@@ -6053,11 +6066,12 @@ class MainActivity : AppCompatActivity() {
                 val connection = URL(uri).openConnection().apply {
                     connectTimeout = 10_000
                     readTimeout = 10_000
+                    headers.forEach { (name, value) -> setRequestProperty(name, value) }
                 }
                 connection.getInputStream().use(BitmapFactory::decodeStream)
             }.getOrNull()
             runOnUiThread {
-                if (imageSources[view] != uri) return@runOnUiThread
+                if (imageSources[view] != requestKey) return@runOnUiThread
                 imageJobs.remove(view)
                 if (bitmap != null) {
                     view.setImageBitmap(bitmap)

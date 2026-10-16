@@ -368,6 +368,15 @@ describe('native renderer component contract', () => {
     expect(androidReadme).toContain('`Map`')
   })
 
+  it('forwards native image source headers on both hosts', () => {
+    expect(ios).toContain('var request = URLRequest(url: url)')
+    expect(ios).toContain('request.setValue(value, forHTTPHeaderField: name)')
+    expect(ios).toContain('self.imageSources[ObjectIdentifier(view)] == requestKey')
+    expect(android).toContain('private fun imageHeaders(source: Any?): Map<String, String>')
+    expect(android).toContain('setRequestProperty(name, value)')
+    expect(android).toContain('imageSources[view] == requestKey')
+  })
+
   it('keeps SVG stroke semantics aligned across hosts', () => {
     expect(ios).toContain('line.lineCapStyle')
     expect(ios).toContain('line.lineJoinStyle')
@@ -1731,14 +1740,14 @@ describe('native renderer component contract', () => {
 
   it('keeps image source lifecycles and resize modes aligned', () => {
     expect(ios).toContain('imageTasks.removeValue(forKey: id)?.cancel()')
-    expect(ios).toContain('guard self.imageSources[ObjectIdentifier(view)] == uri else { return }')
+    expect(ios).toContain('guard self.imageSources[ObjectIdentifier(view)] == requestKey else { return }')
     expect(ios).toContain('image.withRenderingMode(tintedImages.contains(ObjectIdentifier(view)) ? .alwaysTemplate : .alwaysOriginal)')
     expect(ios).toContain('private func imageDidChange(_ view: UIImageView)')
     expect(ios).toContain('view.invalidateIntrinsicContentSize()')
     expect(ios).toContain('CraftNativeFlexLayout.invalidateAncestors(of: view)')
     expect(ios).toContain('case "cover": return .scaleAspectFill')
     expect(android).toContain('imageJobs.remove(view)?.cancel(true)')
-    expect(android).toContain('if (imageSources[view] != uri) return@runOnUiThread')
+    expect(android).toContain('if (imageSources[view] != requestKey) return@runOnUiThread')
     expect(android).toContain('private fun imageDidChange(view: ImageView)')
     expect(android).toContain('invalidateMeasurementAncestors(view.parent)')
     expect(android).toContain('private fun loadsImage(uri: Uri): Boolean')

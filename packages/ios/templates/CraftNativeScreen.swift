@@ -6806,7 +6806,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func updateImage(_ view: UIImageView, source: Any?, defaultSource: Any? = nil) {
-        let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String
+        let sourceObject = source as? [String: Any]
+        let uri = (source as? String) ?? sourceObject?["uri"] as? String
+        let headers = (sourceObject?["headers"] as? [String: Any])?.reduce(into: [String: String]()) { result, entry in
+            if let value = entry.value as? String { result[entry.key] = value }
+        } ?? [:]
+        let requestKey = uri.map { value in
+            value + "\u{0}" + headers.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: "\u{0}")
+        }
         let id = ObjectIdentifier(view)
         guard let uri, !uri.isEmpty else {
             if imageSources[id] == "" { return }
@@ -6815,9 +6822,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             imageFailure(view, uri: nil, message: "Image source is missing")
             return
         }
-        guard imageSources[id] != uri else { return }
+        guard let requestKey, imageSources[id] != requestKey else { return }
         imageTasks.removeValue(forKey: id)?.cancel()
-        imageSources[id] = uri
+        imageSources[id] = requestKey
         imageErrors.removeValue(forKey: id)
         view.image = immediateImage(defaultSource).map { imageForDisplay($0, view: view) }
         imageDidChange(view)
@@ -6838,10 +6845,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return
         }
         if let url = URL(string: uri), Self.loadsImage(from: url) {
-            let task = URLSession.shared.dataTask(with: url) { [weak self, weak view] data, _, _ in
+            var request = URLRequest(url: url)
+            for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
+            let task = URLSession.shared.dataTask(with: request) { [weak self, weak view] data, _, _ in
                 guard let self, let view else { return }
                 DispatchQueue.main.async {
-                    guard self.imageSources[ObjectIdentifier(view)] == uri else { return }
+                    guard self.imageSources[ObjectIdentifier(view)] == requestKey else { return }
                     self.imageTasks.removeValue(forKey: ObjectIdentifier(view))
                     guard let data, let image = UIImage(data: data) else {
                         self.imageFailure(view, uri: uri, message: "Image download failed")
