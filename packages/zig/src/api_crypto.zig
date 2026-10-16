@@ -212,6 +212,17 @@ test "X25519 key generation and exchange" {
     try std.testing.expect(!std.mem.eql(u8, &shared, &zero));
 }
 
+test "X25519 exchange rejects an identity public key" {
+    var crypto = Crypto.init(std.testing.allocator);
+    const pair = try crypto.generateX25519KeyPair();
+    const identity = std.mem.zeroes([32]u8);
+
+    // `scalarmult` remains fallible on Zig 0.18: this check rejects a
+    // low-order attacker-selected public key and must not be stripped with
+    // the now-infallible key-generation operation.
+    try std.testing.expectError(error.IdentityElement, crypto.x25519(pair.secret_key, identity));
+}
+
 test "Ed25519 signing and verification" {
     var crypto = Crypto.init(std.testing.allocator);
     const seed: [32]u8 = @splat(0x42);
