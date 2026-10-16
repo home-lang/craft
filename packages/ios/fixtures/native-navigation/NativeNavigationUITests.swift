@@ -486,6 +486,7 @@ final class NativeNavigationUITests: XCTestCase {
         imageTintToggle.tap()
         XCTAssertTrue(app.staticTexts["image tint on"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["image-error-count"].label, "2")
+        XCTAssertTrue(app.otherElements["gradient-box"].waitForExistence(timeout: 5), "gradient fixture did not mount")
         let styleToggle = app.buttons["toggle-button-style"]
         reveal(styleToggle, in: rootScroll)
         XCTAssertFalse(styleToggle.isSelected)

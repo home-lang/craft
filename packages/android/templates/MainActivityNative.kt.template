@@ -21,11 +21,13 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
+import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.ColorFilter
 import android.graphics.PixelFormat
@@ -3249,23 +3251,61 @@ private class CraftTextDecorationSpan(
     }
 }
 
+private fun craftNativeGradientOrientation(direction: String?): GradientDrawable.Orientation = when (direction) {
+    "to-t" -> GradientDrawable.Orientation.BOTTOM_TOP
+    "to-tr" -> GradientDrawable.Orientation.BL_TR
+    "to-r" -> GradientDrawable.Orientation.LEFT_RIGHT
+    "to-br" -> GradientDrawable.Orientation.TL_BR
+    "to-bl" -> GradientDrawable.Orientation.TR_BL
+    "to-l" -> GradientDrawable.Orientation.RIGHT_LEFT
+    "to-tl" -> GradientDrawable.Orientation.BR_TL
+    else -> GradientDrawable.Orientation.TOP_BOTTOM
+}
+
 private class CraftNativeSideBorderDrawable(
     private val fillColor: Int,
     private val radii: FloatArray,
     private val widths: IntArray,
     private val colors: IntArray,
     private val borderStyle: String?,
+    private val gradientDirection: String?,
+    private val gradientColors: IntArray?,
 ) : Drawable() {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    private fun gradient(bounds: RectF): Shader? {
+        val colors = gradientColors ?: return null
+        val points = when (gradientDirection) {
+            "to-t" -> floatArrayOf(0.5f, 1f, 0.5f, 0f)
+            "to-tr" -> floatArrayOf(0f, 1f, 1f, 0f)
+            "to-r" -> floatArrayOf(0f, 0.5f, 1f, 0.5f)
+            "to-br" -> floatArrayOf(0f, 0f, 1f, 1f)
+            "to-bl" -> floatArrayOf(1f, 0f, 0f, 1f)
+            "to-l" -> floatArrayOf(1f, 0.5f, 0f, 0.5f)
+            "to-tl" -> floatArrayOf(1f, 1f, 0f, 0f)
+            else -> floatArrayOf(0.5f, 0f, 0.5f, 1f)
+        }
+        return LinearGradient(
+            bounds.left + bounds.width() * points[0],
+            bounds.top + bounds.height() * points[1],
+            bounds.left + bounds.width() * points[2],
+            bounds.top + bounds.height() * points[3],
+            colors,
+            null,
+            Shader.TileMode.CLAMP,
+        )
+    }
 
     override fun draw(canvas: Canvas) {
         val bounds = RectF(this.bounds)
         paint.style = Paint.Style.FILL
         paint.color = fillColor
-        if (Color.alpha(fillColor) > 0) {
+        paint.shader = gradient(bounds)
+        if (paint.shader != null || Color.alpha(fillColor) > 0) {
             val path = Path().apply { addRoundRect(bounds, radii, Path.Direction.CW) }
             canvas.drawPath(path, paint)
         }
+        paint.shader = null
         val top = widths.getOrElse(0) { 0 }
         val right = widths.getOrElse(1) { 0 }
         val bottom = widths.getOrElse(2) { 0 }
@@ -5561,6 +5601,17 @@ class MainActivity : AppCompatActivity() {
             else color(style.optString("backgroundColor"), Color.TRANSPARENT)
         val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)
         val radius = craftNativeNonNegativeDouble(style, "borderRadius", 0.0)
+        val gradientDirection = style.optString("gradientDirection").takeIf { it.isNotBlank() }
+        val gradientFrom = style.optString("gradientFrom").takeIf { it.isNotBlank() }
+        val gradientVia = style.optString("gradientVia").takeIf { it.isNotBlank() }
+        val gradientTo = style.optString("gradientTo").takeIf { it.isNotBlank() }
+        val gradientColors = if (gradientDirection != null && gradientFrom != null && gradientTo != null) {
+            listOfNotNull(
+                color(gradientFrom, Color.TRANSPARENT),
+                gradientVia?.let { color(it, Color.TRANSPARENT) },
+                color(gradientTo, Color.TRANSPARENT),
+            ).toIntArray()
+        } else null
         val sideBorderKeys = listOf("borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth")
         val hasSideBorders = (sideBorderKeys + listOf("borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor")).any(style::has)
         val sideWidths = sideBorderKeys.map { dp(craftNativeNonNegativeDouble(style, it, border)) }.toIntArray()
@@ -5578,7 +5629,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             view.background.also { defaultBackgrounds[view] = it }
         }
-        if (background || border > 0 || radius > 0 || hasSideBorders) {
+        if (background || border > 0 || radius > 0 || hasSideBorders || gradientColors != null) {
             if (hasSideBorders) {
                 view.background = CraftNativeSideBorderDrawable(
                     backgroundColor,
@@ -5586,10 +5637,15 @@ class MainActivity : AppCompatActivity() {
                     sideWidths,
                     sideColors,
                     style.optString("borderStyle").takeIf { it == "dashed" || it == "dotted" },
+                    gradientDirection,
+                    gradientColors,
                 )
             } else {
                 view.background = GradientDrawable().apply {
-                    setColor(backgroundColor)
+                    if (gradientColors != null) {
+                        orientation = craftNativeGradientOrientation(gradientDirection)
+                        colors = gradientColors
+                    } else setColor(backgroundColor)
                     if (hasCornerRadii) setCornerRadii(cornerRadii) else cornerRadius = dp(radius).toFloat()
                     if (border > 0) {
                         val borderColor = color(style.optString("borderColor"), Color.TRANSPARENT)

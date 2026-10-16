@@ -448,6 +448,11 @@ class NativeNavigationTest {
             val decorations = (styledFirst.text as? Spanned)?.getSpans(0, styledFirst.text.length, ReplacementSpan::class.java).orEmpty()
             assertTrue("text decoration span was not applied", decorations.isNotEmpty())
             assertEquals((70 * density).toInt(), styledFirst.layoutParams.width)
+            val gradient = awaitView(activity, "gradient-box")
+            val gradientBackground = gradient.background as? GradientDrawable
+            assertTrue("gradient fixture did not use a GradientDrawable", gradientBackground != null)
+            assertEquals(GradientDrawable.Orientation.TL_BR, gradientBackground?.orientation)
+            assertEquals(3, gradientBackground?.colors?.size)
             awaitView(activity, "grid-wrap")
             val gridFirst = awaitView(activity, "grid-first")
             val gridSecond = awaitView(activity, "grid-second")

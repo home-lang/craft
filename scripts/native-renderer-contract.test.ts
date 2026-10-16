@@ -1645,6 +1645,18 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('"borderStyle":"dotted"')
   })
 
+  it('maps native linear gradients with the same direction and stops', () => {
+    expect(ios).toContain('private final class CraftNativeGradientLayer: CAGradientLayer')
+    expect(ios).toContain('case "to-br": points = (CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 1))')
+    expect(android).toContain('private fun craftNativeGradientOrientation(direction: String?): GradientDrawable.Orientation')
+    expect(android).toContain('"to-br" -> GradientDrawable.Orientation.TL_BR')
+    expect(android).toContain('private val gradientColors: IntArray?')
+    expect(android).toContain('LinearGradient(')
+    expect(android).toContain('gradientVia?.let { color(it, Color.TRANSPARENT) }')
+    expect(navigationHome).toContain('testID="gradient-box"')
+    expect(navigationHome).toContain('"gradientDirection":"to-br"')
+  })
+
   it('maps per-corner radii on both native hosts', () => {
     expect(ios).toContain('private func craftRoundedPath(_ rect: CGRect, _ rawRadii: [CGFloat]) -> CGPath')
     expect(ios).toContain('view.craftRequestedCornerRadii = hasCornerRadii')
