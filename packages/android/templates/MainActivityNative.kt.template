@@ -5187,7 +5187,7 @@ class MainActivity : AppCompatActivity() {
                     val option = children.optJSONObject(index) ?: return@mapNotNull null
                     if (option.optString("type") != "Text") return@mapNotNull null
                     val label = (option.optJSONArray("children") ?: JSONArray()).let { text ->
-                        (0 until text.length()).joinToString("") { text.optString(it) }
+                        (0 until text.length()).mapNotNull { text.opt(it) as? String }.joinToString("")
                     }
                     if (label.isBlank()) return@mapNotNull null
                     val optionProps = option.optJSONObject("props")
