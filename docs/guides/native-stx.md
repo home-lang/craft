@@ -283,7 +283,9 @@ platforms, from the system controls as well as from props. A video with sound
 plays mixed with the person's music (iOS: the playback session, shared with
 speech and sounds; Android: no audio focus). With `pictureInPicture` it carries
 on in a floating window when the person leaves the app while it plays, and
-comes back into its place with the app; iOS needs `enableBackgroundAudio`.
+comes back into its place with the app; `onPictureInPictureStart` and
+`onPictureInPictureStop` report those transitions on both hosts. iOS needs
+`enableBackgroundAudio`.
 
 A screen's next change can animate instead of cutting:
 `craft.animation.next({ duration: 0.35, curve: 'spring' })`, then change the
