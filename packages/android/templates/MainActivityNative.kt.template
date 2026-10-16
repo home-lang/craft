@@ -634,7 +634,11 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
                         is Number -> rawWidth.toDouble()
                         else -> 3.0
                     }
-                    val width = authoredWidth.toFloat()
+                    // MapKit's lineWidth is expressed in points, while the
+                    // Google Maps SDK consumes screen pixels. Keep the
+                    // protocol in logical points and convert only at this
+                    // Android host boundary so dense displays stay in parity.
+                    val width = (authoredWidth * resources.displayMetrics.density).toFloat()
                     if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue
                     nextPolylines[id] = Triple(points, color(craftNativeOptionalString(props.opt("strokeColor")).orEmpty()), width)
                 }

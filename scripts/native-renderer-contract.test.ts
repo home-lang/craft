@@ -328,6 +328,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('polyline.width = value.third')
     expect(android).toContain('val rawWidth = props.opt("strokeWidth")')
     expect(android).toContain('null, JSONObject.NULL -> 3.0')
+    expect(android).toContain('authoredWidth * resources.displayMetrics.density')
     expect(android).toContain('if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue')
     expect(android).toContain('latitude >= -90.0 && latitude <= 90.0')
     expect(android).toContain('longitude >= -180.0 && longitude <= 180.0')
