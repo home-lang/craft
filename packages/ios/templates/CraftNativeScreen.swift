@@ -427,7 +427,7 @@ private enum CraftNativeTreeLayoutBridge {
         }
         append(root, parent: -1)
 
-        func put(_ input: inout StyleInput, _ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool) {
+        func put(_ input: inout StyleInput, _ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool, parentDirection: NSLayoutConstraint.Axis) {
             let contentWidth = max(0, (rootNode ? width : node.intrinsic.width) - node.padding.left - node.padding.right)
             let contentHeight = max(0, (rootNode ? height : node.intrinsic.height) - node.padding.top - node.padding.bottom)
             let mainSize = node.direction == .horizontal ? contentWidth : contentHeight
@@ -440,7 +440,7 @@ private enum CraftNativeTreeLayoutBridge {
             input.aspectRatio = finite(node.style.aspectRatio)
             input.flexBasis = length(node.style.flexBasis, base: mainSize)
             input.flexGrow = rootNode ? 0 : Float(max(0, node.style.flexGrow))
-            let defaultShrink: CGFloat = node.view is UIScrollView || (node.view is UILabel && node.direction == .horizontal) ? 1 : 0
+            let defaultShrink: CGFloat = node.view is UIScrollView || (node.view is UILabel && parentDirection == .horizontal) ? 1 : 0
             input.flexShrink = rootNode ? 0 : Float(max(0, node.style.flexShrink ?? defaultShrink))
             input.minWidth = length(node.style.minWidth, base: contentWidth)
             input.maxWidth = length(node.style.maxWidth, base: contentWidth)
@@ -469,18 +469,18 @@ private enum CraftNativeTreeLayoutBridge {
         var styles = [StyleInput](repeating: StyleInput(), count: nodes.count)
         var metadata = [Float](repeating: 0, count: nodes.count * 2)
         var cursor = 0
-        func write(_ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool) {
+        func write(_ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool, parentDirection: NSLayoutConstraint.Axis) {
             let index = cursor
             cursor += 1
-            put(&styles[index], node, parentWidth: parentWidth, parentHeight: parentHeight, rootNode: rootNode)
+            put(&styles[index], node, parentWidth: parentWidth, parentHeight: parentHeight, rootNode: rootNode, parentDirection: parentDirection)
             let contentWidth = max(0, (rootNode ? width : node.intrinsic.width) - node.padding.left - node.padding.right)
             let contentHeight = max(0, (rootNode ? height : node.intrinsic.height) - node.padding.top - node.padding.bottom)
             let firstChild = cursor
-            node.children.forEach { write($0, parentWidth: contentWidth, parentHeight: contentHeight, rootNode: false) }
+            node.children.forEach { write($0, parentWidth: contentWidth, parentHeight: contentHeight, rootNode: false, parentDirection: node.direction) }
             metadata[index * 2] = Float(firstChild)
             metadata[index * 2 + 1] = Float(cursor - firstChild)
         }
-        write(root, parentWidth: width, parentHeight: height, rootNode: true)
+        write(root, parentWidth: width, parentHeight: height, rootNode: true, parentDirection: root.direction)
         let inputs = zip(styles, stride(from: 0, to: metadata.count, by: 2)).map { style, offset in
             NodeInput(style: style, firstChild: UInt32(metadata[offset]), childCount: UInt32(metadata[offset + 1]))
         }
@@ -528,7 +528,7 @@ private enum CraftNativeTreeLayoutBridge {
         }
         append(root, parent: -1)
 
-        func put(_ input: inout StyleInputV2, _ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool) {
+        func put(_ input: inout StyleInputV2, _ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool, parentDirection: NSLayoutConstraint.Axis) {
             let contentWidth = max(0, (rootNode ? width : node.intrinsic.width) - node.padding.left - node.padding.right)
             let contentHeight = max(0, (rootNode ? height : node.intrinsic.height) - node.padding.top - node.padding.bottom)
             let mainSize = node.direction == .horizontal ? contentWidth : contentHeight
@@ -541,7 +541,7 @@ private enum CraftNativeTreeLayoutBridge {
             input.aspectRatio = finite(node.style.aspectRatio)
             input.flexBasis = length(node.style.flexBasis, base: mainSize)
             input.flexGrow = rootNode ? 0 : Float(max(0, node.style.flexGrow))
-            let defaultShrink: CGFloat = node.view is UIScrollView || (node.view is UILabel && node.direction == .horizontal) ? 1 : 0
+            let defaultShrink: CGFloat = node.view is UIScrollView || (node.view is UILabel && parentDirection == .horizontal) ? 1 : 0
             input.flexShrink = rootNode ? 0 : Float(max(0, node.style.flexShrink ?? defaultShrink))
             input.minWidth = length(node.style.minWidth, base: contentWidth)
             input.maxWidth = length(node.style.maxWidth, base: contentWidth)
@@ -571,18 +571,18 @@ private enum CraftNativeTreeLayoutBridge {
         var styles = [StyleInputV2](repeating: StyleInputV2(), count: nodes.count)
         var metadata = [Float](repeating: 0, count: nodes.count * 2)
         var cursor = 0
-        func write(_ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool) {
+        func write(_ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool, parentDirection: NSLayoutConstraint.Axis) {
             let index = cursor
             cursor += 1
-            put(&styles[index], node, parentWidth: parentWidth, parentHeight: parentHeight, rootNode: rootNode)
+            put(&styles[index], node, parentWidth: parentWidth, parentHeight: parentHeight, rootNode: rootNode, parentDirection: parentDirection)
             let contentWidth = max(0, (rootNode ? width : node.intrinsic.width) - node.padding.left - node.padding.right)
             let contentHeight = max(0, (rootNode ? height : node.intrinsic.height) - node.padding.top - node.padding.bottom)
             let firstChild = cursor
-            node.children.forEach { write($0, parentWidth: contentWidth, parentHeight: contentHeight, rootNode: false) }
+            node.children.forEach { write($0, parentWidth: contentWidth, parentHeight: contentHeight, rootNode: false, parentDirection: node.direction) }
             metadata[index * 2] = Float(firstChild)
             metadata[index * 2 + 1] = Float(cursor - firstChild)
         }
-        write(root, parentWidth: width, parentHeight: height, rootNode: true)
+        write(root, parentWidth: width, parentHeight: height, rootNode: true, parentDirection: root.direction)
         let inputs = zip(styles, stride(from: 0, to: metadata.count, by: 2)).map { style, offset in
             NodeInputV2(style: style, firstChild: UInt32(metadata[offset]), childCount: UInt32(metadata[offset + 1]))
         }
@@ -621,7 +621,7 @@ private enum CraftNativeTreeLayoutBridge {
         }
         append(root, parent: -1)
 
-        func put(_ input: inout StyleInputV4, _ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool) {
+        func put(_ input: inout StyleInputV4, _ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool, parentDirection: NSLayoutConstraint.Axis) {
             let contentWidth = max(0, (rootNode ? width : node.intrinsic.width) - node.padding.left - node.padding.right)
             let contentHeight = max(0, (rootNode ? height : node.intrinsic.height) - node.padding.top - node.padding.bottom)
             let mainSize = node.direction == .horizontal ? contentWidth : contentHeight
@@ -634,7 +634,7 @@ private enum CraftNativeTreeLayoutBridge {
             input.aspectRatio = finite(node.style.aspectRatio)
             input.flexBasis = length(node.style.flexBasis, base: mainSize)
             input.flexGrow = rootNode ? 0 : Float(max(0, node.style.flexGrow))
-            let defaultShrink: CGFloat = node.view is UIScrollView || (node.view is UILabel && node.direction == .horizontal) ? 1 : 0
+            let defaultShrink: CGFloat = node.view is UIScrollView || (node.view is UILabel && parentDirection == .horizontal) ? 1 : 0
             input.flexShrink = rootNode ? 0 : Float(max(0, node.style.flexShrink ?? defaultShrink))
             input.minWidth = length(node.style.minWidth, base: contentWidth)
             input.maxWidth = length(node.style.maxWidth, base: contentWidth)
@@ -665,18 +665,18 @@ private enum CraftNativeTreeLayoutBridge {
         var styles = [StyleInputV4](repeating: StyleInputV4(), count: nodes.count)
         var metadata = [Float](repeating: 0, count: nodes.count * 2)
         var cursor = 0
-        func write(_ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool) {
+        func write(_ node: TreeNode, parentWidth: CGFloat, parentHeight: CGFloat, rootNode: Bool, parentDirection: NSLayoutConstraint.Axis) {
             let index = cursor
             cursor += 1
-            put(&styles[index], node, parentWidth: parentWidth, parentHeight: parentHeight, rootNode: rootNode)
+            put(&styles[index], node, parentWidth: parentWidth, parentHeight: parentHeight, rootNode: rootNode, parentDirection: parentDirection)
             let contentWidth = max(0, (rootNode ? width : node.intrinsic.width) - node.padding.left - node.padding.right)
             let contentHeight = max(0, (rootNode ? height : node.intrinsic.height) - node.padding.top - node.padding.bottom)
             let firstChild = cursor
-            node.children.forEach { write($0, parentWidth: contentWidth, parentHeight: contentHeight, rootNode: false) }
+            node.children.forEach { write($0, parentWidth: contentWidth, parentHeight: contentHeight, rootNode: false, parentDirection: node.direction) }
             metadata[index * 2] = Float(firstChild)
             metadata[index * 2 + 1] = Float(cursor - firstChild)
         }
-        write(root, parentWidth: width, parentHeight: height, rootNode: true)
+        write(root, parentWidth: width, parentHeight: height, rootNode: true, parentDirection: root.direction)
         let inputs = zip(styles, stride(from: 0, to: metadata.count, by: 2)).map { style, offset in
             NodeInputV4(style: style, firstChild: UInt32(metadata[offset]), childCount: UInt32(metadata[offset + 1]))
         }

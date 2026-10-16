@@ -1327,9 +1327,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         return result
     }
 
-    private fun defaultFlexShrink(view: View): Double = when {
+    private fun defaultFlexShrink(view: View, horizontal: Boolean = orientation == HORIZONTAL): Double = when {
         view is ScrollView || view is HorizontalScrollView -> 1.0
-        view is TextView && view !is Button && view !is EditText && orientation == HORIZONTAL -> 1.0
+        view is TextView && view !is Button && view !is EditText && horizontal -> 1.0
         else -> 0.0
     }
 
@@ -1479,7 +1479,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         fun put(base: Int, index: Int, value: Float) { nodeData[base + index] = value }
         fun putEnum(base: Int, index: Int, value: Int) { put(base, index, enumBits(value)) }
         var cursor = 0
-        fun write(node: SharedTreeNode, parentWidth: Int, parentHeight: Int, rootNode: Boolean) {
+        fun write(node: SharedTreeNode, parentWidth: Int, parentHeight: Int, rootNode: Boolean, parentDirection: Int) {
             val index = cursor++
             val base = index * fields
             val measuredWidth = if (rootNode) width else node.style.width?.resolve(parentWidth) ?: node.intrinsicWidth.roundToInt()
@@ -1496,7 +1496,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             put(base, 6, node.style.aspectRatio?.toFloat() ?: Float.NaN)
             put(base, 7, sharedLength(node.style.flexBasis, mainSize))
             put(base, 8, if (rootNode) 0f else node.style.flexGrow.toFloat().coerceAtLeast(0f))
-            put(base, 9, if (rootNode) 0f else (node.style.flexShrink ?: 0.0).toFloat().coerceAtLeast(0f))
+            put(base, 9, if (rootNode) 0f else (node.style.flexShrink ?: node.view?.let { defaultFlexShrink(it, parentDirection == 0) } ?: 0.0).toFloat().coerceAtLeast(0f))
             put(base, 10, sharedLength(node.style.minWidth, contentWidth))
             put(base, 11, sharedLength(node.style.maxWidth, contentWidth))
             put(base, 12, sharedLength(node.style.minHeight, contentHeight))
@@ -1522,11 +1522,11 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             if (fields >= 33) putEnum(base, 32, (if (node.reverse) 1 else 0) or (if (node.wrapReverse) 2 else 0))
             if (autoRowsAware) put(base, 33, sharedLength(node.gridAutoRows, contentHeight))
             val firstChild = cursor
-            node.children.forEach { child -> write(child, contentWidth, contentHeight, false) }
+            node.children.forEach { child -> write(child, contentWidth, contentHeight, false, node.direction) }
             treeMeta[index * 2] = firstChild.toFloat()
             treeMeta[index * 2 + 1] = (cursor - firstChild).toFloat()
         }
-        write(root, width, height, true)
+        write(root, width, height, true, root.direction)
         val frames = (if (autoRowsAware) {
             CraftNative.layoutTreeV4(width.toFloat(), height.toFloat(), nodeData, treeMeta)
         } else if (wrapReverseAware) {

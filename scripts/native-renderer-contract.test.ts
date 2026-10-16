@@ -2033,7 +2033,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('defaultShrink = horizontal ? 1 : 0')
     expect(android).toContain('val flexShrink: Double? = null')
     expect(android).toContain('it.style.flexShrink ?: defaultFlexShrink(it.view)')
-    expect(android).toContain('view is TextView && view !is Button && view !is EditText && orientation == HORIZONTAL')
+    expect(android).toContain('view is TextView && view !is Button && view !is EditText && horizontal')
   })
 
   it('distributes wrapped flex lines with alignContent on both hosts', () => {
