@@ -212,6 +212,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context)')
       expect(nativeActivity).toContain('val propRefresh = props.optJSONObject("refreshControl")')
       expect(nativeActivity).toContain('setRefreshHandler(refreshHandler, craftNativeBoolean(refreshProps.opt("refreshing"), craftNativeBoolean(props.opt("refreshing"))))')
+      expect(nativeActivity).toContain('transparent = craftNativeBoolean(props.opt("transparent"))')
+      expect(nativeActivity).toContain('list.setScrollEnabled(craftNativeBoolean(props.opt("scrollEnabled"), true))')
       expect(nativeActivity).toContain('"FlatList" -> (previous as? CraftNativeRefreshableFlatList')
       expect(nativeActivity).toContain('val propRefresh = props.optJSONObject("refreshControl") ?: JSONObject()')
       expect(nativeActivity).toContain('setRefreshAppearance(propRefresh, refreshTintFallback(screen))')

@@ -5217,7 +5217,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             "Modal" -> (previous as? CraftNativeModalView ?: CraftNativeModalView(this)).apply {
-                transparent = props.optBoolean("transparent", false)
+                transparent = craftNativeBoolean(props.opt("transparent"))
                 content.configure(style, resources.displayMetrics.density)
                 reconcileChildren(screen, content, children, identity, next, style, previousControls)
                 // Dynamic :visible bindings arrive as a display style mutation;
@@ -5460,21 +5460,21 @@ class MainActivity : AppCompatActivity() {
                 drawing = node
             }
             "ScrollView", "SectionList" -> (previous as? CraftNativeScrollView ?: CraftNativeScrollView(this)).apply {
-                val horizontal = props.optBoolean("horizontal", false) || style.optString("flexDirection") in setOf("row", "row-reverse")
+                val horizontal = craftNativeBoolean(props.opt("horizontal")) || style.optString("flexDirection") in setOf("row", "row-reverse")
                 setHorizontal(horizontal)
                 setNativeNestedScrollingEnabled(true)
                 setScrollIndicators(
-                    props.optBoolean("showsVerticalScrollIndicator", true),
-                    props.optBoolean("showsHorizontalScrollIndicator", true),
+                    craftNativeBoolean(props.opt("showsVerticalScrollIndicator"), true),
+                    craftNativeBoolean(props.opt("showsHorizontalScrollIndicator"), true),
                 )
-                setScrollEnabled(props.optBoolean("scrollEnabled", true))
+                setScrollEnabled(craftNativeBoolean(props.opt("scrollEnabled"), true))
                 setKeyboardShouldPersistTaps(props.optString("keyboardShouldPersistTaps", "never"))
-                setBounces(props.optBoolean("bounces", true))
+                setBounces(craftNativeBoolean(props.opt("bounces"), true))
                 setAlwaysBounce(
-                    props.optBoolean("alwaysBounceVertical", !horizontal),
-                    props.optBoolean("alwaysBounceHorizontal", horizontal),
+                    craftNativeBoolean(props.opt("alwaysBounceVertical"), !horizontal),
+                    craftNativeBoolean(props.opt("alwaysBounceHorizontal"), horizontal),
                 )
-                setPagingEnabled(props.optBoolean("pagingEnabled", false))
+                setPagingEnabled(craftNativeBoolean(props.opt("pagingEnabled")))
                 val refreshNode = (0 until children.length()).asSequence()
                     .mapNotNull { children.optJSONObject(it) }
                     .firstOrNull { canonicalType(it.optString("type")) == "RefreshControl" }
@@ -5894,12 +5894,12 @@ class MainActivity : AppCompatActivity() {
         }
         val threshold = craftNativeNonNegativeDouble(props, "threshold", 0.1)
         val authoredThreshold = craftNativeNonNegativeDouble(props, "onEndReachedThreshold", threshold)
-        val horizontal = props.optBoolean("horizontal", false)
+        val horizontal = craftNativeBoolean(props.opt("horizontal"))
         list.apply(
             nodes = nodes,
             horizontal = horizontal,
             columns = props.optInt("numColumns", 1),
-            inverted = props.optBoolean("inverted", false),
+            inverted = craftNativeBoolean(props.opt("inverted")),
             endReachedThreshold = authoredThreshold,
             renderItem = { node, itemIdentity, _ ->
                 val rows = screen.flatListRows.getOrPut(list) { mutableMapOf() }
@@ -5919,16 +5919,16 @@ class MainActivity : AppCompatActivity() {
             },
         )
         list.setScrollIndicators(
-            props.optBoolean("showsVerticalScrollIndicator", true),
-            props.optBoolean("showsHorizontalScrollIndicator", true),
+            craftNativeBoolean(props.opt("showsVerticalScrollIndicator"), true),
+            craftNativeBoolean(props.opt("showsHorizontalScrollIndicator"), true),
         )
-        list.setScrollEnabled(props.optBoolean("scrollEnabled", true))
-        list.setPagingEnabled(props.optBoolean("pagingEnabled", false))
+        list.setScrollEnabled(craftNativeBoolean(props.opt("scrollEnabled"), true))
+        list.setPagingEnabled(craftNativeBoolean(props.opt("pagingEnabled")))
         list.setScrollTarget(props.opt("scrollTarget"))
         list.setBounceOptions(
-            props.optBoolean("bounces", true),
-            props.optBoolean("alwaysBounceVertical", !horizontal),
-            props.optBoolean("alwaysBounceHorizontal", horizontal),
+            craftNativeBoolean(props.opt("bounces"), true),
+            craftNativeBoolean(props.opt("alwaysBounceVertical"), !horizontal),
+            craftNativeBoolean(props.opt("alwaysBounceHorizontal"), horizontal),
         )
     }
 

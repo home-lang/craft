@@ -159,7 +159,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('setScrollTarget(props.opt("scrollTarget"))')
     expect(android).toContain('private fun updateStickyHeaders()')
     expect(android).toContain('private fun scrollToPendingTarget(attempt: Int)')
-    expect(android).toContain('inverted = props.optBoolean("inverted", false)')
+    expect(android).toContain('inverted = craftNativeBoolean(props.opt("inverted"))')
   })
 
   it('keeps SectionList on the maintained child-based fallback', () => {
@@ -2584,7 +2584,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps FlatList scrollEnabled native on Android without disabling row touches', () => {
-    expect(android).toContain('list.setScrollEnabled(props.optBoolean("scrollEnabled", true))')
+    expect(android).toContain('list.setScrollEnabled(craftNativeBoolean(props.opt("scrollEnabled"), true))')
     expect(androidFlatList).toContain('override fun onInterceptTouchEvent(event: android.view.MotionEvent): Boolean')
     expect(androidFlatList).toContain('if (!scrollEnabled) return false')
     expect(androidFlatListTest).toContain('preservesRowTouchTargetsWhenScrollingIsDisabled')
@@ -2592,7 +2592,7 @@ describe('native renderer component contract', () => {
 
   it('keeps FlatList paging enabled through both native hosts', () => {
     expect(ios).toContain('list.isPagingEnabled = props["pagingEnabled"] as? Bool ?? false')
-    expect(android).toContain('list.setPagingEnabled(props.optBoolean("pagingEnabled", false))')
+    expect(android).toContain('list.setPagingEnabled(craftNativeBoolean(props.opt("pagingEnabled")))')
     expect(androidFlatList).toContain('PagerSnapHelper')
     expect(androidFlatList).toContain('fun setPagingEnabled(enabled: Boolean)')
     expect(androidFlatListTest).toContain('appliesPagingToNativeList')
@@ -2936,7 +2936,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('scroll.bounces = props["bounces"] as? Bool ?? true')
     expect(ios).toContain('list.bounces = props["bounces"] as? Bool ?? true')
     expect(android).toContain('fun setBounces(value: Boolean)')
-    expect(android).toContain('setBounces(props.optBoolean("bounces", true))')
+    expect(android).toContain('setBounces(craftNativeBoolean(props.opt("bounces"), true))')
     expect(android).toContain('private fun applyBounceModes()')
     expect(android).toContain('if (bounces && alwaysBounceVertical) View.OVER_SCROLL_ALWAYS')
     expect(guide).toContain('`bounces`, `alwaysBounceVertical`, and `alwaysBounceHorizontal` to control the')
@@ -2946,7 +2946,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('scroll.isPagingEnabled = props["pagingEnabled"] as? Bool ?? false')
     expect(android).toContain('fun setPagingEnabled(value: Boolean)')
     expect(android).toContain('if (pagingEnabled) snapToPage(scroller)')
-    expect(android).toContain('setPagingEnabled(props.optBoolean("pagingEnabled", false))')
+    expect(android).toContain('setPagingEnabled(craftNativeBoolean(props.opt("pagingEnabled")))')
     expect(guide).toContain('`pagingEnabled` snaps `ScrollView` content')
   })
 
