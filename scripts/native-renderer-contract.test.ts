@@ -419,6 +419,7 @@ describe('native renderer component contract', () => {
     expect(imageProps).toContain("resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'")
     expect(imageProps).not.toContain("'repeat'")
     expect(componentTypes).toContain('export type ImageSource =')
+    expect(componentTypes).not.toContain('{ uri: string; width?: number; height?: number;')
     expect(componentTypes).not.toContain('| number // For bundled images')
     expect(imageProps).not.toContain('blurRadius?: number')
     expect(imageProps).not.toContain('fadeDuration?: number')

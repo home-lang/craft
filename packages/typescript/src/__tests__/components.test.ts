@@ -177,6 +177,10 @@ describe('Component System', () => {
     image.blurRadius = 4
     // @ts-expect-error Native hosts do not implement fadeDuration.
     image.fadeDuration = 180
+    // @ts-expect-error Source dimensions are controlled by Image style/layout.
+    image.source.width = 320
+    // @ts-expect-error Source dimensions are controlled by Image style/layout.
+    image.source.height = 240
     expect(image.source.uri).toContain('example.com')
   })
 
