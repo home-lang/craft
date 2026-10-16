@@ -2325,6 +2325,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('clear that old value just as iOS reapplies its padding every')
   })
 
+  it('restores the native baseline when recycled Android input padding is removed', () => {
+    expect(navigationHome).toContain('testID="toggle-input-padding"')
+    expect(navigationHome).toContain('"paddingHorizontal":inputPadded ? 24 : null')
+    expect(androidNavigationTest).toContain('removed input padding style was retained')
+    expect(android).toContain('private val inputPaddingDefaults = mutableMapOf<EditText, IntArray>()')
+    expect(android).toContain('Restore the native baseline')
+  })
+
   it('exercises independent floating iOS navigation buttons in the maintained fixture', () => {
     expect(navigationHome).toContain("id: 'fixture-messages'")
     expect(navigationHome).toContain("id: 'fixture-account'")

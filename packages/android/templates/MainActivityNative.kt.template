@@ -3756,6 +3756,7 @@ class MainActivity : AppCompatActivity() {
     /** Fields that already carry their text watcher. */
     private val watchedInputs: MutableSet<EditText> = java.util.Collections.newSetFromMap(WeakHashMap())
     private val inputHighlightDefaults = mutableMapOf<EditText, Int>()
+    private val inputPaddingDefaults = mutableMapOf<EditText, IntArray>()
     private val defaultBackgrounds = mutableMapOf<View, Drawable?>()
     private var keyboardInset = 0
     private var animationScaleObserverRegistered = false
@@ -4982,6 +4983,9 @@ class MainActivity : AppCompatActivity() {
                     hintTextColors ?: ColorStateList.valueOf(Color.GRAY)
                 }
                 val defaultHighlightColor = inputHighlightDefaults.getOrPut(this) { highlightColor }
+                val defaultPadding = inputPaddingDefaults.getOrPut(this) {
+                    intArrayOf(paddingLeft, paddingTop, paddingRight, paddingBottom)
+                }
                 hint = craftNativeOptionalString(props.opt("placeholder")).orEmpty()
                 setHintTextColor(
                     craftNativeOptionalString(props.opt("placeholderTextColor"))
@@ -5008,7 +5012,8 @@ class MainActivity : AppCompatActivity() {
                 configureTextStyle(this, style)
                 // The style's padding is where the text starts, as on iOS and
                 // the web; without one the field keeps its own.
-                if (listOf("padding", "paddingHorizontal", "paddingVertical", "paddingLeft", "paddingRight", "paddingTop", "paddingBottom").any { style.has(it) }) {
+                val paddingKeys = listOf("padding", "paddingHorizontal", "paddingVertical", "paddingLeft", "paddingRight", "paddingTop", "paddingBottom")
+                if (paddingKeys.any(style::has)) {
                     val density = resources.displayMetrics.density
                     val all = craftNativePadding(style, "padding", 0, density)
                     val horizontal = craftNativePadding(style, "paddingHorizontal", all, density)
@@ -5019,6 +5024,11 @@ class MainActivity : AppCompatActivity() {
                         craftNativePadding(style, "paddingRight", horizontal, density),
                         craftNativePadding(style, "paddingBottom", vertical, density),
                     )
+                } else {
+                    // A keyed field can lose its authored padding while the
+                    // EditText itself is retained. Restore the native baseline
+                    // rather than carrying the previous field's spacing.
+                    setPadding(defaultPadding[0], defaultPadding[1], defaultPadding[2], defaultPadding[3])
                 }
                 // Reused EditTexts must forget the previous field's hint as
                 // well as accept a new one. Otherwise a password manager can
@@ -6981,6 +6991,7 @@ class MainActivity : AppCompatActivity() {
         released.filterIsInstance<EditText>().forEach {
             inputHintDefaults.remove(it)
             inputHighlightDefaults.remove(it)
+            inputPaddingDefaults.remove(it)
             screen.suppressedTextChanges.remove(it)
             screen.inputEchoes.remove(it)
             val identity = screen.inputIdentities.remove(it)

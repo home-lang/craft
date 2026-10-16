@@ -640,6 +640,20 @@ class NativeNavigationTest {
                 SystemClock.sleep(100)
             }
             assertEquals("removed button padding style was retained", initialButtonPadding, paddingButton.paddingLeft)
+            val nameInput = awaitView(activity, "name-input") as EditText
+            val initialInputPadding = nameInput.paddingLeft
+            click(activity, "toggle-input-padding")
+            repeat(75) {
+                if (nameInput.paddingLeft > initialInputPadding) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertTrue("input padding style was not applied", nameInput.paddingLeft > initialInputPadding)
+            click(activity, "toggle-input-padding")
+            repeat(75) {
+                if (nameInput.paddingLeft == initialInputPadding) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertEquals("removed input padding style was retained", initialInputPadding, nameInput.paddingLeft)
             val styleToggle = awaitView(activity, "toggle-button-style") as Button
             var styleInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { styleInfo = styleToggle.createAccessibilityNodeInfo() }
