@@ -16,6 +16,10 @@ import type {
   ImageStyle,
   FlexStyle,
   ButtonProps,
+  IconProps,
+  VideoProps,
+  ActivityIndicatorProps,
+  ModalProps,
   PressableProps,
   ImageProps,
   ImageBackgroundProps,
@@ -86,6 +90,14 @@ describe('Component System', () => {
     view.pointerEvents = 'none'
     expect(view.onPress).toBeDefined()
     expect(button.style).toHaveLength(2)
+    const icon: IconProps = { symbol: 'sun.max', style: { width: 24, color: '#f59e0b' } }
+    const video: VideoProps = { source: { uri: 'https://example.com/video.mp4' }, style: { width: 120, height: 68 } }
+    const indicator: ActivityIndicatorProps = { size: 48, style: { transform: [{ scale: 0.5 }] } }
+    const modal: ModalProps = { visible: true, style: { opacity: 0.45 } }
+    expect(icon.style).toEqual({ width: 24, color: '#f59e0b' })
+    expect(video.style).toEqual({ width: 120, height: 68 })
+    expect(indicator.style).toEqual({ transform: [{ scale: 0.5 }] })
+    expect(modal.style).toEqual({ opacity: 0.45 })
     const text: TextProps = { numberOfLines: 2, ellipsizeMode: 'tail' }
     // Text selection is not implemented by either maintained native host.
     // @ts-expect-error selectable is intentionally outside the native Text contract.

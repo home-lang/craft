@@ -138,6 +138,18 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="toggle-button-padding"')
   })
 
+  it('types styles for native controls mounted by both hosts', () => {
+    for (const name of ['IconProps', 'VideoProps', 'MapProps', 'SwitchProps', 'CheckboxProps', 'SliderProps', 'PickerProps', 'DatePickerProps', 'ActivityIndicatorProps', 'ModalProps']) {
+      expect(componentTypes).toContain(`export interface ${name} extends`)
+    }
+    expect(componentTypes).toContain('style?: TextStyle | TextStyle[]')
+    expect(componentTypes).toContain('style?: ViewStyle | ViewStyle[]')
+    expect(navigationHome).toContain('<Icon testID="native-icon"')
+    expect(navigationHome).toContain('<Video testID="native-video"')
+    expect(navigationHome).toContain('<Modal testID="native-modal"')
+    expect(navigationHome).toContain('<ActivityIndicator testID="scaled-indicator"')
+  })
+
   it('exposes the semantic accessibility roles handled by both hosts', () => {
     expect(componentTypes).toContain("| 'adjustable'")
     expect(componentTypes).toContain("| 'checkbox'")

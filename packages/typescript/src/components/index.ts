@@ -562,12 +562,14 @@ export interface ImageProps extends BaseProps {
 }
 
 export interface IconProps extends BaseProps {
+  style?: TextStyle | TextStyle[]
   name?: string
   symbol?: string
   color?: string
 }
 
 export interface VideoProps extends BaseProps {
+  style?: ViewStyle | ViewStyle[]
   source?: string | { uri: string }
   src?: string
   controls?: boolean
@@ -601,6 +603,7 @@ export interface MapRegion {
 }
 
 export interface MapProps extends BaseProps {
+  style?: ViewStyle | ViewStyle[]
   region?: MapRegion
   /** Initial camera region; applied once, then controlled by subsequent props. */
   initialRegion?: MapRegion
@@ -819,6 +822,7 @@ export type ReturnKeyType =
   | 'default'
 
 export interface SwitchProps extends BaseProps {
+  style?: ViewStyle | ViewStyle[]
   /** Controlled boolean state; malformed native bridge values stay off. */
   value?: boolean
   onValueChange?: (value: boolean) => void
@@ -830,6 +834,7 @@ export interface SwitchProps extends BaseProps {
 }
 
 export interface CheckboxProps extends BaseProps {
+  style?: ViewStyle | ViewStyle[]
   /** Controlled boolean state; malformed native bridge values stay off. */
   value?: boolean
   checked?: boolean
@@ -842,6 +847,7 @@ export interface CheckboxProps extends BaseProps {
 }
 
 export interface SliderProps extends BaseProps {
+  style?: ViewStyle | ViewStyle[]
   value?: number
   minimumValue?: number
   maximumValue?: number
@@ -862,6 +868,7 @@ export interface PickerOption {
 }
 
 export interface PickerProps extends BaseProps {
+  style?: ViewStyle | ViewStyle[]
   /** Typed options; child options remain supported when omitted. */
   items?: PickerOption[]
   selectedValue?: string | number
@@ -877,6 +884,7 @@ export interface DatePickerChange {
 }
 
 export interface DatePickerProps extends BaseProps {
+  style?: ViewStyle | ViewStyle[]
   mode?: 'date' | 'time' | 'datetime' | 'countdown'
   value?: string | number
   minimumDate?: string | number
@@ -888,6 +896,7 @@ export interface DatePickerProps extends BaseProps {
 }
 
 export interface ActivityIndicatorProps extends BaseProps {
+  style?: ViewStyle | ViewStyle[]
   color?: string
   animating?: boolean
   hidesWhenStopped?: boolean
@@ -928,6 +937,7 @@ export interface SectionListProps<T> extends ScrollViewProps {
 }
 
 export interface ModalProps extends BaseProps {
+  style?: ViewStyle | ViewStyle[]
   visible?: boolean
   transparent?: boolean
   animationType?: 'none' | 'fade' | 'slide'
