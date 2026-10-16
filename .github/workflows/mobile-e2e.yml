@@ -57,6 +57,12 @@ on:
       - scripts/mobile-e2e/**
       - .github/workflows/mobile-e2e.yml
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Test all mobile suites or only native iOS navigation
+        type: choice
+        options: [all, ios-navigation]
+        default: all
 
 concurrency:
   group: mobile-e2e-${{ github.head_ref || github.ref }}
@@ -144,6 +150,7 @@ jobs:
 
       - name: Test native UIKit reconciliation
         id: uikit
+        if: ${{ inputs.scope != 'ios-navigation' }}
         run: |
           mkdir -p artifacts/mobile-e2e/ios-native
           bun packages/ios/scripts/test-native-render.ts 2>&1 | tee artifacts/mobile-e2e/ios-native/uikit.log
@@ -152,7 +159,7 @@ jobs:
         id: navigation
         # Reconciliation and navigation are independent suites. Keep the
         # navigation evidence when reconciliation fails; the job still fails.
-        if: ${{ !cancelled() && steps.uikit.outcome != 'skipped' }}
+        if: ${{ !cancelled() && (inputs.scope == 'ios-navigation' || steps.uikit.outcome != 'skipped') }}
         env:
           STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
         run: |
@@ -212,6 +219,7 @@ jobs:
 
   ios-simulator:
     name: iOS simulator
+    if: ${{ inputs.scope != 'ios-navigation' }}
     runs-on: macos-15
     # A hung simulator launch would otherwise burn the six-hour default. The
     # harness has its own per-app timeout; this is the backstop for everything
@@ -339,6 +347,7 @@ jobs:
 
   android-emulator:
     name: Android emulator
+    if: ${{ inputs.scope != 'ios-navigation' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -504,6 +513,7 @@ jobs:
   # passing, and wired into no workflow.
   ios-zig-slice:
     name: iOS Zig runtime slice
+    if: ${{ inputs.scope != 'ios-navigation' }}
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -568,7 +578,7 @@ jobs:
       - name: Report
         run: |
           {
-            echo "## Mobile E2E"
+            echo "## Mobile E2E (${{ inputs.scope || 'all' }})"
             echo
             echo "| Leg | Result |"
             echo "|-----|--------|"
@@ -591,9 +601,11 @@ jobs:
         if: >-
           contains(fromJSON('["failure", "skipped"]'), needs.harness.result)
           || contains(fromJSON('["failure", "skipped"]'), needs.ios-native.result)
-          || contains(fromJSON('["failure", "skipped"]'), needs.ios-simulator.result)
-          || contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result)
-          || contains(fromJSON('["failure", "skipped"]'), needs.ios-zig-slice.result)
+          || (inputs.scope != 'ios-navigation' && (
+            contains(fromJSON('["failure", "skipped"]'), needs.ios-simulator.result)
+            || contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result)
+            || contains(fromJSON('["failure", "skipped"]'), needs.ios-zig-slice.result)
+          ))
         run: |
           echo "::error::at least one mobile E2E leg did not succeed"
           exit 1
