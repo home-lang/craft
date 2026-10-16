@@ -328,6 +328,34 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
     }
 
+    func testDeferredPageSelectionCannotOverrideANewerNativeTabTap() async throws {
+        mountDetails()
+        // A page reports its tab while a native stack owns the screen. The
+        // shell defers correcting that report; another real tab tap arrives
+        // before the correction runs (for example while a cold root mounts).
+        CraftChrome.shared.handle(["type": "selectTab", "id": "/details"])
+        let third = try XCTUnwrap(CraftChrome.shared.tabs.first { $0.id == "/third" })
+        CraftChrome.shared.tap(third)
+        XCTAssertEqual(CraftChrome.shared.selected, "/third")
+        await renderFrames()
+        XCTAssertEqual(CraftChrome.shared.selected, "/third", "a stale page correction changed the selected tab")
+        XCTAssertFalse(try XCTUnwrap(stack("/third")).view.isHidden)
+        XCTAssertTrue(try XCTUnwrap(stack("/")).view.isHidden)
+    }
+
+    func testDeferredPageSelectionPreservesANewerInteractiveSwipePreview() async throws {
+        mountDetails()
+        CraftChrome.shared.handle(["type": "selectTab", "id": "/third"])
+        drag(-150)
+        XCTAssertEqual(CraftChrome.shared.selected, "/details")
+        await renderFrames()
+        XCTAssertEqual(CraftChrome.shared.selected, "/details", "a stale page correction cleared the finger's tab preview")
+        drag(-150, phase: .cancelled)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
+        XCTAssertFalse(try XCTUnwrap(stack("/")).view.isHidden)
+    }
+
     func testSwipeAfterATabTapCannotBeChangedByTheOlderAnimation() async throws {
         mountDetails()
         let details = try XCTUnwrap(stack("/details"))
