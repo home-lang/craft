@@ -2760,6 +2760,16 @@ describe('native renderer component contract', () => {
     expect(android).toContain('?.let { runCatching { craftNativeColor(it) }.getOrNull() }')
   })
 
+  it('restores native Android slider tints when authored colors are malformed', () => {
+    expect(navigationHome).toContain('testID="toggle-invalid-slider-colors"')
+    expect(navigationHome).toContain('minimumTrackTintColor={invalidSliderColors ? "not-a-color"')
+    expect(androidNavigationTest).toContain('Invalid minimum slider tint should restore the native default')
+    expect(androidNavigationTest).toContain('Invalid maximum slider tint should restore the native default')
+    expect(androidNavigationTest).toContain('Invalid thumb slider tint should restore the native default')
+    expect(android).toContain('progressTintList = craftNativeOptionalString(props.opt("minimumTrackTintColor"))')
+    expect(android).toContain('progressBackgroundTintList = craftNativeOptionalString(props.opt("maximumTrackTintColor"))')
+  })
+
   it('restores native backgrounds when custom styles are removed', () => {
     expect(ios).toContain('view.backgroundColor = color(style["backgroundColor"]) ?? .clear')
     expect(android).toContain('if (defaultBackgrounds.containsKey(view))')
