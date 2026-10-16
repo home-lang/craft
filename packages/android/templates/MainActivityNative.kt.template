@@ -5310,15 +5310,12 @@ class MainActivity : AppCompatActivity() {
                     (((value - minimum) / (maximum - minimum)) * max).roundToInt().coerceIn(0, max)
                 }
                 if (step != null) screen.sliderSteps[this] = step else screen.sliderSteps.remove(this)
-                craftNativeOptionalString(props.opt("minimumTrackTintColor"))
+                progressTintList = craftNativeOptionalString(props.opt("minimumTrackTintColor"))
                     ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
-                    ?: run { progressTintList = null }
-                craftNativeOptionalString(props.opt("maximumTrackTintColor"))
+                progressBackgroundTintList = craftNativeOptionalString(props.opt("maximumTrackTintColor"))
                     ?.let { ColorStateList.valueOf(color(it, Color.GRAY)) }
-                    ?: run { progressBackgroundTintList = null }
-                craftNativeOptionalString(props.opt("thumbTintColor"))
+                thumbTintList = craftNativeOptionalString(props.opt("thumbTintColor"))
                     ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
-                    ?: run { thumbTintList = null }
                 isEnabled = !props.optBoolean("disabled", false)
                 val handler = craftNativeEventName(events, "onValueChange", "onChange")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)

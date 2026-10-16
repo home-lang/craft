@@ -891,6 +891,9 @@ class NativeNavigationTest {
             assertEquals("0.8", (awaitView(activity, "slider-value") as TextView).text.toString())
             val nativeSlider = slider as SeekBar
             assertEquals("slider thumb should retain its selected step", 8, nativeSlider.progress)
+            assertEquals("slider minimum tint was not applied", Color.rgb(0x22, 0xc5, 0x5e), nativeSlider.progressTintList?.getColorForState(intArrayOf(), Color.TRANSPARENT))
+            assertEquals("slider maximum tint was not applied", Color.rgb(0x64, 0x74, 0x8b), nativeSlider.progressBackgroundTintList?.getColorForState(intArrayOf(), Color.TRANSPARENT))
+            assertEquals("slider thumb tint was not applied", Color.rgb(0x16, 0xa3, 0x4a), nativeSlider.thumbTintList?.getColorForState(intArrayOf(), Color.TRANSPARENT))
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()
                 val y = nativeSlider.height / 2f
