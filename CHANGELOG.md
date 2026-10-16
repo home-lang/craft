@@ -1,5 +1,23 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.219...v0.0.220)
+
+## 🐛 Bug Fixes
+
+- **ios**: restore visible tab chrome after interrupted swipes ([63f69d7](https://github.com/craft-native/craft/commit/63f69d7)) _(by Chris Breuer)_
+- **ios**: make the native tab accessory surface tappable ([e59d58e](https://github.com/craft-native/craft/commit/e59d58e)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: support controlled drags in installed-app journeys ([a38a44a](https://github.com/craft-native/craft/commit/a38a44a)) _(by Chris Breuer)_
+- **ios**: keep component assertions scoped to their native controls ([f1d2f31](https://github.com/craft-native/craft/commit/f1d2f31)) _(by Chris Breuer)_
+- **ios**: verify accessory ownership after cancelled transitions ([678f8eb](https://github.com/craft-native/craft/commit/678f8eb)) _(by Chris Breuer)_
+- **ios**: use current native navigation controls in UI journeys ([f192088](https://github.com/craft-native/craft/commit/f192088)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.218...v0.0.219)
 
 ## 🐛 Bug Fixes
