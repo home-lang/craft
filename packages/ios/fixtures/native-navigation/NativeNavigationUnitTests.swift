@@ -346,9 +346,21 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(CraftChrome.shared.selected, "/")
         XCTAssertNil(CraftChrome.shared.tabAccessory)
         home.popViewController(animated: false)
+        await renderFrames()
         XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
         home.popViewController(animated: false)
+        await renderFrames()
         XCTAssertNil(CraftChrome.shared.tabAccessory)
+    }
+
+    func testCancelledColdSwipeRestoresTheVisibleScreensAccessory() async throws {
+        let previous = CraftChrome.shared.tabAccessory
+        drag(-150)
+        await renderFrames()
+        drag(-150, phase: .cancelled)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
+        XCTAssertEqual(CraftChrome.shared.tabAccessory, previous, "an unvisited tab's preview must not leave its accessory on the restored screen")
     }
 
     func testDeferredPageSelectionCannotOverrideANewerNativeTabTap() async throws {
