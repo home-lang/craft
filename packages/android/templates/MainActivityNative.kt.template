@@ -5999,13 +5999,13 @@ class MainActivity : AppCompatActivity() {
         // background paints over the decoded picture (only rounded corners
         // showed it). Keep the outline/borders, with a transparent fill.
         val backgroundColor = if (view is CraftNativeVideoView) Color.TRANSPARENT
-            else color(style.optString("backgroundColor"), Color.TRANSPARENT)
+            else color(craftNativeOptionalString(style.opt("backgroundColor")).orEmpty(), Color.TRANSPARENT)
         val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)
         val radius = craftNativeNonNegativeDouble(style, "borderRadius", 0.0)
-        val gradientDirection = style.optString("gradientDirection").takeIf { it.isNotBlank() }
-        val gradientFrom = style.optString("gradientFrom").takeIf { it.isNotBlank() }
-        val gradientVia = style.optString("gradientVia").takeIf { it.isNotBlank() }
-        val gradientTo = style.optString("gradientTo").takeIf { it.isNotBlank() }
+        val gradientDirection = craftNativeOptionalString(style.opt("gradientDirection"))
+        val gradientFrom = craftNativeOptionalString(style.opt("gradientFrom"))
+        val gradientVia = craftNativeOptionalString(style.opt("gradientVia"))
+        val gradientTo = craftNativeOptionalString(style.opt("gradientTo"))
         val gradientColors = if (gradientDirection != null && gradientFrom != null && gradientTo != null) {
             listOfNotNull(
                 color(gradientFrom, Color.TRANSPARENT),
@@ -6023,7 +6023,7 @@ class MainActivity : AppCompatActivity() {
             listOf(radius, radius)
         }.toFloatArray()
         val sideColors = listOf("borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor")
-            .map { color(style.optString(it).ifBlank { style.optString("borderColor") }, Color.TRANSPARENT) }
+            .map { color(craftNativeOptionalString(style.opt(it)) ?: craftNativeOptionalString(style.opt("borderColor")).orEmpty(), Color.TRANSPARENT) }
             .toIntArray()
         val defaultBackground = if (defaultBackgrounds.containsKey(view)) {
             defaultBackgrounds[view]
@@ -6037,7 +6037,7 @@ class MainActivity : AppCompatActivity() {
                     cornerRadii,
                     sideWidths,
                     sideColors,
-                    style.optString("borderStyle").takeIf { it == "dashed" || it == "dotted" },
+                    craftNativeOptionalString(style.opt("borderStyle"))?.takeIf { it == "dashed" || it == "dotted" },
                     gradientDirection,
                     gradientColors,
                 )
@@ -6049,8 +6049,8 @@ class MainActivity : AppCompatActivity() {
                     } else setColor(backgroundColor)
                     if (hasCornerRadii) setCornerRadii(cornerRadii) else cornerRadius = dp(radius).toFloat()
                     if (border > 0) {
-                        val borderColor = color(style.optString("borderColor"), Color.TRANSPARENT)
-                        when (style.optString("borderStyle")) {
+                        val borderColor = color(craftNativeOptionalString(style.opt("borderColor")).orEmpty(), Color.TRANSPARENT)
+                        when (craftNativeOptionalString(style.opt("borderStyle"))) {
                             "dashed" -> setStroke(dp(border), borderColor, dp(border * 3).toFloat(), dp(border * 2).toFloat())
                             "dotted" -> setStroke(dp(border), borderColor, dp(border).toFloat(), dp(border * 1.5).toFloat())
                             else -> setStroke(dp(border), borderColor)
@@ -6063,13 +6063,14 @@ class MainActivity : AppCompatActivity() {
             // and the web.
             null
         } else defaultBackground
-        view.clipToOutline = style.optString("overflow") == "hidden"
-        if (view is ViewGroup) view.clipChildren = style.optString("overflow") == "hidden"
+        val overflow = craftNativeOptionalString(style.opt("overflow"))
+        view.clipToOutline = overflow == "hidden"
+        if (view is ViewGroup) view.clipChildren = overflow == "hidden"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
             (style.has("shadowColor") || style.has("shadowOpacity") || style.has("shadowRadius"))
         ) {
             val shadowOpacity = craftNativeFiniteFloat(style, "shadowOpacity", 1f).coerceIn(0f, 1f)
-            val shadow = color(style.optString("shadowColor"), Color.BLACK)
+            val shadow = color(craftNativeOptionalString(style.opt("shadowColor")).orEmpty(), Color.BLACK)
             val alphaShadow = Color.argb((Color.alpha(shadow) * shadowOpacity).roundToInt(), Color.red(shadow), Color.green(shadow), Color.blue(shadow))
             view.outlineAmbientShadowColor = alphaShadow
             view.outlineSpotShadowColor = alphaShadow
