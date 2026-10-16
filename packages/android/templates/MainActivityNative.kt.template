@@ -352,6 +352,14 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         val vectorEffect: String? = null,
         val dominantBaseline: String? = null,
     ) {
+        private fun svgTypeface(weight: String?, inherited: Typeface): Typeface = when (weight?.lowercase()) {
+            "500" -> Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            "600" -> Typeface.create("sans-serif", Typeface.BOLD)
+            "bold", "700", "800", "900" -> Typeface.DEFAULT_BOLD
+            "normal", "100", "200", "300", "400" -> Typeface.DEFAULT
+            else -> inherited
+        }
+
         fun merge(node: JSONObject): SvgPaint {
             val props = node.optJSONObject("props") ?: JSONObject()
             val style = node.optJSONObject("style") ?: JSONObject()
@@ -387,7 +395,7 @@ private class CraftNativeSvgView(context: Context) : View(context) {
                 strokeDashoffset = number("strokeDashoffset") ?: strokeDashoffset,
                 strokeMiterlimit = number("strokeMiterlimit")?.takeIf { it > 0 } ?: strokeMiterlimit,
                 fillRule = value("fillRule") ?: fillRule,
-                typeface = if (weight in setOf("bold", "700")) Typeface.DEFAULT_BOLD else typeface,
+                typeface = svgTypeface(weight, typeface),
                 strokeLinecap = value("strokeLinecap") ?: strokeLinecap,
                 strokeLinejoin = value("strokeLinejoin") ?: strokeLinejoin,
                 strokeDasharray = dashes(raw("strokeDasharray")) ?: strokeDasharray,

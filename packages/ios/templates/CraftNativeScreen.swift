@@ -3318,6 +3318,7 @@ private final class CraftNativeSvgView: UIView {
         var linejoin: String?
         var dashes: [CGFloat]?
         var vectorEffect: String?
+        var fontWeight: String?
         var dominantBaseline: String?
 
         func merged(_ node: [String: Any]) -> Paint {
@@ -3329,6 +3330,11 @@ private final class CraftNativeSvgView: UIView {
                 guard let number = raw as? NSNumber else { return nil }
                 let value = CGFloat(truncating: number)
                 return value.isFinite ? value : nil
+            }
+            func string(_ raw: Any?) -> String? {
+                if let value = raw as? String { return value }
+                if let number = raw as? NSNumber { return number.stringValue }
+                return nil
             }
             if let color = style["color"] as? String { next.color = color }
             if let fill = style["fill"] as? String ?? props["fill"] as? String { next.fill = fill }
@@ -3346,6 +3352,7 @@ private final class CraftNativeSvgView: UIView {
             if let join = value("strokeLinejoin") as? String { next.linejoin = join }
             if let dashes = value("strokeDasharray") as? [Any] { next.dashes = dashes.compactMap(finite).filter { $0 >= 0 } }
             if let vectorEffect = value("vectorEffect") as? String { next.vectorEffect = vectorEffect }
+            if let fontWeight = string(value("fontWeight")) { next.fontWeight = fontWeight }
             if let baseline = value("dominantBaseline") as? String { next.dominantBaseline = baseline }
             return next
         }
@@ -3446,7 +3453,14 @@ private final class CraftNativeSvgView: UIView {
         let props = node["props"] as? [String: Any] ?? [:]
         let style = node["style"] as? [String: Any] ?? [:]
         let size = number(props["fontSize"]) ?? number(style["fontSize"]) ?? 12
-        let weight: UIFont.Weight = (props["fontWeight"] as? String ?? style["fontWeight"] as? String).map { ["500": .medium, "600": .semibold, "700": .bold, "bold": .bold][$0] ?? .regular } ?? .regular
+        let weight: UIFont.Weight = {
+            switch paint.fontWeight?.lowercased() {
+            case "500": return .medium
+            case "600": return .semibold
+            case "bold", "700", "800", "900": return .bold
+            default: return .regular
+            }
+        }()
         let font = UIFont.systemFont(ofSize: size, weight: weight)
         let resolvedTextColor = paint.resolve(paint.fill) ?? UIColor.label
         let textAlpha = max(0, min(1, paint.opacity * paint.fillOpacity))

@@ -122,6 +122,7 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain("strokeLinecap?: 'butt' | 'round' | 'square'")
     expect(componentTypes).toContain('export interface SvgShapeProps extends SvgPaintProps')
     expect(componentTypes).toContain('export interface SvgTextProps extends SvgPaintProps')
+    expect(componentTypes).toContain('fontWeight?: string | number')
     expect(componentTypes).toContain("textAnchor?: 'start' | 'middle' | 'end' | string")
     expect(ios).toContain('let box = props["viewBox"] as? [Any]')
     expect(android).toContain('drawing.optJSONObject("props")?.optJSONArray("viewBox")')
@@ -615,6 +616,16 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('fill-rule="evenodd"')
     expect(navigationHome).toContain('stroke-dashoffset="0.5"')
     expect(navigationHome).toContain('dominant-baseline="middle"')
+  })
+
+  it('inherits SVG text weights through groups and maps the shared weight range', () => {
+    expect(ios).toContain('var fontWeight: String?')
+    expect(ios).toContain('if let fontWeight = string(value("fontWeight")) { next.fontWeight = fontWeight }')
+    expect(ios).toContain('case "bold", "700", "800", "900": return .bold')
+    expect(android).toContain('typeface = svgTypeface(weight, typeface)')
+    expect(android).toContain('"500" -> Typeface.create("sans-serif-medium", Typeface.NORMAL)')
+    expect(android).toContain('"normal", "100", "200", "300", "400" -> Typeface.DEFAULT')
+    expect(navigationHome).toContain('<g font-weight="500">')
   })
 
   it('keeps Android SVG text sizes as Kotlin floats in both prop branches', () => {

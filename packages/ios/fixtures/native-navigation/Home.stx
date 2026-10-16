@@ -625,6 +625,9 @@ function toggleScreenBackground() {
           <path d="M4 12h16" />
           <text x="12" y="21" text-anchor="middle" dominant-baseline="middle" fill="#111827" stroke="none" font-size="4">SVG</text>
         </g>
+        <g font-weight="500">
+          <text x="12" y="5" text-anchor="middle" dominant-baseline="middle" fill="#111827" font-size="3">W</text>
+        </g>
       </svg>
       <Icon testID="native-icon" symbol="sun.max" accessibilityLabel="Native icon" style={{"width":iconSized ? 24 : null,"height":iconSized ? 24 : null,"color":"#f59e0b"}} />
       <Video testID="native-video" source={{"uri":""}} style={{"width":120,"height":68}} />

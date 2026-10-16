@@ -646,6 +646,8 @@ export interface SvgPaintProps extends BaseProps {
   vectorEffect?: 'none' | 'non-scaling-stroke'
   color?: string
   opacity?: number
+  /** Font weight inherited by descendant native SVG text. */
+  fontWeight?: string | number
 }
 
 /** Root native SVG drawing surface. */
@@ -675,7 +677,6 @@ export interface SvgTextProps extends SvgPaintProps {
   x?: number
   y?: number
   fontSize?: number
-  fontWeight?: string | number
   textAnchor?: 'start' | 'middle' | 'end' | string
   dominantBaseline?: string
 }
