@@ -3734,6 +3734,7 @@ class MainActivity : AppCompatActivity() {
         val target = ensureTabRoot(targetIndex) ?: return false
         val host = chrome?.content ?: return false
         if (target === current || host.width <= 0) return false
+        updateSafeAreaInsets(target)
         val chromeLocation = IntArray(2)
         chrome?.getLocationOnScreen(chromeLocation)
         if (horizontalScrollCanConsume(current.view, chromeLocation[0] + x, chromeLocation[1] + y, dx)) return false
@@ -4300,7 +4301,20 @@ class MainActivity : AppCompatActivity() {
             if (safeRoot) 0 else windowSafeInsets[2],
             if (safeRoot) 0 else windowSafeInsets[3],
         )
-        val tree = active?.view?.getChildAt(0) as? CraftNativeFlexLayout
+        active?.let(::updateSafeAreaInsets)
+    }
+
+    /**
+     * Applies window insets to a screen that is mounted for an interactive
+     * transition but is not visibleScreen yet. The tab swipe keeps both
+     * screens attached while it moves the incoming one across the window, so
+     * updating only the active screen leaves a SafeAreaView briefly measured
+     * against zero insets.
+     */
+    private fun updateSafeAreaInsets(screen: Screen) {
+        val rootNode = screen.mutations.node("root")
+        val safeRoot = rootNode?.let { canonicalType(it.optString("type")) == "SafeAreaView" } == true
+        val tree = screen.view.getChildAt(0) as? CraftNativeFlexLayout
         if (safeRoot) tree?.setWindowSafeInsets(windowSafeInsets[0], windowSafeInsets[1], windowSafeInsets[2], windowSafeInsets[3])
         else tree?.setWindowSafeInsets(0, 0, 0, 0)
     }

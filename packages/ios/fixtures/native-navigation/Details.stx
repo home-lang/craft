@@ -52,7 +52,7 @@ onDestroy(() => globalThis.craft.storage.set('native-navigation-details-destroye
 </script>
 
 <template>
-  <View class="p-4">
+  <SafeAreaView class="p-4">
     <Text testID="details-title" :text="'Details for ' + name" />
     <Text testID="details-count" :text="'Count: ' + count" />
     <Button testID="details-increment" @click="incrementDetails()">Increment details state</Button>
@@ -80,5 +80,5 @@ onDestroy(() => globalThis.craft.storage.set('native-navigation-details-destroye
     <Button testID="clear-people" @click="clearPeople()">Clear people</Button>
     <Button testID="details-back" @click="goBack()">Back in app</Button>
     <Button testID="open-summary" @click="replaceWithSummary()">Show summary</Button>
-  </View>
+  </SafeAreaView>
 </template>

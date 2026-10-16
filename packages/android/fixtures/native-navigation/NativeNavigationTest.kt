@@ -59,6 +59,13 @@ class NativeNavigationTest {
         return null
     }
 
+    private fun findAll(view: View, id: String, matches: MutableList<View>) {
+        if (view.tag?.toString() == id || view.contentDescription?.toString() == id) matches += view
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) findAll(view.getChildAt(index), id, matches)
+        }
+    }
+
     private fun containsType(view: View, type: Class<out View>): Boolean {
         if (type.isInstance(view)) return true
         if (view is ViewGroup) {
@@ -183,6 +190,15 @@ class NativeNavigationTest {
         instrumentation.runOnMainSync {
             val started = chrome.onTabSwipeStart?.invoke(deltaX, startX, y) == true
             assertTrue("native tab swipe did not start", started)
+            if (left) {
+                val roots = mutableListOf<View>()
+                findAll(chrome.content, "root", roots)
+                val incoming = roots.maxByOrNull { kotlin.math.abs((it.parent as? View)?.translationX ?: 0f) }
+                assertTrue(
+                    "incoming SafeAreaView did not receive window insets before tab swipe movement",
+                    incoming != null && incoming.paddingTop >= (16 * activity.resources.displayMetrics.density).toInt(),
+                )
+            }
             listOf(0.25f, 0.5f, 0.75f, 1f).forEach { fraction ->
                 chrome.onTabSwipeMove?.invoke(deltaX * fraction)
             }
