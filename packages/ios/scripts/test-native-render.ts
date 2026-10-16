@@ -50,6 +50,10 @@ try {
     settings:
       TEST_HOST: "$(BUILT_PRODUCTS_DIR)/NativeRender.app/NativeRender"
       BUNDLE_LOADER: "$(TEST_HOST)"
+      GENERATE_INFOPLIST_FILE: YES
+      PRODUCT_NAME: "$(TARGET_NAME)"
+      PRODUCT_BUNDLE_IDENTIFIER: dev.craft.native-render.tests
+      SWIFT_VERSION: "5.0"
   NativeRenderUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -57,6 +61,12 @@ try {
       - UITests
     dependencies:
       - target: NativeRender
+    settings:
+      TEST_TARGET_NAME: NativeRender
+      GENERATE_INFOPLIST_FILE: YES
+      PRODUCT_NAME: "$(TARGET_NAME)"
+      PRODUCT_BUNDLE_IDENTIFIER: dev.craft.native-render.uitests
+      SWIFT_VERSION: "5.0"
 `)
   writeFileSync(project, addSchemeTestTargets(projectWithTargets, 'NativeRender', ['NativeRenderUnitTests', 'NativeRenderUITests']))
   run(['xcodegen', 'generate'], output)
