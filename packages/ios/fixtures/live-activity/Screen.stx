@@ -1,0 +1,70 @@
+<script client>
+const activity = state('')
+const status = state('Ready')
+const paused = state(false)
+const remaining = state(3723)
+const endsAt = state(0)
+const kind = state('Workout')
+
+async function end() {
+  if (activity()) await globalThis.craft.liveActivity.end(activity())
+  activity.set('')
+  status.set('Ended')
+}
+
+async function start(variant) {
+  await end()
+  const titles = {
+    workout: 'Marathon preparation — steady endurance run with relaxed strides and a gradual cooldown',
+    relax: 'Evening relaxation — unwind with gentle breathing and a full body recovery meditation',
+    unicode: 'Recovery 🧘🏽‍♀️ — Entspannung für Körper und Geist · 呼吸とリラックス',
+    unbroken: 'SupercalifragilisticexpialidociousRecoveryAndEnduranceSessionWithoutAnySpaces',
+  }
+  kind.set(variant === 'relax' ? 'Relax' : 'Workout')
+  remaining.set(3723)
+  endsAt.set(Date.now() + remaining() * 1000)
+  paused.set(false)
+  const result = await globalThis.craft.liveActivity.start({
+    activityId: 'craft-layout-fixture',
+    title: titles[variant],
+    detail: variant === 'relax' ? 'Breathe slowly and comfortably' : 'Easy effort · Zone 2',
+    status: kind() + ' in progress',
+    symbol: variant === 'relax' ? 'moon.stars.fill' : 'figure.run',
+    deepLink: 'craft-live-layout:///',
+    tint: '007aff',
+    timerStartedAt: Date.now(),
+    timerEndsAt: endsAt(),
+    paused: false,
+    showsDistance: false,
+  })
+  activity.set(result.id)
+  status.set('Running')
+}
+
+async function toggle() {
+  if (!activity()) return
+  if (!paused()) remaining.set(Math.max(0, Math.ceil((endsAt() - Date.now()) / 1000)))
+  else endsAt.set(Date.now() + remaining() * 1000)
+  paused.set(!paused())
+  await globalThis.craft.liveActivity.update(activity(), {
+    paused: paused(),
+    remainingSeconds: remaining(),
+    timerEndsAt: endsAt(),
+    status: kind() + (paused() ? ' paused' : ' in progress'),
+  })
+  status.set(paused() ? 'Paused' : 'Running')
+}
+</script>
+
+<template>
+  <View class="p-6 gap-4">
+    <Text>Live Activity layout fixture</Text>
+    <Text testID="fixture-status" :text="status" />
+    <Button testID="fixture-workout" @click="start('workout')">Long workout name</Button>
+    <Button testID="fixture-relax" @click="start('relax')">Long Relax name</Button>
+    <Button testID="fixture-unicode" @click="start('unicode')">Unicode name</Button>
+    <Button testID="fixture-unbroken" @click="start('unbroken')">Unbroken name</Button>
+    <Button testID="fixture-toggle" @click="toggle()">Pause or resume</Button>
+    <Button testID="fixture-end" @click="end()">End activity</Button>
+  </View>
+</template>

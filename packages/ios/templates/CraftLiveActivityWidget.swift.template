@@ -11,9 +11,9 @@ struct CraftLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CraftActivityAttributes.self) { context in
             HStack(spacing: 12) {
-                Image(systemName: symbol(context)).font(.title2).foregroundStyle(tint(context))
+                activityIcon(context).font(.title2)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(context.attributes.title).font(.headline).lineLimit(1)
+                    Text(context.attributes.title).font(.headline).lineLimit(2)
                     if let detail = context.state.detail, !detail.isEmpty {
                         Text(detail).font(.subheadline).lineLimit(1)
                     }
@@ -33,14 +33,14 @@ struct CraftLiveActivityWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: symbol(context)).foregroundStyle(tint(context)).font(.title2)
+                    activityIcon(context).font(.title2)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     timer(context).font(.title2.monospacedDigit().weight(.semibold))
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(spacing: 3) {
-                        Text(context.attributes.title).font(.headline).lineLimit(1)
+                        Text(context.attributes.title).font(.headline).lineLimit(2)
                         Text(context.isStale ? context.state.staleStatus ?? context.state.status : context.state.status).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
@@ -59,15 +59,24 @@ struct CraftLiveActivityWidget: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: symbol(context)).foregroundStyle(tint(context))
+                activityIcon(context)
             } compactTrailing: {
-                timer(context).monospacedDigit().frame(maxWidth: 64)
+                timer(context).monospacedDigit().frame(maxWidth: 64, alignment: .trailing)
             } minimal: {
-                Image(systemName: symbol(context)).foregroundStyle(tint(context))
+                activityIcon(context)
             }
             .widgetURL(context.attributes.deepLink.flatMap(URL.init(string:)))
             .keylineTint(tint(context))
         }
+    }
+
+    private func activityIcon(_ context: ActivityViewContext<CraftActivityAttributes>) -> some View {
+        // The pause glyph uses the active symbol's footprint, keeping the
+        // title's leading edge steady through state changes.
+        Image(systemName: context.attributes.symbol ?? "timer")
+            .hidden()
+            .overlay { Image(systemName: symbol(context)) }
+            .foregroundStyle(tint(context))
     }
 
     private func symbol(_ context: ActivityViewContext<CraftActivityAttributes>) -> String {
@@ -82,8 +91,23 @@ struct CraftLiveActivityWidget: Widget {
 
     private func date(_ milliseconds: Double) -> Date { Date(timeIntervalSince1970: milliseconds / 1000) }
 
-    @ViewBuilder
     private func timer(_ context: ActivityViewContext<CraftActivityAttributes>) -> some View {
+        // Measure the hour format in the inherited native font. A widget's
+        // ticking Text is horizontally flexible; an overlay bounds it to this
+        // footprint so names retain the same width when the timer pauses.
+        Text(duration(max(3600, context.state.durationSeconds, context.state.remainingSeconds ?? 0)))
+            .lineLimit(1)
+            .hidden()
+            .overlay(alignment: .trailing) {
+                timerContent(context)
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+    }
+
+    @ViewBuilder
+    private func timerContent(_ context: ActivityViewContext<CraftActivityAttributes>) -> some View {
         if context.state.paused == true {
             Text(duration(context.state.remainingSeconds ?? context.state.durationSeconds))
         } else if let end = context.state.timerEndsAt {

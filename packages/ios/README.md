@@ -187,6 +187,10 @@ under test is activated by its bundle identifier and is not rebuilt by the
 driver. Export evidence with `xcrun xcresulttool export attachments --path
 <result.xcresult> --output-path <evidence>`. Omitting `script` restores the
 control-server protocol, required for the `net`, `delay` and `exec` hooks.
+Journeys stop at the first failed check so later actions cannot operate on the
+wrong screen. `systemtap` targets the system button around a Live Activity rather
+than its remotely hosted text. The [Live Activity layout fixture](./fixtures/live-activity)
+exercises long names and timer alignment using the production widget.
 
 The iOS host uses the shared tree-layout ABI for eligible definite-size,
 non-grid, non-wrapped containers and retains a local fallback for older
