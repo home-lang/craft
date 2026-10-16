@@ -2074,6 +2074,14 @@ describe('native renderer component contract', () => {
     expect(android).not.toContain('if (screens.lastOrNull() !== screen && screen !== appScreen) return')
   })
 
+  it('exercises Android native button, link, and retained-screen state paths', () => {
+    expect(androidNavigationTest).toContain('awaitText(activity, "navigation-home-state", "Home state: Ada/0")')
+    expect(androidNavigationTest).toContain('click(activity, "navigation-increment")')
+    expect(androidNavigationTest).toContain('click(activity, "navigation-open-details")')
+    expect(androidNavigationTest).toContain('click(activity, "details-back")')
+    expect(androidNavigationTest).toContain('fun nativeLinkOpensRoute()')
+  })
+
   it('proves shared-runtime keyed rows through the maintained iOS host', () => {
     expect(navigationHome).toContain("globalThis.craft.storage.remove('native-navigation-details-destroyed')")
     expect(navigationHome).toContain('const navigationRows = state([')
