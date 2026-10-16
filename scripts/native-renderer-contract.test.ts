@@ -2019,7 +2019,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('shadow.shadowBlurRadius = max(0, number(style["textShadowRadius"]) ?? 0)')
     expect(android).toContain('view.paint.clearShadowLayer()')
     expect(android).toContain('view.setShadowLayer(')
-    expect(android).toContain('style.optString("textShadowColor")')
+    expect(android).toContain('craftNativeOptionalString(style.opt("textShadowColor"))')
   })
 
   it('maps text decoration style and color on both native hosts', () => {
@@ -2027,8 +2027,10 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('attributes[.underlineColor] = decorationColor')
     expect(ios).toContain('case "dotted": return [.single, .patternDot]')
     expect(android).toContain('CraftTextDecorationSpan(')
-    expect(android).toContain('style.optString("textDecorationStyle").ifBlank { "solid" }')
-    expect(android).toContain('style.optString("textDecorationColor")')
+    expect(android).toContain('craftNativeOptionalString(style.opt("textDecorationStyle")).orEmpty().ifBlank { "solid" }')
+    expect(android).toContain('craftNativeOptionalString(style.opt("textDecorationColor"))')
+    expect(android).toContain('when (craftNativeOptionalString(style.opt("textTransform")))')
+    expect(android).toContain('val textAlign = craftNativeOptionalString(style.opt("textAlign"))')
     expect(navigationHome).toContain('"textDecorationStyle":"dotted"')
     expect(navigationHome).toContain('testID="name-input"')
     expect(navigationHome).toContain('"textDecorationStyle":"dashed"')

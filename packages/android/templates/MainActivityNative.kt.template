@@ -6169,7 +6169,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun configureText(view: TextView, value: String, style: JSONObject) {
-        view.text = when (style.optString("textTransform")) {
+        view.text = when (craftNativeOptionalString(style.opt("textTransform"))) {
             "uppercase" -> value.uppercase()
             "lowercase" -> value.lowercase()
             "capitalize" -> value.split(' ').joinToString(" ") { word -> word.replaceFirstChar(Char::uppercase) }
@@ -6279,7 +6279,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun configureTextStyle(view: TextView, style: JSONObject) {
-        view.setTextColor(color(style.optString("color"), defaultTextColor))
+        view.setTextColor(color(craftNativeOptionalString(style.opt("color")).orEmpty(), defaultTextColor))
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, craftNativeFiniteFloat(style, "fontSize", 16f))
         val fontWeight = style.opt("fontWeight") as? String
         val weight = when (fontWeight) {
@@ -6287,13 +6287,14 @@ class MainActivity : AppCompatActivity() {
             "100", "200", "300", "400", "500", "600", "700", "800", "900" -> style.optInt("fontWeight")
             else -> 400
         }
-        val italic = style.optString("fontStyle") == "italic"
-        val family = style.optString("fontFamily").takeIf { it.isNotBlank() }
+        val italic = craftNativeOptionalString(style.opt("fontStyle")) == "italic"
+        val family = craftNativeOptionalString(style.opt("fontFamily"))?.takeIf { it.isNotBlank() }
         view.typeface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             Typeface.create(Typeface.create(family, Typeface.NORMAL), weight, italic)
         } else Typeface.create(family, (if (weight >= 600) Typeface.BOLD else Typeface.NORMAL) or
             (if (italic) Typeface.ITALIC else Typeface.NORMAL))
-        view.textAlignment = when (style.optString("textAlign")) {
+        val textAlign = craftNativeOptionalString(style.opt("textAlign"))
+        view.textAlignment = when (textAlign) {
             "left" -> View.TEXT_ALIGNMENT_TEXT_START
             "right" -> View.TEXT_ALIGNMENT_TEXT_END
             "center" -> View.TEXT_ALIGNMENT_CENTER
@@ -6301,7 +6302,7 @@ class MainActivity : AppCompatActivity() {
             else -> View.TEXT_ALIGNMENT_INHERIT
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            view.justificationMode = if (style.optString("textAlign") == "justify") {
+            view.justificationMode = if (textAlign == "justify") {
                 Layout.JUSTIFICATION_MODE_INTER_WORD
             } else {
                 Layout.JUSTIFICATION_MODE_NONE
@@ -6315,7 +6316,7 @@ class MainActivity : AppCompatActivity() {
             craftNativeFiniteDouble(style, "lineHeight", Double.NaN).takeIf { it.isFinite() }?.let { dp(it) - view.textSize } ?: 0f,
             1f
         )
-        val shadowColor = style.optString("textShadowColor").takeIf { it.isNotBlank() }
+        val shadowColor = craftNativeOptionalString(style.opt("textShadowColor"))?.takeIf { it.isNotBlank() }
         if (shadowColor == null) {
             view.paint.clearShadowLayer()
         } else {
@@ -6332,16 +6333,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyTextDecoration(view: TextView, style: JSONObject) {
-        val line = style.optString("textDecorationLine")
+        val line = craftNativeOptionalString(style.opt("textDecorationLine")).orEmpty()
         if (view is EditText) {
             // A field's own text, spanned in place: replacing it would move
             // the caret to the start and tell the screen the text changed.
             val editable = view.text ?: return
             editable.getSpans(0, editable.length, CraftTextDecorationSpan::class.java).forEach(editable::removeSpan)
             if (line.isBlank() || line == "none" || editable.isEmpty()) return
-            val fieldColor = style.optString("textDecorationColor").takeIf { it.isNotBlank() }?.let { color(it, Color.TRANSPARENT) }
+            val fieldColor = craftNativeOptionalString(style.opt("textDecorationColor"))?.takeIf { it.isNotBlank() }?.let { color(it, Color.TRANSPARENT) }
             editable.setSpan(
-                CraftTextDecorationSpan(line, style.optString("textDecorationStyle").ifBlank { "solid" }, fieldColor),
+                CraftTextDecorationSpan(line, craftNativeOptionalString(style.opt("textDecorationStyle")).orEmpty().ifBlank { "solid" }, fieldColor),
                 0,
                 editable.length,
                 Spannable.SPAN_INCLUSIVE_INCLUSIVE,
@@ -6353,14 +6354,14 @@ class MainActivity : AppCompatActivity() {
             if (view.text is Spannable) view.text = text
             return
         }
-        val decorationColor = style.optString("textDecorationColor")
+        val decorationColor = craftNativeOptionalString(style.opt("textDecorationColor")).orEmpty()
             .takeIf { it.isNotBlank() }
             ?.let { color(it, Color.TRANSPARENT) }
         val decorated = SpannableString(text)
         decorated.setSpan(
             CraftTextDecorationSpan(
                 line,
-                style.optString("textDecorationStyle").ifBlank { "solid" },
+                craftNativeOptionalString(style.opt("textDecorationStyle")).orEmpty().ifBlank { "solid" },
                 decorationColor,
             ),
             0,
