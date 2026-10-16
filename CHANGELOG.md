@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.211...v0.0.212)
+
+## 🧪 Tests
+
+- **mobile**: add shared restart and in-place update controls ([91b128e](https://github.com/craft-native/craft/commit/91b128e)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.210...v0.0.211)
 
 ## 🐛 Bug Fixes
