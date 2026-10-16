@@ -324,6 +324,7 @@ describe('Craft Android builder', () => {
       // A date-only picker has no TimePicker; its change must still reach the screen.
       expect(nativeActivity).not.toContain('val picker = timePicker ?: return')
       expect(nativeActivity).toContain('SimpleDateFormat("yyyy-MM-dd\'T\'HH:mm:ss.SSSXXX", Locale.US)')
+      expect(nativeActivity).toContain('"yyyy-MM-dd\'T\'HH:mm:ss.SSS",')
       expect(nativeActivity).toContain('JSONObject().put("value", value).put("iso", iso).put("timestamp", current.timeInMillis)')
       expect(nativeActivity).toContain('"datepicker", "date-picker", "date" -> "DatePicker"')
       expect(nativeActivity).toContain('setOnCheckedChangeListener { _, checked ->')

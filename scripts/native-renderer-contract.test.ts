@@ -1127,6 +1127,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)')
     expect(android).toContain('private var defaultDateBounds: Pair<Long, Long>? = null')
     expect(android).toContain('defaultDateBounds = picker.minDate to picker.maxDate')
+    expect(android).toContain('"yyyy-MM-dd\'T\'HH:mm:ss.SSS"')
     expect(android).toContain('datePicker?.minDate = pickerDate(props.opt("minimumDate"))?.timeInMillis ?: defaults?.first')
     expect(android).toContain('datePicker?.maxDate = pickerDate(props.opt("maximumDate"))?.timeInMillis ?: defaults?.second')
     expect(android).toContain('PickerMode.DATE_TIME')
