@@ -205,6 +205,12 @@ final class CraftAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         // push, a refresh, a route recording's location) draws nothing, and
         // its events still need someone to hear them.
         CraftHybrid.shared.configure(config)
+        if let shortcuts = config.appShortcuts {
+            application.shortcutItems = shortcuts.prefix(4).map { shortcut in
+                UIApplicationShortcutItem(type: shortcut.id, localizedTitle: shortcut.title, localizedSubtitle: shortcut.subtitle,
+                    icon: UIApplicationShortcutIcon(systemImageName: shortcut.symbol), userInfo: ["url": shortcut.url as NSString])
+            }
+        }
         if let shortcut = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
             CraftEventManager.shared.handleShortcut(shortcut)
             // Returning false tells UIKit the launch-time item was handled and
@@ -1399,7 +1405,17 @@ extension CraftConfig {
 }
 
 // MARK: - Configuration
+struct CraftConfiguredShortcut: Codable {
+    var id: String
+    var title: String
+    var subtitle: String?
+    var symbol: String
+    var url: String
+    var phrases: [String]
+}
+
 struct CraftConfig: Codable {
+    var appShortcuts: [CraftConfiguredShortcut]? = nil
     var appName: String = "Craft App"
     var bundleId: String = "com.craft.app"
     /// Opt-in UIKit + JavaScriptCore screen; existing apps keep WKWebView.
