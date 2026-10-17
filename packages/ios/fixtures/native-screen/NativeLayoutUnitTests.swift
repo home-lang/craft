@@ -312,22 +312,28 @@ final class NativeLayoutUnitTests: XCTestCase {
     }
 
     func testImagePixelsHonorRoundedCornersWithoutHiddenOverflow() throws {
-        func document(_ radius: CGFloat) -> [String: Any] {
-            box("root", [
-                ["id": "avatar", "type": "Image", "props": ["testID": "avatar"],
-                 "style": ["width": 48, "height": 48, "borderRadius": radius, "overflow": "visible"]],
-            ])
+        for kind in ["Image", "ImageBackground"] {
+            func document(_ radius: CGFloat) -> [String: Any] {
+                box("root", [
+                    ["id": "avatar", "type": kind, "props": ["testID": "avatar", "resizeMode": "contain"],
+                     "style": ["width": 48, "height": 48, "borderRadius": radius, "overflow": "visible"]],
+                ])
+            }
+            let controller = screen(document(9999))
+            let image = try XCTUnwrap(find("avatar", below: controller.view) as? UIImageView)
+            XCTAssertTrue(image.clipsToBounds, kind)
+            XCTAssertTrue(image.layer.masksToBounds, kind)
+            XCTAssertEqual(image.layer.cornerRadius, 24, accuracy: 0.5, kind)
+            controller.render(document(6))
+            controller.view.layoutIfNeeded()
+            XCTAssertTrue(image === find("avatar", below: controller.view), kind)
+            XCTAssertTrue(image.clipsToBounds, kind)
+            XCTAssertEqual(image.layer.cornerRadius, 6, accuracy: 0.5, kind)
+            controller.render(document(0))
+            controller.view.layoutIfNeeded()
+            XCTAssertFalse(image.clipsToBounds, kind)
+            XCTAssertEqual(image.layer.cornerRadius, 0, accuracy: 0.5, kind)
         }
-        let controller = screen(document(9999))
-        let image = try XCTUnwrap(find("avatar", below: controller.view) as? UIImageView)
-        XCTAssertTrue(image.clipsToBounds)
-        XCTAssertTrue(image.layer.masksToBounds)
-        XCTAssertEqual(image.layer.cornerRadius, 24, accuracy: 0.5)
-        controller.render(document(6))
-        controller.view.layoutIfNeeded()
-        XCTAssertTrue(image === find("avatar", below: controller.view))
-        XCTAssertTrue(image.clipsToBounds)
-        XCTAssertEqual(image.layer.cornerRadius, 6, accuracy: 0.5)
     }
 
     func testButtonHonoursAlignSelfStretch() throws {

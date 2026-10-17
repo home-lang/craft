@@ -6071,7 +6071,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if let current = image.image { image.image = imageForDisplay(current, view: image) }
             let requestedResizeMode = style["resizeMode"] as? String ?? props["resizeMode"] as? String
             image.contentMode = imageContentMode(requestedResizeMode)
-            image.clipsToBounds = image.contentMode == .scaleAspectFill
+            image.clipsToBounds = image.clipsToBounds || image.contentMode == .scaleAspectFill
             updateAuxiliaryHandler(events["onLoadStart"], in: &imageLoadStartHandlers, for: image)
             updateAuxiliaryHandler(events["onLoad"], in: &imageLoadHandlers, for: image)
             updateAuxiliaryHandler(events["onLoadEnd"], in: &imageLoadEndHandlers, for: image)
@@ -6090,7 +6090,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if let current = background.image { background.image = imageForDisplay(current, view: background) }
             let requestedResizeMode = style["resizeMode"] as? String ?? props["resizeMode"] as? String
             background.contentMode = imageContentMode(requestedResizeMode)
-            background.clipsToBounds = background.contentMode == .scaleAspectFill
+            background.clipsToBounds = background.clipsToBounds || background.contentMode == .scaleAspectFill
             updateAuxiliaryHandler(events["onLoadStart"], in: &imageLoadStartHandlers, for: background)
             updateAuxiliaryHandler(events["onLoad"], in: &imageLoadHandlers, for: background)
             updateAuxiliaryHandler(events["onLoadEnd"], in: &imageLoadEndHandlers, for: background)
