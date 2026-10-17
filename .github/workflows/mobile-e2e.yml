@@ -631,22 +631,38 @@ jobs:
           path: .stx-compiler
       - run: bun install --no-save
         working-directory: .stx-compiler
+      - name: Compile native fixtures before booting Android
+        id: native-project
+        run: |
+          mkdir -p artifacts/android-navigation
+          STX_CLI="$GITHUB_WORKSPACE/.stx-compiler/packages/stx/bin/cli.ts" CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1 TMPDIR="$GITHUB_WORKSPACE/artifacts/android-navigation" bun packages/android/scripts/test-native-navigation.ts --prepare-only
+          bun --eval '
+            import { appendFileSync } from "node:fs";
+            import { dirname } from "node:path";
+            const configs = [...new Bun.Glob("**/NativeNavigation/craft.config.json").scanSync({ cwd: "artifacts/android-navigation", absolute: true })];
+            if (configs.length !== 1) throw new Error("Expected one generated native fixture project");
+            const project = dirname(configs[0]);
+            const target = process.env.GITHUB_OUTPUT;
+            if (!target) throw new Error("Missing workflow output file");
+            const build = Bun.spawnSync(["gradle", "--no-daemon", ":app:assembleDebug", ":app:assembleDebugAndroidTest"], { cwd: project, stdout: "inherit", stderr: "inherit" });
+            if (build.exitCode !== 0) throw new Error("Native fixture compilation failed");
+            appendFileSync(target, "project=" + project + "\n");
+          '
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - uses: reactivecircus/android-emulator-runner@v2
+        env:
+          CRAFT_NATIVE_TEST_PROJECT: ${{ steps.native-project.outputs.project }}
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
           profile: pixel_6
           emulator-options: -no-window -no-snapshot-save -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: false
-          script: |
-            mkdir -p artifacts/android-navigation
-            adb shell settings put global animator_duration_scale 1
-            STX_CLI="$GITHUB_WORKSPACE/.stx-compiler/packages/stx/bin/cli.ts" CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1 TMPDIR="$GITHUB_WORKSPACE/artifacts/android-navigation" bun packages/android/scripts/test-native-navigation.ts
+          script: bash packages/android/scripts/run-native-navigation-device.sh
       - name: Require the selected Android suite to pass without skips
         run: |
           python3 - <<'PY'
@@ -670,6 +686,9 @@ jobs:
             artifacts/android-navigation/**/app/build/outputs/androidTest-results/**
             artifacts/android-navigation/**/app/build/reports/androidTests/**
             artifacts/android-navigation/**/app/build/outputs/connected_android_test_additional_output/**
+            artifacts/android-navigation/launcher-*.txt
+            artifacts/android-navigation/launcher-*.xml
+            artifacts/android-navigation/*.log
           if-no-files-found: error
           retention-days: 14
 
