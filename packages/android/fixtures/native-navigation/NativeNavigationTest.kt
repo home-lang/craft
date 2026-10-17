@@ -313,16 +313,34 @@ class NativeNavigationTest {
         } else {
             // The appearance flag alone cannot detect Android 15's opaque
             // three-button scrim. Check the composed system-bar pixels.
+            val expected = color ?: throw AssertionError("missing screen background")
+            val inset = ViewCompat.getRootWindowInsets(activity.window.decorView)
+                ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+            assertTrue("navigation-bar screenshot coverage requires a visible system bar", inset > 0)
             var actual: Int? = null
+            var glyphContrast = 1.0
             for (attempt in 0 until 30) {
                 val image = instrumentation.uiAutomation.takeScreenshot()
                     ?: throw AssertionError("system screenshot unavailable")
                 actual = image.getPixel(image.width / 2, image.height - 2)
+                glyphContrast = 1.0
+                val backgroundLuminance = Color.luminance(expected)
+                // Exclude divider/border pixels; inspect the area occupied
+                // by the native buttons or gesture handle themselves.
+                for (y in image.height - inset * 3 / 4 until image.height - inset / 4 step 2) {
+                    for (x in 2 until image.width - 2 step 2) {
+                        val luminance = Color.luminance(image.getPixel(x, y))
+                        val contrast = (maxOf(luminance, backgroundLuminance) + 0.05) /
+                            (minOf(luminance, backgroundLuminance) + 0.05)
+                        glyphContrast = maxOf(glyphContrast, contrast)
+                    }
+                }
                 image.recycle()
-                if (actual == color) break
+                if (actual == color && glyphContrast >= 3.0) break
                 if (attempt < 29) SystemClock.sleep(100)
             }
             assertEquals("$message (composed bottom system bar)", color, actual)
+            assertTrue("native navigation glyphs lost contrast: $glyphContrast", glyphContrast >= 3.0)
             assertEquals("Android 15 navigation surface must be transparent",
                 Color.TRANSPARENT, activity.window.navigationBarColor)
             assertFalse("Android 15 must not overlay the authored inset background",
