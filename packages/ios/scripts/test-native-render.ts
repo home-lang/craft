@@ -96,6 +96,7 @@ try {
     '-maximum-test-execution-time-allowance', '300',
     '-resultBundlePath', results,
     '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'ENABLE_TESTABILITY=YES',
+    'ONLY_ACTIVE_ARCH=YES', 'SWIFT_OPTIMIZATION_LEVEL=-Onone',
     'test', ...(process.env.CRAFT_ONLY_TESTING ? [`-only-testing:${process.env.CRAFT_ONLY_TESTING}`] : []),
   ], output)
   const summary = Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', results], { stdout: 'pipe', stderr: 'pipe' })
