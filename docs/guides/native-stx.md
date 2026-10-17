@@ -842,6 +842,12 @@ Both native hosts also accept `backgroundColor` in
 passing `null` or omitting the option follows the app's light/dark background
 resource, while an explicit colour remains the screen's requested fill.
 
+On Android 15 and newer, three-button navigation keeps a system-themed
+background only inside its tappable inset so every native button remains
+readable, including over a black timer screen. This follows the device's
+appearance even when the app chooses a different local theme. The screen and
+status inset keep the requested fill; gesture navigation remains edge to edge.
+
 On iOS, a native screen can opt into an opaque navigation bar that uses its
 screen background, including the light/dark variant from `craft.config.json`:
 

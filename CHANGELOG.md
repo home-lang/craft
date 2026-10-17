@@ -1,5 +1,29 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.234...v0.0.235)
+
+## 🐛 Bug Fixes
+
+- **android**: protect native navigation buttons with the device palette ([79c0f39](https://github.com/craft-native/craft/commit/79c0f39)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- **android**: explain protected native navigation surfaces ([f740469](https://github.com/craft-native/craft/commit/f740469)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: require readable native navigation in both system themes ([f536c35](https://github.com/craft-native/craft/commit/f536c35)) _(by Chris Breuer)_
+- **android**: wait for reference window teardown to restore focus ([d4d4b49](https://github.com/craft-native/craft/commit/d4d4b49)) _(by Chris Breuer)_
+- **ios**: compare slider tolerance in whole native steps ([ea31a3b](https://github.com/craft-native/craft/commit/ea31a3b)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- **ios**: run native fixture suites within separate bounded jobs ([b71d2e8](https://github.com/craft-native/craft/commit/b71d2e8)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.233...v0.0.234)
 
 ## 🐛 Bug Fixes

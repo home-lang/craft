@@ -50,6 +50,8 @@ import kotlin.math.abs
 @RunWith(AndroidJUnit4::class)
 class NativeNavigationTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private var initialButtonNavigationSurface: Int? = null
+    private var navigationSystemAppearance = "unchanged"
 
     private fun find(view: View, id: String): View? {
         if (view.tag?.toString() == id || view.contentDescription?.toString() == id) return view
@@ -329,15 +331,18 @@ class NativeNavigationTest {
             assertEquals("$message (legacy status bar)", color, activity.window.statusBarColor)
             assertEquals("$message (legacy navigation bar)", color, activity.window.navigationBarColor)
         } else {
-            // The appearance flag alone cannot detect Android 15's opaque
-            // three-button scrim. Check the composed system-bar pixels.
-            val expected = color ?: throw AssertionError("missing screen background")
+            // Appearance flags alone cannot establish contrast on Android 15.
+            // Check the actual protected surface and every native button.
+            val authored = color ?: throw AssertionError("missing screen background")
+            val tappable = ViewCompat.getRootWindowInsets(activity.window.decorView)
+                ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.tappableElement())?.bottom ?: 0
+            val buttonNavigation = tappable > 0
+            var expected = authored
             val inset = ViewCompat.getRootWindowInsets(activity.window.decorView)
                 ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
             assertTrue("navigation-bar screenshot coverage requires a visible system bar", inset > 0)
             var actual: Int? = null
             var glyphContrast = 1.0
-            var nativeGlyphParity = false
             var glyphColor = 0
             var glyphX = 0
             var glyphY = 0
@@ -345,9 +350,14 @@ class NativeNavigationTest {
                 val image = instrumentation.uiAutomation.takeScreenshot()
                     ?: throw AssertionError("system screenshot unavailable")
                 actual = image.getPixel(image.width / 2, image.height - 2)
-                glyphContrast = 1.0
+                if (buttonNavigation) {
+                    // Device-themed buttons need a stable protected surface
+                    // even when the app changes its own local appearance.
+                    expected = initialButtonNavigationSurface ?: actual!!
+                }
                 glyphColor = expected
-                val backgroundLuminance = Color.luminance(expected)
+                val backgroundLuminance = Color.luminance(actual!!)
+                val buttonContrasts = MutableList(if (buttonNavigation) 3 else 1) { 1.0 }
                 // Exclude divider/border pixels; inspect the area occupied
                 // by the native buttons or gesture handle themselves.
                 for (y in image.height - inset * 3 / 4 until image.height - inset / 4 step 2) {
@@ -355,93 +365,103 @@ class NativeNavigationTest {
                         val luminance = Color.luminance(image.getPixel(x, y))
                         val contrast = (maxOf(luminance, backgroundLuminance) + 0.05) /
                             (minOf(luminance, backgroundLuminance) + 0.05)
-                        if (contrast > glyphContrast) {
-                            glyphContrast = contrast
+                        val region = if (buttonNavigation) (x * 3 / image.width).coerceAtMost(2) else 0
+                        if (contrast > buttonContrasts[region]) {
+                            buttonContrasts[region] = contrast
                             glyphColor = image.getPixel(x, y)
                             glyphX = x
                             glyphY = y
                         }
                     }
                 }
-                if (attempt == 29 && (actual != color || glyphContrast < 3.0)) {
+                glyphContrast = buttonContrasts.minOrNull() ?: 1.0
+                if (buttonNavigation && initialButtonNavigationSurface == null && glyphContrast >= 3.0) {
+                    initialButtonNavigationSurface = actual
+                }
+                if ((actual == expected && glyphContrast >= 3.0) || attempt == 29) {
                     val output = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")
                         ?: throw AssertionError("Gradle system-bar evidence directory unavailable")
                     val directory = java.io.File(output, "native-navigation-bars")
                     directory.mkdirs()
-                    val name = message.replace(Regex("[^A-Za-z0-9_-]"), "_")
+                    val name = (navigationSystemAppearance + "-" + message).replace(Regex("[^A-Za-z0-9_-]"), "_")
                     java.io.File(directory, "$name.png").outputStream().use {
                         image.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
                     }
                     val appearance = androidx.core.view.WindowCompat
                         .getInsetsController(activity.window, activity.window.decorView)
-                    val metadata = "size=${image.width}x${image.height} inset=$inset background=$actual expected=$color " +
-                            "glyph=$glyphColor at=$glyphX,$glyphY contrast=$glyphContrast navigationLight=${appearance.isAppearanceLightNavigationBars} " +
+                    val metadata = "size=${image.width}x${image.height} inset=$inset background=$actual expected=$expected authored=$authored " +
+                            "glyph=$glyphColor at=$glyphX,$glyphY contrast=$glyphContrast eachButton=$buttonContrasts navigationLight=${appearance.isAppearanceLightNavigationBars} " +
                             "windowBackground=${backgroundColor(activity.window.decorView)} nativeAppearance=${activity.window.insetsController?.systemBarsAppearance} " +
                             "brightness=${activity.window.attributes.screenBrightness} flags=${activity.window.attributes.flags} format=${activity.window.attributes.format} " +
                             "navigationMode=${Settings.Secure.getString(activity.contentResolver, "navigation_mode")} focused=${activity.hasWindowFocus()}\n"
                     java.io.File(directory, "$name.txt").writeText(metadata)
                     android.util.Log.i("CraftNativeBarProbe", metadata)
-                    // Preserve the original failure, then compare the same
-                    // display/sampling with literal native Android windows.
-                    val observedBar = IntArray(image.width * inset)
-                    image.getPixels(observedBar, 0, image.width, 0, image.height - inset, image.width, inset)
-                    var matchingNativeBars = 0
-                    for ((stockTheme, opaqueNav) in listOf(false to false, false to true, true to false, true to true)) {
-                        val reference = instrumentation.startActivitySync(
-                            Intent(activity, NativeSystemBarsReferenceActivity::class.java)
-                                .putExtra("background", expected)
-                                .putExtra("stockTheme", stockTheme)
-                                .putExtra("opaqueNav", opaqueNav)
-                                .putExtra("brightness", activity.window.attributes.screenBrightness)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        ) as NativeSystemBarsReferenceActivity
-                        try {
-                            SystemClock.sleep(500)
-                            instrumentation.runOnMainSync {
-                                assertTrue("system bar reference must be focused and visible",
-                                    reference.hasWindowFocus() && reference.window.decorView.isShown)
+                    if (actual != expected || glyphContrast < 3.0) {
+                        // Preserve the original failure, then compare the same
+                        // display/sampling with literal native Android windows.
+                        val observedBar = IntArray(image.width * inset)
+                        image.getPixels(observedBar, 0, image.width, 0, image.height - inset, image.width, inset)
+                        var matchingNativeBars = 0
+                        for ((stockTheme, opaqueNav) in listOf(false to false, false to true, true to false, true to true)) {
+                            val reference = instrumentation.startActivitySync(
+                                Intent(activity, NativeSystemBarsReferenceActivity::class.java)
+                                    .putExtra("background", expected)
+                                    .putExtra("stockTheme", stockTheme)
+                                    .putExtra("opaqueNav", opaqueNav)
+                                    .putExtra("brightness", activity.window.attributes.screenBrightness)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            ) as NativeSystemBarsReferenceActivity
+                            try {
+                                SystemClock.sleep(500)
+                                instrumentation.runOnMainSync {
+                                    assertTrue("system bar reference must be focused and visible",
+                                        reference.hasWindowFocus() && reference.window.decorView.isShown)
+                                }
+                                val comparison = instrumentation.uiAutomation.takeScreenshot()
+                                    ?: throw AssertionError("native reference screenshot unavailable")
+                                java.io.File(directory, "$name-reference-$stockTheme-opaque-$opaqueNav.png").outputStream().use {
+                                    comparison.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+                                }
+                                val attributes = reference.window.attributes
+                                java.io.File(directory, "$name-reference-$stockTheme-opaque-$opaqueNav.txt").writeText(
+                                    "background=${backgroundColor(reference.window.decorView)} " +
+                                        "appearance=${reference.window.insetsController?.systemBarsAppearance} " +
+                                        "brightness=${attributes.screenBrightness} flags=${attributes.flags} format=${attributes.format} focused=${reference.hasWindowFocus()}\n"
+                                )
+                                // Stock parity is diagnostic only. A matching
+                                // low-contrast native bar still fails this test.
+                                if (comparison.width == image.width && comparison.height == image.height) {
+                                    val nativeBar = IntArray(observedBar.size)
+                                    comparison.getPixels(nativeBar, 0, image.width, 0, image.height - inset, image.width, inset)
+                                    if (observedBar.contentEquals(nativeBar)) matchingNativeBars++
+                                }
+                                comparison.recycle()
+                            } finally {
+                                instrumentation.runOnMainSync { reference.finish() }
                             }
-                            val comparison = instrumentation.uiAutomation.takeScreenshot()
-                                ?: throw AssertionError("native reference screenshot unavailable")
-                            java.io.File(directory, "$name-reference-$stockTheme-opaque-$opaqueNav.png").outputStream().use {
-                                comparison.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
-                            }
-                            val attributes = reference.window.attributes
-                            java.io.File(directory, "$name-reference-$stockTheme-opaque-$opaqueNav.txt").writeText(
-                                "background=${backgroundColor(reference.window.decorView)} " +
-                                    "appearance=${reference.window.insetsController?.systemBarsAppearance} " +
-                                    "brightness=${attributes.screenBrightness} flags=${attributes.flags} format=${attributes.format} focused=${reference.hasWindowFocus()}\n"
-                            )
-                            // The platform chooses native button tint. A
-                            // platform image below the contrast target must
-                            // still match the complete stock native bar;
-                            // changing only a flag cannot satisfy this gate.
-                            if (comparison.width == image.width && comparison.height == image.height) {
-                                val nativeBar = IntArray(observedBar.size)
-                                comparison.getPixels(nativeBar, 0, image.width, 0, image.height - inset, image.width, inset)
-                                if (observedBar.contentEquals(nativeBar)) matchingNativeBars++
-                            }
-                            comparison.recycle()
-                        } finally {
-                            instrumentation.runOnMainSync { reference.finish() }
                         }
+                        awaitReferenceWindowReturn(activity)
+                        val parity = "contrast=$glyphContrast target=3.0 exactNativeBars=$matchingNativeBars/4\n"
+                        java.io.File(directory, "$name-native-parity.txt").writeText(parity)
+                        android.util.Log.i("CraftNativeBarProbe", parity)
                     }
-                    awaitReferenceWindowReturn(activity)
-                    nativeGlyphParity = matchingNativeBars == 4
-                    val parity = "contrast=$glyphContrast target=3.0 exactNativeBars=$matchingNativeBars/4\n"
-                    java.io.File(directory, "$name-native-parity.txt").writeText(parity)
-                    android.util.Log.i("CraftNativeBarProbe", parity)
                 }
                 image.recycle()
-                if (actual == color && glyphContrast >= 3.0) break
+                if (actual == expected && glyphContrast >= 3.0) break
                 if (attempt < 29) SystemClock.sleep(100)
             }
-            assertEquals("$message (composed bottom system bar)", color, actual)
-            assertTrue("navigation glyphs below contrast target and different from native Android: $glyphContrast",
-                glyphContrast >= 3.0 || nativeGlyphParity)
+            assertEquals("$message (composed bottom system bar)", expected, actual)
+            val statusImage = instrumentation.uiAutomation.takeScreenshot()
+                ?: throw AssertionError("status screenshot unavailable")
+            try {
+                assertEquals("navigation protection must not recolour the authored status inset", authored,
+                    statusImage.getPixel(statusImage.width / 2, 2))
+            } finally { statusImage.recycle() }
+            assertTrue("navigation glyphs must remain readable even when the stock platform has low contrast: $glyphContrast",
+                glyphContrast >= 3.0)
             assertEquals("Android 15 navigation surface must be transparent",
                 Color.TRANSPARENT, activity.window.navigationBarColor)
-            assertFalse("Android 15 must not overlay the authored inset background",
+            assertFalse("Android 15 must not add a second contrast scrim",
                 activity.window.isNavigationBarContrastEnforced)
         }
     }
@@ -1727,8 +1747,38 @@ class NativeNavigationTest {
         }
     }
 
+    private fun systemCommand(command: String): String =
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command))
+            .bufferedReader().use { it.readText().trim() }
+
     @Test
     fun nativeScreenBackgroundOptionAppliesAndResets() {
+        // Only this owned emulator fixture changes device appearance, and it
+        // restores the original setting even when a strict pixel assertion fails.
+        val original = Regex("Night mode: (\\w+)").find(systemCommand("cmd uimode night"))?.groupValues?.get(1)
+            ?: throw AssertionError("Cannot read the original device appearance")
+        assertTrue("Only a known device appearance may be changed",
+            original in setOf("no", "yes", "auto", "custom_schedule", "custom_bedtime"))
+        try {
+            for ((mode, night) in listOf("no" to Configuration.UI_MODE_NIGHT_NO, "yes" to Configuration.UI_MODE_NIGHT_YES)) {
+                systemCommand("cmd uimode night $mode")
+                val deadline = SystemClock.uptimeMillis() + 5000
+                while (android.content.res.Resources.getSystem().configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK != night
+                    && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(100)
+                assertEquals("device appearance must actually change", night,
+                    android.content.res.Resources.getSystem().configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK)
+                navigationSystemAppearance = if (mode == "yes") "system-dark" else "system-light"
+                initialButtonNavigationSurface = null
+                exerciseScreenBackgroundOption()
+            }
+        } finally {
+            systemCommand("cmd uimode night $original")
+            assertTrue("The original device appearance must be restored",
+                systemCommand("cmd uimode night").contains("Night mode: $original"))
+        }
+    }
+
+    private fun exerciseScreenBackgroundOption() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(
             Intent(context, MainActivity::class.java)
@@ -1758,15 +1808,17 @@ class NativeNavigationTest {
             assertEquals(Color.rgb(0x12, 0x34, 0x56), chromeBackgroundColor(activity, 1))
             assertSystemInsetBackground(activity, Color.rgb(0x12, 0x34, 0x56),
                 "system inset surface ignored the active screen background")
-            assertFalse("dark screen background needs light system navigation glyphs",
-                androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-                    .isAppearanceLightNavigationBars)
+
+            click(activity, "black-screen-background")
+            awaitBackgroundColor(screen, Color.rgb(0x12, 0x34, 0x56))
+            assertEquals("the focus screen must stay black", Color.BLACK, backgroundColor(screen))
+            assertSystemInsetBackground(activity, Color.BLACK, "black focus timer navigation")
 
             // A retained screen can still receive timer/state updates. Its
             // authored colour must not leak into the screen pushed above it.
             click(activity, "background-open-details")
             awaitText(activity, "details-title", "Details for Ada")
-            awaitBackgroundColor(screen, Color.rgb(0x12, 0x34, 0x56))
+            awaitBackgroundColor(screen, Color.BLACK)
             assertEquals(Color.rgb(0x65, 0x43, 0x21), backgroundColor(screen))
             assertSystemInsetBackground(activity, initial,
                 "offscreen options recoloured the visible system insets")
@@ -1790,9 +1842,6 @@ class NativeNavigationTest {
             awaitView(activity, "home-title")
             assertSystemInsetBackground(activity, Color.rgb(0x65, 0x43, 0x21),
                 "pop did not restore the retained screen's inset background")
-            assertFalse("returning to a dark screen lost system navigation glyph contrast",
-                androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-                    .isAppearanceLightNavigationBars)
 
             click(activity, "toggle-screen-background")
             awaitBackgroundColor(screen, Color.rgb(0x65, 0x43, 0x21))
