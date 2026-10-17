@@ -138,12 +138,13 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
     async resolveMedia(url) {
       if (!('caches' in window)) return url
       const scope = persistence.scope()
+      const transfer = mediaTransfers.signal
       const existing = mediaURLs.get(url)
       if (existing) return existing
       const saved = await (await caches.open(cacheName())).match(url)
       if (!saved) return url
       const local = URL.createObjectURL(await saved.blob())
-      if (disposed || scope !== persistence.scope()) { URL.revokeObjectURL(local); return url }
+      if (disposed || transfer.aborted || scope !== persistence.scope()) { URL.revokeObjectURL(local); return url }
       mediaURLs.set(url, local)
       return local
     },

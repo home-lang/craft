@@ -101,6 +101,15 @@ describe('browser files across the JSON capability protocol', () => {
       expect(await clearing).toBe(2)
       expect(await replacement).toMatchObject({ ok: true })
       expect([...entries.keys()]).toEqual([nextUrl])
+      let reading = false
+      let releaseBlob!: (value: Blob) => void
+      const pendingBlob = new Promise<Blob>(resolve => { releaseBlob = resolve })
+      entries.set(url, Object.assign(new Response(), { clone: () => ({ blob: async () => { reading = true; return pendingBlob } }) as Response }))
+      const oldPlayback = platform.resolveMedia(url)
+      while (!reading) await Bun.sleep(1)
+      await platform.call('Media', 'clear', [], signal)
+      releaseBlob(new Blob(['old playable bytes']))
+      expect(await oldPlayback).toBe(url)
     }, {
       window: { addEventListener() {}, removeEventListener() {}, caches }, caches,
       fetch: async () => {
