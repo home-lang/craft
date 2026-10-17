@@ -1,5 +1,23 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.223...v0.0.224)
+
+## 🐛 Bug Fixes
+
+- **android**: route system Back through the native navigation stack ([e5163df](https://github.com/craft-native/craft/commit/e5163df)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **mobile**: keep native picker siblings in the compiled fixture ([da3164c](https://github.com/craft-native/craft/commit/da3164c)) _(by Chris Breuer)_
+- **android**: check retained accessory visibility across navigation ([94db7be](https://github.com/craft-native/craft/commit/94db7be)) _(by Chris Breuer)_
+- **android**: align native navigation and refresh checks with current fixtures ([0de06fa](https://github.com/craft-native/craft/commit/0de06fa)) _(by Chris Breuer)_
+- **ios**: route focused renderer checks to their own harness ([967f7ba](https://github.com/craft-native/craft/commit/967f7ba)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.222...v0.0.223)
 
 ## 🐛 Bug Fixes
