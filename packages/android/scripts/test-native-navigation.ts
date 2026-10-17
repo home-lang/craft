@@ -72,6 +72,15 @@ try {
       run(['adb', 'logcat', '-d', '-s', 'CraftNativeAndroid:V', 'AndroidRuntime:E'], output)
       throw error
     }
+    finally {
+      const remote = `/sdcard/Android/data/${packageName}/files/native-navigation-bars`
+      const exists = Bun.spawnSync(['adb', 'shell', 'test', '-d', remote], { stdout: 'ignore', stderr: 'ignore', timeout: 5000 })
+      if (exists.exitCode === 0) {
+        const evidence = join(output, 'app/build/outputs/androidTest-results/system-bars')
+        mkdirSync(evidence, { recursive: true })
+        run(['adb', 'pull', `${remote}/.`, evidence], output)
+      }
+    }
   }
   console.log(process.argv.includes('--prepare-only') ? 'Android native navigation fixture prepared' : 'Android native navigation test passed')
 }

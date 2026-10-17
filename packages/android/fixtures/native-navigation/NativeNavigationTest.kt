@@ -319,6 +319,7 @@ class NativeNavigationTest {
             assertTrue("navigation-bar screenshot coverage requires a visible system bar", inset > 0)
             var actual: Int? = null
             var glyphContrast = 1.0
+            var glyphColor = 0
             for (attempt in 0 until 30) {
                 val image = instrumentation.uiAutomation.takeScreenshot()
                     ?: throw AssertionError("system screenshot unavailable")
@@ -332,8 +333,28 @@ class NativeNavigationTest {
                         val luminance = Color.luminance(image.getPixel(x, y))
                         val contrast = (maxOf(luminance, backgroundLuminance) + 0.05) /
                             (minOf(luminance, backgroundLuminance) + 0.05)
-                        glyphContrast = maxOf(glyphContrast, contrast)
+                        if (contrast > glyphContrast) {
+                            glyphContrast = contrast
+                            glyphColor = image.getPixel(x, y)
+                        }
                     }
+                }
+                if (attempt == 29 && (actual != color || glyphContrast < 3.0)) {
+                    val directory = activity.getExternalFilesDir("native-navigation-bars")
+                        ?: throw AssertionError("system-bar evidence directory unavailable")
+                    directory.mkdirs()
+                    val name = message.replace(Regex("[^A-Za-z0-9_-]"), "_")
+                    java.io.File(directory, "$name.png").outputStream().use {
+                        image.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+                    }
+                    val appearance = androidx.core.view.WindowCompat
+                        .getInsetsController(activity.window, activity.window.decorView)
+                    java.io.File(directory, "$name.txt").writeText(
+                        "size=${image.width}x${image.height} inset=$inset background=$actual expected=$color " +
+                            "glyph=$glyphColor contrast=$glyphContrast navigationLight=${appearance.isAppearanceLightNavigationBars} " +
+                            "windowBackground=${activity.window.decorView.background} " +
+                            "navigationMode=${Settings.Secure.getString(activity.contentResolver, "navigation_mode")}\n"
+                    )
                 }
                 image.recycle()
                 if (actual == color && glyphContrast >= 3.0) break
