@@ -1593,7 +1593,7 @@ final class NativeRenderUnitTests: XCTestCase {
         let slider = try XCTUnwrap(find(UISlider.self, key: "slider", below: controller.view))
         let picker = try XCTUnwrap(find(UIPickerView.self, key: "picker", below: controller.view))
         let date = try XCTUnwrap(find(UIDatePicker.self, key: "date", below: controller.view))
-        XCTAssertTrue(toggle.accessibilityTraits.contains(.button))
+        XCTAssertEqual(toggle.accessibilityTraits, UISwitch().accessibilityTraits)
         XCTAssertTrue(slider.accessibilityTraits.contains(.adjustable))
         XCTAssertTrue(picker.accessibilityTraits.contains(.adjustable))
         XCTAssertTrue(date.accessibilityTraits.contains(.adjustable))
@@ -1611,6 +1611,8 @@ final class NativeRenderUnitTests: XCTestCase {
                 "props": ["key": "native-toggle", "value": value, "disabled": disabled],
             ]]))
             let toggle = try XCTUnwrap(find(UISwitch.self, key: "native-toggle", below: controller.view))
+            XCTAssertEqual(toggle.isOn, reference.isOn)
+            XCTAssertEqual(toggle.isEnabled, reference.isEnabled)
             XCTAssertEqual(toggle.accessibilityTraits.rawValue, reference.accessibilityTraits.rawValue,
                            "Craft replaced the system switch's native accessibility identity")
         }

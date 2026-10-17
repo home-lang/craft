@@ -706,9 +706,17 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["panel pressed"].waitForExistence(timeout: 5))
         let pressable = app.otherElements["native-pressable"]
         reveal(pressable, in: rootScroll)
+        // Earlier reveal drags may start on the pressable and legitimately
+        // deliver a cancelled press-in/out pair. Assert this tap's delta.
+        let lifecycle = app.staticTexts["pressable-lifecycle"]
+        let counts = lifecycle.label.replacingOccurrences(of: "Press lifecycle: ", with: "")
+            .split(separator: "/").compactMap { Int($0) }
+        XCTAssertEqual(counts.count, 2)
+        let pressesIn = try XCTUnwrap(counts.first)
+        let pressesOut = try XCTUnwrap(counts.last)
         pressable.tap()
         XCTAssertTrue(app.staticTexts["pressable pressed"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["pressable-lifecycle"].label, "Press lifecycle: 1/1")
+        XCTAssertEqual(lifecycle.label, "Press lifecycle: \(pressesIn + 1)/\(pressesOut + 1)")
         let disabledPressable = app.otherElements["disabled-pressable"]
         XCTAssertTrue(disabledPressable.waitForExistence(timeout: 5))
         XCTAssertFalse(disabledPressable.isEnabled)

@@ -7454,7 +7454,6 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         var traits: UIAccessibilityTraits = []
         switch type {
         case "Slider", "Picker", "DatePicker": traits.insert(.adjustable)
-        case "Switch": traits.insert(.button)
         default: break
         }
         switch role ?? type.lowercased() {
@@ -7496,7 +7495,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // that is what UI tests and VoiceOver read focus from. Setting them
         // froze them, so it read as static text that never had focus ("neither
         // element nor any descendant has keyboard focus"); it keeps its own.
-        if view is UITextView { return }
+        // UISwitch also owns its native identity and enabled/on state.
+        // Assigning .button changes its legacy AX type into a button while
+        // modern XCTest still identifies its UIKit class as a switch.
+        if view is UITextView || view is UISwitch { return }
         view.accessibilityTraits = traits
     }
 
