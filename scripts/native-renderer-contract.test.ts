@@ -1152,7 +1152,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('.put("value", option.first).put("index", position)')
     expect(navigationHome).toContain('<select testID="native-picker"')
     expect(navigationHome).toContain('<option value="one">One</option>')
-    expect(navigationHome).toContain('<select testID="native-items-picker" items={pickerItems}')
+    expect(navigationHome).toContain('<select testID="native-items-picker" :items="pickerItems"')
     expect(navigationHome).toContain('const pickerItems = [{ label: \'One item\', value: \'one\' }, { label: \'Two item\', value: 2 }]')
     expect(iosNavigationTest).toContain('itemsPicker.waitForExistence(timeout: 5)')
     expect(androidNavigationTest).toContain('items picker should be an Android Spinner')
