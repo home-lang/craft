@@ -4091,6 +4091,7 @@ class MainActivity : AppCompatActivity() {
                 show(target)
             } else {
                 host.removeView(target.view)
+                target.view.translationX = 0f
                 current.view.translationX = 0f
                 chrome?.selectTab(currentTab)
                 tabSwipeTarget = null
@@ -4504,6 +4505,11 @@ class MainActivity : AppCompatActivity() {
      * screen shown before hears true (its `navigation.onAppear`).
      */
     private fun show(screen: Screen) {
+        // A retained tab may have been the offscreen preview of a cancelled
+        // swipe, or the outgoing view of a completed swipe. Its animator can
+        // finish after the peer animator, so clear that ownership on display.
+        screen.view.animate().withEndAction(null).setListener(null).cancel()
+        screen.view.translationX = 0f
         // A navigation breadcrumb: the trail a crash report carries.
         if (visibleScreen !== screen) CraftCrashReporter.screenAppeared(screen.route ?: "home")
         val bars = chrome
