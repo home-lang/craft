@@ -59,12 +59,12 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: Test all mobile suites or focused native navigation
+        description: Test all mobile suites or focused native rendering/navigation
         type: choice
-        options: [all, ios-navigation, android-navigation]
+        options: [all, ios-render, ios-navigation, android-navigation]
         default: all
       selectors:
-        description: Optional comma-separated XCTest selectors for native iOS navigation
+        description: Optional XCTest selector for focused native iOS rendering or navigation
         type: string
         default: ''
 
@@ -140,6 +140,7 @@ jobs:
       # @stacksjs/stx compiler (`stx native compile`) so this job cannot silently change
       # underneath us. Both iOS jobs and Android use the same compiler revision.
       - name: Checkout stx compiler
+        if: ${{ inputs.scope != 'ios-render' }}
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
@@ -147,6 +148,7 @@ jobs:
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
+        if: ${{ inputs.scope != 'ios-render' }}
         working-directory: .stx-compiler
         # Pantry ships Bun 1.3.14, which cannot frozen-install the pinned stx
         # lockfile. Resolve the unchanged external manifest without rewriting
@@ -156,6 +158,8 @@ jobs:
       - name: Test native UIKit reconciliation
         id: uikit
         if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' }}
+        env:
+          CRAFT_ONLY_TESTING: ${{ inputs.scope == 'ios-render' && inputs.selectors || '' }}
         run: |
           mkdir -p artifacts/mobile-e2e/ios-native
           bun packages/ios/scripts/test-native-render.ts 2>&1 | tee artifacts/mobile-e2e/ios-native/uikit.log
@@ -164,7 +168,7 @@ jobs:
         id: navigation
         # Reconciliation and navigation are independent suites. Keep the
         # navigation evidence when reconciliation fails; the job still fails.
-        if: ${{ !cancelled() && (inputs.scope == 'ios-navigation' || steps.uikit.outcome != 'skipped') }}
+        if: ${{ !cancelled() && (inputs.scope == 'ios-navigation' || (inputs.scope != 'ios-render' && steps.uikit.outcome != 'skipped')) }}
         env:
           STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
           CRAFT_ONLY_TESTING: ${{ inputs.selectors }}
@@ -226,7 +230,7 @@ jobs:
 
   ios-simulator:
     name: iOS simulator
-    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' }}
     runs-on: macos-15
     # A hung simulator launch would otherwise burn the six-hour default. The
     # harness has its own per-app timeout; this is the backstop for everything
@@ -354,7 +358,7 @@ jobs:
 
   android-emulator:
     name: Android emulator
-    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -520,7 +524,7 @@ jobs:
   # passing, and wired into no workflow.
   ios-zig-slice:
     name: iOS Zig runtime slice
-    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' }}
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -678,7 +682,7 @@ jobs:
           contains(fromJSON('["failure", "skipped"]'), needs.harness.result)
           || (inputs.scope == 'android-navigation' && contains(fromJSON('["failure", "skipped"]'), needs.android-navigation.result))
           || (inputs.scope != 'android-navigation' && contains(fromJSON('["failure", "skipped"]'), needs.ios-native.result))
-          || (inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && (
+          || (inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && (
             contains(fromJSON('["failure", "skipped"]'), needs.ios-simulator.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.ios-zig-slice.result)
