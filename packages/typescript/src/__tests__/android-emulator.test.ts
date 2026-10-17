@@ -83,6 +83,8 @@ test('the SDK process fixture records hardware mode and reaps only its owned pro
     expect(identity.acceleration).toBe('hardware')
     expect(identity.bootedAt).toBeString()
     expect(session.serial).toBe('emulator-5558')
+    expect(readFileSync(join(options.sdkRoot, 'calls'), 'utf8')).toContain('-gpu software')
+    expect(readFileSync(join(options.sdkRoot, 'calls'), 'utf8')).not.toContain('swiftshader_indirect')
     const owned = readFileSync(join(options.sdkRoot, 'owned'), 'utf8')
     await session.dispose()
     await session.dispose()

@@ -102,7 +102,7 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
     await run([options.avdmanager, 'create', 'avd', '--name', name, '--package', options.image, '--device', 'pixel_6'], 'no\n')
     created = true
     log = openSync(join(artifacts, 'emulator.log'), 'w')
-    child = Bun.spawn([executable, '-avd', name, '-port', String(port), '-no-window', '-no-snapshot', '-no-audio', '-no-boot-anim', '-gpu', 'swiftshader_indirect', '-memory', '2048', '-cores', '2', '-accel', options.acceleration === 'software' ? 'off' : 'on'], { env, stdout: log, stderr: log })
+    child = Bun.spawn([executable, '-avd', name, '-port', String(port), '-no-window', '-no-snapshot', '-no-audio', '-no-boot-anim', '-gpu', 'software', '-memory', '2048', '-cores', '2', '-accel', options.acceleration === 'software' ? 'off' : 'on'], { env, stdout: log, stderr: log })
     const identity = { image: options.image, acceleration: options.acceleration, accelerationProbeExitCode: acceleration.code, serial, avdDirectory: env.ANDROID_AVD_HOME, emulatorPid: child.pid }
     await Bun.write(join(artifacts, 'android-emulator.json'), JSON.stringify(identity, null, 2) + '\n')
     const deadline = Date.now() + 600_000
@@ -132,7 +132,7 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
   }
   catch (error) {
     if (child) {
-      for (const args of [['logcat', '-d', '-b', 'crash'], ['shell', 'dumpsys', 'activity', 'processes']]) {
+      for (const args of [['logcat', '-d', '-b', 'all'], ['shell', 'getprop'], ['shell', 'dumpsys', 'activity', 'processes']]) {
         try { await run([adb, '-s', serial, ...args], undefined, 10_000, true) }
         catch { /* The emulator log remains available if ADB has disconnected. */ }
       }
