@@ -669,6 +669,7 @@ jobs:
           path: |
             artifacts/android-navigation/**/app/build/outputs/androidTest-results/**
             artifacts/android-navigation/**/app/build/reports/androidTests/**
+            artifacts/android-navigation/**/app/build/outputs/connected_android_test_additional_output/**
           if-no-files-found: error
           retention-days: 14
 

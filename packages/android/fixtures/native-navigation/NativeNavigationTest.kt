@@ -345,8 +345,9 @@ class NativeNavigationTest {
                     }
                 }
                 if (attempt == 29 && (actual != color || glyphContrast < 3.0)) {
-                    val directory = activity.getExternalFilesDir("native-navigation-bars")
-                        ?: throw AssertionError("system-bar evidence directory unavailable")
+                    val output = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")
+                        ?: throw AssertionError("Gradle system-bar evidence directory unavailable")
+                    val directory = java.io.File(output, "native-navigation-bars")
                     directory.mkdirs()
                     val name = message.replace(Regex("[^A-Za-z0-9_-]"), "_")
                     java.io.File(directory, "$name.png").outputStream().use {
@@ -354,12 +355,12 @@ class NativeNavigationTest {
                     }
                     val appearance = androidx.core.view.WindowCompat
                         .getInsetsController(activity.window, activity.window.decorView)
-                    java.io.File(directory, "$name.txt").writeText(
-                        "size=${image.width}x${image.height} inset=$inset background=$actual expected=$color " +
+                    val metadata = "size=${image.width}x${image.height} inset=$inset background=$actual expected=$color " +
                             "glyph=$glyphColor at=$glyphX,$glyphY contrast=$glyphContrast navigationLight=${appearance.isAppearanceLightNavigationBars} " +
                             "windowBackground=${backgroundColor(activity.window.decorView)} nativeAppearance=${activity.window.insetsController?.systemBarsAppearance} " +
                             "navigationMode=${Settings.Secure.getString(activity.contentResolver, "navigation_mode")}\n"
-                    )
+                    java.io.File(directory, "$name.txt").writeText(metadata)
+                    android.util.Log.i("CraftNativeBarProbe", metadata)
                     // Preserve the original failure, then compare the same
                     // display/sampling with literal native Android windows.
                     for (stockTheme in listOf(false, true)) {
