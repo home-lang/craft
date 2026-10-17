@@ -41,7 +41,7 @@ class DownloadProbe : android.app.Instrumentation() {
                     val staging = File(CraftNativeMedia.file(targetContext, fresh).absolutePath + ".part")
                     // /dev/full produces the real ENOSPC write error without filling the emulator or host.
                     val fault = runCatching { File("/dev/full").outputStream().use { it.write(1) } }.exceptionOrNull()
-                    check(fault != null && generateSequence(fault) { it.cause }.take(16).any { it is android.system.ErrnoException && it.errno == android.system.OsConstants.ENOSPC }, "the isolated write fault really is ENOSPC")
+                    check(fault != null && generateSequence(fault) { it.cause }.take(16).any { it is android.system.ErrnoException && it.errno == android.system.OsConstants.ENOSPC }, "the isolated write fault really is ENOSPC: ${fault?.stackTraceToString() ?: "write succeeded"}")
                     android.system.Os.symlink("/dev/full", staging.absolutePath)
                     check(!keep(fresh), "out-of-space write refuses a new video")
                     check(latestErrorCode == "NO_SPACE", "a full disk is reported as NO_SPACE, not a network failure")

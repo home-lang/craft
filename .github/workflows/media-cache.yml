@@ -2,7 +2,16 @@ name: Native Media Cache
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        type: choice
+        options: [all, ios, android]
+        default: all
   workflow_call:
+    inputs:
+      platform:
+        type: string
+        default: all
 
 permissions:
   contents: read
@@ -13,6 +22,7 @@ defaults:
 
 jobs:
   sdk:
+    if: inputs.platform == 'all' || inputs.platform == ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -28,6 +38,7 @@ jobs:
       - run: bunx --bun pickier .
 
   ios:
+    if: inputs.platform != 'android'
     runs-on: macos-15
     timeout-minutes: 20
     env:
@@ -53,6 +64,7 @@ jobs:
           if-no-files-found: error
 
   android:
+    if: inputs.platform != 'ios'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
