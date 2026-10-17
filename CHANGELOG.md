@@ -1,5 +1,39 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.222...v0.0.223)
+
+## 🐛 Bug Fixes
+
+- **ci**: preserve native probe failures under the emulator shell ([4a4cf89](https://github.com/craft-native/craft/commit/4a4cf89)) _(by Chris Breuer)_
+- **types**: retain resolvable testing helper declarations ([e68c85f](https://github.com/craft-native/craft/commit/e68c85f)) _(by Chris Breuer)_
+- **media**: identify disk-full video download failures ([d31d0e3](https://github.com/craft-native/craft/commit/d31d0e3)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: confine storage pressure to a private cache filesystem ([88a96df](https://github.com/craft-native/craft/commit/88a96df)) _(by Chris Breuer)_
+- **media**: diagnose the emulator storage fault precisely ([7e51907](https://github.com/craft-native/craft/commit/7e51907)) _(by Chris Breuer)_
+- **ci**: dispatch packaged native media acceptance on this branch ([c6be576](https://github.com/craft-native/craft/commit/c6be576)) _(by Chris Breuer)_
+- **media**: exercise packaged cache recovery on both platforms ([1eb00a4](https://github.com/craft-native/craft/commit/1eb00a4)) _(by Chris Breuer)_
+- **mobile**: share native media cache fault verification ([980aba3](https://github.com/craft-native/craft/commit/980aba3)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- check final SDK packaging independently of device runs ([6530486](https://github.com/craft-native/craft/commit/6530486)) _(by Chris Breuer)_
+- verify simulator testing helpers on the macOS runner ([c552ef3](https://github.com/craft-native/craft/commit/c552ef3)) _(by Chris Breuer)_
+- enforce native media storage recovery coverage ([4a3495b](https://github.com/craft-native/craft/commit/4a3495b)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- **ci**: restore standard Core checks after native acceptance ([249d029](https://github.com/craft-native/craft/commit/249d029)) _(by Chris Breuer)_
+- preserve published heart-rate recovery and release 222 ([7ed7260](https://github.com/craft-native/craft/commit/7ed7260)) _(by Chris Breuer)_
+- preserve verified Android navigation recovery ([7d7f1d6](https://github.com/craft-native/craft/commit/7d7f1d6)) _(by Chris Breuer)_
+- **ci**: restore standard Core validation entrypoint ([abf2973](https://github.com/craft-native/craft/commit/abf2973)) _(by Chris Breuer)_
+- preserve current native bridge contract checks ([a367d30](https://github.com/craft-native/craft/commit/a367d30)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.221...v0.0.222)
 
 ## 🐛 Bug Fixes
