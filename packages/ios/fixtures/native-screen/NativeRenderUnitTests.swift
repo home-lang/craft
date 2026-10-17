@@ -709,7 +709,9 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(map.camera.pitch, 30, accuracy: 1)
         let annotation = try XCTUnwrap(map.annotations.first)
         let marker = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
-        XCTAssertNotNil(marker.image)
+        let image = try XCTUnwrap(marker.image)
+        XCTAssertEqual(image.renderingMode, .alwaysOriginal, "MapKit must preserve the arrow's contrasting palette")
+        XCTAssertLessThanOrEqual(image.size.width, 24, "Direction signs must leave the route visible in compact maps")
         XCTAssertEqual(marker.accessibilityIdentifier, "direction")
         XCTAssertEqual(marker.transform.b, 1, accuracy: 0.02)
     }

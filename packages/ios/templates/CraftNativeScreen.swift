@@ -1411,9 +1411,12 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     private func configureMarkerView(_ view: MKAnnotationView, id: String) {
         if let bearing = markerBearings[id] {
-            let configuration = UIImage.SymbolConfiguration(pointSize: 24, weight: .semibold)
+            let configuration = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
                 .applying(UIImage.SymbolConfiguration(paletteColors: [.white, .systemGreen]))
-            view.image = UIImage(systemName: "arrow.up.circle.fill", withConfiguration: configuration)
+            // MapKit otherwise tints this as a monochrome template and loses
+            // the contrasting route arrow when displayed over map content.
+            view.image = UIImage(systemName: "arrow.up.circle.fill", withConfiguration: configuration)?
+                .withRenderingMode(.alwaysOriginal)
             view.transform = CGAffineTransform(rotationAngle: CGFloat((bearing - camera.heading) * .pi / 180))
         } else {
             view.image = UIImage(systemName: "mappin.circle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 28))?
