@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'bun:test'
-import { ANDROID_MIN_SDK, build, init, installRuntime, renderAndroidDeepLinks, renderAndroidPermissions, resolveRuntimeDir, syncAndroidWebAssets } from './index'
+import { ANDROID_MIN_SDK, build, init, installRuntime, renderAndroidDeepLinks, renderAndroidPermissions, resolveRuntimeDir, syncAndroidWebAssets, syncNativeFonts } from './index'
 import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
 
 // Every scratch directory this file made goes when the file is done (#357).
@@ -15,6 +15,32 @@ function generatedFiles(path: string): string[] {
 }
 
 describe('Craft Android builder', () => {
+  it('bundles custom fonts with their licenses and removes retired fonts', async () => {
+    const root = createTempDir('craft-native-fonts-')
+    const font = join(root, 'Signature.ttf')
+    const license = join(root, 'OFL.txt')
+    const output = join(root, 'app')
+    writeFileSync(font, new Uint8Array([0, 1, 0, 0, 7, 8]))
+    writeFileSync(license, 'Test font license')
+    await init({ name: 'Font App', packageName: 'com.craft.native', output, runtimeDir: null, config: {
+      renderer: 'native', nativeFonts: { 'Signature-Regular': { src: font, license } },
+    } })
+    const bundled = join(output, 'app/src/main/assets/NativeFonts')
+    const activity = readFileSync(join(output, 'app/src/main/java/com/craft/native/MainActivity.kt'), 'utf8')
+    expect(activity).toContain('Typeface.createFromAsset(assets, "NativeFonts/$filename")')
+    expect(activity).toContain('bundledFonts[it]')
+    expect([...readFileSync(join(bundled, 'Signature-Regular.ttf'))]).toEqual([0, 1, 0, 0, 7, 8])
+    expect(readFileSync(join(bundled, 'Signature-Regular.LICENSE.txt'), 'utf8')).toBe('Test font license')
+    expect(() => syncNativeFonts({ Signature: { src: join(bundled, 'Signature-Regular.ttf') } }, output)).toThrow('sources must be outside')
+    expect(existsSync(join(bundled, 'Signature-Regular.ttf'))).toBe(true)
+    expect(() => syncNativeFonts({ Signature: { src: font }, signature: { src: font } }, output)).toThrow('Duplicate native font')
+    syncNativeFonts({}, output)
+    expect(existsSync(bundled)).toBe(false)
+    expect(() => syncNativeFonts({ '../escape': { src: font } }, output)).toThrow('Invalid native font')
+    expect(() => syncNativeFonts({ Missing: { src: join(root, 'missing.ttf') } }, output)).toThrow('existing TTF or OTF')
+    expect(() => syncNativeFonts({ Signature: { src: font, license: join(root, 'missing-license') } }, output)).toThrow('license not found')
+  })
+
   it('packages a compiled STX bundle only for native projects', async () => {
     const root = createTempDir('craft-android-native-bundle-')
     try {

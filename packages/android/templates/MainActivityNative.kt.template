@@ -3810,6 +3810,11 @@ class MainActivity : AppCompatActivity() {
     private val imageCache by lazy { CraftNativeImageCache(File(cacheDir, "craft-native-images")) }
     /** Lays out each isolate's prelude (the synchronous stores) off the main thread. */
     private val preludeExecutor = Executors.newSingleThreadExecutor()
+    private val bundledFonts: Map<String, Typeface> by lazy {
+        (assets.list("NativeFonts") ?: emptyArray()).filter { it.endsWith(".ttf") || it.endsWith(".otf") }
+            .associate { filename -> filename.substringBeforeLast('.') to Typeface.createFromAsset(assets, "NativeFonts/$filename") }
+    }
+
     private val imageSources = mutableMapOf<ImageView, String>()
     private val imageJobs = mutableMapOf<ImageView, Future<*>>()
     private val imageErrors = mutableMapOf<ImageView, String>()
@@ -6351,9 +6356,10 @@ class MainActivity : AppCompatActivity() {
         }
         val italic = craftNativeOptionalString(style.opt("fontStyle")) == "italic"
         val family = craftNativeOptionalString(style.opt("fontFamily"))?.takeIf { it.isNotBlank() }
+        val base = family?.let { bundledFonts[it] } ?: Typeface.create(family, Typeface.NORMAL)
         view.typeface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            Typeface.create(Typeface.create(family, Typeface.NORMAL), weight, italic)
-        } else Typeface.create(family, (if (weight >= 600) Typeface.BOLD else Typeface.NORMAL) or
+            Typeface.create(base, weight, italic)
+        } else Typeface.create(base, (if (weight >= 600) Typeface.BOLD else Typeface.NORMAL) or
             (if (italic) Typeface.ITALIC else Typeface.NORMAL))
         val textAlign = craftNativeOptionalString(style.opt("textAlign"))
         view.textAlignment = when (textAlign) {
