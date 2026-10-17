@@ -91,8 +91,7 @@ jobs:
           disable-animations: false
           script: |
             mkdir -p artifacts/media-cache
-            set -o pipefail
-            bun scripts/media-cache.ts android 2>&1 | tee artifacts/media-cache/android.log
+            bash -o pipefail -c 'bun scripts/media-cache.ts android 2>&1 | tee artifacts/media-cache/android.log'
       - uses: actions/upload-artifact@v7
         if: always()
         with:
