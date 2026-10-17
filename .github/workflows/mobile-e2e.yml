@@ -734,8 +734,9 @@ jobs:
         if: >-
           contains(fromJSON('["failure", "skipped"]'), needs.harness.result)
           || (inputs.scope != 'ios-navigation' && inputs.scope != 'ios-render' && contains(fromJSON('["failure", "skipped"]'), needs.android-navigation.result))
-          || (inputs.scope != 'android-navigation' && contains(fromJSON('["failure", "skipped"]'), needs.ios-native.result))
-          || (inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && (
+          || (inputs.scope != 'android-navigation' && inputs.scope != 'android' && contains(fromJSON('["failure", "skipped"]'), needs.ios-native.result))
+          || (inputs.scope == 'android' && contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result))
+          || (inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' && (
             contains(fromJSON('["failure", "skipped"]'), needs.ios-simulator.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.ios-zig-slice.result)
