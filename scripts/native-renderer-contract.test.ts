@@ -1156,7 +1156,7 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('const pickerItems = [{ label: \'One item\', value: \'one\' }, { label: \'Two item\', value: 2 }]')
     expect(iosNavigationTest).toContain('itemsPicker.waitForExistence(timeout: 5)')
     expect(androidNavigationTest).toContain('items picker should be an Android Spinner')
-    expect(androidNavigationTest).toContain('awaitText(activity, "items-picker-value", "2")')
+    expect(androidNavigationTest).toContain('awaitText(activity, "items-picker-value", "2.0")')
     expect(navigationHome).toContain('@request-close="modalRequested()"')
     expect(navigationHome).toContain('@show="modalShown()"')
     expect(navigationHome).toContain('testID="clear-image-source"')

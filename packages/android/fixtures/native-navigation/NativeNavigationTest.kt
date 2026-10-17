@@ -1039,8 +1039,9 @@ class NativeNavigationTest {
             assertEquals("one", (awaitView(activity, "items-picker-value") as TextView).text.toString())
             assertEquals("reconciling another picker must not emit onChange", "picker two", (awaitView(activity, "native-link-status") as TextView).text.toString())
             instrumentation.runOnMainSync { (itemsPicker as Spinner).setSelection(1) }
-            awaitText(activity, "items-picker-value", "2")
-            assertEquals("items picker 2", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            // Both native hosts serialize a numeric option through Double.
+            awaitText(activity, "items-picker-value", "2.0")
+            assertEquals("items picker 2.0", (awaitView(activity, "native-link-status") as TextView).text.toString())
             val dateRoot = awaitView(activity, "native-date-picker")
             val nativeDatePicker = findType(dateRoot, DatePicker::class.java)
             assertTrue("native date picker should contain an Android DatePicker", nativeDatePicker != null)
