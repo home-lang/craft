@@ -72,6 +72,15 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
   }
   const lifetime = new AbortController()
   let account = new AbortController()
+  let mediaTransfers = new AbortController()
+  let mediaWrites: Promise<unknown> = Promise.resolve()
+  // Cache.put cannot be aborted. Clear waits for any already committing
+  // download, while later downloads commit after that clear completes.
+  const writeMedia = <T>(work: () => Promise<T>): Promise<T> => {
+    const write = mediaWrites.then(work)
+    mediaWrites = write.catch(() => {})
+    return write
+  }
   let mediaScope = persistence.scope()
   let wakeLock: WakeLockSentinel | null = null
   let disposed = false
@@ -129,12 +138,13 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
     async resolveMedia(url) {
       if (!('caches' in window)) return url
       const scope = persistence.scope()
+      const transfer = mediaTransfers.signal
       const existing = mediaURLs.get(url)
       if (existing) return existing
       const saved = await (await caches.open(cacheName())).match(url)
       if (!saved) return url
       const local = URL.createObjectURL(await saved.blob())
-      if (disposed || scope !== persistence.scope()) { URL.revokeObjectURL(local); return url }
+      if (disposed || transfer.aborted || scope !== persistence.scope()) { URL.revokeObjectURL(local); return url }
       mediaURLs.set(url, local)
       return local
     },
@@ -207,6 +217,23 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
       }
       if (module === 'Media') {
         if (!('caches' in window)) return unsupported(module, method)
+        if (method === 'clear') {
+          mediaTransfers.abort()
+          mediaTransfers = new AbortController()
+          const name = cacheName()
+          return writeMedia(async () => {
+            const cache = await caches.open(name)
+            let removed = 0
+            for (const entry of await cache.keys()) {
+              if (await cache.delete(entry)) removed++
+              const local = mediaURLs.get(entry.url)
+              if (local) URL.revokeObjectURL(local)
+              mediaURLs.delete(entry.url)
+            }
+            return removed
+          })
+        }
+        signal = AbortSignal.any([signal, mediaTransfers.signal])
         const cache = await caches.open(cacheName())
         if (method === 'keep') {
           const url = String(args[0]); const settings = object(args[1]); const connection = (navigator as Navigator & { connection?: { type?: string, saveData?: boolean } }).connection
@@ -215,7 +242,9 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
           if (old) return { ok: true, url, path: url, size: Number(old.headers.get('x-craft-size') ?? 0) }
           const response = await fetch(url, { headers: settings.headers as HeadersInit, signal })
           if (!response.ok) return { ok: false, status: response.status }
-          const body = await response.blob(); signal.throwIfAborted(); const headers = new Headers(response.headers); headers.set('x-craft-size', String(body.size)); await cache.put(url, new Response(body, { headers, status: response.status })); return { ok: true, url, path: url, size: body.size }
+          const body = await response.blob(); signal.throwIfAborted(); const headers = new Headers(response.headers); headers.set('x-craft-size', String(body.size))
+          await writeMedia(async () => { signal.throwIfAborted(); await cache.put(url, new Response(body, { headers, status: response.status })); signal.throwIfAborted() })
+          return { ok: true, url, path: url, size: body.size }
         }
         if (method === 'path') return (await cache.match(String(args[0]))) ? String(args[0]) : null
         if (method === 'usage') { const entries = await cache.keys(); let bytes = 0; for (const entry of entries) bytes += Number((await cache.match(entry))?.headers.get('x-craft-size') ?? 0); return { bytes, count: entries.length } }
