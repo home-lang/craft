@@ -41,7 +41,9 @@ else console.error('Not Recording started yet')
 await Bun.sleep(60_000)
 `)
   await chmod(xcrun, 0o755)
-  return { options: { device: uuid, path, xcrun, timeoutMs: 500 }, ready, stopped, commands }
+  // Includes launching a separate Bun runtime, not just the fake's 100ms delay.
+  // A 500ms budget expired during cold starts before the behavior under test.
+  return { options: { device: uuid, path, xcrun, timeoutMs: 2000 }, ready, stopped, commands }
 }
 
 describe('iOS simulator test recordings', () => {
@@ -73,7 +75,7 @@ describe('iOS simulator test recordings', () => {
 
   it('stops a recorder that never acknowledges its first frame', async () => {
     const test = await recorder('no-frame')
-    await expect(recordIosSimulatorVideo(test.options)).rejects.toThrow('did not produce its first frame')
+    await expect(recordIosSimulatorVideo({ ...test.options, timeoutMs: 500 })).rejects.toThrow('did not produce its first frame')
     expect(await Bun.file(test.options.path).exists()).toBe(false)
   })
 
@@ -89,5 +91,5 @@ describe('iOS simulator test recordings', () => {
       const recording = await recordIosSimulatorVideo(test.options)
       await expect(recording.stop()).rejects.toThrow(reason)
     }
-  })
+  }, 10_000)
 })

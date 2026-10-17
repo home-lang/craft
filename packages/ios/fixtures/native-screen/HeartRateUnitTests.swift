@@ -58,6 +58,62 @@ final class HeartRateUnitTests: XCTestCase {
         XCTAssertGreaterThan((squares.reduce(0, +) / Double(squares.count)).squareRoot(), 5)
     }
 
+    func testReconnectRecoversAQuietBroadcastWithoutReplacingItsRecording() async throws {
+        let defaults = UserDefaults.standard
+        let previousFake = defaults.object(forKey: "CraftFakeHeartRateMonitor")
+        let previousDevice = defaults.object(forKey: "CraftHeartRate.lastDevice")
+        defaults.set(true, forKey: "CraftFakeHeartRateMonitor")
+        defer {
+            defaults.set(previousFake, forKey: "CraftFakeHeartRateMonitor")
+            defaults.set(previousDevice, forKey: "CraftHeartRate.lastDevice")
+        }
+        var time = Date(timeIntervalSince1970: 1_800_000_000)
+        let monitor = CraftHeartRate(now: { time })
+        var connections: [String] = []
+        monitor.pageSink = { event in
+            if let connection = event["connection"] as? String { connections.append(connection) }
+            return true
+        }
+        func call(_ method: String, _ args: [Any] = []) async throws -> [String: Any] {
+            try await withCheckedThrowingContinuation { continuation in
+                monitor.perform(method: method, args: args) { result in
+                    switch result {
+                    case .success(let value): continuation.resume(returning: value as? [String: Any] ?? [:])
+                    case .failure(let error): continuation.resume(throwing: error)
+                    }
+                }
+            }
+        }
+        _ = try await call("connect", [["id": "00000000-0000-4000-8000-00000000180D"]])
+        let recording = try await call("startRecording")
+        connections.removeAll()
+        _ = try await call("reconnect")
+        XCTAssertFalse(connections.contains("reconnecting"), "a healthy subscription must be retained")
+        // The link remains connected, but Garmin's broadcast stops delivering.
+        time = time.addingTimeInterval(31)
+        _ = try await call("reconnect")
+        XCTAssertTrue(connections.contains("reconnecting"))
+        let continued = try await call("getRecordingState")
+        XCTAssertEqual(continued["active"] as? Bool, true)
+        XCTAssertEqual(continued["id"] as? String, recording["id"] as? String)
+        let recovered = expectation(description: "fresh readings resume after rebuilding the subscription")
+        recovered.assertForOverFulfill = false
+        monitor.pageSink = { event in
+            if event["type"] as? String == "reading" { recovered.fulfill() }
+            return true
+        }
+        await fulfillment(of: [recovered], timeout: 5)
+        let restored = try await call("getState")
+        XCTAssertNotNil(restored["bpm"] as? Int)
+        let saved = try await call("stopRecording")
+        XCTAssertGreaterThan((saved["samples"] as? [[String: Any]])?.count ?? 0, 0)
+        _ = try await call("disconnect", [["forget": true]])
+        time = time.addingTimeInterval(31)
+        let forgotten = try await call("getState")
+        XCTAssertEqual(forgotten["connection"] as? String, "disconnected")
+        XCTAssertTrue(forgotten["lastDevice"] is NSNull)
+    }
+
     func testTheModuleAnswersOnlyWhenTheAppReadsAStrap() async {
         let off = await withCheckedContinuation { continuation in
             CraftNativeActions.perform(requestToken: UUID().uuidString, version: craftNativeCapabilityProtocolVersion, module: "HeartRate", method: "getState", args: [], config: CraftConfig()) { continuation.resume(returning: $0) }

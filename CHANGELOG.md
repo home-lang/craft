@@ -1,5 +1,24 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.221...v0.0.222)
+
+## 🐛 Bug Fixes
+
+- **ios**: recover silent heart-rate broadcast subscriptions ([3e91f52](https://github.com/craft-native/craft/commit/3e91f52)) _(by Chris Breuer)_
+- **android**: let newer native navigation interrupt tab swipe settling ([c040012](https://github.com/craft-native/craft/commit/c040012)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: repair stale fixture locals before navigation assertions ([c41c00f](https://github.com/craft-native/craft/commit/c41c00f)) _(by Chris Breuer)_
+- **android**: run focused navigation with animations enabled ([0cfa0c0](https://github.com/craft-native/craft/commit/0cfa0c0)) _(by Chris Breuer)_
+- **android**: reproduce tab taps interrupting native swipe completion ([fc5bae2](https://github.com/craft-native/craft/commit/fc5bae2)) _(by Chris Breuer)_
+- **android**: verify every Kotlin JNI registration without stale counts ([1057417](https://github.com/craft-native/craft/commit/1057417)) _(by Chris Breuer)_
+- **ios**: align navigation contract checks with native ownership ([fda4c58](https://github.com/craft-native/craft/commit/fda4c58)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.220...v0.0.221)
 
 ## 🐛 Bug Fixes

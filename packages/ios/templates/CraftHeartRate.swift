@@ -135,6 +135,13 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     /// Fourteen hours of one reading a second: more is not one workout.
     static let maxRecordedSamples = 50_000
 
+    private let clock: () -> Date
+
+    init(now: @escaping () -> Date = Date.init) {
+        self.clock = now
+        super.init()
+    }
+
     /// The web view's coordinator, which sends an event to the page and every
     /// native screen. False (or unset, in an app without a web view) and the
     /// event goes to the native screens alone.
@@ -155,6 +162,12 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     private var connectDeadline: DispatchWorkItem?
     private var latest: CraftHeartRateMeasurement?
     private var latestAt: Date?
+    // Packet freshness is separate from a valid BPM: a monitor reporting no
+    // skin contact is still delivering notifications and needs no reconnect.
+    private var packetAt: Date?
+    private var subscriptionAt: Date?
+    private var recoveryTimer: Timer?
+    private var hasSubscribed = false
 
     private var recordingId: String?
     private var recordingStartedAt: Double?
@@ -189,7 +202,9 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         DispatchQueue.main.async {
             self.restoreRecording()
             switch method {
-            case "getState": completion(.success(self.state()))
+            case "getState":
+                self.recoverQuietBroadcast()
+                completion(.success(self.state()))
             case "requestAuthorization": self.requestAuthorization(completion: completion)
             case "scan": self.scan(seconds: (options["timeout"] as? NSNumber)?.doubleValue, completion: completion)
             case "stopScan":
@@ -255,7 +270,7 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
 
     func state() -> [String: Any] {
-        let fresh = latestAt.map { Date().timeIntervalSince($0) <= Self.staleAfter } ?? false
+        let fresh = latestAt.map { clock().timeIntervalSince($0) <= Self.staleAfter } ?? false
         let device: Any = deviceId.map { ["id": $0.uuidString, "name": deviceName ?? "Heart rate monitor"] as [String: Any] } ?? NSNull()
         return [
             "available": bluetooth != "unsupported",
@@ -393,8 +408,10 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         }
         whenReady {
             if let reason = self.unusable() { return completion(.failure(reason)) }
-            // Already there, or on the way: nothing to start again.
+            // A connected link can lose its notification subscription when a
+            // broadcasting watch restarts. Keep healthy links, repair quiet ones.
             if self.deviceId == uuid && self.wantsConnection {
+                self.recoverQuietBroadcast()
                 if self.connection == "connected" || !wait { return completion(.success(self.state())) }
                 self.connectWaiters.append(completion)
                 self.armConnectDeadline()
@@ -416,6 +433,8 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
             self.deviceName = name
             self.wantsConnection = true
             self.connection = "connecting"
+            self.subscriptionAt = self.clock()
+            self.startRecoveryWatch()
             self.remember(id: uuid, name: name)
             if wait {
                 self.connectWaiters.append(completion)
@@ -454,6 +473,11 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     /// Lets go of the current strap without telling anyone.
     private func release() {
         wantsConnection = false
+        hasSubscribed = false
+        recoveryTimer?.invalidate()
+        recoveryTimer = nil
+        packetAt = nil
+        subscriptionAt = nil
         simulatedTimer?.invalidate()
         simulatedTimer = nil
         if let peripheral, let central, peripheral.state != .disconnected { central.cancelPeripheralConnection(peripheral) }
@@ -474,7 +498,9 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        guard peripheral.identifier == deviceId else { return }
+        guard peripheral.identifier == deviceId, wantsConnection else { return }
+        packetAt = nil
+        subscriptionAt = clock()
         peripheral.delegate = self
         peripheral.discoverServices([Self.serviceUUID])
     }
@@ -491,6 +517,8 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         guard peripheral.identifier == deviceId else { return }
         latest = nil
         latestAt = nil
+        packetAt = nil
+        subscriptionAt = clock()
         if wantsConnection {
             connection = "reconnecting"
             central.connect(peripheral)
@@ -501,7 +529,10 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        guard peripheral.identifier == deviceId, wantsConnection else { return }
+        if error != nil { return restartBroadcast() }
         guard let service = peripheral.services?.first(where: { $0.uuid == Self.serviceUUID }) else {
+            if hasSubscribed { return restartBroadcast() }
             notAHeartRateMonitor(peripheral)
             return
         }
@@ -509,7 +540,10 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        guard peripheral.identifier == deviceId, wantsConnection, service.uuid == Self.serviceUUID else { return }
+        if error != nil { return restartBroadcast() }
         guard let measurement = service.characteristics?.first(where: { $0.uuid == Self.measurementUUID }) else {
+            if hasSubscribed { return restartBroadcast() }
             notAHeartRateMonitor(peripheral)
             return
         }
@@ -517,27 +551,89 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
-        guard characteristic.uuid == Self.measurementUUID, peripheral.identifier == deviceId else { return }
-        if characteristic.isNotifying {
+        guard characteristic.uuid == Self.measurementUUID, peripheral.identifier == deviceId, wantsConnection else { return }
+        if characteristic.isNotifying && error == nil {
+            hasSubscribed = true
+            subscriptionAt = clock()
             connection = "connected"
             emitState()
             settleConnect(.success(state()))
-        } else if let error {
-            settleConnect(.failure(CraftHeartRateError(message: error.localizedDescription, code: "CONNECT_FAILED")))
+        } else {
+            restartBroadcast()
         }
     }
 
+    // Garmin may invalidate its service when HR broadcast is toggled without
+    // dropping the physical link. Discover and subscribe to the replacement.
+    func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
+        guard peripheral.identifier == deviceId, wantsConnection,
+              invalidatedServices.contains(where: { $0.uuid == Self.serviceUUID }) else { return }
+        connection = "reconnecting"
+        latest = nil
+        latestAt = nil
+        packetAt = nil
+        subscriptionAt = clock()
+        peripheral.discoverServices([Self.serviceUUID])
+        emitState()
+    }
+
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard characteristic.uuid == Self.measurementUUID, peripheral.identifier == deviceId, let value = characteristic.value else { return }
+        guard characteristic.uuid == Self.measurementUUID, peripheral.identifier == deviceId, wantsConnection else { return }
+        if error != nil { return restartBroadcast() }
+        guard let value = characteristic.value else { return }
         received([UInt8](value))
     }
 
     private func notAHeartRateMonitor(_ peripheral: CBPeripheral) {
         wantsConnection = false
+        hasSubscribed = false
+        recoveryTimer?.invalidate()
+        recoveryTimer = nil
         central?.cancelPeripheralConnection(peripheral)
         connection = "disconnected"
         settleConnect(.failure(CraftHeartRateError(message: "That device does not send a heart rate", code: "NOT_HEART_RATE_MONITOR")))
         emitState()
+    }
+
+    /// Run independently of any player or big-timer screen. A pending radio
+    /// connection stays pending until the watch returns; only a connected link
+    /// with a silent subscription is restarted.
+    private func startRecoveryWatch() {
+        recoveryTimer?.invalidate()
+        recoveryTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            self?.recoverQuietBroadcast()
+        }
+    }
+
+    private func recoverQuietBroadcast() {
+        guard wantsConnection, let since = packetAt ?? subscriptionAt else { return }
+        let quiet = clock().timeIntervalSince(since)
+        if connection == "connected" && quiet > 20 {
+            restartBroadcast()
+        } else if connection != "connected", peripheral?.state == .connected, quiet > 30 {
+            restartBroadcast()
+        }
+    }
+
+    /// Keep the recording and device choice while replacing the subscription.
+    /// CoreBluetooth's disconnect callback starts the next connection once the
+    /// previous one has actually closed.
+    private func restartBroadcast() {
+        guard wantsConnection else { return }
+        connection = "reconnecting"
+        latest = nil
+        latestAt = nil
+        packetAt = nil
+        subscriptionAt = clock()
+        emitState()
+        if simulated {
+            simulatedTimer?.invalidate()
+            simulatedTimer = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.simulatedConnected() }
+        } else if let peripheral, let central, central.state == .poweredOn {
+            if peripheral.state == .disconnected { central.connect(peripheral) }
+            else if peripheral.state != .disconnecting { central.cancelPeripheralConnection(peripheral) }
+        }
     }
 
     // MARK: Readings
@@ -545,8 +641,14 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     private func received(_ bytes: [UInt8]) {
         // A strap reads 0 between losing the skin and giving up; that is no
         // heart rate, and neither is anything a heart could not do.
-        guard let reading = CraftHeartRateMeasurement.parse(bytes), reading.bpm >= 20, reading.bpm <= 250 else { return }
-        let now = Date()
+        packetAt = clock()
+        guard let reading = CraftHeartRateMeasurement.parse(bytes), reading.sensorContact != false, reading.bpm >= 20, reading.bpm <= 250 else {
+            latest = nil
+            latestAt = nil
+            emitState()
+            return
+        }
+        let now = clock()
         latest = reading
         latestAt = now
         let timestamp = (now.timeIntervalSince1970 * 1000).rounded()
@@ -567,6 +669,7 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     private func simulatedConnected() {
         guard simulated, wantsConnection, deviceId == Self.simulatedId else { return }
         connection = "connected"
+        subscriptionAt = clock()
         emitState()
         settleConnect(.success(state()))
         simulatedTimer?.invalidate()
@@ -671,7 +774,7 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
             return completion(.failure(CraftHeartRateError(message: "Unable to create the heart-rate recording", code: "RECORDING_STORAGE_ERROR")))
         }
         recordingId = UUID().uuidString
-        recordingStartedAt = (Date().timeIntervalSince1970 * 1000).rounded()
+        recordingStartedAt = (clock().timeIntervalSince1970 * 1000).rounded()
         recordingPaused = false
         recordedCount = 0
         persistRecording()
