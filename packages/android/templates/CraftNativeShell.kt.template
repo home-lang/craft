@@ -1092,7 +1092,10 @@ internal object CraftNativeMedia {
                     connection.disconnect()
                 }
             }.getOrElse { error ->
-                CraftNativeCapabilityResult(code = if (error is java.net.SocketTimeoutException) "TIMEOUT" else "NETWORK_ERROR", message = error.message ?: "media.keep failed")
+                val full = generateSequence(error) { it.cause }.take(16).any {
+                    it is android.system.ErrnoException && it.errno == android.system.OsConstants.ENOSPC
+                }
+                CraftNativeCapabilityResult(code = if (full) "NO_SPACE" else if (error is java.net.SocketTimeoutException) "TIMEOUT" else "NETWORK_ERROR", message = error.message ?: "media.keep failed")
             }
             val waiting = synchronized(inFlight) { inFlight.remove(address) ?: mutableListOf() }
             main.post { waiting.forEach { it(result) } }

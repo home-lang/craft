@@ -794,7 +794,7 @@ enum CraftNativeActions {
                     return
                 }
                 let code = (error as? URLError)?.code == .timedOut ? "TIMEOUT" : "NETWORK_ERROR"
-                CraftNativeMedia.finish(address, failure(code, error.localizedDescription))
+                CraftNativeMedia.finish(address, failure(CraftNativeMedia.errorCode(error, fallback: code), error.localizedDescription))
                 return
             }
             guard let http = response as? HTTPURLResponse, let location else {

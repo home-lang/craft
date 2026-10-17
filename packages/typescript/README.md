@@ -536,6 +536,16 @@ it does not change the application's animations or test assertions.
 
 We love contributions! Please see our [contributing guide](../../CONTRIBUTING.md).
 
+### Offline video storage failures
+
+On iOS and Android native screens, `craft.media.keep(url)` rejects with
+`code: 'NO_SPACE'` when the filesystem runs out of room, including wrapped
+URLSession and Android write errors. Treat that separately from connectivity:
+stop downloading and let the person free space before retrying the same URL.
+A failed transfer is never published as a playable cached video.
+`craft.media.prune(keepUrls)` removes only unwanted files in the media cache;
+it does not clear app storage, workout progress, snapshots or databases.
+
 ## License
 
 MIT © [Chris Breuer](https://github.com/chrisbbreuer)

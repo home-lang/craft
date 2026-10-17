@@ -492,6 +492,20 @@ enum CraftNativeFiles {
 // JavaScript. The screen decides what to keep (`keep`) and what to drop
 // (`prune`); nothing is evicted behind its back.
 enum CraftNativeMedia {
+    /// Foundation often wraps ENOSPC inside a URL or Cocoa file error.
+    static func errorCode(_ error: Error, fallback: String) -> String {
+        var cause: NSError? = error as NSError
+        var seen = Set<ObjectIdentifier>()
+        while let current = cause, seen.insert(ObjectIdentifier(current)).inserted {
+            if (current.domain == NSCocoaErrorDomain && current.code == NSFileWriteOutOfSpaceError)
+                || (current.domain == NSPOSIXErrorDomain && current.code == Int(POSIXError.Code.ENOSPC.rawValue)) {
+                return "NO_SPACE"
+            }
+            cause = current.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return fallback
+    }
+
     static var root: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
@@ -578,7 +592,7 @@ enum CraftNativeMedia {
             return .success(describe(address, target))
         }
         catch {
-            return .failure(CraftNativeActionError(code: "IO_ERROR", message: "media.keep could not store the file: \(error.localizedDescription)"))
+            return .failure(CraftNativeActionError(code: errorCode(error, fallback: "IO_ERROR"), message: "media.keep could not store the file: \(error.localizedDescription)"))
         }
     }
 

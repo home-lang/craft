@@ -166,6 +166,17 @@ final class FilesUnitTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(CraftNativeMedia.local(address))), Data([1, 2, 3, 4]))
     }
 
+    func testOfflineVideoRecognizesWrappedDiskFullErrorsWithoutCallingOtherFailuresFull() {
+        let full = NSError(domain: NSPOSIXErrorDomain, code: Int(POSIXError.Code.ENOSPC.rawValue))
+        let wrapped = NSError(domain: NSURLErrorDomain, code: URLError.cannotWriteToFile.rawValue,
+                              userInfo: [NSUnderlyingErrorKey: NSError(domain: NSCocoaErrorDomain, code: NSFileWriteUnknownError,
+                                                                      userInfo: [NSUnderlyingErrorKey: full])])
+        XCTAssertEqual(CraftNativeMedia.errorCode(wrapped, fallback: "NETWORK_ERROR"), "NO_SPACE")
+        XCTAssertEqual(CraftNativeMedia.errorCode(NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError), fallback: "IO_ERROR"), "NO_SPACE")
+        XCTAssertEqual(CraftNativeMedia.errorCode(NSError(domain: NSPOSIXErrorDomain, code: Int(POSIXError.Code.EACCES.rawValue)), fallback: "IO_ERROR"), "IO_ERROR")
+        XCTAssertEqual(CraftNativeMedia.errorCode(URLError(.notConnectedToInternet), fallback: "NETWORK_ERROR"), "NETWORK_ERROR")
+    }
+
     func testAnUnsolicitedPartialOrEmptyVideoIsNeverPublished() throws {
         for status in [200, 206] {
             let address = "https://example.com/empty-\(UUID().uuidString).mp4"
