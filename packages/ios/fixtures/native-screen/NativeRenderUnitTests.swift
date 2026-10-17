@@ -1613,6 +1613,43 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(disabled.accessibilityTraits.contains(.notEnabled))
     }
 
+    func testHidingAModalDismissesItsKeyboardWithoutRestoringHiddenInputFocus() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["type": "TextInput", "props": ["key": "outside"]],
+            ["id": "review-modal", "type": "Modal", "props": ["key": "modal", "visible": true, "animationType": "none"],
+                "children": [["type": "TextInput", "props": ["key": "review", "multiline": true], "events": ["onChangeText": "reviewChanged"]]]],
+        ]))
+        controller.view.layoutIfNeeded()
+        let input = try XCTUnwrap(find(UITextView.self, key: "review", below: controller.view))
+        XCTAssertTrue(input.becomeFirstResponder())
+        input.text = "A trail review"
+        controller.textViewDidChange(input)
+        _ = try controller.applyMutation(batch(1, [
+            ["op": "updateNode", "id": "review-modal", "patch": ["props": ["visible": false]]],
+        ]))
+        XCTAssertFalse(input.isFirstResponder, "Saving or cancelling a modal must dismiss its keyboard")
+        let settled = expectation(description: "hidden modal input acknowledgement settled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
+        wait(for: [settled], timeout: 2)
+        XCTAssertFalse(input.isFirstResponder, "A delayed input acknowledgement cannot reopen the keyboard")
+        _ = try controller.applyMutation(batch(2, [
+            ["op": "updateNode", "id": "review-modal", "patch": ["props": ["visible": true]]],
+        ]))
+        XCTAssertFalse(input.isFirstResponder, "Reopening the modal waits for an explicit focus")
+        XCTAssertTrue(input.becomeFirstResponder())
+        let outside = try XCTUnwrap(find(UITextField.self, key: "outside", below: controller.view))
+        XCTAssertTrue(outside.becomeFirstResponder())
+        _ = try controller.applyMutation(batch(3, [
+            ["op": "updateNode", "id": "review-modal", "patch": ["props": ["visible": false]]],
+        ]))
+        XCTAssertTrue(outside.isFirstResponder, "Hiding a modal must not dismiss another field's keyboard")
+    }
+
     func testAShownModalInAScrollViewCoversTheScreenAndTakesItsTouches() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()

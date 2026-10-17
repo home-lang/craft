@@ -3373,6 +3373,8 @@ private final class CraftNativeModalView: UIView {
         let generation = animationGeneration
         layer.removeAllAnimations()
         guard visible else {
+            craftScreenController?.forgetFocusedInput(in: self)
+            endEditing(true)
             if animationType == "slide" && wasVisible {
                 let distance = max(bounds.height, superview?.bounds.height ?? UIScreen.main.bounds.height)
                 UIView.animate(withDuration: 0.24, animations: {
@@ -3412,6 +3414,8 @@ private final class CraftNativeModalView: UIView {
     }
 
     func resetForTeardown() {
+        craftScreenController?.forgetFocusedInput(in: self)
+        endEditing(true)
         animationGeneration += 1
         layer.removeAllAnimations()
         isHidden = true
@@ -4328,6 +4332,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// button press focused it again and the keyboard came straight back.
     func forgetFocusedInput(_ input: UIView? = nil) {
         if input == nil || lastFocusedInput === input { lastFocusedInput = nil }
+    }
+    func forgetFocusedInput(in container: UIView) {
+        if let input = lastFocusedInput, input === container || input.isDescendant(of: container) {
+            lastFocusedInput = nil
+        }
     }
     private var flatListRows: [ObjectIdentifier: [String: RenderedNode]] = [:]
     private var flatListOwners: [String: String] = [:]
@@ -6051,6 +6060,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func restoreFocus(_ focused: UIView?) {
         guard let focused, focused.window != nil, !focused.isFirstResponder,
               lastFocusedInput === focused, firstResponder(in: rootStack) == nil else { return }
+        var ancestor: UIView? = focused
+        while let view = ancestor {
+            if view.isHidden { return }
+            ancestor = view.superview
+        }
         // A delayed acknowledgement belongs to the input that scheduled it.
         // A newer field or an explicit dismissal owns focus now.
         _ = focused.becomeFirstResponder()
