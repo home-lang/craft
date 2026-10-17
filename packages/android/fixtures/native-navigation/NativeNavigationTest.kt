@@ -230,7 +230,7 @@ class NativeNavigationTest {
             var reported: Double? = null
             instrumentation.runOnMainSync {
                 actual = (find(activity.window.decorView, id) as? TextView)?.text?.toString().orEmpty()
-                reported = actual.removePrefix("Layout width: ").toDoubleOrNull()
+                reported = actual.substringAfterLast(": ").toDoubleOrNull()
             }
             // Native layout uses whole physical pixels. At fractional display
             // densities, a logical 180dp need not report the integer 180.
