@@ -78,6 +78,7 @@ class CraftNativeImageCacheTest {
         assertFalse(put(cache, "a", "too-large-to-store"))
         assertFalse(cache.write("a", CraftNativeImagePolicy(1000)) { it.write("partial".toByteArray()); false })
         assertFalse(cache.write("a", CraftNativeImagePolicy(1000)) { throw IOException("No space left") })
+        assertFalse(cache.write("a", CraftNativeImagePolicy(1000)) { throw OutOfMemoryError("Optional encoder allocation") })
         assertEquals("before", String(cache.read("a")!!, Charsets.UTF_8))
         assertTrue(root.listFiles().orEmpty().none { it.name.endsWith(".tmp") })
     }
