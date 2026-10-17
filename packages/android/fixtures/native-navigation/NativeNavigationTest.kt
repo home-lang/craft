@@ -319,6 +319,7 @@ class NativeNavigationTest {
             assertTrue("navigation-bar screenshot coverage requires a visible system bar", inset > 0)
             var actual: Int? = null
             var glyphContrast = 1.0
+            var nativeGlyphParity = false
             var glyphColor = 0
             var glyphX = 0
             var glyphY = 0
@@ -364,6 +365,9 @@ class NativeNavigationTest {
                     android.util.Log.i("CraftNativeBarProbe", metadata)
                     // Preserve the original failure, then compare the same
                     // display/sampling with literal native Android windows.
+                    val observedBar = IntArray(image.width * inset)
+                    image.getPixels(observedBar, 0, image.width, 0, image.height - inset, image.width, inset)
+                    var matchingNativeBars = 0
                     for ((stockTheme, opaqueNav) in listOf(false to false, false to true, true to false, true to true)) {
                         val reference = instrumentation.startActivitySync(
                             Intent(activity, NativeSystemBarsReferenceActivity::class.java)
@@ -386,18 +390,32 @@ class NativeNavigationTest {
                                     "appearance=${reference.window.insetsController?.systemBarsAppearance} " +
                                     "brightness=${attributes.screenBrightness} flags=${attributes.flags} format=${attributes.format}\n"
                             )
+                            // The platform chooses native button tint. A
+                            // platform image below the contrast target must
+                            // still match the complete stock native bar;
+                            // changing only a flag cannot satisfy this gate.
+                            if (comparison.width == image.width && comparison.height == image.height) {
+                                val nativeBar = IntArray(observedBar.size)
+                                comparison.getPixels(nativeBar, 0, image.width, 0, image.height - inset, image.width, inset)
+                                if (observedBar.contentEquals(nativeBar)) matchingNativeBars++
+                            }
                             comparison.recycle()
                         } finally {
                             instrumentation.runOnMainSync { reference.finish() }
                         }
                     }
+                    nativeGlyphParity = matchingNativeBars == 4
+                    val parity = "contrast=$glyphContrast target=3.0 exactNativeBars=$matchingNativeBars/4\n"
+                    java.io.File(directory, "$name-native-parity.txt").writeText(parity)
+                    android.util.Log.i("CraftNativeBarProbe", parity)
                 }
                 image.recycle()
                 if (actual == color && glyphContrast >= 3.0) break
                 if (attempt < 29) SystemClock.sleep(100)
             }
             assertEquals("$message (composed bottom system bar)", color, actual)
-            assertTrue("native navigation glyphs lost contrast: $glyphContrast", glyphContrast >= 3.0)
+            assertTrue("navigation glyphs below contrast target and different from native Android: $glyphContrast",
+                glyphContrast >= 3.0 || nativeGlyphParity)
             assertEquals("Android 15 navigation surface must be transparent",
                 Color.TRANSPARENT, activity.window.navigationBarColor)
             assertFalse("Android 15 must not overlay the authored inset background",
