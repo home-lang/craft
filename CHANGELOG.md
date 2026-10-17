@@ -1,5 +1,28 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.231...v0.0.232)
+
+## 🐛 Bug Fixes
+
+- **ios**: preserve active multiline text composition ([619e432](https://github.com/craft-native/craft/commit/619e432)) _(by Chris Breuer)_
+- **ios**: omit absent native font resources ([e775959](https://github.com/craft-native/craft/commit/e775959)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: preserve multiline composition across reactive renders ([b24af17](https://github.com/craft-native/craft/commit/b24af17)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- integrate native SDK 231 ([47a2ee9](https://github.com/craft-native/craft/commit/47a2ee9)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/ios-multiline-composition ([b44cfd4](https://github.com/craft-native/craft/commit/b44cfd4)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.230...v0.0.231)
 
 ## 🚀 Features
