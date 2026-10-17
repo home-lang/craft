@@ -75,10 +75,11 @@ class DownloadProbe : android.app.Instrumentation() {
                 "interrupt" -> {
                     CraftNativeMedia.prune(targetContext, emptyList())
                     CraftNativeMedia.keep(targetContext, restart, JSONObject(), true) {}
-                    val part = File(CraftNativeMedia.file(targetContext, restart).absolutePath + ".part")
+                    val target = CraftNativeMedia.file(targetContext, restart)
+                    fun partial() = target.parentFile!!.listFiles()?.any { it.name.startsWith(target.name + ".") && it.name.endsWith(".part") && it.length() > 0 } == true
                     val until = System.currentTimeMillis() + 25000
-                    while ((!part.exists() || part.length() == 0L) && System.currentTimeMillis() < until) Thread.sleep(25)
-                    check(part.length() > 0, "download is in progress before process death")
+                    while (!partial() && System.currentTimeMillis() < until) Thread.sleep(25)
+                    check(partial(), "download is in progress before process death")
                     android.os.Process.killProcess(android.os.Process.myPid())
                 }
                 "recover" -> {
@@ -111,6 +112,26 @@ class DownloadProbe : android.app.Instrumentation() {
                     check(answers.size == 2 && answers.all { it }, "concurrent downloads coalesce and survive prune")
                     check(root.listFiles()?.none { it.name.endsWith(".part") } != false, "no abandoned staging files remain")
                     CraftNativeMedia.prune(targetContext, emptyList())
+                    val privateVideo = "$base/account/slow.mp4"
+                    val previous = java.util.concurrent.CountDownLatch(1)
+                    var cancelled = false
+                    CraftNativeMedia.keep(targetContext, privateVideo, JSONObject(), true) { cancelled = it.code == "CANCELLED"; previous.countDown() }
+                    val privateTarget = CraftNativeMedia.file(targetContext, privateVideo)
+                    fun downloading() = root.listFiles()?.any { it.name.startsWith(privateTarget.name + ".") && it.name.endsWith(".part") && it.length() > 0 } == true
+                    val deadline = System.currentTimeMillis() + 25000
+                    while (!downloading() && System.currentTimeMillis() < deadline) Thread.sleep(10)
+                    check(downloading(), "the previous athlete's download is in progress before sign-out")
+                    CraftNativeMedia.clear(targetContext)
+                    check(previous.await(5, java.util.concurrent.TimeUnit.SECONDS) && cancelled, "sign-out cancels the previous athlete's download")
+                    check(CraftNativeMedia.local(targetContext, privateVideo) == null, "signed-out video is not playable from cache")
+                    check(keep(privateVideo), "the next athlete downloads the same URL in a new transfer")
+                    val media = android.media.MediaMetadataRetriever()
+                    try {
+                        media.setDataSource(CraftNativeMedia.local(targetContext, privateVideo)!!.absolutePath)
+                        check(media.getFrameAtTime(1000000) != null, "the next athlete's local video decodes after the old download settles")
+                    } finally { media.release() }
+                    CraftNativeMedia.clear(targetContext)
+                    check(CraftNativeMedia.local(targetContext, privateVideo) == null, "sign-out removes the next athlete's cached copy too")
                 }
             }
             result.putString("stream", "${proof}PASS: ${args.getString("phase")} native download probe")
