@@ -5,7 +5,7 @@ on:
     inputs:
       platform:
         type: choice
-        options: [all, ios, android]
+        options: [all, ios, android, sdk]
         default: all
 permissions:
   contents: read

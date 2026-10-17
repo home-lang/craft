@@ -5,7 +5,7 @@ on:
     inputs:
       platform:
         type: choice
-        options: [all, ios, android]
+        options: [all, ios, android, sdk]
         default: all
   workflow_call:
     inputs:
@@ -22,7 +22,7 @@ defaults:
 
 jobs:
   sdk:
-    if: inputs.platform == 'all' || inputs.platform == ''
+    if: inputs.platform == 'all' || inputs.platform == 'sdk' || inputs.platform == ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -38,7 +38,7 @@ jobs:
       - run: bunx --bun pickier .
 
   ios:
-    if: inputs.platform != 'android'
+    if: inputs.platform == 'all' || inputs.platform == 'ios' || inputs.platform == ''
     runs-on: macos-15
     timeout-minutes: 20
     env:
@@ -64,7 +64,7 @@ jobs:
           if-no-files-found: error
 
   android:
-    if: inputs.platform != 'ios'
+    if: inputs.platform == 'all' || inputs.platform == 'android' || inputs.platform == ''
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
