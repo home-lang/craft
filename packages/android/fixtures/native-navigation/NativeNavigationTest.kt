@@ -304,6 +304,20 @@ class NativeNavigationTest {
         else -> null
     }
 
+    private fun awaitReferenceWindowReturn(activity: MainActivity) {
+        // finish() precedes WindowManager's focus callback. Complete this
+        // test-only reference teardown before the next real screen check.
+        repeat(30) {
+            var focused = false
+            instrumentation.runOnMainSync {
+                focused = activity.hasWindowFocus() && activity.window.decorView.isShown
+            }
+            if (focused) return
+            SystemClock.sleep(100)
+        }
+        throw AssertionError("Native reference did not return focus to the original screen")
+    }
+
     @Suppress("DEPRECATION")
     private fun assertSystemInsetBackground(activity: MainActivity, color: Int?, message: String) {
         instrumentation.runOnMainSync {
@@ -412,6 +426,7 @@ class NativeNavigationTest {
                             instrumentation.runOnMainSync { reference.finish() }
                         }
                     }
+                    awaitReferenceWindowReturn(activity)
                     nativeGlyphParity = matchingNativeBars == 4
                     val parity = "contrast=$glyphContrast target=3.0 exactNativeBars=$matchingNativeBars/4\n"
                     java.io.File(directory, "$name-native-parity.txt").writeText(parity)
