@@ -798,7 +798,9 @@ craft.navigation.setOptions({
 })
 ```
 
-The configured symbol stays in place. `iconText` is a separate optional icon
+The tab keeps its stable test identifier, `craft-tab-` followed by its id, even
+when its caption or accessibility label changes. The configured symbol stays
+in place. `iconText` is a separate optional icon
 replacement; clear it when showing the symbol. A null `title` restores the
 configured caption, a null `iconTint` restores the normal selected/unselected
 color, and `iconPulse: false` stops the effect. Pulsing is subtle, stops while

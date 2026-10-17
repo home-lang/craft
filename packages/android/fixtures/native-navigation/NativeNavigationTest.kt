@@ -422,6 +422,7 @@ class NativeNavigationTest {
                 val cell = find(chrome, "Live reading, 123 bpm") as LinearLayout
                 val icon = cell.getChildAt(0) as TextView
                 val label = cell.getChildAt(1) as TextView
+                assertSame("a live caption lost its stable tab identity", cell, find(chrome, "craft-tab-/"))
                 assertEquals("123 bpm", label.text.toString())
                 assertEquals(Color.parseColor("#ff3b30"), icon.currentTextColor)
                 assertTrue("updating a caption changed tab selection", cell.isSelected)

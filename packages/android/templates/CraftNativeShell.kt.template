@@ -710,6 +710,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             cell.gravity = Gravity.CENTER
             cell.background = rippleBackground()
             cell.contentDescription = tab.title
+            cell.tag = "craft-tab-${tab.id}"
             val icon = TextView(context)
             icon.text = CraftNativeSymbols.glyph(tab.symbol)
             icon.textSize = 22f

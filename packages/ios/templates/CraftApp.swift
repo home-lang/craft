@@ -1078,6 +1078,7 @@ struct CraftTabBarView: View {
                     Image(systemName: symbol(tab.symbol, selected: isSelected))
                     Text(tab.displayTitle)
                 }
+                .accessibilityIdentifier("craft-tab-\(tab.id)")
                 .accessibilityLabel(tab.accessibilityLabel ?? tab.badge.map { "\(tab.displayTitle), \($0)" } ?? tab.displayTitle)
                 .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
             }
