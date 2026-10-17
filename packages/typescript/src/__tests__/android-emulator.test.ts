@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createAndroidEmulator } from '../../../android/src/emulator'
@@ -64,6 +64,12 @@ test('boot completion alone does not admit a device before SettingsProvider is u
     expect(existsSync(join(options.sdkRoot, 'settings-ready'))).toBe(true)
     const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
     expect(identity.bootedAt).toBeString()
+    const trace = readFileSync(join(options.artifactsDirectory, 'device-commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    const readiness = trace.filter(entry => entry.args.includes('animator_duration_scale'))
+    expect(readiness.map(entry => entry.code)).toEqual([255, 0])
+    expect(trace.every(entry => Number.isFinite(Date.parse(entry.startedAt)) && Number.isFinite(Date.parse(entry.finishedAt)))).toBe(true)
+    expect(trace.map(entry => entry.sequence)).toEqual(trace.map((_, index) => index + 1))
+    expect(readdirSync(options.artifactsDirectory).sort()).toEqual(['android-emulator.json', 'device-commands.jsonl', 'emulator.log'])
   }
   finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
 }, 10_000)

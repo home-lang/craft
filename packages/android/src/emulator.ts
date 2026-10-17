@@ -1,4 +1,4 @@
-import { closeSync, mkdirSync, mkdtempSync, openSync, rmSync } from 'node:fs'
+import { appendFileSync, closeSync, mkdirSync, mkdtempSync, openSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, isAbsolute, join, resolve } from 'node:path'
 
@@ -64,9 +64,12 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
   let sequence = 0
   let disposal: Promise<void> | undefined
   async function run(args: string[], input?: string, timeout = 900_000, allowFailure = false): Promise<{ code: number, stdout: string }> {
+    const startedAt = new Date().toISOString()
     const command = Bun.spawn(args, { env, stdin: input === undefined ? 'ignore' : new TextEncoder().encode(input), stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(timeout) })
     const [code, stdout, stderr] = await Promise.all([command.exited, new Response(command.stdout).text(), new Response(command.stderr).text()])
-    await Bun.write(join(artifacts, `device-${++sequence}-${basename(args[0]!)}.log`), stdout + stderr)
+    // A cold boot may need hundreds of ADB readiness polls. Keep their full
+    // diagnostics together so artifact collectors can retain the emulator log.
+    appendFileSync(join(artifacts, 'device-commands.jsonl'), JSON.stringify({ sequence: ++sequence, startedAt, finishedAt: new Date().toISOString(), args, code, stdout, stderr }) + '\n')
     if (code !== 0 && !allowFailure) throw new Error(`${basename(args[0]!)} failed with exit ${code}; inspect ${artifacts}`)
     return { code, stdout }
   }
