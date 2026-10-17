@@ -1,5 +1,20 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.236...v0.0.237)
+
+## 🚀 Features
+
+- **ios**: generate native app shortcuts from typed configuration ([2cc98a2](https://github.com/craft-native/craft/commit/2cc98a2)) _(by Chris Breuer)_
+- **native**: add topographic map exploration and trip reminder permissions ([8ac3107](https://github.com/craft-native/craft/commit/8ac3107)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: exercise generated native app shortcuts ([272924c](https://github.com/craft-native/craft/commit/272924c)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.235...v0.0.236)
 
 ## 🚀 Features
