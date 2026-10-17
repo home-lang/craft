@@ -1,5 +1,28 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.230...v0.0.231)
+
+## 🚀 Features
+
+- **ios**: support timed native input in installed-app tests ([52a16ed](https://github.com/craft-native/craft/commit/52a16ed)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **ios**: omit absent native font resources ([b909936](https://github.com/craft-native/craft/commit/b909936)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: verify timed touch delivery on the simulator ([8eb6548](https://github.com/craft-native/craft/commit/8eb6548)) _(by Chris Breuer)_
+- **ios**: compile and validate the timed input driver ([fa42e87](https://github.com/craft-native/craft/commit/fa42e87)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- integrate current native SDK sources ([626c814](https://github.com/craft-native/craft/commit/626c814)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.229...v0.0.230)
 
 ## 🐛 Bug Fixes
