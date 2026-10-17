@@ -5,6 +5,12 @@ import XCTest
 
 @MainActor
 final class NativeRenderUnitTests: XCTestCase {
+    func testConfiguredHomeShortcutUsesTheNativeAppDestination() throws {
+        let shortcut = try XCTUnwrap(UIApplication.shared.shortcutItems?.first { $0.type == "saved" })
+        XCTAssertEqual(shortcut.localizedTitle, "Saved trails")
+        XCTAssertEqual(shortcut.userInfo?["url"] as? String, "craft-fixture://saved")
+    }
+
     func testCelebrationStopsWhenARetainedNativeScreenLosesFocus() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
