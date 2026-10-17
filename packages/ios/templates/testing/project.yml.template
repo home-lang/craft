@@ -19,6 +19,7 @@ targets:
     platform: iOS
     sources: [UITests]
     settings:
+      SWIFT_OBJC_BRIDGING_HEADER: UITests/CraftTimedInput.h
       TEST_TARGET_NAME: {{PROJECT_NAME}}Host
       PRODUCT_BUNDLE_IDENTIFIER: {{BUNDLE_PREFIX}}.uitests
       GENERATE_INFOPLIST_FILE: YES
