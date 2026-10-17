@@ -1025,6 +1025,9 @@ class NativeNavigationTest {
             assertTrue("Restored switch thumb color should be applied", nativeSwitch.thumbTintList != null)
             val picker = awaitView(activity, "native-picker")
             assertTrue("native picker should be an Android Spinner", picker is Spinner)
+            // Spinner finishes adapter initialization on the UI queue. Drain
+            // that work before simulating a choice, as a real picker tap does.
+            instrumentation.waitForIdleSync()
             assertEquals("one", (awaitView(activity, "picker-value") as TextView).text.toString())
             assertEquals("initial picker selection must not emit onChange", "button prop default", (awaitView(activity, "native-link-status") as TextView).text.toString())
             instrumentation.runOnMainSync { (picker as Spinner).setSelection(1) }
@@ -1032,7 +1035,9 @@ class NativeNavigationTest {
             assertEquals("picker two", (awaitView(activity, "native-link-status") as TextView).text.toString())
             val itemsPicker = awaitView(activity, "native-items-picker")
             assertTrue("items picker should be an Android Spinner", itemsPicker is Spinner)
+            instrumentation.waitForIdleSync()
             assertEquals("one", (awaitView(activity, "items-picker-value") as TextView).text.toString())
+            assertEquals("reconciling another picker must not emit onChange", "picker two", (awaitView(activity, "native-link-status") as TextView).text.toString())
             instrumentation.runOnMainSync { (itemsPicker as Spinner).setSelection(1) }
             awaitText(activity, "items-picker-value", "2")
             assertEquals("items picker 2", (awaitView(activity, "native-link-status") as TextView).text.toString())
