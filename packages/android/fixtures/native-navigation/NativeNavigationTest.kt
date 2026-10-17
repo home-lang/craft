@@ -466,7 +466,7 @@ class NativeNavigationTest {
             assertTrue("Removing the top edge changed the bottom inset", root.paddingBottom >= initialRootBottom)
             click(activity, "toggle-safe-area")
             awaitText(activity, "safe-area-status", "Safe edges: top,bottom")
-            assertTrue("Restoring the top edge did not restore the window inset", root.paddingTop > authoredRootPadding)
+            assertEquals("Restoring the top edge changed the original native safe-area padding", initialRootTop, root.paddingTop)
             val retained = awaitView(activity, "retained-safe-area")
             val retainedAuthoredPadding = (4 * activity.resources.displayMetrics.density).toInt()
             val plainRetainedPadding = retained.paddingTop
@@ -474,7 +474,7 @@ class NativeNavigationTest {
             click(activity, "toggle-retained-safe-area")
             awaitText(activity, "retained-safe-area-status", "Retained: safe")
             assertSame("type-switched retained container was replaced", retained, awaitView(activity, "retained-safe-area"))
-            assertTrue("SafeAreaView type switch did not add the window inset", retained.paddingTop > plainRetainedPadding)
+            assertEquals("SafeAreaView type switch did not apply the received top inset", plainRetainedPadding + initialRootTop - authoredRootPadding, retained.paddingTop)
             click(activity, "toggle-retained-safe-area")
             awaitText(activity, "retained-safe-area-status", "Retained: plain")
             assertSame("retained container changed identity on the way back", retained, awaitView(activity, "retained-safe-area"))
