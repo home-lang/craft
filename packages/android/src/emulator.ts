@@ -1,0 +1,141 @@
+import { closeSync, mkdirSync, mkdtempSync, openSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, isAbsolute, join, resolve } from 'node:path'
+
+export interface AndroidEmulatorOptions {
+  sdkRoot: string
+  sdkmanager: string
+  avdmanager: string
+  image: string
+  acceleration: 'hardware' | 'software'
+  artifactsDirectory: string
+  temporaryDirectory?: string
+  port?: number
+  acceptLicenses?: boolean
+  env?: Record<string, string | undefined>
+}
+
+export interface AndroidEmulatorSession {
+  serial: string
+  adb: string
+  env: Record<string, string | undefined>
+  /** Stops only this session's process and removes only its disposable AVD. */
+  dispose: () => Promise<void>
+}
+
+/** Provision and own a real Android emulator on a macOS or Linux SDK host. */
+export async function createAndroidEmulator(options: AndroidEmulatorOptions): Promise<AndroidEmulatorSession> {
+  if (!['darwin', 'linux'].includes(process.platform)) throw new Error('Android emulator sessions require macOS or Linux')
+  if (!['hardware', 'software'].includes(options.acceleration)) throw new Error('Select hardware or software Android emulation explicitly')
+  if (![options.sdkmanager, options.avdmanager].every(isAbsolute)) throw new Error('Select absolute Android command-line tool paths')
+  const abi = process.arch === 'arm64' ? 'arm64-v8a' : process.arch === 'x64' ? 'x86_64' : undefined
+  if (!abi || !/^system-images;android-\d+;[^;\s]+;[^;\s]+$/.test(options.image) || !options.image.endsWith(`;${abi}`))
+    throw new Error('The Android system image must match the host architecture')
+  if (options.acceleration === 'software' && process.arch !== 'x64')
+    throw new Error('Android software emulation requires an x86_64 host and system image')
+  const port = options.port ?? 5558
+  if (!Number.isInteger(port) || port < 5554 || port > 5682 || port % 2 !== 0) throw new Error('Android console ports must be even and between 5554 and 5682')
+  const sdk = resolve(options.sdkRoot)
+  const artifacts = resolve(options.artifactsDirectory)
+  const temporary = options.temporaryDirectory ?? tmpdir()
+  mkdirSync(artifacts, { recursive: true })
+  mkdirSync(temporary, { recursive: true })
+  const owned = mkdtempSync(join(temporary, 'craft-android-emulator-'))
+  const name = basename(owned)
+  const serial = `emulator-${port}`
+  const env: Record<string, string | undefined> = {
+    ...process.env, ...options.env,
+    ANDROID_HOME: sdk,
+    ANDROID_SDK_ROOT: sdk,
+    ANDROID_SDK_HOME: owned,
+    ANDROID_USER_HOME: join(owned, '.android'),
+    ANDROID_EMULATOR_HOME: join(owned, '.android'),
+    ANDROID_AVD_HOME: join(owned, 'avd'),
+    ANDROID_SERIAL: serial,
+    // avdmanager uses this location to resolve --package against sdkRoot,
+    // even when Pantry installed the command-line tools in a separate prefix.
+    AVDMANAGER_OPTS: `'-Dcom.android.sdkmanager.toolsdir=${join(sdk, 'cmdline-tools/latest')}'`,
+  }
+  const adb = join(sdk, 'platform-tools/adb')
+  const executable = join(sdk, 'emulator/emulator')
+  let child: ReturnType<typeof Bun.spawn> | undefined
+  let log: number | undefined
+  let created = false
+  let sequence = 0
+  let disposal: Promise<void> | undefined
+  async function run(args: string[], input?: string, timeout = 900_000, allowFailure = false): Promise<{ code: number, stdout: string }> {
+    const command = Bun.spawn(args, { env, stdin: input === undefined ? 'ignore' : new TextEncoder().encode(input), stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(timeout) })
+    const [code, stdout, stderr] = await Promise.all([command.exited, new Response(command.stdout).text(), new Response(command.stderr).text()])
+    await Bun.write(join(artifacts, `device-${++sequence}-${basename(args[0]!)}.log`), stdout + stderr)
+    if (code !== 0 && !allowFailure) throw new Error(`${basename(args[0]!)} failed with exit ${code}; inspect ${artifacts}`)
+    return { code, stdout }
+  }
+  const dispose = (): Promise<void> => disposal ??= (async () => {
+    try {
+      if (child && child.exitCode === null) {
+        child.kill('SIGTERM')
+        await Promise.race([child.exited, Bun.sleep(10_000)])
+        if (child.exitCode === null) child.kill('SIGKILL')
+        await child.exited
+      }
+      if (created) await run([options.avdmanager, 'delete', 'avd', '--name', name], undefined, 30_000)
+    }
+    finally {
+      if (log !== undefined) closeSync(log)
+      rmSync(owned, { recursive: true, force: true })
+    }
+  })()
+  try {
+    mkdirSync(env.ANDROID_AVD_HOME!, { recursive: true })
+    mkdirSync(env.ANDROID_USER_HOME!, { recursive: true })
+    if (options.acceptLicenses) await run([options.sdkmanager, `--sdk_root=${sdk}`, '--licenses'], 'y\n'.repeat(100))
+    await run([options.sdkmanager, `--sdk_root=${sdk}`, 'platform-tools', 'emulator'], options.acceptLicenses ? 'y\n'.repeat(100) : undefined)
+    const acceleration = await run([executable, '-accel-check'], undefined, 30_000, true)
+    if (options.acceleration === 'hardware' && acceleration.code !== 0)
+      throw new Error(`Android hardware acceleration is unavailable; inspect ${artifacts}`)
+    await run([options.sdkmanager, `--sdk_root=${sdk}`, options.image], options.acceptLicenses ? 'y\n'.repeat(100) : undefined)
+    const devices = (await run([adb, 'devices'], undefined, 10_000)).stdout
+    if (devices.split('\n').some(line => line.startsWith(`${serial}\t`))) throw new Error(`${serial} is already in use`)
+    await run([options.avdmanager, 'create', 'avd', '--name', name, '--package', options.image, '--device', 'pixel_6'], 'no\n')
+    created = true
+    log = openSync(join(artifacts, 'emulator.log'), 'w')
+    child = Bun.spawn([executable, '-avd', name, '-port', String(port), '-no-window', '-no-snapshot', '-no-audio', '-no-boot-anim', '-gpu', 'swiftshader_indirect', '-memory', '2048', '-cores', '2', '-accel', options.acceleration === 'software' ? 'off' : 'on'], { env, stdout: log, stderr: log })
+    const identity = { image: options.image, acceleration: options.acceleration, accelerationProbeExitCode: acceleration.code, serial, avdDirectory: env.ANDROID_AVD_HOME, emulatorPid: child.pid }
+    await Bun.write(join(artifacts, 'android-emulator.json'), JSON.stringify(identity, null, 2) + '\n')
+    const deadline = Date.now() + 600_000
+    while (Date.now() < deadline && child.exitCode === null) {
+      let booted = false
+      // Nonzero ADB exits are expected while services initialize. Filesystem,
+      // logging and process-launch errors must remain fatal and visible.
+      const connection = await run([adb, 'devices'], undefined, 10_000, true)
+      if (connection.code === 0 && connection.stdout.includes(`${serial}\tdevice`)) {
+        const completion = await run([adb, '-s', serial, 'shell', 'getprop', 'sys.boot_completed'], undefined, 10_000, true)
+        if (completion.code === 0 && completion.stdout.trim() === '1') {
+          // boot_completed can precede SettingsProvider and System UI readiness.
+          const settings = await run([adb, '-s', serial, 'shell', 'settings', 'get', 'global', 'animator_duration_scale'], undefined, 10_000, true)
+          const packages = await run([adb, '-s', serial, 'shell', 'pm', 'path', 'android'], undefined, 10_000, true)
+          const systemUi = await run([adb, '-s', serial, 'shell', 'pidof', 'com.android.systemui'], undefined, 10_000, true)
+          booted = settings.code === 0 && packages.code === 0 && systemUi.code === 0
+            && /^package:\/\S+/m.test(packages.stdout) && /^\d+(?:\s+\d+)*$/.test(systemUi.stdout.trim())
+        }
+      }
+      if (booted) {
+        await Bun.write(join(artifacts, 'android-emulator.json'), JSON.stringify({ ...identity, bootedAt: new Date().toISOString() }, null, 2) + '\n')
+        return { serial, adb, env, dispose }
+      }
+      await Bun.sleep(2000)
+    }
+    throw new Error(`The owned Android emulator did not boot; inspect ${artifacts}`)
+  }
+  catch (error) {
+    if (child) {
+      for (const args of [['logcat', '-d', '-b', 'crash'], ['shell', 'dumpsys', 'activity', 'processes']]) {
+        try { await run([adb, '-s', serial, ...args], undefined, 10_000, true) }
+        catch { /* The emulator log remains available if ADB has disconnected. */ }
+      }
+    }
+    try { await dispose() }
+    catch (cleanup) { throw new AggregateError([error, cleanup], 'Android emulator setup and cleanup failed') }
+    throw error
+  }
+}

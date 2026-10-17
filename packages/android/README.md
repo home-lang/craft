@@ -75,6 +75,41 @@ bun add craft-native
 
 ## Quick Start
 
+For CI device tests, `@craft-native/android` also exports
+`createAndroidEmulator()`. Provision the pinned JDK and Android command-line
+tools with the Pantry action, then pass absolute `sdkmanager` and `avdmanager`
+paths, `sdkRoot`, `image`, `artifactsDirectory`, and an explicit `acceleration`
+mode. The image ABI must match the host. For example:
+
+```ts
+import { createAndroidEmulator } from '@craft-native/android'
+
+const device = await createAndroidEmulator({
+  sdkRoot: '/ci/android-sdk',
+  sdkmanager: '/ci/pantry/.bin/sdkmanager',
+  avdmanager: '/ci/pantry/.bin/avdmanager',
+  image: 'system-images;android-35;google_apis_playstore;x86_64',
+  acceleration: 'software',
+  artifactsDirectory: '/ci/artifacts/android',
+  acceptLicenses: true,
+})
+try {
+  // Use device.adb, device.serial and device.env for the app's acceptance tests.
+}
+finally {
+  await device.dispose()
+}
+```
+
+`hardware` requires a successful emulator acceleration probe. `software` uses
+the Android emulator's explicit `-accel off` mode on x86_64 hosts; it provides
+functional test evidence, with no claim about hardware performance. Both modes
+use the same ten-minute boot budget and require SettingsProvider, the package
+manager and System UI to be ready. Logs record the selected image, acceleration
+probe, process identity and boot result. Disposal reaps only the owned process
+and deletes only its disposable AVD; the managed SDK and other devices remain
+available.
+
 ### 1. Initialize Project
 
 ```bash

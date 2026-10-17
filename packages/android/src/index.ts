@@ -1,7 +1,7 @@
 /**
  * Craft Android Builder
  *
- * Generates native Android apps from web content using WebView.
+ * Generates Android apps with native Craft components and optional WebView content.
  */
 
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -10,6 +10,8 @@ import { $ } from 'bun'
 import { renderAndroidPromiseRuntime } from './promise-runtime'
 
 export { runKotlinFixture } from './testing.js'
+export { createAndroidEmulator } from './emulator.js'
+export type { AndroidEmulatorOptions, AndroidEmulatorSession } from './emulator.js'
 
 /** Package custom fonts and their licenses; removed fonts cannot linger in the app. */
 export function syncNativeFonts(fonts: CraftAndroidConfig['nativeFonts'], output: string): string[] {
