@@ -128,6 +128,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
         if (counts.get('/ios/restart.mp4') !== 1) throw new Error('iOS process did not start interrupted download')
         print(await run(['xcrun', 'simctl', 'spawn', simulator, executable, base, 'recover']))
         if (counts.get('/ios/slow.mp4') !== 1) throw new Error('iOS duplicate fetch: keep did not coalesce')
+        if (counts.get('/ios/account/slow.mp4') !== 2) throw new Error('iOS account switch did not start a fresh transfer')
         print('PASS: iOS simulator interruption, restart, retry, prune and cached video decode')
       }
     }
@@ -188,6 +189,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
         if (counts.get('/android/restart.mp4') !== 1) throw new Error('Android process did not start interrupted download')
         await probe('recover')
         if (counts.get('/android/slow.mp4') !== 1) throw new Error('Android duplicate fetch: keep did not coalesce')
+        if (counts.get('/android/account/slow.mp4') !== 2) throw new Error('Android account switch did not start a fresh transfer')
         print('PASS: Android emulator interruption, restart, retry, prune and cached video decode')
       }
     }
