@@ -2,6 +2,9 @@
 import { access } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 
+export { verifyMobileMediaCache } from './mobile-media-testing'
+export type { MobileMediaCacheTestOptions } from './mobile-media-testing'
+
 export type MobileTestDeviceOptions =
   | { platform: 'ios', device: string, appId: string, xcrun?: string }
   | { platform: 'android', device: string, appId: string, adb?: string }

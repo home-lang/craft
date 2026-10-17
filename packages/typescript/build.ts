@@ -38,6 +38,7 @@ await cp(resolve(root, '../ios/templates/CraftNativeMutation.swift'), resolve(di
 
 // Project templates are runtime data used by `craft-sdk init`.
 await cp(resolve(root, '../../templates/projects'), resolve(dist, 'templates/projects'), { recursive: true })
+await cp(resolve(root, 'fixtures/media-cache'), resolve(dist, 'testing/media-cache'), { recursive: true })
 
 await build(['src/index.ts'], 'dist')
 await build(['src/mobile-testing.ts'], 'dist')

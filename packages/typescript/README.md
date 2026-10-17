@@ -546,6 +546,24 @@ A failed transfer is never published as a playable cached video.
 `craft.media.prune(keepUrls)` removes only unwanted files in the media cache;
 it does not clear app storage, workout progress, snapshots or databases.
 
+The Bun-only testing entrypoint verifies those guarantees on native devices:
+
+```ts
+import { verifyMobileMediaCache } from 'craft-native/testing'
+
+await verifyMobileMediaCache({ platform: 'ios' }) // creates and deletes its own simulator
+await verifyMobileMediaCache({ platform: 'android', device: 'emulator-5554', online: true })
+```
+
+Android requires an explicitly selected disposable emulator and an installed
+Gradle CLI. Xcode and an available simulator runtime are required for iOS. The
+probe uses a bounded 16 MB disk image on iOS and an isolated `/dev/full` write
+on Android; it never fills the host disk or an athlete's data partition. It
+checks `NO_SPACE`, partial-file cleanup, preserved state outside the cache,
+redownloading, interrupted transfers and decoding a local video frame. Set
+`storageOnly: true` for only the disk-full cases, or `sourceRoot` to Craft's
+absolute `packages` path during upstream development before publication.
+
 ## License
 
 MIT © [Chris Breuer](https://github.com/chrisbbreuer)
