@@ -1,5 +1,36 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.225...v0.0.226)
+
+## 🐛 Bug Fixes
+
+- **browser**: invalidate pending cached video playback on clear ([6759dc4](https://github.com/craft-native/craft/commit/6759dc4)) _(by Chris Breuer)_
+- **browser**: clear video downloads safely across account changes ([c62a8b2](https://github.com/craft-native/craft/commit/c62a8b2)) _(by Chris Breuer)_
+- **ci**: derive Android acceptance counts from the selected tests ([0b51ebc](https://github.com/craft-native/craft/commit/0b51ebc)) _(by Chris Breuer)_
+- **android**: isolate video transfers across cache clears ([8d4912d](https://github.com/craft-native/craft/commit/8d4912d)) _(by Chris Breuer)_
+- **ios**: invalidate video downloads when clearing the cache ([bda169a](https://github.com/craft-native/craft/commit/bda169a)) _(by Chris Breuer)_
+- **android**: normalize retained tab frames when displaying screens ([d751a98](https://github.com/craft-native/craft/commit/d751a98)) _(by Chris Breuer)_
+- **ios**: preserve image corner clipping across resize modes ([98d8d14](https://github.com/craft-native/craft/commit/98d8d14)) _(by Chris Breuer)_
+- **android**: preserve images when optional cache encoding exhausts memory ([2c2f856](https://github.com/craft-native/craft/commit/2c2f856)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: await bound native text before asserting routes ([d43bf56](https://github.com/craft-native/craft/commit/d43bf56)) _(by Chris Breuer)_
+- **android**: verify image tint transitions in fixture order ([0ebdb18](https://github.com/craft-native/craft/commit/0ebdb18)) _(by Chris Breuer)_
+- **ios**: track media transfer identities in builder contracts ([476e856](https://github.com/craft-native/craft/commit/476e856)) _(by Chris Breuer)_
+- **android**: read transformed layout report labels ([bf92bd9](https://github.com/craft-native/craft/commit/bf92bd9)) _(by Chris)_
+- **android**: assert native numeric picker serialization ([209251e](https://github.com/craft-native/craft/commit/209251e)) _(by Chris)_
+- **native**: bind picker fixture items through stx ([fc0a387](https://github.com/craft-native/craft/commit/fc0a387)) _(by Chris)_
+- **android**: await picker initialization before native selection ([c264b47](https://github.com/craft-native/craft/commit/c264b47)) _(by Chris)_
+- **android**: cover retained tab visibility after swipe cleanup ([52e2905](https://github.com/craft-native/craft/commit/52e2905)) _(by Chris)_
+- **android**: preserve the current status before picker changes ([b998637](https://github.com/craft-native/craft/commit/b998637)) _(by Chris)_
+- **android**: preserve the current control status before picker checks ([990d54f](https://github.com/craft-native/craft/commit/990d54f)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.224...v0.0.225)
 
 ## 🚀 Features
