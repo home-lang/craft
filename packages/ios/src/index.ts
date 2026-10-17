@@ -1316,10 +1316,21 @@ export function productName(name: string): string {
   return /^\d/.test(joined) ? `App${joined}` : joined
 }
 
-/** Restore package-owned Swift into an existing project, without changing its Xcode metadata or bundled screens. */
+/** Restore package-owned Swift, retaining Xcode metadata and bundled screens.
+ * Xcode Cloud assigns the distributed build number independently of the source
+ * config; keep the packaged runtime identity in step with Apple's build.
+ */
 export function restoreShell(output: string): void {
-  const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8')) as CraftConfig
+  const file = join(output, 'craft.config.json')
+  const config = JSON.parse(readFileSync(file, 'utf8')) as CraftConfig
+  const cloudBuild = process.env.CI_BUILD_NUMBER
+  if (cloudBuild !== undefined) {
+    if (!/^[1-9]\d*$/.test(cloudBuild) || cloudBuild.trim() !== cloudBuild)
+      throw new Error('CI_BUILD_NUMBER must be a positive integer')
+    config.buildNumber = cloudBuild
+  }
   writeShell(output, config)
+  if (cloudBuild !== undefined) writeFileSync(file, JSON.stringify(config, null, 2))
 }
 
 export { assertNoApplicationSwiftSources, findApplicationSwiftSources } from './source-audit.js'

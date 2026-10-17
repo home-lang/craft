@@ -25,6 +25,7 @@ import {
   renderUrlTypes,
   renderWatchEntitlements,
   resolveCraftVersion,
+  restoreShell,
   syncWebAssets,
   syncNativeFonts,
 } from './index'
@@ -34,6 +35,55 @@ import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
 afterAll(removeAllTempDirs)
 
 describe('Craft iOS builder', () => {
+  it('restores the shell with the actual Xcode Cloud build identity without changing other resources', () => {
+    const output = createTempDir('craft-cloud-identity-')
+    const file = join(output, 'craft.config.json')
+    const original = { appName: 'Cloud App', bundleId: 'com.example.cloud', version: '1.0.0', buildNumber: '73', renderer: 'native', custom: { retained: true } }
+    writeFileSync(file, JSON.stringify(original))
+    writeFileSync(join(output, 'Info.plist'), 'Xcode-owned metadata')
+    writeFileSync(join(output, 'native-screen.js'), 'immutable compiled screens')
+    const saved = process.env.CI_BUILD_NUMBER
+    try {
+      process.env.CI_BUILD_NUMBER = '74'
+      restoreShell(output)
+      expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ ...original, buildNumber: '74' })
+      expect(readFileSync(join(output, 'Info.plist'), 'utf8')).toBe('Xcode-owned metadata')
+      expect(readFileSync(join(output, 'native-screen.js'), 'utf8')).toBe('immutable compiled screens')
+      expect(existsSync(join(output, 'Sources', 'CloudAppApp.swift'))).toBe(true)
+      const restored = readFileSync(file, 'utf8')
+      restoreShell(output)
+      expect(readFileSync(file, 'utf8')).toBe(restored)
+      delete process.env.CI_BUILD_NUMBER
+      writeFileSync(file, JSON.stringify(original))
+      restoreShell(output)
+      expect(readFileSync(file, 'utf8')).toBe(JSON.stringify(original))
+    }
+    finally {
+      if (saved === undefined) delete process.env.CI_BUILD_NUMBER
+      else process.env.CI_BUILD_NUMBER = saved
+    }
+  })
+
+  it('rejects invalid Xcode Cloud build numbers before changing the restored project', () => {
+    const output = createTempDir('craft-cloud-identity-invalid-')
+    const file = join(output, 'craft.config.json')
+    const original = JSON.stringify({ appName: 'Cloud App', bundleId: 'com.example.cloud', buildNumber: '73' })
+    writeFileSync(file, original)
+    const saved = process.env.CI_BUILD_NUMBER
+    try {
+      for (const value of ['', '0', '-1', '1.2', ' 74', '74\n', 'hash']) {
+        process.env.CI_BUILD_NUMBER = value
+        expect(() => restoreShell(output)).toThrow('CI_BUILD_NUMBER must be a positive integer')
+        expect(readFileSync(file, 'utf8')).toBe(original)
+        expect(existsSync(join(output, 'Sources'))).toBe(false)
+      }
+    }
+    finally {
+      if (saved === undefined) delete process.env.CI_BUILD_NUMBER
+      else process.env.CI_BUILD_NUMBER = saved
+    }
+  })
+
   it('bundles custom fonts with their licenses and removes retired fonts', async () => {
     const root = createTempDir('craft-native-fonts-')
     const font = join(root, 'Signature.ttf')
