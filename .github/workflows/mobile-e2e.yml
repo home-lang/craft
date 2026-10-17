@@ -71,6 +71,11 @@ on:
         type: choice
         options: [all, ios-render, ios-navigation, android-navigation]
         default: all
+      android_suite:
+        description: Android native fixture coverage for the android-navigation scope
+        type: choice
+        options: [focused, full]
+        default: focused
       selectors:
         description: Optional XCTest selector for focused native iOS rendering or navigation
         type: string
@@ -592,6 +597,8 @@ jobs:
           retention-days: 30
 
   android-navigation:
+    env:
+      CRAFT_ANDROID_NATIVE_SUITE: ${{ inputs.android_suite || 'focused' }}
     if: ${{ inputs.scope == 'android-navigation' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -634,17 +641,24 @@ jobs:
           script: |
             mkdir -p artifacts/android-navigation
             adb shell settings put global animator_duration_scale 1
-            STX_CLI="$GITHUB_WORKSPACE/.stx-compiler/packages/stx/bin/cli.ts" CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1 TMPDIR="$GITHUB_WORKSPACE/artifacts/android-navigation" CRAFT_ANDROID_TEST_CLASS="dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#nativePullToRefreshSurvivesViewReattachment,dev.craft.navigationtest.NativeNavigationTest#pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack,dev.craft.navigationtest.NativeFlatListTest#refreshAppearanceUsesTheScreenContrastFallback,dev.craft.navigationtest.NativeNavigationTest#nativeDatePickerKeepsFollowingControlsMounted" bun packages/android/scripts/test-native-navigation.ts
-      - name: Require all focused navigation checks to pass without skips
+            if [ "$CRAFT_ANDROID_NATIVE_SUITE" = full ]; then
+              export CRAFT_ANDROID_TEST_CLASS=''
+            else
+              export CRAFT_ANDROID_TEST_CLASS="dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#nativePullToRefreshSurvivesViewReattachment,dev.craft.navigationtest.NativeNavigationTest#pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack,dev.craft.navigationtest.NativeFlatListTest#refreshAppearanceUsesTheScreenContrastFallback,dev.craft.navigationtest.NativeNavigationTest#nativeDatePickerKeepsFollowingControlsMounted"
+            fi
+            STX_CLI="$GITHUB_WORKSPACE/.stx-compiler/packages/stx/bin/cli.ts" CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1 TMPDIR="$GITHUB_WORKSPACE/artifacts/android-navigation" bun packages/android/scripts/test-native-navigation.ts
+      - name: Require the selected Android suite to pass without skips
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import os
           import xml.etree.ElementTree as ET
           files = list(Path('artifacts/android-navigation').rglob('TEST-*.xml'))
           cases = [case for file in files for case in ET.parse(file).iter('testcase')]
-          assert len(cases) == 6, f'Expected six tests, got {len(cases)}'
+          expected = 28 if os.environ['CRAFT_ANDROID_NATIVE_SUITE'] == 'full' else 6
+          assert len(cases) == expected, f'Expected {expected} tests, got {len(cases)}'
           assert not any(case.find(tag) is not None for case in cases for tag in ['failure', 'error', 'skipped'])
-          print('Passed six focused Android navigation checks, zero skips')
+          print(f'Passed {expected} Android native checks, zero skips')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
