@@ -1512,6 +1512,7 @@ export async function init(options: InitOptions): Promise<void> {
   }
 
   const projectYml = projectYmlTemplate
+    .replace(/\{\{NATIVE_FONT_RESOURCES\}\}/g, nativeFontFiles.length ? '      - path: NativeFonts\n        type: folder\n        buildPhase: resources' : '')
     .replace(/\{\{CRAFT_RUNTIME_SETTINGS\}\}/g, hasRuntime ? renderRuntimeSettings() : '')
     .replace(/\{\{FEATURE_SETTINGS\}\}/g, renderFeatureSettings(config))
     .replace(/\{\{APP_NAME\}\}/g, name)
