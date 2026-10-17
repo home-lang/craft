@@ -1,5 +1,26 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.232...v0.0.233)
+
+## 🐛 Bug Fixes
+
+- **android**: preserve navigation glyph contrast on dark screens ([6adf378](https://github.com/craft-native/craft/commit/6adf378)) _(by Chris Breuer)_
+- **android**: synchronize legacy status bar backgrounds ([d2f181d](https://github.com/craft-native/craft/commit/d2f181d)) _(by Chris Breuer)_
+- **android**: match system insets to the visible screen background ([1bf31e6](https://github.com/craft-native/craft/commit/1bf31e6)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: wait for appearance changes independently of app color ([e0fd69f](https://github.com/craft-native/craft/commit/e0fd69f)) _(by Chris Breuer)_
+- **android**: cover screen backgrounds beneath system insets ([041f936](https://github.com/craft-native/craft/commit/041f936)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- integrate current native input fixes ([b55533b](https://github.com/craft-native/craft/commit/b55533b)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.231...v0.0.232)
 
 ## 🐛 Bug Fixes
