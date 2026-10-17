@@ -1392,14 +1392,15 @@ class NativeNavigationTest {
         ) as MainActivity
         try {
             click(activity, "navigation-open-details")
-            awaitText(activity, "details-title", "Details for Ada")
+            val details = awaitText(activity, "details-title", "Details for Ada")
             val accessory = awaitView(activity, "Open capabilities")
             instrumentation.runOnMainSync { accessory.performClick() }
             awaitView(activity, "capabilities-title")
             // The shell retains its accessory view and hides it with GONE.
             awaitView(activity, "Open capabilities") { !it.isShown }
             instrumentation.runOnMainSync { activity.onBackPressedDispatcher.onBackPressed() }
-            awaitText(activity, "details-title", "Details for Ada")
+            assertFalse("system Back finished the native activity", activity.isFinishing)
+            assertSame("system Back replaced the retained screen", details, awaitText(activity, "details-title", "Details for Ada"))
             awaitView(activity, "Open capabilities")
             click(activity, "details-back")
             awaitView(activity, "home-title")

@@ -92,6 +92,7 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.MediaController
 import android.widget.VideoView
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -3826,6 +3827,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         applyConfiguredAppearance()
         super.onCreate(savedInstanceState)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = handleNativeBack()
+        })
         initialDeepLink = savedInstanceState?.getString("craft.initialDeepLink")?.let(Uri::parse) ?: intent?.data
         initialDeepLinkClaimed = savedInstanceState?.getBoolean("craft.initialDeepLinkClaimed", false) ?: false
         deliveredInitialDeepLink = savedInstanceState?.getBoolean("craft.deliveredInitialDeepLink", false) ?: false
@@ -3987,8 +3991,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onBackPressedDispatcherCompat() {
-        @Suppress("DEPRECATION")
-        onBackPressed()
+        onBackPressedDispatcher.onBackPressed()
     }
 
     private fun haptic() {
@@ -7286,7 +7289,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Deprecated("Uses the activity back callback for native route navigation")
-    override fun onBackPressed() {
+    override fun onBackPressed() = handleNativeBack()
+
+    private fun handleNativeBack() {
         val screen = screens.lastOrNull() ?: return back()
         val modal = screen.modalVisibility.entries.lastOrNull { (view, visible) -> visible && view.visibility == View.VISIBLE }
         if (modal != null) {

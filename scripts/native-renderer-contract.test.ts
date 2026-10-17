@@ -2897,6 +2897,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('else setWindowSafeInsets(0, 0, 0, 0)')
   })
 
+  it('routes AndroidX system Back through the native stack and modal handler', () => {
+    expect(android).toContain('onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true)')
+    expect(android).toContain('override fun handleOnBackPressed() = handleNativeBack()')
+    expect(android).toContain('override fun onBackPressed() = handleNativeBack()')
+    expect(android).toContain('private fun handleNativeBack()')
+    expect(androidNavigationTest).toContain('activity.onBackPressedDispatcher.onBackPressed()')
+  })
+
   it('exercises the pushed-screen tab accessory on both maintained hosts', () => {
     expect(navigationDetails).toContain("path: '/capabilities'")
     expect(navigationDetails).toContain("accessibilityLabel: 'Open capabilities'")
