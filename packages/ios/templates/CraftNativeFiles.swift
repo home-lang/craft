@@ -514,7 +514,11 @@ enum CraftNativeMedia {
 
     private static let lock = NSLock()
     /// Addresses being fetched now, so a second `keep` waits for the first.
-    private static var inFlight: [String: [(Result<Any, CraftNativeActionError>) -> Void]] = [:]
+    private struct Flight {
+        let id: UUID
+        var waiting: [(Result<Any, CraftNativeActionError>) -> Void]
+    }
+    private static var inFlight: [String: Flight] = [:]
 
     /// Where `address`'s copy lives (whether or not it is there yet). The
     /// extension is the address's, because AVPlayer reads the type from it.
@@ -537,28 +541,29 @@ enum CraftNativeMedia {
         return ["ok": true, "url": address, "path": url.path, "size": size]
     }
 
-    /// Joins a fetch of `address` already under way; true when one was.
-    static func join(_ address: String, _ done: @escaping (Result<Any, CraftNativeActionError>) -> Void) -> Bool {
+    /// A new download's identity, or nil after joining an existing download.
+    static func begin(_ address: String, _ done: @escaping (Result<Any, CraftNativeActionError>) -> Void) -> UUID? {
         lock.lock()
         defer { lock.unlock() }
         if inFlight[address] != nil {
-            inFlight[address]!.append(done)
-            return true
+            inFlight[address]!.waiting.append(done)
+            return nil
         }
-        inFlight[address] = [done]
-        return false
+        let id = UUID()
+        inFlight[address] = Flight(id: id, waiting: [done])
+        return id
     }
 
-    static func finish(_ address: String, _ result: Result<Any, CraftNativeActionError>) {
+    static func finish(_ address: String, flight: UUID, _ result: Result<Any, CraftNativeActionError>) {
         lock.lock()
-        let waiting = inFlight.removeValue(forKey: address) ?? []
+        let waiting = inFlight[address]?.id == flight ? inFlight.removeValue(forKey: address)?.waiting ?? [] : []
         lock.unlock()
         for done in waiting { done(result) }
     }
 
     /// A finished download moved into place (atomically, so a half-written
     /// file is never played), or a refusal with the server's status.
-    static func store(_ address: String, at location: URL, response: HTTPURLResponse) -> Result<Any, CraftNativeActionError> {
+    static func store(_ address: String, at location: URL, response: HTTPURLResponse, flight: UUID? = nil) -> Result<Any, CraftNativeActionError> {
         guard response.statusCode == 200 else {
             return .success(["ok": false, "url": address, "status": response.statusCode])
         }
@@ -566,6 +571,9 @@ enum CraftNativeMedia {
         // Commit and prune share a lock; neither can remove a file being committed.
         lock.lock()
         defer { lock.unlock() }
+        if let flight, inFlight[address]?.id != flight {
+            return .failure(CraftNativeActionError(code: "CANCELLED", message: "The video cache was cleared"))
+        }
         let staging = root.appendingPathComponent(UUID().uuidString + ".part")
         defer { try? fm.removeItem(at: staging) }
         do {
@@ -594,6 +602,25 @@ enum CraftNativeMedia {
         catch {
             return .failure(CraftNativeActionError(code: errorCode(error, fallback: "IO_ERROR"), message: "media.keep could not store the file: \(error.localizedDescription)"))
         }
+    }
+
+    /// End an account's cache lifetime.
+    static func clear() throws -> Int {
+        lock.lock()
+        let waiting = inFlight.values.flatMap { $0.waiting }
+        inFlight.removeAll()
+        let fm = FileManager.default
+        let files = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        var removed = 0
+        var failure: Error?
+        for url in files {
+            do { try fm.removeItem(at: url); removed += 1 }
+            catch { failure = error }
+        }
+        lock.unlock()
+        for done in waiting { done(.failure(CraftNativeActionError(code: "CANCELLED", message: "The video cache was cleared"))) }
+        if let failure { throw failure }
+        return removed
     }
 
     /// Removes every copy whose address is not in `keep`; answers how many.

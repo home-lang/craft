@@ -266,6 +266,8 @@ protocol CraftHybridScreenEvents: AnyObject {
     func nativeScreen(_ screen: CraftNativeScreenController, didFail message: String)
     /// `craft.navigation.open(path)`.
     func nativeScreen(_ screen: CraftNativeScreenController, open path: String)
+    /// `craft.navigation.replace(path)`: finish the current flow atomically.
+    func nativeScreen(_ screen: CraftNativeScreenController, replace path: String)
 }
 
 // MARK: - The shell
@@ -938,6 +940,10 @@ extension CraftHybrid: CraftHybridScreenEvents {
     func nativeScreen(_ screen: CraftNativeScreenController, open path: String) {
         open(path)
     }
+
+    func nativeScreen(_ screen: CraftNativeScreenController, replace path: String) {
+        controller?.showNative(path: path, replace: true)
+    }
 }
 
 /// The page's `craftHybrid` channel, only from a trusted origin's main frame.
@@ -1519,6 +1525,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         interruptTabSwipe(restoringSelection: true)
         let tabs = hybrid.tabIds
         if let tab = tabs.first(where: { CraftHybridRoutes.normalize($0) == match.path }) {
+            // Finish the flow in its original tab before selecting another.
+            if replace, let current = visibleStack, current.viewControllers.count > 1 {
+                current.setViewControllers(Array(current.viewControllers.dropLast()), animated: false)
+            }
             if tab != currentTab {
                 selectTabAsIfTapped(tab)
             }
@@ -1541,7 +1551,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             return
         }
         let screen = entry(for: raw, isTabRoot: false, depth: nil)
-        if replace, nav.viewControllers.count > 1 {
+        if replace, !nav.viewControllers.isEmpty {
             nav.setViewControllers(Array(nav.viewControllers.dropLast()) + [screen], animated: true)
         } else {
             nav.pushViewController(screen, animated: true)
@@ -1898,6 +1908,11 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     func nativeScreen(_ screen: CraftNativeScreenController, open path: String) {
         open(path)
+    }
+
+    func nativeScreen(_ screen: CraftNativeScreenController, replace path: String) {
+        guard screen.navigationController?.topViewController === screen else { return }
+        showNative(path: path, replace: true)
     }
 
     private func log(_ message: String) {

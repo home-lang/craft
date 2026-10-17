@@ -265,6 +265,12 @@ rejected before a project is generated.
   before parameters), a tab's path selecting its tab, a path no screen draws
   opening the site in a Custom Tab; deep links and tapped notifications route
   the same way;
+- `craft.navigation.replace('/m/claim?kind=club&slug=rappid')` finishes a flow
+  atomically: the host resolves the path and query, closes the current screen,
+  and opens or reuses the destination. Android and iOS also keep supporting
+  `replace(screenName, params)` for screens without URL routes. A closing isolate
+  cannot send a second navigation message, so use this operation when completing
+  sign-in instead of sending `popToRoot()` followed by `open(path)`;
 - the app script (`nativeApp`) in its own isolate for the app's life, and in a
   WorkManager job for `backgroundRefresh` and silent pushes
   (`craftBackgroundRefresh`, `craftSilentPush`, answered with
@@ -272,6 +278,7 @@ rejected before a project is generated.
   the app script may open a matched path through `craft.navigation.open`, but
   has no native stack of its own, so `push`, `replace`, `back`, and
   `popToRoot` are no-ops;
+
 - `craft.storage.getSync`, `craft.secureStorage.getSync` and `craft.snapshots`:
   JavaScriptSandbox cannot call the host synchronously, so every isolate starts
   with a copy of these stores and the host keeps each copy current. Timers and
@@ -897,6 +904,19 @@ Compilation failures and failed checks reject the promise. The temporary
 project is removed after execution. This is also how Craft and consuming apps
 execute the native input reconciler regressions, without assuming a particular
 Gradle cache layout.
+
+## Native image caching
+
+Native `Image` keeps anonymous responses marked `public` with a positive
+`Cache-Control: max-age` in a bounded disk cache, so photos remain available
+after an offline app restart. The cache holds at most 32 MiB of encoded pixels
+and 128 entries, with an 8 MiB limit per image. Freshness and pixels are written
+atomically; failed cache writes do not fail a successful image download.
+
+Requests with custom headers, cookie responses, `no-store`, `no-cache`, and
+account-dependent variants are not persisted. Expired entries are fetched
+again. Image pixels honor authored rounded corners without requiring a
+container to hide overflow.
 
 ## License
 

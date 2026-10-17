@@ -1021,7 +1021,8 @@ internal object CraftNativeSymbols {
  * A native Video given an address with a copy here plays the copy.
  */
 internal object CraftNativeMedia {
-    private val inFlight = HashMap<String, MutableList<(CraftNativeCapabilityResult) -> Unit>>()
+    private data class Flight(val id: String, val waiting: MutableList<(CraftNativeCapabilityResult) -> Unit>)
+    private val inFlight = HashMap<String, Flight>()
     private val executor = Executors.newFixedThreadPool(2)
     private val main = Handler(Looper.getMainLooper())
 
@@ -1054,12 +1055,12 @@ internal object CraftNativeMedia {
         if (!cellular && metered(context)) {
             return done(CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("reason", "cellular")))
         }
-        synchronized(inFlight) {
+        val flight = synchronized(inFlight) {
             inFlight[address]?.let { waiting ->
-                waiting.add(done)
+                waiting.waiting.add(done)
                 return
             }
-            inFlight[address] = mutableListOf(done)
+            Flight(java.util.UUID.randomUUID().toString(), mutableListOf(done)).also { inFlight[address] = it }
         }
         executor.execute {
             val result = runCatching {
@@ -1073,7 +1074,7 @@ internal object CraftNativeMedia {
                     val target = file(context, address)
                     target.parentFile?.mkdirs()
                     // Written aside and moved into place, so a half-written file is never played.
-                    val staging = File(target.parentFile, "${target.name}.part")
+                    val staging = File(target.parentFile, "${target.name}.${flight.id}.part")
                     try {
                         val size = connection.inputStream.use { input -> staging.outputStream().use { input.copyTo(it) } }
                         val expected = connection.contentLengthLong
@@ -1081,6 +1082,9 @@ internal object CraftNativeMedia {
                             return@runCatching CraftNativeCapabilityResult(code = "NETWORK_ERROR", message = "media.keep received an incomplete file")
                         }
                         synchronized(inFlight) {
+                            if (inFlight[address]?.id != flight.id) {
+                                return@runCatching CraftNativeCapabilityResult(code = "CANCELLED", message = "The video cache was cleared")
+                            }
                             if (!staging.renameTo(target)) {
                                 return@runCatching CraftNativeCapabilityResult(code = "IO_ERROR", message = "media.keep could not store the file")
                             }
@@ -1098,7 +1102,7 @@ internal object CraftNativeMedia {
                 }
                 CraftNativeCapabilityResult(code = if (full) "NO_SPACE" else if (error is java.net.SocketTimeoutException) "TIMEOUT" else "NETWORK_ERROR", message = error.message ?: "media.keep failed")
             }
-            val waiting = synchronized(inFlight) { inFlight.remove(address) ?: mutableListOf() }
+            val waiting = synchronized(inFlight) { if (inFlight[address]?.id == flight.id) inFlight.remove(address)?.waiting.orEmpty() else emptyList() }
             main.post { waiting.forEach { it(result) } }
         }
     }
@@ -1115,12 +1119,31 @@ internal object CraftNativeMedia {
         var removed = 0
         synchronized(inFlight) {
             // A concurrent keep owns its target and staging file until it finishes.
-            val active = inFlight.keys.map { file(context, it).name }.toSet()
+            val active = inFlight.flatMap { (address, flight) ->
+                val name = file(context, address).name
+                listOf(name, "$name.${flight.id}.part")
+            }.toSet()
             root(context).listFiles()?.forEach { file ->
-                val target = file.name.removeSuffix(".part")
-                if (target !in active && file.name !in wanted && file.delete()) removed++
+                if (file.name !in active && file.name !in wanted && file.delete()) removed++
             }
         }
+        return removed
+    }
+
+    /** Invalidates old transfers before deleting files; a later keep starts afresh. */
+    fun clear(context: Context): Int {
+        var removed = 0
+        var failure: java.io.IOException? = null
+        val waiting = synchronized(inFlight) {
+            val callbacks = inFlight.values.flatMap { it.waiting }
+            inFlight.clear()
+            root(context).listFiles()?.forEach { file ->
+                if (file.delete()) removed++ else failure = java.io.IOException("The video cache could not be cleared")
+            }
+            callbacks
+        }
+        main.post { waiting.forEach { it(CraftNativeCapabilityResult(code = "CANCELLED", message = "The video cache was cleared")) } }
+        failure?.let { throw it }
         return removed
     }
 

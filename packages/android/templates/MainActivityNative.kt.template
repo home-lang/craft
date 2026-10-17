@@ -122,6 +122,8 @@ import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -3805,6 +3807,7 @@ class MainActivity : AppCompatActivity() {
     private var windowSafeInsets = intArrayOf(0, 0, 0, 0)
     private var useMessagePorts = false
     private val imageExecutor = Executors.newFixedThreadPool(2)
+    private val imageCache by lazy { CraftNativeImageCache(File(cacheDir, "craft-native-images")) }
     /** Lays out each isolate's prelude (the synchronous stores) off the main thread. */
     private val preludeExecutor = Executors.newSingleThreadExecutor()
     private val imageSources = mutableMapOf<ImageView, String>()
@@ -4088,6 +4091,7 @@ class MainActivity : AppCompatActivity() {
                 show(target)
             } else {
                 host.removeView(target.view)
+                target.view.translationX = 0f
                 current.view.translationX = 0f
                 chrome?.selectTab(currentTab)
                 tabSwipeTarget = null
@@ -4156,13 +4160,22 @@ class MainActivity : AppCompatActivity() {
      * page on the app's site in the in-app browser. Another site's address
      * opens in the browser too.
      */
-    private fun navigateOpen(target: String, fromLink: Boolean = false) {
+    private fun navigateOpen(target: String, fromLink: Boolean = false, replace: Boolean = false) {
         val path = routes.appPath(target, urlSchemes)
         if (path == null) {
             openExternal(target)
             return
         }
         val match = routes.match(path)
+        if (replace && match != null && screens.isNotEmpty()) {
+            val stack = screens
+            val removed = stack.removeAt(stack.lastIndex)
+            val previous = stack.lastOrNull()
+            closeScreen(removed) {
+                if (screens === stack && stack.lastOrNull() === previous) navigateOpen(path, fromLink)
+            }
+            return
+        }
         val tab = routes.tabFor(path)
         if (tab != null) {
             selectTab(routes.tabs.indexOf(tab))
@@ -4492,6 +4505,11 @@ class MainActivity : AppCompatActivity() {
      * screen shown before hears true (its `navigation.onAppear`).
      */
     private fun show(screen: Screen) {
+        // A retained tab may have been the offscreen preview of a cancelled
+        // swipe, or the outgoing view of a completed swipe. Its animator can
+        // finish after the peer animator, so clear that ownership on display.
+        screen.view.animate().withEndAction(null).setListener(null).cancel()
+        screen.view.translationX = 0f
         // A navigation breadcrumb: the trail a crash report carries.
         if (visibleScreen !== screen) CraftCrashReporter.screenAppeared(screen.route ?: "home")
         val bars = chrome
@@ -4770,6 +4788,12 @@ class MainActivity : AppCompatActivity() {
                 // app script has no stack of its own; it uses NAVIGATE_OPEN.
                 if (visibleScreen !== screen) return
                 val route = payload.optString("screen").takeIf { it.isNotBlank() } ?: return
+                // Resolve and replace in one host operation. A pop followed by
+                // open would send the second message from a closing isolate.
+                if (message.optString("type") == "NAVIGATE_REPLACE" && route.startsWith("/")) {
+                    navigateOpen(route, replace = true)
+                    return
+                }
                 if (message.optString("type") == "NAVIGATE_REPLACE") {
                     val stack = screens
                     val removed = stack.removeAt(stack.lastIndex)
@@ -6101,7 +6125,9 @@ class MainActivity : AppCompatActivity() {
             null
         } else defaultBackground
         val overflow = craftNativeOptionalString(style.opt("overflow"))
-        view.clipToOutline = overflow == "hidden"
+        // A replaced image clips its own pixels to border-radius, including
+        // when its surrounding layout permits visible overflow.
+        view.clipToOutline = overflow == "hidden" || (view is ImageView && (radius > 0 || hasCornerRadii))
         if (view is ViewGroup) view.clipChildren = overflow == "hidden"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
             (style.has("shadowColor") || style.has("shadowOpacity") || style.has("shadowRadius"))
@@ -6499,12 +6525,38 @@ class MainActivity : AppCompatActivity() {
         }
         imageJobs[view] = imageExecutor.submit {
             val bitmap = runCatching {
-                val connection = URL(uri).openConnection().apply {
+                val publicRequest = headers.isEmpty() && Uri.parse(uri).userInfo.isNullOrEmpty()
+                if (publicRequest) {
+                    val bytes = imageCache.read(uri)
+                    if (bytes != null) {
+                        val saved = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (saved != null) return@runCatching saved
+                        imageCache.remove(uri)
+                    }
+                }
+                val connection = (URL(uri).openConnection() as HttpURLConnection).apply {
                     connectTimeout = 10_000
                     readTimeout = 10_000
+                    // This loader owns its bounded public cache. Do not let
+                    // an application's global ResponseCache retain requests.
+                    useCaches = false
                     headers.forEach { (name, value) -> setRequestProperty(name, value) }
                 }
-                connection.getInputStream().use(BitmapFactory::decodeStream)
+                try {
+                    val downloaded = connection.inputStream.use(BitmapFactory::decodeStream)
+                    if (publicRequest) {
+                        val responseHeaders = connection.headerFields.entries.filter { it.key != null }
+                            .associate { it.key!! to it.value.orEmpty() }
+                        val policy = if (connection.responseCode == HttpURLConnection.HTTP_OK)
+                            craftNativeImagePolicy(headers, responseHeaders, System.currentTimeMillis()) else null
+                        if (downloaded != null && policy != null) {
+                            // Encode only after a complete decode, then commit
+                            // before onLoad so a cold offline reopen is safe.
+                            imageCache.write(uri, policy) { downloaded.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                        } else imageCache.remove(uri)
+                    }
+                    downloaded
+                } finally { connection.disconnect() }
             }.getOrNull()
             runOnUiThread {
                 if (imageSources[view] != requestKey) return@runOnUiThread

@@ -1225,6 +1225,7 @@ class NativeNavigationTest {
             assertTrue("ScrollView contentContainerStyle did not add top padding", image.top >= nativeScroller.top + (12 * density).toInt())
             assertScrolls(nativeScroller)
             assertTrue("Image did not render as ImageView", image is ImageView)
+            assertTrue("Image borderRadius must clip its pixels without overflow:hidden", image.clipToOutline)
             assertEquals("CraftNativeImageBackgroundView", imageBackground.javaClass.simpleName)
             assertTrue("ImageBackground child did not reconcile", awaitView(activity, "native-image-background-label") is TextView)
             assertTrue("ImageBackground image did not decode", (imageBackground as ViewGroup).getChildAt(0) is ImageView)

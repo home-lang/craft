@@ -177,6 +177,32 @@ final class FilesUnitTests: XCTestCase {
         XCTAssertEqual(CraftNativeMedia.errorCode(URLError(.notConnectedToInternet), fallback: "NETWORK_ERROR"), "NETWORK_ERROR")
     }
 
+    func testClearingVideosInvalidatesOldTransfersWithoutLosingANewTransferForTheSameURL() throws {
+        let address = "https://example.com/account-\(UUID().uuidString).mp4"
+        var cancelled = false
+        let old = try XCTUnwrap(CraftNativeMedia.begin(address) {
+            if case .failure(let error) = $0 { cancelled = error.code == "CANCELLED" }
+        })
+        _ = try CraftNativeMedia.clear()
+        XCTAssertTrue(cancelled)
+        var finished = false
+        let fresh = try XCTUnwrap(CraftNativeMedia.begin(address) { if case .success = $0 { finished = true } })
+        let response = HTTPURLResponse(url: URL(string: address)!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Length": "4"])!
+        let before = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([1, 2, 3, 4]).write(to: before)
+        defer { try? FileManager.default.removeItem(at: before) }
+        let denied = CraftNativeMedia.store(address, at: before, response: response, flight: old)
+        guard case .failure(let error) = denied else { return XCTFail("Old account's video was published") }
+        XCTAssertEqual(error.code, "CANCELLED")
+        CraftNativeMedia.finish(address, flight: old, denied)
+        let after = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([5, 6, 7, 8]).write(to: after)
+        CraftNativeMedia.finish(address, flight: fresh, CraftNativeMedia.store(address, at: after, response: response, flight: fresh))
+        XCTAssertTrue(finished)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(CraftNativeMedia.local(address))), Data([5, 6, 7, 8]))
+        _ = try CraftNativeMedia.clear()
+    }
+
     func testAnUnsolicitedPartialOrEmptyVideoIsNeverPublished() throws {
         for status in [200, 206] {
             let address = "https://example.com/empty-\(UUID().uuidString).mp4"
