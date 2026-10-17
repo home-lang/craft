@@ -781,8 +781,11 @@ final class NativeNavigationUITests: XCTestCase {
         // XCUITest lands within a step of where it is asked to (0.8 or 0.9
         // here); the script hears the step the slider shows, as a decimal.
         let shownPercent = Double((slider.value as? String ?? "").replacingOccurrences(of: "%", with: "")) ?? -1
-        let shown = (shownPercent / 10).rounded() / 10
-        XCTAssertLessThanOrEqual(abs(shown - 0.8), 0.1, "slider landed at \(shownPercent)%")
+        let shownSteps = (shownPercent / 10).rounded()
+        let shown = shownSteps / 10
+        // Compare whole native steps: 0.8 - 0.7 rounds just above 0.1
+        // in binary floating point, although it is the permitted one step.
+        XCTAssertLessThanOrEqual(abs(shownSteps - 8), 1, "slider landed at \(shownPercent)%")
         XCTAssertEqual(app.staticTexts["slider-value"].label, shown == shown.rounded() ? String(Int(shown)) : String(shown))
         XCTAssertEqual(app.staticTexts["slider-completions"].label, "Slider completions: 1")
         let booleanSlider = app.sliders["boolean-slider"]
