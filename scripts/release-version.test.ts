@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from 'bun:test'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { checkReleaseVersion, validateReleaseVersion } from './release-version'
+import { validateReleaseCheckout, checkReleaseVersion, validateReleaseVersion } from './release-version'
 import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
 
 // Every scratch directory this file made goes when the file is done (#357).
@@ -47,4 +47,16 @@ test('discovers public workspaces and Zig metadata, excluding private examples',
   finally {
     rmSync(temp, { recursive: true, force: true })
   }
+})
+
+test('refuses an incomplete sparse release checkout before a version bump', () => {
+  const root = createTempDir('craft-release-checkout-')
+  mkdirSync(join(root, 'packages', 'react'), { recursive: true })
+  const manifest = join(root, 'packages/react/package.json')
+  writeFileSync(manifest, '{"version":"1.2.3"}')
+  expect(Bun.spawnSync(['git', 'init', '-q'], { cwd: root }).exitCode).toBe(0)
+  expect(Bun.spawnSync(['git', 'add', '.'], { cwd: root }).exitCode).toBe(0)
+  expect(() => validateReleaseCheckout(root)).not.toThrow()
+  rmSync(manifest)
+  expect(() => validateReleaseCheckout(root)).toThrow('packages/react/package.json')
 })
