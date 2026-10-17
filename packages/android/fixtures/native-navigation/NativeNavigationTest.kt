@@ -306,6 +306,10 @@ class NativeNavigationTest {
 
     @Suppress("DEPRECATION")
     private fun assertSystemInsetBackground(activity: MainActivity, color: Int?, message: String) {
+        instrumentation.runOnMainSync {
+            assertTrue("system bar evidence requires the focused visible native screen",
+                activity.hasWindowFocus() && activity.window.decorView.isShown)
+        }
         assertEquals(message, color, backgroundColor(activity.findViewById<View>(R.id.native_root)))
         if (android.os.Build.VERSION.SDK_INT < 35) {
             assertEquals("$message (legacy status bar)", color, activity.window.statusBarColor)
@@ -360,7 +364,7 @@ class NativeNavigationTest {
                             "glyph=$glyphColor at=$glyphX,$glyphY contrast=$glyphContrast navigationLight=${appearance.isAppearanceLightNavigationBars} " +
                             "windowBackground=${backgroundColor(activity.window.decorView)} nativeAppearance=${activity.window.insetsController?.systemBarsAppearance} " +
                             "brightness=${activity.window.attributes.screenBrightness} flags=${activity.window.attributes.flags} format=${activity.window.attributes.format} " +
-                            "navigationMode=${Settings.Secure.getString(activity.contentResolver, "navigation_mode")}\n"
+                            "navigationMode=${Settings.Secure.getString(activity.contentResolver, "navigation_mode")} focused=${activity.hasWindowFocus()}\n"
                     java.io.File(directory, "$name.txt").writeText(metadata)
                     android.util.Log.i("CraftNativeBarProbe", metadata)
                     // Preserve the original failure, then compare the same
@@ -379,6 +383,10 @@ class NativeNavigationTest {
                         ) as NativeSystemBarsReferenceActivity
                         try {
                             SystemClock.sleep(500)
+                            instrumentation.runOnMainSync {
+                                assertTrue("system bar reference must be focused and visible",
+                                    reference.hasWindowFocus() && reference.window.decorView.isShown)
+                            }
                             val comparison = instrumentation.uiAutomation.takeScreenshot()
                                 ?: throw AssertionError("native reference screenshot unavailable")
                             java.io.File(directory, "$name-reference-$stockTheme-opaque-$opaqueNav.png").outputStream().use {
@@ -388,7 +396,7 @@ class NativeNavigationTest {
                             java.io.File(directory, "$name-reference-$stockTheme-opaque-$opaqueNav.txt").writeText(
                                 "background=${backgroundColor(reference.window.decorView)} " +
                                     "appearance=${reference.window.insetsController?.systemBarsAppearance} " +
-                                    "brightness=${attributes.screenBrightness} flags=${attributes.flags} format=${attributes.format}\n"
+                                    "brightness=${attributes.screenBrightness} flags=${attributes.flags} format=${attributes.format} focused=${reference.hasWindowFocus()}\n"
                             )
                             // The platform chooses native button tint. A
                             // platform image below the contrast target must
