@@ -1229,6 +1229,40 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertNotEqual(image?.accessibilityValue, "Unsupported image source")
     }
 
+    func testMultilineRendersPreserveCompositionAndApplyTypographyAfterCommit() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        func content(_ value: String, fontSize: Int, caption: String) -> [String: Any] {
+            document([
+                ["type": "TextInput", "props": ["key": "claim-proof", "multiline": true, "value": value], "style": ["fontSize": fontSize]],
+                node("Text", key: "caption", text: caption),
+            ])
+        }
+        controller.render(content("", fontSize: 16, caption: "Before"))
+        let proof = try XCTUnwrap(find(UITextView.self, key: "claim-proof", below: controller.view))
+        XCTAssertTrue(proof.becomeFirstResponder())
+        proof.setMarkedText("ラン", selectedRange: NSRange(location: 2, length: 0))
+        let marked = try XCTUnwrap(proof.markedTextRange)
+        XCTAssertEqual(proof.text(in: marked), "ラン")
+
+        controller.render(content("", fontSize: 22, caption: "Updated while composing"))
+
+        XCTAssertTrue(proof === find(UITextView.self, key: "claim-proof", below: controller.view))
+        XCTAssertTrue(proof.isFirstResponder)
+        XCTAssertEqual(proof.text, "ラン")
+        let retained = try XCTUnwrap(proof.markedTextRange, "A reactive render must not commit or discard the keyboard's composition")
+        XCTAssertEqual(proof.text(in: retained), "ラン")
+        proof.unmarkText()
+        proof.insertText(" club")
+        controller.render(content("ラン club", fontSize: 22, caption: "Committed"))
+        XCTAssertEqual(proof.text, "ラン club")
+        XCTAssertNil(proof.markedTextRange)
+        XCTAssertEqual(proof.font?.pointSize, 22)
+    }
+
     func testTextInputsPadTheirTextAndAskForAutofill() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
