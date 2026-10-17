@@ -802,6 +802,8 @@ class NativeNavigationTest {
             awaitText(activity, "long-press-status", "long press enabled")
             assertTrue("re-enabled long-press view did not accept a click", longPressPanel.performLongClick())
             awaitText(activity, "long-press-status", "panel long pressed")
+            val initiallyTintedBackground = awaitView(activity, "native-image-background") as ViewGroup
+            assertTrue("initial ImageBackground tint was not applied", (initiallyTintedBackground.getChildAt(0) as ImageView).colorFilter != null)
             click(activity, "toggle-image-tint")
             awaitText(activity, "image-tint-status", "image tint off")
             awaitImageTintCleared(activity, "native-image")
@@ -1233,7 +1235,7 @@ class NativeNavigationTest {
             val backgroundImage = imageBackground.getChildAt(0) as ImageView
             assertEquals("ImageBackground resizeMode prop did not select cover", ImageView.ScaleType.CENTER_CROP, backgroundImage.scaleType)
             assertTrue("ImageBackground image is empty", backgroundImage.drawable != null)
-            assertTrue("ImageBackground tint was not applied to its image", backgroundImage.colorFilter != null)
+            assertTrue("ImageBackground lost its cleared tint state", backgroundImage.colorFilter == null)
             awaitText(activity, "image-background-error-status", "background failed")
             assertTrue("ImageBackground accessibility label was lost on failure", unsupportedBackground.contentDescription.toString().contains("Unsupported background"))
             assertTrue("ImageBackground error did not reach accessibility metadata", unsupportedBackground.contentDescription.toString().contains("Unsupported image source"))
@@ -1292,9 +1294,16 @@ class NativeNavigationTest {
             awaitText(activity, "image-tint-status", "image tint on")
             assertTrue("ImageBackground tint was not restored", backgroundImage.colorFilter != null)
             click(activity, "toggle-invalid-image-tint")
-            awaitView(activity, "native-image-background")
+            awaitView(activity, "native-image-background") { container ->
+                val child = (container as? ViewGroup)?.getChildAt(0) as? ImageView
+                child != null && child.colorFilter == null
+            }
             assertTrue("invalid ImageBackground tint should clear its color filter", backgroundImage.colorFilter == null)
             click(activity, "toggle-invalid-image-tint")
+            awaitView(activity, "native-image-background") { container ->
+                val child = (container as? ViewGroup)?.getChildAt(0) as? ImageView
+                child != null && child.colorFilter != null
+            }
             assertTrue("valid ImageBackground tint was not restored after invalid input", backgroundImage.colorFilter != null)
             assertEquals("missing image errors should be deduplicated", "2", (awaitView(activity, "image-error-count") as TextView).text.toString())
             assertNoWebView(activity)

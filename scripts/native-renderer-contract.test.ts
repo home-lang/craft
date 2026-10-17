@@ -2636,7 +2636,8 @@ describe('native renderer component contract', () => {
 
   it('applies ImageBackground tint to the Android inner image', () => {
     expect(navigationHome).toContain('"tintColor":imageTinted ? "#2563eb" : null')
-    expect(androidNavigationTest).toContain('ImageBackground tint was not applied to its image')
+    expect(androidNavigationTest).toContain('initial ImageBackground tint was not applied')
+    expect(androidNavigationTest).toContain('ImageBackground lost its cleared tint state')
     expect(androidNavigationTest).toContain('ImageBackground tint was not restored')
     expect(navigationHome).toContain('testID="toggle-invalid-image-tint"')
     expect(androidNavigationTest).toContain('invalid ImageBackground tint should clear its color filter')
