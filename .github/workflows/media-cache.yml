@@ -39,6 +39,7 @@ jobs:
         with:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
+      - run: bun run test:sdk
       - run: bun run build:sdk
       - name: Native disk-full, cleanup, retry, interruptions and video decode
         run: |
