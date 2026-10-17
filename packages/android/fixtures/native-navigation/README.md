@@ -120,6 +120,6 @@ zero translation, native selected accessibility state, and that the next gesture
 still starts and cancels. These cases enable and restore the platform animator
 scale even when the broader suite disables animations. Use the Mobile E2E
 workflow's `android-navigation` scope for the two interruption cases plus
-refresh reattachment, refresh contrast and accessory/back checks; the normal suite
+refresh reattachment, refresh contrast, accessory/back and date-control mount checks; the normal suite
 continues to run the complete fixture. `CRAFT_ANDROID_TEST_CLASS` accepts Gradle's
 class/method instrumentation selector when diagnosing a specific case.

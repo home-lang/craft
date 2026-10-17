@@ -1384,6 +1384,21 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun nativeDatePickerKeepsFollowingControlsMounted() {
+        val activity = instrumentation.startActivitySync(
+            Intent(instrumentation.targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        ) as MainActivity
+        try {
+            val picker = awaitView(activity, "native-date-picker")
+            assertTrue("native date picker was not mounted", findType(picker, DatePicker::class.java) != null)
+            assertTrue("date picker removed its following input", awaitView(activity, "name-input") is EditText)
+        } finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+        }
+    }
+
+    @Test
     fun pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(
