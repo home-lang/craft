@@ -147,21 +147,9 @@ jobs:
         uses: ./.github/actions/first-party-zig-deps
 
       - name: Build Windows CLI
-        shell: pwsh
-        run: |
-          # The Pantry .bin shim can print zig version but cannot locate Zig's
-          # lib directory during a build. Run the locked package binary itself.
-          $package = Join-Path $env:GITHUB_WORKSPACE 'pantry/ziglang-org/0.17.0-dev.1963_e00c6c439'
-          $env:CRAFT_ZIG = ''
-          foreach ($candidate in @((Join-Path $package 'zig.exe'), (Join-Path $package 'bin/zig.exe'))) {
-            if (Test-Path -LiteralPath $candidate) { $env:CRAFT_ZIG = $candidate; break }
-          }
-          if (-not $env:CRAFT_ZIG) {
-            Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'pantry') -Filter zig.exe -Recurse -File |
-              Select-Object -ExpandProperty FullName
-            throw "Pinned Zig executable missing from $package"
-          }
-          bun run build:core
+        # scripts/zig.ts resolves the actual managed binary from pantry.lock,
+        # including its adjacent standard library on Windows.
+        run: bun run build:core
 
       - name: Stage pinned WebView2 loader
         shell: pwsh
