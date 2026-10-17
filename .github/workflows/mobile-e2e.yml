@@ -126,11 +126,15 @@ jobs:
 
   ios-native:
     if: ${{ inputs.scope != 'android-navigation' }}
-    name: iOS native UI
+    name: iOS native UI (${{ matrix.suite }})
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(inputs.scope == 'ios-render' && '["uikit"]' || inputs.scope == 'ios-navigation' && '["navigation"]' || '["uikit","navigation"]') }}
     runs-on: macos-15
-    # A hung simulator launch would otherwise burn the six-hour default. The
-    # harness has its own per-app timeout; this is the backstop for everything
-    # around it.
+    # Compile and run each native fixture on its own fresh runner. Combining
+    # both consumed the job budget before navigation finished on slower hosts.
+    # Each suite keeps the same bounded backstop and strict XCTest assertions.
     timeout-minutes: 45
     env:
       CRAFT_EVIDENCE_LABEL: ios-native
@@ -157,7 +161,7 @@ jobs:
       # @stacksjs/stx compiler (`stx native compile`) so this job cannot silently change
       # underneath us. Both iOS jobs and Android use the same compiler revision.
       - name: Checkout stx compiler
-        if: ${{ inputs.scope != 'ios-render' }}
+        if: ${{ matrix.suite == 'navigation' }}
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
@@ -165,7 +169,7 @@ jobs:
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
-        if: ${{ inputs.scope != 'ios-render' }}
+        if: ${{ matrix.suite == 'navigation' }}
         working-directory: .stx-compiler
         # Pantry ships Bun 1.3.14, which cannot frozen-install the pinned stx
         # lockfile. Resolve the unchanged external manifest without rewriting
@@ -174,7 +178,7 @@ jobs:
 
       - name: Test native UIKit reconciliation
         id: uikit
-        if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' }}
+        if: ${{ matrix.suite == 'uikit' }}
         env:
           CRAFT_ONLY_TESTING: ${{ inputs.scope == 'ios-render' && inputs.selectors || '' }}
         run: |
@@ -185,7 +189,7 @@ jobs:
         id: navigation
         # Reconciliation and navigation are independent suites. Keep the
         # navigation evidence when reconciliation fails; the job still fails.
-        if: ${{ !cancelled() && (inputs.scope == 'ios-navigation' || (inputs.scope != 'ios-render' && steps.uikit.outcome != 'skipped')) }}
+        if: ${{ !cancelled() && matrix.suite == 'navigation' }}
         env:
           STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
           CRAFT_ONLY_TESTING: ${{ inputs.selectors }}
@@ -233,7 +237,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mobile-e2e-ios-native
+          name: mobile-e2e-ios-native-${{ matrix.suite }}
           # Console logs, build logs, screenshots, the generated project.yml and
           # the exact page that ran. Excludes work/ — the generated projects and
           # their DerivedData are hundreds of megabytes and the interesting
