@@ -82,6 +82,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
   const adb = join(sdk, 'platform-tools/adb')
   let serial = ''
   let mountedVolume = ''
+  let mountedAndroidCache = ''
   try {
     if (options.platform === 'ios') {
       const files = await Bun.file(join(root, 'ios/templates/CraftNativeFiles.swift')).text()
@@ -163,7 +164,23 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
         if (!interrupted && (!result.includes('PASS:') || result.includes('FAIL:'))) throw new Error(result)
         print(result)
       }
+      await run([adb, '-s', serial, 'root'])
+      await run([adb, '-s', serial, 'wait-for-device'])
+      if ((await run([adb, '-s', serial, 'shell', 'id', '-u'])).trim() !== '0') throw new Error('Storage fault tests require a rootable disposable AOSP emulator')
+      await run([adb, '-s', serial, 'shell', 'run-as', packageName, 'mkdir', '-p', 'files/craft-media'])
+      const cache = `/data/user/0/${packageName}/files/craft-media`
+      const owner = (await run([adb, '-s', serial, 'shell', 'stat', '-c', '%u:%g', cache])).trim()
+      const label = (await run([adb, '-s', serial, 'shell', 'ls', '-Zd', cache])).trim().split(/\s+/)[0]!
+      if (!/^\d+:\d+$/.test(owner) || !/^u:object_r:app_data_file:s0(?::c\d+(?:,c\d+)*)?$/.test(label)) throw new Error('Unexpected probe cache ownership or SELinux label')
+      const [uid, gid] = owner.split(':')
+      // Bound only this probe's cache, preserving the stock app UID and SELinux label.
+      await run([adb, '-s', serial, 'shell', 'mount', '-t', 'tmpfs', '-o', `size=16m,mode=700,uid=${uid},gid=${gid}`, 'tmpfs', cache])
+      mountedAndroidCache = cache
+      await run([adb, '-s', serial, 'shell', 'chcon', label, cache])
       await probe('storage')
+      await run([adb, '-s', serial, 'shell', 'am', 'force-stop', packageName])
+      await run([adb, '-s', serial, 'shell', 'umount', mountedAndroidCache])
+      mountedAndroidCache = ''
       print('PASS: Android native ENOSPC, cache cleanup, progress preservation and video redownload')
       if (!storageOnly) {
         await probe('normal')
@@ -178,6 +195,10 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
   finally {
     print(JSON.stringify({ requests: Object.fromEntries(counts) }))
     if (mountedVolume) await run(['hdiutil', 'detach', mountedVolume])
+    if (mountedAndroidCache) {
+      await run([adb, '-s', serial, 'shell', 'am', 'force-stop', packageName], scratch, true)
+      await run([adb, '-s', serial, 'shell', 'umount', mountedAndroidCache])
+    }
     if (simulator && ownsSimulator) { await run(['xcrun', 'simctl', 'shutdown', simulator], scratch, true);
     await run(['xcrun', 'simctl', 'delete', simulator], scratch, true) }
     if (serial) await run([adb, '-s', serial, 'uninstall', packageName], scratch, true)

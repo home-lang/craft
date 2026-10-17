@@ -34,29 +34,41 @@ class DownloadProbe : android.app.Instrumentation() {
                     val prefs = targetContext.getSharedPreferences("workout-recovery-probe", Context.MODE_PRIVATE)
                     val progress = """{"sets":["A1"],"note":"Keep this workout","rpe":7}"""
                     check(prefs.edit().putString("progress", progress).commit(), "workout progress is durable before storage failure")
+                    val prefsDisk = File(targetContext.applicationInfo.dataDir, "shared_prefs/workout-recovery-probe.xml")
+                    val savedPrefs = prefsDisk.readBytes()
                     val retained = "$base/retained.mp4"
                     check(keep(retained), "existing video is kept before storage pressure")
                     val original = CraftNativeMedia.local(targetContext, retained)!!.readBytes()
                     val fresh = "$base/storage.mp4"
                     val staging = File(CraftNativeMedia.file(targetContext, fresh).absolutePath + ".part")
-                    // /dev/full produces the real ENOSPC write error without filling the emulator or host.
-                    val fault = runCatching { File("/dev/full").outputStream().use { it.write(1) } }.exceptionOrNull()
-                    check(fault != null && generateSequence(fault) { it.cause }.take(16).any { it is android.system.ErrnoException && it.errno == android.system.OsConstants.ENOSPC }, "the isolated write fault really is ENOSPC: ${fault?.stackTraceToString() ?: "write succeeded"}")
-                    android.system.Os.symlink("/dev/full", staging.absolutePath)
+                    val root = staging.parentFile!!
+                    check(root.totalSpace in 1..(32L * 1024 * 1024), "storage pressure is confined to a bounded disposable volume")
+                    val pressure = File(root, "pressure.mp4")
+                    var written = 0L
+                    pressure.outputStream().use { output ->
+                        for (size in listOf(65536, 1024)) {
+                            val chunk = ByteArray(size) { 0x5A.toByte() }
+                            while (written < 32L * 1024 * 1024) {
+                                try { output.write(chunk); written += size }
+                                catch (error: java.io.IOException) { break }
+                            }
+                        }
+                    }
+                    check(written > 0 && root.usableSpace < 1024, "the probe cache filesystem is actually full")
                     check(!keep(fresh), "out-of-space write refuses a new video")
                     check(latestErrorCode == "NO_SPACE", "a full disk is reported as NO_SPACE, not a network failure")
                     check(CraftNativeMedia.local(targetContext, fresh) == null, "storage failure never publishes a partial video")
                     check(!staging.exists(), "storage failure removes staging files")
                     check(CraftNativeMedia.local(targetContext, retained)!!.readBytes().contentEquals(original), "storage failure preserves an existing video")
-                    check(CraftNativeMedia.prune(targetContext, emptyList()) == 1, "cache cleanup removes only the retained video")
-                    check(prefs.getString("progress", null) == progress, "cache cleanup preserves workout progress and feedback")
+                    check(CraftNativeMedia.prune(targetContext, listOf(retained)) == 1, "cache cleanup frees the obsolete file and preserves the retained video")
+                    check(prefs.getString("progress", null) == progress && prefsDisk.readBytes().contentEquals(savedPrefs), "cache cleanup preserves workout progress and feedback on disk")
                     check(keep(fresh), "same missing video downloads after cleanup")
                     val decoder = android.media.MediaMetadataRetriever()
                     try {
                         decoder.setDataSource(CraftNativeMedia.local(targetContext, fresh)!!.absolutePath)
                         check(decoder.getFrameAtTime(1000000) != null, "downloaded replacement plays from its local file")
                     } finally { decoder.release() }
-                    check(prefs.getString("progress", null) == progress, "redownloading leaves workout progress and feedback unchanged")
+                    check(prefs.getString("progress", null) == progress && prefsDisk.readBytes().contentEquals(savedPrefs), "redownloading leaves workout progress and feedback unchanged on disk")
                     CraftNativeMedia.prune(targetContext, emptyList())
                     prefs.edit().clear().commit()
                 }

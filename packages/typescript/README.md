@@ -555,10 +555,11 @@ await verifyMobileMediaCache({ platform: 'ios' }) // creates and deletes its own
 await verifyMobileMediaCache({ platform: 'android', device: 'emulator-5554', online: true })
 ```
 
-Android requires an explicitly selected disposable emulator and an installed
+Android requires an explicitly selected rootable AOSP emulator and an installed
 Gradle CLI. Xcode and an available simulator runtime are required for iOS. The
-probe uses a bounded 16 MB disk image on iOS and an isolated `/dev/full` write
-on Android; it never fills the host disk or an athlete's data partition. It
+probe uses a bounded 16 MB disk image on iOS and a 16 MB tmpfs mounted only over
+the probe's cache on Android. The Android cache keeps its app UID and SELinux
+label; enforcement stays on. It never fills the host disk or an athlete's data partition. It
 checks `NO_SPACE`, partial-file cleanup, preserved state outside the cache,
 redownloading, interrupted transfers and decoding a local video frame. Set
 `storageOnly: true` for only the disk-full cases, or `sourceRoot` to Craft's
