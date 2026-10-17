@@ -94,7 +94,7 @@ defaults:
 
 jobs:
   media-cache:
-    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'android' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'android' && inputs.scope != 'ios-render' }}
     uses: ./.github/workflows/media-cache.yml
 
   # The transcript reader and the required-case list are the part of this

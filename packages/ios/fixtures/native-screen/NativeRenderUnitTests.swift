@@ -10,7 +10,7 @@ final class NativeRenderUnitTests: XCTestCase {
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         window.rootViewController = controller
         controller.loadViewIfNeeded()
-        controller.render(document([["type": "View", "props": ["key": "celebrating-card", "celebration": ["replay": 0]], "style": ["width": 320, "height": 240]]]))
+        controller.render(["id": "root-node", "type": "View", "children": [["id": "card-node", "type": "View", "props": ["key": "celebrating-card", "celebration": ["replay": 0]], "style": ["width": 320, "height": 240]]]])
         window.isHidden = false
         defer { window.isHidden = true }
         controller.view.layoutIfNeeded()
@@ -25,6 +25,23 @@ final class NativeRenderUnitTests: XCTestCase {
         controller.screenVisibilityChanged(true)
         card.layoutIfNeeded()
         XCTAssertNil(card.layer.animation(forKey: "craft.celebration.entrance"), "returning to a tab must not replay")
+        _ = try controller.applyMutation(batch(1, [
+            ["op": "updateNode", "id": "card-node", "patch": ["props": ["celebration": ["replay": 1]]]],
+        ]))
+        card.layoutIfNeeded()
+        XCTAssertTrue(card === find(UIView.self, key: "celebrating-card", below: controller.view), "replay retains the card")
+        let confetti = window.layer.sublayers?.first { $0.name == "craft.celebration.confetti" }
+        if !UIAccessibility.isReduceMotionEnabled {
+            XCTAssertNotNil(card.layer.animation(forKey: "craft.celebration.entrance"), "a native prop update starts the next reveal")
+            XCTAssertNotNil(confetti)
+        }
+        _ = try controller.applyMutation(batch(2, [
+            ["op": "updateNode", "id": "card-node", "patch": ["props": ["celebration": ["replay": 1]]]],
+        ]))
+        card.layoutIfNeeded()
+        XCTAssertTrue(confetti === window.layer.sublayers?.first { $0.name == "craft.celebration.confetti" }, "an unchanged replay prop keeps the current run")
+        controller.screenVisibilityChanged(false)
+        XCTAssertFalse(window.layer.sublayers?.contains { $0.name == "craft.celebration.confetti" } == true)
     }
 
     func testCelebrationRequiresAnExplicitFiniteReplay() {
