@@ -1161,8 +1161,29 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var overlayWidths: [ObjectIdentifier: CGFloat] = [:]
     private var initialCameraKey: String?
     private var pendingFitKey: String?
+    private var pendingRegion: MKCoordinateRegion?
     private(set) var markerHandlers: [String: String] = [:]
     var onMarkerTap: ((String) -> Void)?
+    var onMapPress: ((CLLocationCoordinate2D) -> Void)?
+    var onRegionChangeComplete: ((MKCoordinateRegion, Double, Double) -> Void)?
+    private var userChangingCamera = false
+    private var authoredPitch: Double?
+    private var authoredHeading: Double?
+    private var edgePadding = UIEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
+    private var markerBearings: [String: Double] = [:]
+    private var tileOverlay: MKTileOverlay?
+    private var tileTemplate: String?
+    private lazy var tileAttribution: UILabel = {
+        let label = UILabel()
+        label.font = .systemFont(ofSize: 9)
+        label.textColor = .darkGray
+        label.backgroundColor = UIColor.white.withAlphaComponent(0.85)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.numberOfLines = 2
+        addSubview(label)
+        NSLayoutConstraint.activate([label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8), label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8), label.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 48)])
+        return label
+    }()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -1170,6 +1191,9 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         showsCompass = false
         showsScale = false
         isRotateEnabled = false
+        let tap = UITapGestureRecognizer(target: self, action: #selector(pressedMap(_:)))
+        tap.cancelsTouchesInView = false
+        addGestureRecognizer(tap)
     }
 
     required init?(coder: NSCoder) {
@@ -1183,6 +1207,18 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         isZoomEnabled = props["zoomEnabled"] as? Bool ?? true
         isRotateEnabled = props["rotateEnabled"] as? Bool ?? false
         mapType = Self.mapType(props["mapType"] as? String)
+        configureTiles(props["tileOverlay"] as? [String: Any])
+        showsCompass = props["showsCompass"] as? Bool ?? false
+        showsScale = props["showsScale"] as? Bool ?? false
+        authoredPitch = Self.numeric(props["cameraPitch"])
+        authoredHeading = Self.numeric(props["cameraHeading"])
+        let padding = props["edgePadding"] as? [String: Any]
+        func inset(_ name: String) -> CGFloat {
+            guard let value = Self.numeric(padding?[name]), value.isFinite else { return 24 }
+            return CGFloat(min(10_000, max(0, value)))
+        }
+        edgePadding = UIEdgeInsets(top: inset("top"), left: inset("left"), bottom: inset("bottom"), right: inset("right"))
+        var nextBearings: [String: Double] = [:]
         // Showing the user dot must not trigger a permission prompt from a
         // renderer pass. The app's existing location capability owns that
         // prompt; a map only opts in after authorization is already granted.
@@ -1203,6 +1239,9 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             if type == "mapmarker" || type == "marker" {
                 guard let point = points.first else { continue }
                 nextMarkers[id] = (point, childProps["title"] as? String)
+                if let bearing = Self.numeric(childProps["bearing"]), bearing.isFinite {
+                    nextBearings[id] = bearing.truncatingRemainder(dividingBy: 360)
+                }
                 if let handler = nonEmptyHandler(childEvents["onPress"])
                     ?? nonEmptyHandler(childEvents["onMarkerPress"]) {
                     nextHandlers[id] = handler
@@ -1216,12 +1255,14 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             }
         }
 
+        markerBearings = nextBearings
         let staleMarkers = annotationsByID.keys.filter { nextMarkers[$0] == nil }
         removeAnnotations(staleMarkers.compactMap { annotationsByID.removeValue(forKey: $0) })
         for (id, value) in nextMarkers {
             if let annotation = annotationsByID[id] {
                 annotation.coordinate = value.coordinate
                 annotation.title = value.title
+                if let view = view(for: annotation) { configureMarkerView(view, id: id) }
             } else {
                 let annotation = MKPointAnnotation()
                 annotation.coordinate = value.coordinate
@@ -1266,17 +1307,24 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             // `region` is controlled: an authored change is allowed to move
             // the camera, even when the map itself was already mounted.
             pendingFitKey = nil
-            setRegion(region, animated: false)
+            pendingRegion = bounds.width > 0 && bounds.height > 0 ? nil : region
+            if abs(self.region.center.latitude - region.center.latitude) > 0.00000001
+                || abs(self.region.center.longitude - region.center.longitude) > 0.00000001
+                || abs(self.region.span.latitudeDelta - region.span.latitudeDelta) > 0.00000001
+                || abs(self.region.span.longitudeDelta - region.span.longitudeDelta) > 0.00000001 {
+                setRegion(region, animated: false)
+            }
             initialCameraKey = nil
         } else if let initial = Self.region(props["initialRegion"]) {
             pendingFitKey = nil
             let key = "region:\(Self.regionKey(initial))"
             if initialCameraKey != key {
+                pendingRegion = bounds.width > 0 && bounds.height > 0 ? nil : initial
                 setRegion(initial, animated: false)
                 initialCameraKey = key
             }
         } else if props["fitToBounds"] as? Bool == true {
-            let key = "fit:\(Self.overlayKey(markers: nextMarkers.mapValues { $0.coordinate }, polylines: nextPolylines.mapValues { $0.coordinates }))"
+            let key = "fit:\(Self.overlayKey(markers: nextMarkers.mapValues { $0.coordinate }, polylines: nextPolylines.mapValues { $0.coordinates })):\(edgePadding)"
             if initialCameraKey != key {
                 // A native screen can reconcile before UIKit assigns the map
                 // its final safe-area-constrained bounds. Keep the fit
@@ -1292,10 +1340,96 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             initialCameraKey = nil
             pendingFitKey = nil
         }
+        applyCameraOrientation()
+    }
+
+    private func configureTiles(_ options: [String: Any]?) {
+        let template = options?["urlTemplate"] as? String
+        let credit = options?["attribution"] as? String ?? ""
+        let valid = template.map { value in value.hasPrefix("https://") && ["{z}", "{x}", "{y}"].allSatisfy { value.contains($0) } } ?? false
+        let next = valid && !credit.isEmpty ? template : nil
+        if tileTemplate != next {
+            if let overlay = tileOverlay { removeOverlay(overlay) }
+            tileOverlay = nil
+            tileTemplate = next
+            if let next {
+                let overlay = MKTileOverlay(urlTemplate: next)
+                overlay.canReplaceMapContent = true
+                tileOverlay = overlay
+                insertOverlay(overlay, at: 0, level: .aboveRoads)
+            }
+        }
+        tileAttribution.text = next == nil ? nil : credit
+        tileAttribution.isHidden = next == nil
+    }
+
+    private func applyCameraOrientation() {
+        // Region-to-altitude conversion needs a measured viewport. Applying
+        // pitch to the zero-altitude camera before layout clamps it to zero.
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        let next = camera.copy() as! MKMapCamera
+        var changed = false
+        if let pitch = authoredPitch, pitch.isFinite {
+            let value = CGFloat(min(60, max(0, pitch)))
+            if abs(next.pitch - value) > 0.01 { next.pitch = value; changed = true }
+        }
+        if let heading = authoredHeading, heading.isFinite {
+            let value = heading.truncatingRemainder(dividingBy: 360)
+            if abs(next.heading - value) > 0.01 { next.heading = value; changed = true }
+        }
+        if changed { setCamera(next, animated: false) }
+    }
+
+    @objc private func pressedMap(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended, onMapPress != nil else { return }
+        let point = gesture.location(in: self)
+        var touched = hitTest(point, with: nil)
+        while let view = touched, view !== self {
+            if view is MKAnnotationView { return }
+            touched = view.superview
+        }
+        onMapPress?(convert(point, toCoordinateFrom: self))
+    }
+
+    func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+        func interacting(_ view: UIView) -> Bool {
+            if view.gestureRecognizers?.contains(where: { [.began, .changed, .ended].contains($0.state) }) == true { return true }
+            return view.subviews.contains(where: interacting)
+        }
+        userChangingCamera = userChangingCamera || interacting(self)
+    }
+
+    func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+        for (id, annotation) in annotationsByID {
+            if let view = view(for: annotation) { configureMarkerView(view, id: id) }
+        }
+        if userChangingCamera {
+            userChangingCamera = false
+            onRegionChangeComplete?(region, camera.heading, Double(camera.pitch))
+        }
+    }
+
+    private func configureMarkerView(_ view: MKAnnotationView, id: String) {
+        if let bearing = markerBearings[id] {
+            let configuration = UIImage.SymbolConfiguration(pointSize: 24, weight: .semibold)
+                .applying(UIImage.SymbolConfiguration(paletteColors: [.white, .systemGreen]))
+            view.image = UIImage(systemName: "arrow.up.circle.fill", withConfiguration: configuration)
+            view.transform = CGAffineTransform(rotationAngle: CGFloat((bearing - camera.heading) * .pi / 180))
+        } else {
+            view.image = UIImage(systemName: "mappin.circle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 28))?
+                .withTintColor(.systemRed, renderingMode: .alwaysOriginal)
+            view.transform = .identity
+        }
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        if tileTemplate != nil { bringSubviewToFront(tileAttribution) }
+        if let region = pendingRegion, bounds.width > 0, bounds.height > 0 {
+            pendingRegion = nil
+            setRegion(region, animated: false)
+            applyCameraOrientation()
+        }
         guard let key = pendingFitKey else { return }
         pendingFitKey = nil
         guard fitToOverlays() else {
@@ -1303,6 +1437,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             return
         }
         initialCameraKey = key
+        applyCameraOrientation()
     }
 
     @discardableResult
@@ -1315,17 +1450,29 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             rect = rect.union(MKMapRect(x: point.x, y: point.y, width: 0, height: 0))
         }
         guard !rect.isNull else { return false }
-        let inset = UIEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
+        var inset = edgePadding
+        let horizontal = inset.left + inset.right
+        let vertical = inset.top + inset.bottom
+        let availableWidth = max(0, bounds.width - 40)
+        let availableHeight = max(0, bounds.height - 40)
+        if horizontal > availableWidth && horizontal > 0 {
+            inset.left *= availableWidth / horizontal
+            inset.right *= availableWidth / horizontal
+        }
+        if vertical > availableHeight && vertical > 0 {
+            inset.top *= availableHeight / vertical
+            inset.bottom *= availableHeight / vertical
+        }
         setVisibleMapRect(rect, edgePadding: inset, animated: false)
         return true
     }
 
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
         guard let id = annotationsByID.first(where: { $0.value === annotation })?.key else { return nil }
-        let view = (dequeueReusableAnnotationView(withIdentifier: "craft-native-marker") as? MKMarkerAnnotationView)
-            ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "craft-native-marker")
+        let view = dequeueReusableAnnotationView(withIdentifier: "craft-native-marker")
+            ?? MKAnnotationView(annotation: annotation, reuseIdentifier: "craft-native-marker")
         view.annotation = annotation
-        view.markerTintColor = .systemRed
+        configureMarkerView(view, id: id)
         view.accessibilityIdentifier = id
         return view
     }
@@ -1337,6 +1484,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     }
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
         let renderer = MKPolylineRenderer(overlay: overlay)
         renderer.strokeColor = overlayColors[ObjectIdentifier(overlay)] ?? .systemBlue
         renderer.lineWidth = overlayWidths[ObjectIdentifier(overlay)] ?? 3
@@ -6298,6 +6446,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "Map":
             let map = result as! CraftNativeMapView
             let mapMarkerHandler = nonEmptyHandler(events["onMarkerPress"])
+            map.onMapPress = { [weak self] coordinate in
+                guard let self, let handler = self.nonEmptyHandler(events["onPress"]) else { return }
+                self.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["latitude": coordinate.latitude, "longitude": coordinate.longitude]])
+            }
+            map.onRegionChangeComplete = { [weak self] region, heading, pitch in
+                guard let self, let handler = self.nonEmptyHandler(events["onRegionChangeComplete"]) else { return }
+                self.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [
+                    "center": ["latitude": region.center.latitude, "longitude": region.center.longitude],
+                    "span": ["latitudeDelta": region.span.latitudeDelta, "longitudeDelta": region.span.longitudeDelta],
+                    "heading": heading, "pitch": pitch,
+                ]])
+            }
             map.configure(props: props, children: children) { [weak self, weak map] markerID in
                 guard let self, let map,
                       let handler = map.markerHandlers[markerID] ?? mapMarkerHandler else { return }

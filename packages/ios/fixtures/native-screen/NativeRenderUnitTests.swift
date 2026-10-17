@@ -680,6 +680,74 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(update.requiresFullRender)
     }
 
+    func testMapExplorationCameraAndDirectionMarker() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        controller.render([
+            "type": "Map", "props": ["key": "explorer", "showsCompass": true, "showsScale": true, "cameraPitch": 30, "cameraHeading": 90,
+                "region": ["center": ["latitude": 37.7, "longitude": -119.5], "span": ["latitudeDelta": 0.01, "longitudeDelta": 0.01]]],
+            "style": ["width": 320, "height": 320],
+            "children": [["type": "MapMarker", "props": ["id": "direction", "geometry": [37.7, -119.5], "bearing": 180]]],
+        ])
+        controller.view.layoutIfNeeded()
+        let map = try XCTUnwrap(find(MKMapView.self, key: "explorer", below: controller.view))
+        XCTAssertTrue(map.showsCompass)
+        XCTAssertTrue(map.showsScale)
+        XCTAssertEqual(map.camera.heading, 90, accuracy: 1)
+        // MapKit can cap larger pitches at this altitude. Thirty degrees is
+        // within its supported range and still catches a camera applied before layout.
+        XCTAssertEqual(map.camera.pitch, 30, accuracy: 1)
+        let annotation = try XCTUnwrap(map.annotations.first)
+        let marker = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+        XCTAssertNotNil(marker.image)
+        XCTAssertEqual(marker.accessibilityIdentifier, "direction")
+        XCTAssertEqual(marker.transform.b, 1, accuracy: 0.02)
+    }
+
+    func testMapUsesNativeTopographicTilesWithAttribution() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render([
+            "type": "Map", "props": ["key": "topo-map", "tileOverlay": ["urlTemplate": "https://example.org/tiles/{z}/{y}/{x}.png", "attribution": "Test map data"]],
+            "style": ["width": 320, "height": 480],
+            "children": [["type": "MapPolyline", "props": ["geometry": [37.7, -119.5, 37.72, -119.49]]]],
+        ])
+        let map = try XCTUnwrap(find(MKMapView.self, key: "topo-map", below: controller.view))
+        let tiles = try XCTUnwrap(map.overlays.first as? MKTileOverlay)
+        XCTAssertTrue(tiles.canReplaceMapContent)
+        XCTAssertTrue(map.delegate?.mapView?(map, rendererFor: tiles) is MKTileOverlayRenderer)
+        XCTAssertTrue(map.overlays.last is MKPolyline, "The route must remain above the basemap")
+        XCTAssertTrue(map.subviews.compactMap { $0 as? UILabel }.contains { $0.text == "Test map data" && !$0.isHidden })
+    }
+
+    func testMapReservesRoomForFloatingControls() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        controller.render([
+            "type": "Map", "props": ["key": "padded-map", "fitToBounds": true,
+                "edgePadding": ["top": 40, "bottom": 160, "left": 32, "right": 32]],
+            "style": ["width": 320, "height": 480],
+            "children": [["type": "MapPolyline", "props": ["geometry": [37.7, -119.5, 37.72, -119.49]]]],
+        ])
+        controller.view.layoutIfNeeded()
+        let map = try XCTUnwrap(find(MKMapView.self, key: "padded-map", below: controller.view))
+        for coordinate in [CLLocationCoordinate2D(latitude: 37.7, longitude: -119.5), CLLocationCoordinate2D(latitude: 37.72, longitude: -119.49)] {
+            let point = map.convert(coordinate, toPointTo: map)
+            XCTAssertGreaterThanOrEqual(point.x, 30)
+            XCTAssertLessThanOrEqual(point.x, map.bounds.width - 30)
+            XCTAssertGreaterThanOrEqual(point.y, 38)
+            XCTAssertLessThanOrEqual(point.y, map.bounds.height - 158)
+        }
+    }
+
     func testMapFitRetriesAfterItsViewportIsMeasured() {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

@@ -43,6 +43,7 @@ import kotlin.math.roundToInt
 private const val CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 private const val CRAFT_NATIVE_FETCH_TIMEOUT_MS = 30_000
 private const val CRAFT_NATIVE_FILE_PICK_REQUEST = 4101
+private const val CRAFT_NATIVE_NOTIFICATION_PERMISSION_REQUEST = 4102
 private const val CRAFT_NATIVE_FILE_DEFAULT_MAX_PIXELS = 2048
 private const val CRAFT_NATIVE_FILE_LARGEST_MAX_PIXELS = 8192
 private const val CRAFT_NATIVE_FILE_DEFAULT_QUALITY = 0.85
@@ -88,6 +89,7 @@ internal class CraftNativeCapabilities(
     private val fetchConnections = ConcurrentHashMap<String, HttpURLConnection>()
     private val fileRoot by lazy { File(context.cacheDir, "craft-files").apply { mkdirs() } }
     private var pendingFilePick: PendingFilePick? = null
+    private var pendingNotificationPermission: ((Boolean) -> Unit)? = null
     private var database: SQLiteDatabase? = null
     private val biometricPrompts = ConcurrentHashMap<String, BiometricPrompt>()
 
@@ -891,7 +893,16 @@ internal class CraftNativeCapabilities(
             return
         }
         when (method) {
-            "schedule" -> complete(requestToken, schedule(args.optJSONObject(0)), completion)
+            "schedule" -> {
+                val notification = args.optJSONObject(0)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    val host = activity
+                    if (host == null) { complete(requestToken, failure("PERMISSION_DENIED", "Notification permission must be requested while the app is open"), completion); return }
+                    if (pendingNotificationPermission != null) { complete(requestToken, failure("BUSY", "A notification permission request is already open"), completion); return }
+                    pendingNotificationPermission = { granted -> complete(requestToken, if (granted) schedule(notification) else failure("PERMISSION_DENIED", "Notification permission denied"), completion) }
+                    mainHandler.post { androidx.core.app.ActivityCompat.requestPermissions(host, arrayOf(Manifest.permission.POST_NOTIFICATIONS), CRAFT_NATIVE_NOTIFICATION_PERMISSION_REQUEST) }
+                } else complete(requestToken, schedule(notification), completion)
+            }
             "cancel" -> {
                 val id = validKey(args.opt(0))
                 complete(requestToken, if (id == null) failure("INVALID_ARGUMENT", "Notifications.cancel needs an id")
@@ -907,6 +918,13 @@ internal class CraftNativeCapabilities(
             })), completion)
             else -> complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Notifications method"), completion)
         }
+    }
+
+    fun onNotificationPermissions(requestCode: Int) {
+        if (requestCode != CRAFT_NATIVE_NOTIFICATION_PERMISSION_REQUEST) return
+        val complete = pendingNotificationPermission ?: return
+        pendingNotificationPermission = null
+        complete(Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
     }
 
     private fun schedule(value: JSONObject?): CraftNativeCapabilityResult {
