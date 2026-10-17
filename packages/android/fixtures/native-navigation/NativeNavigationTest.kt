@@ -504,7 +504,7 @@ class NativeNavigationTest {
             click(activity, "navigation-increment")
             awaitText(activity, "navigation-home-state", "Home state: Ada/1")
             click(activity, "navigation-open-details")
-            assertEquals("Details for Ada", (awaitView(activity, "details-title") as TextView).text.toString())
+            awaitText(activity, "details-title", "Details for Ada")
             click(activity, "details-back")
             awaitText(activity, "navigation-home-state", "Home state: Ada/1")
             assertEquals("Home state: Ada/1", homeState.text.toString())
@@ -527,7 +527,7 @@ class NativeNavigationTest {
             carousel.scrollTo(carousel.width, 0)
             assertTrue("carousel content did not scroll within its native range", carousel.scrollX > 0)
             swipeTab(activity, left = true)
-            assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())
+            awaitText(activity, "details-title", "Details for ")
             swipeTab(activity, left = false)
             val name = awaitView(activity, "name-input")
             val root = awaitView(activity, "root")
@@ -790,7 +790,7 @@ class NativeNavigationTest {
             val disabledPressable = awaitView(activity, "disabled-pressable")
             assertFalse("disabled Pressable should be disabled", disabledPressable.isEnabled)
             instrumentation.runOnMainSync { disabledPressable.performClick() }
-            assertEquals("pressable pressed", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            awaitText(activity, "native-link-status", "pressable pressed")
             val longPressPanel = awaitView(activity, "long-press-panel")
             assertTrue("generic onLongPress view was not long-clickable", longPressPanel.performLongClick())
             awaitText(activity, "long-press-status", "panel long pressed")
@@ -1030,20 +1030,20 @@ class NativeNavigationTest {
             // Spinner finishes adapter initialization on the UI queue. Drain
             // that work before simulating a choice, as a real picker tap does.
             instrumentation.waitForIdleSync()
-            assertEquals("one", (awaitView(activity, "picker-value") as TextView).text.toString())
+            awaitText(activity, "picker-value", "one")
             assertEquals("initial picker selection must not emit onChange", "button prop default", (awaitView(activity, "native-link-status") as TextView).text.toString())
             instrumentation.runOnMainSync { (picker as Spinner).setSelection(1) }
             awaitText(activity, "picker-value", "two")
-            assertEquals("picker two", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            awaitText(activity, "native-link-status", "picker two")
             val itemsPicker = awaitView(activity, "native-items-picker")
             assertTrue("items picker should be an Android Spinner", itemsPicker is Spinner)
             instrumentation.waitForIdleSync()
-            assertEquals("one", (awaitView(activity, "items-picker-value") as TextView).text.toString())
+            awaitText(activity, "items-picker-value", "one")
             assertEquals("reconciling another picker must not emit onChange", "picker two", (awaitView(activity, "native-link-status") as TextView).text.toString())
             instrumentation.runOnMainSync { (itemsPicker as Spinner).setSelection(1) }
             // Both native hosts serialize a numeric option through Double.
             awaitText(activity, "items-picker-value", "2.0")
-            assertEquals("items picker 2.0", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            awaitText(activity, "native-link-status", "items picker 2.0")
             val dateRoot = awaitView(activity, "native-date-picker")
             val nativeDatePicker = findType(dateRoot, DatePicker::class.java)
             assertTrue("native date picker should contain an Android DatePicker", nativeDatePicker != null)
@@ -1106,10 +1106,10 @@ class NativeNavigationTest {
                 SystemClock.sleep(100)
             }
             assertEquals("modal should become visible", View.VISIBLE, modal.visibility)
-            assertEquals("Modal content", (awaitView(activity, "modal-content") as TextView).text.toString())
+            awaitText(activity, "modal-content", "Modal content")
             // onShow is delivered after native reconciliation returns to the queue.
             awaitText(activity, "modal-status", "modal shown")
-            assertEquals("1", (awaitView(activity, "modal-opacity") as TextView).text.toString())
+            awaitText(activity, "modal-opacity", "1")
             click(activity, "toggle-modal-opacity")
             awaitText(activity, "modal-opacity", "0.45")
             assertEquals("visible modal opacity should update in place", 0.45f, modal.alpha, 0.01f)
@@ -1132,7 +1132,7 @@ class NativeNavigationTest {
             assertEquals("stepped slider should expose ten positions", 10, (slider as SeekBar).max)
             instrumentation.runOnMainSync { slider.progress = 8 }
             awaitText(activity, "native-link-status", "slider moved")
-            assertEquals("0.8", (awaitView(activity, "slider-value") as TextView).text.toString())
+            awaitText(activity, "slider-value", "0.8")
             val nativeSlider = slider as SeekBar
             assertEquals("slider thumb should retain its selected step", 8, nativeSlider.progress)
             assertEquals("slider minimum tint was not applied", Color.rgb(0x22, 0xc5, 0x5e), nativeSlider.progressTintList?.getColorForState(intArrayOf(), Color.TRANSPARENT))
@@ -1363,8 +1363,8 @@ class NativeNavigationTest {
             awaitText(activity, "count", "Count: 2")
 
             click(activity, "open-details")
-            assertEquals("Details for Ada", (awaitView(activity, "details-title") as TextView).text.toString())
-            assertEquals("Count: 2", (awaitView(activity, "details-count") as TextView).text.toString())
+            awaitText(activity, "details-title", "Details for Ada")
+            awaitText(activity, "details-count", "Count: 2")
             click(activity, "details-increment")
             awaitText(activity, "details-count", "Count: 3")
             val peopleHost = awaitView(activity, "people-list") as SwipeRefreshLayout
@@ -1396,28 +1396,28 @@ class NativeNavigationTest {
             awaitText(activity, "people-count", "People: 41; events: 3")
             awaitLayoutIncrease(activity, "people-layout-status", initialRowLayouts)
             click(activity, "clear-people")
-            assertEquals("Nobody here", (awaitView(activity, "people-empty") as TextView).text.toString())
-            assertEquals("End of people", (awaitView(activity, "people-footer") as TextView).text.toString())
+            awaitText(activity, "people-empty", "Nobody here")
+            awaitText(activity, "people-footer", "End of people")
             awaitText(activity, "people-count", "People: 0; events: 4")
             assertNoWebView(activity)
 
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             assertSame("Returning rebuilt the home input", name, awaitView(activity, "name-input"))
             assertEquals("Ada", (name as EditText).text.toString())
-            assertEquals("Count: 2", (awaitView(activity, "count") as TextView).text.toString())
+            awaitText(activity, "count", "Count: 2")
             click(activity, "navigation-check-lifecycle")
             awaitText(activity, "navigation-lifecycle", "Disposed Ada/3")
 
             click(activity, "open-details")
             awaitView(activity, "details-title")
-            assertEquals("Count: 2", (awaitView(activity, "details-count") as TextView).text.toString())
+            awaitText(activity, "details-count", "Count: 2")
             click(activity, "details-back")
             assertSame(name, awaitView(activity, "name-input"))
 
             click(activity, "open-details")
             awaitView(activity, "details-title")
             click(activity, "open-summary")
-            assertEquals("Summary for Ada", (awaitView(activity, "summary-title") as TextView).text.toString())
+            awaitText(activity, "summary-title", "Summary for Ada")
             assertNoWebView(activity)
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             assertSame("Replace kept details on the stack", name, awaitView(activity, "name-input"))
@@ -1468,7 +1468,7 @@ class NativeNavigationTest {
             awaitText(activity, "navigation-home-state", "Home state: Ada/1")
             val link = awaitView(activity, "native-route-link")
             instrumentation.runOnMainSync { link.performClick() }
-            assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())
+            awaitText(activity, "details-title", "Details for ")
             click(activity, "details-back")
             awaitView(activity, "native-route-link")
         } finally {
