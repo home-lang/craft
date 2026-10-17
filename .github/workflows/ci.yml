@@ -18,6 +18,28 @@ defaults:
     shell: bash
 
 jobs:
+  android-software-emulator:
+    name: Android software emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install the managed Android toolchain
+        uses: pantry-pm/pantry/packages/action@ac5ec8a436e6a3a998046bc5bd246c2811adecb0 # v0.11.87
+        with:
+          version: '0.11.87'
+          install: 'false'
+          packages: bun.com@1.4.3 git-scm.org@2.53.0 openjdk.org@17.0.20.8 android.com/cmdline-tools@14742923.0.0
+      - name: Boot and dispose the stock Play image through the SDK
+        run: bun scripts/verify-android-emulator.ts
+      - name: Retain emulator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-software-emulator
+          path: artifacts/android-software-emulator
+          if-no-files-found: error
+
   zig-core:
     strategy:
       # Without this, one red leg cancels the others mid-step and nobody sees a
@@ -504,7 +526,7 @@ jobs:
         run: bun run verify
 
   publish-commit:
-    needs: [zig-core, windows-multi-window, typescript-sdk, ios-builder, ios-native-templates, android-builder, create-craft, ts-maps, lint, integration]
+    needs: [android-software-emulator, zig-core, windows-multi-window, typescript-sdk, ios-builder, ios-native-templates, android-builder, create-craft, ts-maps, lint, integration]
     runs-on: ubuntu-latest
 
     steps:
