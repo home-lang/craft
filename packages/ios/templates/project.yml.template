@@ -27,6 +27,10 @@ targets:
       - path: craft.config.json
         optional: true
         buildPhase: resources
+      - path: NativeFonts
+        type: folder
+        optional: true
+        buildPhase: resources
       - path: Assets.xcassets
         buildPhase: resources
       - path: PrivacyInfo.xcprivacy

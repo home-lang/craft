@@ -26,6 +26,7 @@ import {
   renderWatchEntitlements,
   resolveCraftVersion,
   syncWebAssets,
+  syncNativeFonts,
 } from './index'
 import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
 
@@ -33,6 +34,33 @@ import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
 afterAll(removeAllTempDirs)
 
 describe('Craft iOS builder', () => {
+  it('bundles custom fonts with their licenses and removes retired fonts', async () => {
+    const root = createTempDir('craft-native-fonts-')
+    const font = join(root, 'Signature.ttf')
+    const license = join(root, 'OFL.txt')
+    const output = join(root, 'app')
+    writeFileSync(font, new Uint8Array([0, 1, 0, 0, 7, 8]))
+    writeFileSync(license, 'Test font license')
+    await init({ name: 'Font App', output, runtimeDir: null, config: {
+      renderer: 'native', nativeFonts: { 'Signature-Regular': { src: font, license } },
+    } })
+    const bundled = join(output, 'NativeFonts')
+    expect(readFileSync(join(output, 'Info.plist'), 'utf8')).toContain('<string>NativeFonts/Signature-Regular.ttf</string>')
+    const plist = readFileSync(join(output, 'Info.plist'), 'utf8')
+    expect(plist.indexOf('<key>UIAppFonts</key>')).toBeLessThan(plist.indexOf('<key>UILaunchScreen</key>'))
+    expect(readFileSync(join(output, 'project.yml'), 'utf8')).toContain('- path: NativeFonts')
+    expect([...readFileSync(join(bundled, 'Signature-Regular.ttf'))]).toEqual([0, 1, 0, 0, 7, 8])
+    expect(readFileSync(join(bundled, 'Signature-Regular.LICENSE.txt'), 'utf8')).toBe('Test font license')
+    expect(() => syncNativeFonts({ Signature: { src: join(bundled, 'Signature-Regular.ttf') } }, output)).toThrow('sources must be outside')
+    expect(existsSync(join(bundled, 'Signature-Regular.ttf'))).toBe(true)
+    expect(() => syncNativeFonts({ Signature: { src: font }, signature: { src: font } }, output)).toThrow('Duplicate native font')
+    syncNativeFonts({}, output)
+    expect(existsSync(bundled)).toBe(false)
+    expect(() => syncNativeFonts({ '../escape': { src: font } }, output)).toThrow('Invalid native font')
+    expect(() => syncNativeFonts({ Missing: { src: join(root, 'missing.ttf') } }, output)).toThrow('existing TTF or OTF')
+    expect(() => syncNativeFonts({ Signature: { src: font, license: join(root, 'missing-license') } }, output)).toThrow('license not found')
+  })
+
   it('resolves the package version from bundled module directories', () => {
     const version = JSON.parse(readFileSync(join(import.meta.dir, '..', 'package.json'), 'utf8')).version
     expect(resolveCraftVersion(resolve(import.meta.dir, '..', 'dist', 'ios', 'src'))).toBe(version)

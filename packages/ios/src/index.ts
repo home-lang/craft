@@ -5,8 +5,36 @@
  */
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, extname, join, resolve, sep } from 'node:path'
 import { $ } from 'bun'
+
+/** Package custom fonts and their licenses; removed fonts cannot linger in the app. */
+export function syncNativeFonts(fonts: CraftConfig['nativeFonts'], output: string): string[] {
+  const destination = join(output, 'NativeFonts')
+  const names = new Set<string>()
+  const files = Object.entries(fonts ?? {}).map(([family, entry]) => {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(family))
+      throw new Error(`Invalid native font PostScript name: ${family}`)
+    if (names.has(family.toLowerCase())) throw new Error(`Duplicate native font name: ${family}`)
+    names.add(family.toLowerCase())
+    if ([entry.src, entry.license].some(file => file && resolve(file).startsWith(resolve(destination) + sep)))
+      throw new Error('Native font sources must be outside the generated NativeFonts directory')
+    const extension = extname(entry.src).toLowerCase()
+    if (!['.ttf', '.otf'].includes(extension) || !existsSync(entry.src) || !statSync(entry.src).isFile())
+      throw new Error(`Native font ${family} must reference an existing TTF or OTF file: ${entry.src}`)
+    if (entry.license && (!existsSync(entry.license) || !statSync(entry.license).isFile()))
+      throw new Error(`Native font license not found: ${entry.license}`)
+    return { family, ...entry, filename: `${family}${extension}` }
+  })
+  rmSync(destination, { recursive: true, force: true })
+  if (!files.length) return []
+  mkdirSync(destination, { recursive: true })
+  for (const file of files) {
+    cpSync(file.src, join(destination, file.filename))
+    if (file.license) cpSync(file.license, join(destination, `${file.family}.LICENSE.txt`))
+  }
+  return files.map(file => `NativeFonts/${file.filename}`)
+}
 
 const TEMPLATES_DIR = join(dirname(import.meta.dir), 'templates')
 
@@ -40,6 +68,9 @@ const CRAFT_VERSION = resolveCraftVersion()
 export type CraftAppearance = 'light' | 'dark' | 'system'
 
 export interface CraftConfig {
+  /** Bundled font files keyed by their PostScript font name, used as native fontFamily. */
+  nativeFonts?: Record<string, { src: string, license?: string }>
+
   appName: string
   bundleId: string
   /** Opt in to UIKit + JavaScriptCore instead of the default WebView. */
@@ -1385,6 +1416,8 @@ export async function init(options: InitOptions): Promise<void> {
 
   writeShell(output, config)
 
+  const nativeFontFiles = syncNativeFonts(config.nativeFonts, output)
+
   // Generate Info.plist
   const infoPlistTemplate = readFileSync(join(TEMPLATES_DIR, 'Info.plist.template'), 'utf-8')
   const infoPlist = infoPlistTemplate
@@ -1401,6 +1434,7 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{BACKGROUND_MODES\}\}/g, renderBackgroundModes(config))
     .replace(/\{\{BACKGROUND_TASK_IDENTIFIERS\}\}/g, renderBackgroundTaskIdentifiers(config))
     .replace(/\{\{LAUNCH_SCREEN\}\}/g, renderLaunchScreen(config))
+    .replace(/\{\{NATIVE_FONTS\}\}/g, nativeFontFiles.length ? `    <key>UIAppFonts</key>\n    <array>\n${plistArray(nativeFontFiles, 2)}\n    </array>` : '')
     .replace(/\{\{NON_EXEMPT_ENCRYPTION\}\}/g, config.usesNonExemptEncryption ? 'true' : 'false')
     .replace(/\{\{LIVE_ACTIVITY_SUPPORT\}\}/g, config.enableLiveActivities
       ? '    <key>NSSupportsLiveActivities</key>\n    <true/>\n    <key>NSSupportsLiveActivitiesFrequentUpdates</key>\n    <true/>'
