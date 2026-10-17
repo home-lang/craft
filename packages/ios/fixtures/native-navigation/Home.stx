@@ -583,7 +583,7 @@ function toggleScreenBackground() {
         @load-start="imageLoadStart()"
         @load="imageLoaded()"
         @load-end="imageLoadEnded()"
-        style={{"width":24,"height":24,"resizeMode":"cover","tintColor":imageTinted ? "#2563eb" : null}}
+        style={{"width":24,"height":24,"borderRadius":12,"resizeMode":"cover","tintColor":imageTinted ? "#2563eb" : null}}
       />
       <Image testID="intrinsic-image" source={intrinsicImage()} style={{"alignSelf":"flex-start"}} @layout="captureIntrinsicImageLayout($event)" />
       <Text testID="intrinsic-image-status" :text="intrinsicImageStatus" />

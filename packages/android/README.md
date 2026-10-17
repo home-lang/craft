@@ -898,6 +898,19 @@ project is removed after execution. This is also how Craft and consuming apps
 execute the native input reconciler regressions, without assuming a particular
 Gradle cache layout.
 
+## Native image caching
+
+Native `Image` keeps anonymous responses marked `public` with a positive
+`Cache-Control: max-age` in a bounded disk cache, so photos remain available
+after an offline app restart. The cache holds at most 32 MiB of encoded pixels
+and 128 entries, with an 8 MiB limit per image. Freshness and pixels are written
+atomically; failed cache writes do not fail a successful image download.
+
+Requests with custom headers, cookie responses, `no-store`, `no-cache`, and
+account-dependent variants are not persisted. Expired entries are fetched
+again. Image pixels honor authored rounded corners without requiring a
+container to hide overflow.
+
 ## License
 
 MIT

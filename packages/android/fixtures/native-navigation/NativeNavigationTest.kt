@@ -466,7 +466,7 @@ class NativeNavigationTest {
             assertTrue("Removing the top edge changed the bottom inset", root.paddingBottom >= initialRootBottom)
             click(activity, "toggle-safe-area")
             awaitText(activity, "safe-area-status", "Safe edges: top,bottom")
-            assertTrue("Restoring the top edge did not restore the window inset", root.paddingTop > authoredRootPadding)
+            assertEquals("Restoring the top edge changed the original native safe-area padding", initialRootTop, root.paddingTop)
             val retained = awaitView(activity, "retained-safe-area")
             val retainedAuthoredPadding = (4 * activity.resources.displayMetrics.density).toInt()
             val plainRetainedPadding = retained.paddingTop
@@ -474,7 +474,7 @@ class NativeNavigationTest {
             click(activity, "toggle-retained-safe-area")
             awaitText(activity, "retained-safe-area-status", "Retained: safe")
             assertSame("type-switched retained container was replaced", retained, awaitView(activity, "retained-safe-area"))
-            assertTrue("SafeAreaView type switch did not add the window inset", retained.paddingTop > plainRetainedPadding)
+            assertEquals("SafeAreaView type switch did not apply the received top inset", plainRetainedPadding + initialRootTop - authoredRootPadding, retained.paddingTop)
             click(activity, "toggle-retained-safe-area")
             awaitText(activity, "retained-safe-area-status", "Retained: plain")
             assertSame("retained container changed identity on the way back", retained, awaitView(activity, "retained-safe-area"))
@@ -529,7 +529,7 @@ class NativeNavigationTest {
             assertEquals(Color.rgb(0x22, 0xc5, 0x5e), notes.highlightColor)
             val booleanMaxLength = awaitView(activity, "boolean-max-length") as EditText
             instrumentation.runOnMainSync { booleanMaxLength.setText("AB") }
-            assertEquals("AB", booleanMaxLength.text.toString(), "Boolean maxLength was treated as numeric")
+            assertEquals("Boolean maxLength was treated as numeric", "AB", booleanMaxLength.text.toString())
             val booleanInputLines = awaitView(activity, "boolean-input-lines") as EditText
             assertEquals("Boolean TextInput numberOfLines was treated as numeric", Int.MAX_VALUE, booleanInputLines.maxLines)
             val readonly = awaitView(activity, "readonly-input") as EditText
@@ -1143,6 +1143,7 @@ class NativeNavigationTest {
             assertTrue("ScrollView contentContainerStyle did not add top padding", image.top >= nativeScroller.top + (12 * density).toInt())
             assertScrolls(nativeScroller)
             assertTrue("Image did not render as ImageView", image is ImageView)
+            assertTrue("Image borderRadius must clip its pixels without overflow:hidden", image.clipToOutline)
             assertEquals("CraftNativeImageBackgroundView", imageBackground.javaClass.simpleName)
             assertTrue("ImageBackground child did not reconcile", awaitView(activity, "native-image-background-label") is TextView)
             assertTrue("ImageBackground image did not decode", (imageBackground as ViewGroup).getChildAt(0) is ImageView)

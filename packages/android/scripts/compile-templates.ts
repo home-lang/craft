@@ -18,6 +18,8 @@ const compileTestTemplates = readdirSync(compileFixtureDirectory, { withFileType
   .filter(entry => entry.isFile() && entry.name.endsWith('Test.kt'))
   .map(entry => ({
     name: entry.name,
+    // Native-only support types are not emitted into WebView projects.
+    nativeOnly: entry.name.startsWith('CraftNative'),
     source: readFileSync(join(compileFixtureDirectory, entry.name), 'utf8'),
   }))
 const gradleExecutable = process.env.GRADLE_EXECUTABLE || 'gradle'
@@ -124,6 +126,7 @@ try {
     )
     mkdirSync(testDirectory, { recursive: true })
     for (const testTemplate of compileTestTemplates) {
+      if (testTemplate.nativeOnly && config.renderer !== 'native') continue
       // Bundled-page fallback belongs to the WebView activity, not the native
       // STX activity. The other bridge policy tests apply to both renderers.
       if (config.renderer === 'native' && testTemplate.name === 'CraftLoadFailureTest.kt') continue

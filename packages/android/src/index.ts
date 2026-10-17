@@ -624,6 +624,7 @@ function writeNativeShellSources(output: string, packagePath: string, packageNam
   }
   write('CraftBluetooth.kt.template', 'CraftBluetooth.kt')
   write('CraftNativeShell.kt.template', 'CraftNativeShell.kt')
+  write('CraftNativeImageCache.kt.template', 'CraftNativeImageCache.kt')
   write('CraftNativeBackground.kt.template', 'CraftNativeBackground.kt')
   write(config.enableHealthConnect ? 'CraftNativeHealth.kt.template' : 'CraftNativeHealthStub.kt.template', 'CraftNativeHealth.kt')
   write('CraftNativeServices.kt.template', 'CraftNativeServices.kt', source => source
