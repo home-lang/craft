@@ -29,7 +29,7 @@ try {
     name: 'NativeRender',
     bundleId: 'dev.craft.native-render',
     output,
-    config: { renderer: 'native' },
+    config: { renderer: 'native', urlSchemes: ['craft-fixture'], appShortcuts: [{ id: 'saved', title: 'Saved trails', symbol: 'heart.fill', url: 'craft-fixture://saved', phrases: ['Show saved trails in {app}'] }] },
     runtimeDir: null,
   })
   await build({
@@ -91,6 +91,7 @@ try {
     'xcodebuild', '-project', 'NativeRender.xcodeproj', '-scheme', 'NativeRender',
     '-configuration', 'Debug', '-destination', `id=${device.udid}`,
     '-derivedDataPath', join(workspace, 'DerivedData'),
+    '-collect-test-diagnostics', 'never',
     '-test-timeouts-enabled', 'YES',
     '-default-test-execution-time-allowance', '300',
     '-maximum-test-execution-time-allowance', '300',

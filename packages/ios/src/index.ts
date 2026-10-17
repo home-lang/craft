@@ -7,6 +7,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, resolve, sep } from 'node:path'
 import { $ } from 'bun'
+import { appShortcutsSwift, type CraftAppShortcut } from './app-shortcuts.js'
 
 /** Package custom fonts and their licenses; removed fonts cannot linger in the app. */
 export function syncNativeFonts(fonts: CraftConfig['nativeFonts'], output: string): string[] {
@@ -68,6 +69,7 @@ const CRAFT_VERSION = resolveCraftVersion()
 export type CraftAppearance = 'light' | 'dark' | 'system'
 
 export interface CraftConfig {
+  appShortcuts?: CraftAppShortcut[]
   /** Bundled font files keyed by their PostScript font name, used as native fontFamily. */
   nativeFonts?: Record<string, { src: string, license?: string }>
 
@@ -1339,6 +1341,7 @@ function writeShell(output: string, config: CraftConfig): void {
   if (!config.appName || !/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(config.bundleId))
     throw new Error('The iOS shell needs an appName and a valid bundleId in craft.config.json.')
   const name = productName(config.appName)
+  const shortcutSource = appShortcutsSwift(config.appShortcuts, config.urlSchemes)
   mkdirSync(join(output, 'Sources'), { recursive: true })
   mkdirSync(join(output, 'Shared'), { recursive: true })
   const swiftTemplate = readFileSync(join(TEMPLATES_DIR, 'CraftApp.swift'), 'utf-8')
@@ -1347,6 +1350,7 @@ function writeShell(output: string, config: CraftConfig): void {
     .replace(/\{\{BUNDLE_ID\}\}/g, config.bundleId)
     .replace(/\{\{CRAFT_VERSION\}\}/g, CRAFT_VERSION)
   writeFileSync(join(output, 'Sources', `${name}App.swift`), swiftSource)
+  writeFileSync(join(output, 'Sources', 'CraftAppShortcuts.swift'), shortcutSource)
   cpSync(join(TEMPLATES_DIR, 'CraftNativeScreen.swift'), join(output, 'Sources', 'CraftNativeScreen.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeFlatList.swift'), join(output, 'Sources', 'CraftNativeFlatList.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeActions.swift'), join(output, 'Sources', 'CraftNativeActions.swift'))

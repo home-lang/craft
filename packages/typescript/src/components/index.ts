@@ -621,6 +621,10 @@ export interface MapProps extends BaseProps {
   region?: MapRegion
   /** Initial camera region; applied once, then controlled by subsequent props. */
   initialRegion?: MapRegion
+  /** A native raster basemap, with required provider attribution. */
+  tileOverlay?: { urlTemplate: string, attribution: string }
+  /** Logical points reserved for floating controls when fitting overlays. */
+  edgePadding?: { top?: number, right?: number, bottom?: number, left?: number }
   fitToBounds?: boolean
   showsUserLocation?: boolean
   scrollEnabled?: boolean
@@ -628,6 +632,15 @@ export interface MapProps extends BaseProps {
   rotateEnabled?: boolean
   /** Map styles implemented consistently by the maintained iOS and Android hosts. */
   mapType?: 'standard' | 'satellite' | 'hybrid'
+  showsCompass?: boolean
+  showsScale?: boolean
+  /** Requested tilt in degrees; the platform may lower it for the current altitude or map type. */
+  cameraPitch?: number
+  cameraHeading?: number
+  /** A coordinate tapped on the map, excluding annotation presses. */
+  onPress?: (event: { nativeEvent: { latitude: number, longitude: number } }) => void
+  /** Settled camera after a person pans, rotates, zooms or tilts the map. */
+  onRegionChangeComplete?: (event: { nativeEvent: MapRegion & { heading: number, pitch: number } }) => void
   onMarkerPress?: (event: { nativeEvent: { id: string } }) => void
 }
 
@@ -641,6 +654,8 @@ export interface MapMarkerProps extends BaseProps {
   geometry: number[]
   id: string
   title?: string
+  /** A direction arrow in place of the default marker, clockwise from north. */
+  bearing?: number
   onPress?: (event: { nativeEvent: { id: string } }) => void
   onMarkerPress?: (event: { nativeEvent: { id: string } }) => void
 }

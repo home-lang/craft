@@ -1566,6 +1566,13 @@ describe('native renderer component contract', () => {
     expect(iosReadme).toContain('The `backgroundColor` navigation option is shared with the Android native host')
   })
 
+  it('requests local notification permission on Android without requiring Firebase push', () => {
+    expect(androidCapabilities).toContain('pendingNotificationPermission')
+    expect(androidCapabilities).toContain('ActivityCompat.requestPermissions(host, arrayOf(Manifest.permission.POST_NOTIFICATIONS), CRAFT_NATIVE_NOTIFICATION_PERMISSION_REQUEST)')
+    expect(androidCapabilities).toContain('if (granted) schedule(notification)')
+    expect(android).toContain('capabilities.onNotificationPermissions(requestCode)')
+  })
+
   it('does not recenter native maps on every reconciliation', () => {
     expect(ios).toContain('private var initialCameraKey: String?')
     expect(ios).toContain('if let region = Self.region(props["region"])')
@@ -1574,7 +1581,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private var initialCameraKey: String? = null')
     expect(android).toContain('val explicitRegion = region(pendingProps.optJSONObject("region"))')
     expect(android).toContain('val initialRegion = region(pendingProps.optJSONObject("initialRegion"))')
-    expect(android).toContain('val key = "fit:${overlayKey(nextMarkers, nextPolylines)}"')
+    expect(android).toContain('val key = "fit:${overlayKey(nextMarkers, nextPolylines)}:${pendingProps.optJSONObject("edgePadding")}"')
     expect(android).toContain('if (fitToBounds()) initialCameraKey = key')
     expect(android).toContain('override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int)')
     expect(guide).toContain('an `initialRegion` applied once')
