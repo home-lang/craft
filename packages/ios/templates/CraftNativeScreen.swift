@@ -6837,17 +6837,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     ) {
         let id = ObjectIdentifier(textView)
         textView.delegate = self
-        textView.textColor = color(style["color"]) ?? .label
-        textView.font = textFont(style, default: .systemFont(ofSize: 16))
-        textView.textAlignment = textAlignment(style["textAlign"])
-        textView.tintColor = color(props["selectionColor"])
-        textView.keyboardType = keyboardType(props["keyboardType"])
-        textView.returnKeyType = returnKeyType(props["returnKeyType"])
-        textView.autocorrectionType = props["autoCorrect"] as? Bool == false ? .no : .default
-        textView.autocapitalizationType = capitalizationType(props["autoCapitalize"])
-        textView.isSecureTextEntry = props["secureTextEntry"] as? Bool == true
+        // UIKit owns marked text until the keyboard commits it. Reapplying
+        // typography or input traits during composition can commit that draft.
+        if textView.markedTextRange == nil {
+            textView.textColor = color(style["color"]) ?? .label
+            textView.font = textFont(style, default: .systemFont(ofSize: 16))
+            textView.textAlignment = textAlignment(style["textAlign"])
+            textView.tintColor = color(props["selectionColor"])
+            textView.keyboardType = keyboardType(props["keyboardType"])
+            textView.returnKeyType = returnKeyType(props["returnKeyType"])
+            textView.autocorrectionType = props["autoCorrect"] as? Bool == false ? .no : .default
+            textView.autocapitalizationType = capitalizationType(props["autoCapitalize"])
+            textView.isSecureTextEntry = props["secureTextEntry"] as? Bool == true
+            applyAutofill(to: textView, props: props)
+        }
         textView.isEditable = props["editable"] as? Bool != false
-        applyAutofill(to: textView, props: props)
         // The style's padding is where the text starts, as in a web textarea.
         let padding = paddingInsets(style)
         if let craftTextView = textView as? CraftNativeTextView {
@@ -6875,12 +6879,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             craftTextView.placeholderFont = textView.font
         }
         updateTextView(textView, value: (props["value"] as? String) ?? defaultValue)
-        let selectedRange = textView.selectedRange
-        let attributes = inputTextAttributes(style, font: textView.font ?? .systemFont(ofSize: 16), alignment: textView.textAlignment)
-        textView.typingAttributes = attributes
-        if !textView.text.isEmpty {
-            textView.attributedText = NSAttributedString(string: textView.text, attributes: attributes)
-            textView.selectedRange = selectedRange
+        if textView.markedTextRange == nil {
+            let attributes = inputTextAttributes(style, font: textView.font ?? .systemFont(ofSize: 16), alignment: textView.textAlignment)
+            let styled = NSAttributedString(string: textView.text ?? "", attributes: attributes)
+            if !textView.text.isEmpty, textView.attributedText?.isEqual(to: styled) != true {
+                let selectedRange = textView.selectedRange
+                textView.attributedText = styled
+                textView.selectedRange = selectedRange
+            }
+            if !(textView.typingAttributes as NSDictionary).isEqual(attributes as NSDictionary) {
+                textView.typingAttributes = attributes
+            }
         }
         (textView as? CraftNativeTextView)?.refreshPlaceholder()
         updateHandler(nonEmptyHandler(events["onChange"]) ?? nonEmptyHandler(events["onChangeText"]), for: textView)
