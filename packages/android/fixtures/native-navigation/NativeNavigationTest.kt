@@ -415,6 +415,83 @@ class NativeNavigationTest {
         assertTabTapInterruptsSettlingSwipe(2, "summary-title", "Summary for ")
     }
 
+    private fun assertRetainedTabVisibleAfterSwipe(cancelledPreview: Boolean) {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        val previousScale = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        fun animatorScale(value: Float) {
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
+                "settings put global animator_duration_scale $value",
+            )).use { it.readBytes() }
+        }
+        try {
+            animatorScale(1f)
+            awaitText(activity, "navigation-home-state", "Home state: Ada/0")
+            val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
+                ?: throw AssertionError("native chrome did not mount")
+            fun swipe(left: Boolean, cancelled: Boolean) {
+                instrumentation.runOnMainSync {
+                    val dx = chrome.content.width * if (left) -0.65f else 0.65f
+                    assertTrue("retained-tab swipe did not start", chrome.onTabSwipeStart?.invoke(
+                        dx, chrome.width * if (left) 0.85f else 0.15f,
+                        chrome.content.top + chrome.content.height * 0.85f,
+                    ) == true)
+                    chrome.onTabSwipeMove?.invoke(dx)
+                    chrome.onTabSwipeEnd?.invoke(dx, cancelled)
+                }
+                // Keep real animator completions in the reproduction: these
+                // can write a final offset after removing the retained view.
+                SystemClock.sleep(400)
+            }
+            fun assertVisibleViewport() {
+                instrumentation.runOnMainSync {
+                    val screen = chrome.content.getChildAt(0)
+                        ?: throw AssertionError("selected tab did not attach its native screen")
+                    val bounds = android.graphics.Rect()
+                    assertTrue("selected retained tab is outside the visible viewport", screen.getGlobalVisibleRect(bounds))
+                    assertEquals("selected retained tab is horizontally displaced", 0f, screen.translationX, 0.01f)
+                    assertEquals("retained tab does not fill the visible viewport", chrome.content.width, bounds.width())
+                    assertTrue("retained tab has no visible content height", bounds.height() > 0)
+                }
+            }
+            if (cancelledPreview) {
+                swipe(left = true, cancelled = true)
+                awaitText(activity, "navigation-home-state", "Home state: Ada/0")
+            } else {
+                swipe(left = true, cancelled = false)
+                awaitText(activity, "details-title", "Details for ")
+                assertVisibleViewport()
+                swipe(left = false, cancelled = false)
+                awaitText(activity, "navigation-home-state", "Home state: Ada/0")
+            }
+            assertVisibleViewport()
+            instrumentation.runOnMainSync { chrome.onTab?.invoke(1) }
+            awaitText(activity, "details-title", "Details for ")
+            assertVisibleViewport()
+            instrumentation.runOnMainSync { chrome.onTab?.invoke(0) }
+            awaitText(activity, "navigation-home-state", "Home state: Ada/0")
+            assertVisibleViewport()
+            assertNoWebView(activity)
+        } finally {
+            animatorScale(previousScale)
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
+    fun cancelledSwipeTargetIsVisibleWhenSelectedLater() {
+        assertRetainedTabVisibleAfterSwipe(cancelledPreview = true)
+    }
+
+    @Test
+    fun completedReverseSwipeKeepsRetainedTabVisible() {
+        assertRetainedTabVisibleAfterSwipe(cancelledPreview = false)
+    }
+
     @Test
     fun compiledBundleRendersNavigatesAndRetainsNativeControls() {
         val context = instrumentation.targetContext
