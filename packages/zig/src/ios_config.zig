@@ -185,7 +185,7 @@ const optional_string_map_keys = [_][]const u8{ "nativeScreens", "shareStorage" 
 /// Swift `Codable` structs, whose fields are checked by `checkObject`.
 const optional_object_keys = [_]Nested{ .{ .key = "backgroundRefresh", .fields = &background_refresh_fields }, .{ .key = "crashReporting", .fields = &crash_reporting_fields } };
 /// Swift arrays of `Codable` structs. Every element is checked.
-const optional_array_of_object_keys = [_]Nested{.{ .key = "tabs", .fields = &tab_fields }};
+const optional_array_of_object_keys = [_]Nested{ .{ .key = "tabs", .fields = &tab_fields }, .{ .key = "appShortcuts", .fields = &app_shortcut_fields } };
 
 /// A stored key whose value is one of `CraftConfig`'s nested types.
 const Nested = struct { key: []const u8, fields: []const Field };
@@ -198,7 +198,7 @@ const Nested = struct { key: []const u8, fields: []const Field };
 /// defaults to false, still throws when it is missing or null. An optional
 /// field may be missing or null. Both checked against `swiftc`.
 const Field = struct { name: []const u8, kind: Kind, required: bool };
-const Kind = enum { string, bool, number };
+const Kind = enum { string, bool, number, string_array };
 
 /// `CraftConfig.BackgroundRefresh`.
 const background_refresh_fields = [_]Field{
@@ -224,6 +224,24 @@ const tab_fields = [_]Field{
     .{ .name = "symbol", .kind = .string, .required = false },
 };
 
+/// `CraftConfiguredShortcut`, decoded by Swift before enabling capabilities.
+const app_shortcut_fields = [_]Field{
+    .{ .name = "id", .kind = .string, .required = true },
+    .{ .name = "title", .kind = .string, .required = true },
+    .{ .name = "subtitle", .kind = .string, .required = false },
+    .{ .name = "symbol", .kind = .string, .required = true },
+    .{ .name = "url", .kind = .string, .required = true },
+    .{ .name = "phrases", .kind = .string_array, .required = true },
+};
+
+fn isStringArray(v: std.json.Value) bool {
+    if (v != .array) return false;
+    for (v.array.items) |item| {
+        if (item != .string) return false;
+    }
+    return true;
+}
+
 fn isNumber(v: std.json.Value) bool {
     return switch (v) {
         .integer, .float, .number_string => true,
@@ -236,6 +254,7 @@ fn isKind(v: std.json.Value, kind: Kind) bool {
         .string => v == .string,
         .bool => v == .bool,
         .number => isNumber(v),
+        .string_array => isStringArray(v),
     };
 }
 
@@ -804,6 +823,31 @@ test "nested types decode field by field, defaults or not" {
         "\"tabs\":[{\"id\":\"a\",\"title\":\"A\",\"symbol\":1}]",
         "\"tabs\":[null]",
         "\"tabs\":{}",
+    }) |bad| {
+        const json = try completeConfig(testing.allocator, bad);
+        defer testing.allocator.free(json);
+        try testing.expectEqual(@as(usize, 0), parse(testing.allocator, json).count());
+    }
+}
+
+test "app shortcuts follow Swift Codable field and phrase types" {
+    inline for (.{
+        "\"appShortcuts\":[]",
+        "\"appShortcuts\":[{\"id\":\"open-training\",\"title\":\"Open training\",\"symbol\":\"figure.run\",\"url\":\"/m/training\",\"phrases\":[\"Open training in HQ\"]}]",
+        "\"appShortcuts\":[{\"id\":\"open-training\",\"title\":\"Open training\",\"symbol\":\"figure.run\",\"url\":\"/m/training\",\"phrases\":[\"Open training in HQ\"],\"subtitle\":null,\"unknown\":\"ignored\"}]",
+        "\"appShortcuts\":[{\"id\":\"open-training\",\"title\":\"Open training\",\"symbol\":\"figure.run\",\"url\":\"/m/training\",\"phrases\":[],\"subtitle\":\"Training\"}]",
+    }) |good| {
+        const json = try completeConfig(testing.allocator, good);
+        defer testing.allocator.free(json);
+        try testing.expectEqual(std.enums.values(Feature).len, parse(testing.allocator, json).count());
+    }
+    inline for (.{
+        "\"appShortcuts\":{}",
+        "\"appShortcuts\":[null]",
+        "\"appShortcuts\":[{\"id\":\"open-training\",\"title\":\"Open training\",\"symbol\":\"figure.run\",\"phrases\":[\"Open training in HQ\"]}]",
+        "\"appShortcuts\":[{\"id\":\"open-training\",\"title\":\"Open training\",\"symbol\":\"figure.run\",\"url\":\"/m/training\",\"phrases\":null}]",
+        "\"appShortcuts\":[{\"id\":\"open-training\",\"title\":\"Open training\",\"symbol\":\"figure.run\",\"url\":\"/m/training\",\"phrases\":[\"Open\",3]}]",
+        "\"appShortcuts\":[{\"id\":\"open-training\",\"title\":\"Open training\",\"symbol\":\"figure.run\",\"url\":\"/m/training\",\"phrases\":[\"Open training in HQ\"],\"subtitle\":42}]",
     }) |bad| {
         const json = try completeConfig(testing.allocator, bad);
         defer testing.allocator.free(json);
