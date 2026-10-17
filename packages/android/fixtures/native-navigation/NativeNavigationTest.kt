@@ -358,6 +358,7 @@ class NativeNavigationTest {
                     val metadata = "size=${image.width}x${image.height} inset=$inset background=$actual expected=$color " +
                             "glyph=$glyphColor at=$glyphX,$glyphY contrast=$glyphContrast navigationLight=${appearance.isAppearanceLightNavigationBars} " +
                             "windowBackground=${backgroundColor(activity.window.decorView)} nativeAppearance=${activity.window.insetsController?.systemBarsAppearance} " +
+                            "brightness=${activity.window.attributes.screenBrightness} flags=${activity.window.attributes.flags} format=${activity.window.attributes.format} " +
                             "navigationMode=${Settings.Secure.getString(activity.contentResolver, "navigation_mode")}\n"
                     java.io.File(directory, "$name.txt").writeText(metadata)
                     android.util.Log.i("CraftNativeBarProbe", metadata)
@@ -368,6 +369,7 @@ class NativeNavigationTest {
                             Intent(activity, NativeSystemBarsReferenceActivity::class.java)
                                 .putExtra("background", expected)
                                 .putExtra("stockTheme", stockTheme)
+                                .putExtra("brightness", activity.window.attributes.screenBrightness)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         ) as NativeSystemBarsReferenceActivity
                         try {
@@ -377,6 +379,12 @@ class NativeNavigationTest {
                             java.io.File(directory, "$name-reference-$stockTheme.png").outputStream().use {
                                 comparison.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
                             }
+                            val attributes = reference.window.attributes
+                            java.io.File(directory, "$name-reference-$stockTheme.txt").writeText(
+                                "background=${backgroundColor(reference.window.decorView)} " +
+                                    "appearance=${reference.window.insetsController?.systemBarsAppearance} " +
+                                    "brightness=${attributes.screenBrightness} flags=${attributes.flags} format=${attributes.format}\n"
+                            )
                             comparison.recycle()
                         } finally {
                             instrumentation.runOnMainSync { reference.finish() }

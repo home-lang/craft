@@ -18,6 +18,9 @@ class NativeSystemBarsReferenceActivity : Activity() {
         super.onCreate(savedInstanceState)
         val background = intent.getIntExtra("background", Color.BLACK)
         val light = Color.luminance(background) >= 0.5f
+        window.attributes = window.attributes.apply {
+            screenBrightness = intent.getFloatExtra("brightness", -1f)
+        }
         window.setBackgroundDrawable(ColorDrawable(background))
         setContentView(TextView(this).apply {
             text = "Native Android system bars"
