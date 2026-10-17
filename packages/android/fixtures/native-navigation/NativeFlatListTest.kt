@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import androidx.swiperefreshlayout.widget.CircularProgressDrawable
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
@@ -258,17 +259,17 @@ class NativeFlatListTest {
                 host.setRefreshAppearance(JSONObject(), Color.BLACK)
                 indicator = findImage(host) ?: throw AssertionError("refresh indicator did not mount")
             }
-            assertEquals(Color.BLACK, indicator.imageTintList?.defaultColor)
+            assertEquals(Color.BLACK, (indicator.drawable as CircularProgressDrawable).colorSchemeColors.single())
             instrumentation.runOnMainSync {
                 host.setRefreshAppearance(JSONObject().put("tintColor", "#123456"), Color.WHITE)
             }
-            assertEquals(Color.rgb(0x12, 0x34, 0x56), indicator.imageTintList?.defaultColor)
+            assertEquals(Color.rgb(0x12, 0x34, 0x56), (indicator.drawable as CircularProgressDrawable).colorSchemeColors.single())
             instrumentation.runOnMainSync {
                 host.setRefreshAppearance(JSONObject().put("tintColor", "not-a-color"), Color.WHITE)
             }
-            assertEquals("invalid refresh tint should use the screen fallback", Color.WHITE, indicator.imageTintList?.defaultColor)
+            assertEquals("invalid refresh tint should use the screen fallback", Color.WHITE, (indicator.drawable as CircularProgressDrawable).colorSchemeColors.single())
             instrumentation.runOnMainSync { host.setRefreshAppearance(JSONObject(), Color.WHITE) }
-            assertEquals(Color.WHITE, indicator.imageTintList?.defaultColor)
+            assertEquals(Color.WHITE, (indicator.drawable as CircularProgressDrawable).colorSchemeColors.single())
         } finally {
             scenario.close()
         }
