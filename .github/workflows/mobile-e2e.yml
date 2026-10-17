@@ -41,6 +41,10 @@ on:
       - packages/zig/build.zig
       - scripts/mobile-e2e.ts
       - scripts/mobile-e2e/**
+      - scripts/media-cache.ts
+      - packages/typescript/src/mobile-media-testing.ts
+      - packages/typescript/fixtures/media-cache/**
+      - .github/workflows/media-cache.yml
       - .github/workflows/mobile-e2e.yml
   pull_request:
     paths:
@@ -55,6 +59,10 @@ on:
       - packages/zig/build.zig
       - scripts/mobile-e2e.ts
       - scripts/mobile-e2e/**
+      - scripts/media-cache.ts
+      - packages/typescript/src/mobile-media-testing.ts
+      - packages/typescript/fixtures/media-cache/**
+      - .github/workflows/media-cache.yml
       - .github/workflows/mobile-e2e.yml
   workflow_dispatch:
     inputs:
@@ -80,6 +88,10 @@ defaults:
     shell: bash
 
 jobs:
+  media-cache:
+    if: ${{ inputs.scope != 'ios-navigation' }}
+    uses: ./.github/workflows/media-cache.yml
+
   # The transcript reader and the required-case list are the part of this
   # harness that can be tested without a device, and nothing ran those tests:
   # every `bun test` in this repository is scoped to a package directory or to
@@ -576,7 +588,7 @@ jobs:
 
   mobile-summary:
     name: Mobile E2E summary
-    needs: [harness, ios-native, ios-simulator, android-emulator, ios-zig-slice]
+    needs: [harness, ios-native, ios-simulator, android-emulator, ios-zig-slice, media-cache]
     runs-on: ubuntu-latest
     if: always()
 
@@ -596,6 +608,7 @@ jobs:
             echo "| iOS simulator (generated app) | ${{ needs.ios-simulator.result }} |"
             echo "| Android emulator (generated app) | ${{ needs.android-emulator.result }} |"
             echo "| iOS Zig runtime slice | ${{ needs.ios-zig-slice.result }} |"
+            echo "| Native media storage and recovery | ${{ needs.media-cache.result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The summary job used to be the whole story, and it reported whatever it
@@ -614,6 +627,7 @@ jobs:
             contains(fromJSON('["failure", "skipped"]'), needs.ios-simulator.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.ios-zig-slice.result)
+            || contains(fromJSON('["failure", "skipped"]'), needs.media-cache.result)
           ))
         run: |
           echo "::error::at least one mobile E2E leg did not succeed"
