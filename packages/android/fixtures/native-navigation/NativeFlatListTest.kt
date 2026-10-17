@@ -29,6 +29,10 @@ class NativeFlatListTest {
 
     @Test
     fun celebrationIsFiniteReplayableAndHonorsReducedMotion() {
+        // The protocol CI leg removes system animations; native navigation
+        // legs keep them on. Exercise the real policy in both configurations.
+        val motionEnabled = android.animation.ValueAnimator.areAnimatorsEnabled()
+        val firstStart = if (motionEnabled) 1 else 0
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         lateinit var celebration: CraftNativeCelebration
         lateinit var card: View
@@ -43,28 +47,28 @@ class NativeFlatListTest {
         scenario.onActivity {
             val request = JSONObject().put("replay", 0)
             celebration.configure(request, 20f)
-            celebration.layout(true)
-            assertEquals(1, celebration.starts)
-            assertTrue(celebration.isRunning)
+            celebration.layout()
+            assertEquals(firstStart, celebration.starts)
+            assertEquals(motionEnabled, celebration.isRunning)
             celebration.configure(request, 20f)
-            celebration.layout(true)
-            assertEquals(1, celebration.starts)
+            celebration.layout()
+            assertEquals(firstStart, celebration.starts)
             celebration.stop()
             assertTrue(!celebration.isRunning)
             celebration.configure(JSONObject().put("replay", 1), 20f)
             celebration.layout(false)
-            assertEquals(1, celebration.starts)
+            assertEquals(firstStart, celebration.starts)
             celebration.layout(true)
-            assertEquals(1, celebration.starts)
+            assertEquals(firstStart, celebration.starts)
             celebration.configure(JSONObject().put("replay", 2).put("enabled", false), 20f)
             celebration.layout(true)
-            assertEquals(1, celebration.starts)
+            assertEquals(firstStart, celebration.starts)
             celebration.configure(JSONObject().put("replay", -1), 20f)
             celebration.layout(true)
-            assertEquals(1, celebration.starts)
+            assertEquals(firstStart, celebration.starts)
             celebration.configure(JSONObject().put("replay", 3), 20f)
-            celebration.layout(true)
-            assertEquals(2, celebration.starts)
+            celebration.layout()
+            assertEquals(firstStart * 2, celebration.starts)
         }
         SystemClock.sleep(3300)
         scenario.onActivity { assertTrue(!celebration.isRunning) }
