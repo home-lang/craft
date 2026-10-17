@@ -4224,7 +4224,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         screenRequestCancellers.removeAll()
     }
 
+    private var appliedTraitDefaults: String?
+
     private func refreshTraitDefaults() {
+        // Tab navigation is not a theme change. Reapplying the entire tree
+        // discards every measurement just as an interactive transition starts.
+        let traits = "\(colorScheme):\(traitCollection.preferredContentSizeCategory.rawValue):\(UIAccessibility.isReduceTransparencyEnabled)"
+        guard traits != appliedTraitDefaults else { return }
+        appliedTraitDefaults = traits
         view.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor
         applyNavigationBarAppearance()
         if let document = mutationDocument.node("root") {

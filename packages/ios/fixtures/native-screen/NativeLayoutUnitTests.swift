@@ -17,6 +17,63 @@ final class NativeLayoutUnitTests: XCTestCase {
         return controller
     }
 
+    func testReturningToAnUnchangedThemeRetainsTextAndScrollGeometry() throws {
+        let rows: [[String: Any]] = (0..<100).map { index in
+            ["id": "row-\(index)", "type": "Text", "props": ["testID": "row-\(index)"],
+             "style": ["fontSize": 17, "letterSpacing": 0.3, "padding": 12], "children": ["Training session \(index)"]]
+        }
+        let controller = screen(["id": "root", "type": "ScrollView", "style": ["flex": 1], "children": rows])
+        controller.viewWillAppear(false)
+        controller.view.layoutIfNeeded()
+        let scroll = try XCTUnwrap(controller.view.subviews.first?.subviews.first as? UIScrollView)
+        let label = try XCTUnwrap(find("row-0", below: controller.view) as? UILabel)
+        let text = label.attributedText
+        scroll.setContentOffset(CGPoint(x: 0, y: 400), animated: false)
+        let size = scroll.contentSize
+        let start = CACurrentMediaTime()
+        for _ in 0..<20 {
+            controller.viewWillAppear(false)
+            controller.view.layoutIfNeeded()
+        }
+        NSLog("PERF unchanged tab appearance 100 rows: %.3f ms per visit", (CACurrentMediaTime() - start) * 1000 / 20)
+        XCTAssertTrue(label.attributedText === text, "unchanged appearance must not restyle every label")
+        XCTAssertEqual(scroll.contentOffset.y, 400, accuracy: 0.5)
+        XCTAssertEqual(scroll.contentSize, size)
+        controller.overrideUserInterfaceStyle = .dark
+        controller.viewWillAppear(false)
+        XCTAssertEqual(label.text, "Training session 0")
+    }
+
+    func testSnapshotCacheTracksPendingWritesDeletionAndRecreation() async throws {
+        let name = "cache-test-" + UUID().uuidString
+        func write(_ json: String?) async -> Bool {
+            await withCheckedContinuation { continuation in
+                CraftSnapshots.write(name, json: json) { continuation.resume(returning: $0) }
+            }
+        }
+        let created = await write("{\"count\":1}")
+        XCTAssertTrue(created)
+        for _ in 0..<100 { XCTAssertEqual(CraftSnapshots.read(name), "{\"count\":1}") }
+        let finished = expectation(description: "queued snapshot writes completed")
+        CraftSnapshots.write(name, json: "{\"count\":2}")
+        CraftSnapshots.write(name, json: "{\"count\":3}")
+        CraftSnapshots.write(name, json: "{\"count\":2}") { ok in
+            XCTAssertTrue(ok)
+            finished.fulfill()
+        }
+        XCTAssertEqual(CraftSnapshots.read(name), "{\"count\":2}")
+        await fulfillment(of: [finished], timeout: 10)
+        XCTAssertEqual(CraftSnapshots.read(name), "{\"count\":2}")
+        let removed = await write(nil)
+        XCTAssertTrue(removed)
+        XCTAssertNil(CraftSnapshots.read(name))
+        let recreated = await write("{\"count\":4}")
+        XCTAssertTrue(recreated)
+        XCTAssertEqual(CraftSnapshots.read(name), "{\"count\":4}")
+        let cleaned = await write(nil)
+        XCTAssertTrue(cleaned)
+    }
+
     func testContainerFillsSurvivePressFeedbackReconciliation() throws {
         func document(_ fill: String?) -> [String: Any] {
             var style: [String: Any] = ["width": 100, "height": 44, "borderRadius": 12]

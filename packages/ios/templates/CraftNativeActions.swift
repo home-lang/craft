@@ -1436,6 +1436,16 @@ enum CraftSnapshots {
     private static let lock = NSLock()
     /// Writes not on disk yet, so a read right after a write sees it.
     private static var pending: [String: String?] = [:]
+    private static var revisions: [String: UInt64] = [:]
+    private static var revision: UInt64 = 0
+    // Screens read shared headers many times while evaluating bindings. Keep
+    // settled JSON in memory instead of reopening the same file on the UI thread.
+    private static let cache: NSCache<NSString, NSString> = {
+        let cache = NSCache<NSString, NSString>()
+        cache.countLimit = 32
+        cache.totalCostLimit = 8 * 1024 * 1024
+        return cache
+    }()
 
     static var directory: URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
@@ -1458,11 +1468,13 @@ enum CraftSnapshots {
     static func read(_ name: String) -> String? {
         guard let url = url(for: name) else { return nil }
         lock.lock()
-        let waiting = pending[name]
-        lock.unlock()
-        if let waiting { return waiting }
+        defer { lock.unlock() }
+        if let waiting = pending[name] { return waiting }
+        if let cached = cache.object(forKey: name as NSString) { return cached as String }
         guard let data = try? Data(contentsOf: url) else { return nil }
-        return String(decoding: data, as: UTF8.self)
+        let json = String(decoding: data, as: UTF8.self)
+        cache.setObject(json as NSString, forKey: name as NSString, cost: data.count)
+        return json
     }
 
     /// Replaces the snapshot with JSON text (nil deletes it) off the main
@@ -1477,7 +1489,11 @@ enum CraftSnapshots {
             return
         }
         lock.lock()
+        revision &+= 1
+        let mine = revision
+        revisions[name] = mine
         pending[name] = .some(json)
+        cache.removeObject(forKey: name as NSString)
         lock.unlock()
         queue.async {
             var ok = true
@@ -1492,7 +1508,13 @@ enum CraftSnapshots {
                 ok = false
             }
             lock.lock()
-            if let current = pending[name], current == json { pending.removeValue(forKey: name) }
+            if revisions[name] == mine {
+                revisions.removeValue(forKey: name)
+                pending.removeValue(forKey: name)
+                if ok, let json {
+                    cache.setObject(json as NSString, forKey: name as NSString, cost: json.utf8.count)
+                }
+            }
             lock.unlock()
             DispatchQueue.main.async {
                 if ok { NotificationCenter.default.post(name: changed, object: nil, userInfo: ["name": name]) }
