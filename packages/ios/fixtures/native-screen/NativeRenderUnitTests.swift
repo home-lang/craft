@@ -5,6 +5,78 @@ import XCTest
 
 @MainActor
 final class NativeRenderUnitTests: XCTestCase {
+    func testCelebrationStopsWhenARetainedNativeScreenLosesFocus() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = controller
+        controller.loadViewIfNeeded()
+        controller.render(document([["type": "View", "props": ["key": "celebrating-card", "celebration": ["replay": 0]], "style": ["width": 320, "height": 240]]]))
+        window.isHidden = false
+        defer { window.isHidden = true }
+        controller.view.layoutIfNeeded()
+        let card = try XCTUnwrap(find(UIView.self, key: "celebrating-card", below: controller.view))
+        card.layoutIfNeeded()
+        if !UIAccessibility.isReduceMotionEnabled {
+            XCTAssertNotNil(card.layer.animation(forKey: "craft.celebration.entrance"))
+        }
+        controller.screenVisibilityChanged(false)
+        XCTAssertNil(card.layer.animation(forKey: "craft.celebration.entrance"))
+        XCTAssertFalse(window.layer.sublayers?.contains { $0.name == "craft.celebration.confetti" } == true)
+        controller.screenVisibilityChanged(true)
+        card.layoutIfNeeded()
+        XCTAssertNil(card.layer.animation(forKey: "craft.celebration.entrance"), "returning to a tab must not replay")
+    }
+
+    func testCelebrationRequiresAnExplicitFiniteReplay() {
+        XCTAssertNil(CraftNativeCelebrationSpec(nil))
+        XCTAssertNil(CraftNativeCelebrationSpec(["replay": true]))
+        XCTAssertNil(CraftNativeCelebrationSpec(["replay": -1]))
+        XCTAssertNil(CraftNativeCelebrationSpec(["replay": Double.infinity]))
+        XCTAssertEqual(CraftNativeCelebrationSpec(["replay": 0])?.enabled, true)
+        XCTAssertEqual(CraftNativeCelebrationSpec(["replay": 0, "enabled": false])?.enabled, false)
+    }
+
+    func testCelebrationReplaysOnlyOnRequestAndCleansUpForReducedMotionAndBackground() async throws {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = UIViewController()
+        window.isHidden = false
+        defer { window.isHidden = true }
+        let card = UIView(frame: CGRect(x: 24, y: 180, width: 342, height: 280))
+        window.rootViewController?.view.addSubview(card)
+        let celebration = CraftNativeCelebration(view: card)
+        celebration.configure(["replay": 0])
+        celebration.layout(reduceMotion: false)
+        XCTAssertEqual(celebration.starts, 1)
+        XCTAssertTrue(celebration.isRunning)
+        XCTAssertNotNil(card.layer.animation(forKey: "craft.celebration.entrance"))
+        XCTAssertTrue(window.layer.sublayers?.contains { $0.name == "craft.celebration.confetti" && $0.sublayers?.count == 52 } == true)
+        celebration.configure(["replay": 0])
+        celebration.layout(reduceMotion: false)
+        XCTAssertEqual(celebration.starts, 1, "unrelated reconciliation must not replay")
+        celebration.stop()
+        XCTAssertFalse(celebration.isRunning)
+        XCTAssertNil(card.layer.animation(forKey: "craft.celebration.entrance"))
+        XCTAssertFalse(window.layer.sublayers?.contains { $0.name == "craft.celebration.confetti" } == true)
+        celebration.configure(["replay": 1])
+        celebration.layout(reduceMotion: true)
+        XCTAssertEqual(celebration.starts, 1, "Reduce Motion displays the full card without effects")
+        celebration.layout(reduceMotion: false)
+        XCTAssertEqual(celebration.starts, 1, "changing the preference must not replay a consumed request")
+        celebration.configure(["replay": 2])
+        celebration.layout(reduceMotion: false)
+        XCTAssertEqual(celebration.starts, 2)
+        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        XCTAssertFalse(celebration.isRunning)
+        celebration.configure(["replay": 3, "enabled": false])
+        celebration.layout(reduceMotion: false)
+        XCTAssertEqual(celebration.starts, 2)
+        celebration.configure(["replay": 4])
+        celebration.layout(reduceMotion: false)
+        XCTAssertTrue(celebration.isRunning)
+        try await Task.sleep(nanoseconds: 3_200_000_000)
+        XCTAssertFalse(celebration.isRunning, "all decoration is removed after the finite reveal")
+    }
+
     func testTabUpdatesKeepTheIconAndSelectionWhileChangingItsLiveCaption() {
         let chrome = CraftChrome.shared
         let previous = chrome.tabs

@@ -865,8 +865,146 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
     private fun color(value: String): Int = runCatching { craftNativeColor(value) }.getOrDefault(Color.BLUE)
 }
 
+/** A finite celebration owned by a View, never by the JavaScript frame loop. */
+internal class CraftNativeCelebration(private val view: View) {
+    private var request: Pair<Double, Boolean>? = null
+    private var pending = false
+    private var animator: ValueAnimator? = null
+    private var decoration: Drawable? = null
+    private var root: View? = null
+    private var radius = 0f
+    var starts = 0
+        private set
+    val isRunning: Boolean get() = animator != null
+
+    fun configure(raw: JSONObject?, radius: Float) {
+        val replay = craftNativeNumber(raw?.opt("replay"))?.takeIf { it >= 0 }
+        val next = replay?.let { it to (raw?.opt("enabled") != false) }
+        this.radius = radius
+        if (next == request) return
+        stop()
+        request = next
+        pending = next?.second == true
+        view.requestLayout()
+    }
+
+    fun stop() {
+        pending = false
+        animator?.removeAllUpdateListeners()
+        animator?.removeAllListeners()
+        animator?.cancel()
+        animator = null
+        decoration?.let { root?.overlay?.remove(it) }
+        decoration = null
+        root = null
+        view.clearAnimation()
+    }
+
+    fun layout(animationsEnabled: Boolean = ValueAnimator.areAnimatorsEnabled()) {
+        if (!pending || !view.isAttachedToWindow || !view.isShown || view.width <= 0 || view.height <= 0) return
+        pending = false
+        if (!animationsEnabled) return
+        starts += 1
+        val root = view.rootView
+        this.root = root
+        val at = IntArray(2)
+        val origin = IntArray(2)
+        view.getLocationInWindow(at)
+        root.getLocationInWindow(origin)
+        val frame = RectF((at[0] - origin[0]).toFloat(), (at[1] - origin[1]).toFloat(), (at[0] - origin[0] + view.width).toFloat(), (at[1] - origin[1] + view.height).toFloat())
+        val density = view.resources.displayMetrics.density
+        var progress = 0f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val colors = intArrayOf(Color.rgb(59, 130, 246), Color.rgb(153, 246, 228), Color.rgb(230, 196, 140), Color.WHITE)
+        val decoration = object : Drawable() {
+            override fun draw(canvas: Canvas) {
+                for (index in 0 until 52) {
+                    val side = if (index % 2 == 0) -1f else 1f
+                    val spread = (index * 37 % 101) / 100f
+                    val t = ((progress * 3f - (index % 7) * .018f) / (2.2f + spread * .45f)).coerceIn(0f, 1f)
+                    if (t <= 0 || t >= 1) continue
+                    val startX = frame.centerX() + side * frame.width() * .42f
+                    val startY = frame.top + 28 * density
+                    val endX = frame.centerX() + side * (35 * density + spread * root.width * .7f)
+                    val endY = root.height + 30 * density
+                    val x = startX + (endX - startX) * t
+                    val y = startY + (endY - startY) * t * t - (70 + spread * 100) * density * 4 * t * (1 - t)
+                    val saved = canvas.save()
+                    canvas.translate(x, y)
+                    canvas.rotate(side * (index * 30f + t * (400 + spread * 600)))
+                    paint.shader = null
+                    paint.color = colors[index % colors.size]
+                    paint.alpha = (255 * min(1f, min(t / .04f, (1 - t) / .3f))).roundToInt()
+                    canvas.drawRoundRect(RectF(-3 * density, -5 * density, (if (index % 3 == 0) 1 else 4) * density, 6 * density), density, density, paint)
+                    canvas.restoreToCount(saved)
+                }
+                val light = (progress * 3f - .55f) / 1.15f
+                if (light > 0 && light < 1) {
+                    val saved = canvas.save()
+                    val mask = Path().apply { addRoundRect(frame, radius, radius, Path.Direction.CW) }
+                    canvas.clipPath(mask)
+                    val x = frame.left - frame.width() + light * frame.width() * 3
+                    paint.alpha = 255
+                    paint.shader = LinearGradient(x - frame.width() * .25f, frame.top, x + frame.width() * .25f, frame.bottom, intArrayOf(Color.TRANSPARENT, 0x33ffffff, Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
+                    canvas.drawRect(frame, paint)
+                    paint.shader = null
+                    canvas.restoreToCount(saved)
+                }
+            }
+            override fun setAlpha(alpha: Int) {}
+            override fun setColorFilter(colorFilter: ColorFilter?) {}
+            @Deprecated("Deprecated in Java")
+            override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+        }
+        decoration.setBounds(0, 0, root.width, root.height)
+        this.decoration = decoration
+        root.overlay.add(decoration)
+        // Classic view animations leave authored transform properties intact.
+        val entrance = android.view.animation.AnimationSet(true).apply {
+            addAnimation(android.view.animation.ScaleAnimation(.86f, 1f, .86f, 1f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f))
+            addAnimation(android.view.animation.TranslateAnimation(0f, 0f, 34 * density, 0f))
+            addAnimation(android.view.animation.RotateAnimation(-2.6f, 0f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f))
+            duration = 950
+            interpolator = android.view.animation.OvershootInterpolator(.65f)
+        }
+        view.startAnimation(entrance)
+        val clock = ValueAnimator.ofFloat(0f, 1f)
+        animator = clock
+        clock.apply {
+            duration = 3000
+            interpolator = LinearInterpolator()
+            addUpdateListener {
+                if (!ValueAnimator.areAnimatorsEnabled()) { stop(); return@addUpdateListener }
+                progress = it.animatedValue as Float
+                decoration.invalidateSelf()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) { stop() }
+            })
+            start()
+        }
+    }
+}
+
 /** A deterministic flex-shaped container shared by normal views and scroll content. */
 private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
+    private var celebration: CraftNativeCelebration? = null
+    fun configureCelebration(raw: JSONObject?, radius: Float) {
+        if (raw != null && celebration == null) celebration = CraftNativeCelebration(this)
+        celebration?.configure(raw, radius)
+    }
+    override fun onDetachedFromWindow() {
+        celebration?.stop()
+        super.onDetachedFromWindow()
+    }
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (visibility != View.VISIBLE) celebration?.stop()
+    }
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility != View.VISIBLE) celebration?.stop()
+    }
     var onLayoutChanged: (() -> Unit)? = null
     private val styles = mutableMapOf<View, CraftNativeLayoutStyle>()
     private var wrap = false
@@ -1769,6 +1907,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        celebration?.layout()
         widthDefinite = true
         if (grid) {
             val layout = gridLayout(width, height)
@@ -5697,6 +5836,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         if (control is CraftNativeFlexLayout) {
+            control.configureCelebration(props.optJSONObject("celebration"), ((craftNativeNumber(style.opt("borderRadius")) ?: 0.0) * resources.displayMetrics.density).toFloat())
             control.onLayoutChanged = { if (screen.active) emitLayoutEvents(screen) }
         } else if (control is CraftNativeKeyboardAvoidingView) {
             control.content.onLayoutChanged = { if (screen.active) emitLayoutEvents(screen) }

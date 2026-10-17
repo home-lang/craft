@@ -2,6 +2,18 @@
 
 Build native iOS apps with web technologies using Craft.
 
+## Native celebration
+
+Any native `View` may opt into a finite card entrance, light sweep and confetti
+burst with `:celebration="{ replay: replayCount, enabled: true }"`. The numeric
+`replay` value identifies the request: unrelated renders keep the current run;
+increment it to replay. `enabled: false` displays an existing card quietly.
+The effect takes three seconds, uses native animation frames, never captures
+touches, and keeps the view's authored transform. iOS Reduce Motion and Android's
+disabled animations show the complete content without movement or confetti.
+Leaving the screen, detaching the view or backgrounding the app cancels the
+decoration. Resuming does not replay it. Available on both native renderers.
+
 ## Features
 
 ### Core

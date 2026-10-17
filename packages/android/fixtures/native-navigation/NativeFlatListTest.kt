@@ -27,6 +27,50 @@ import org.junit.runner.RunWith
 class NativeFlatListTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
+    @Test
+    fun celebrationIsFiniteReplayableAndHonorsReducedMotion() {
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        lateinit var celebration: CraftNativeCelebration
+        lateinit var card: View
+        scenario.onActivity { activity ->
+            val host = FrameLayout(activity)
+            activity.setContentView(host)
+            card = View(activity)
+            host.addView(card, FrameLayout.LayoutParams(300, 240))
+            celebration = CraftNativeCelebration(card)
+        }
+        instrumentation.waitForIdleSync()
+        scenario.onActivity {
+            val request = JSONObject().put("replay", 0)
+            celebration.configure(request, 20f)
+            celebration.layout(true)
+            assertEquals(1, celebration.starts)
+            assertTrue(celebration.isRunning)
+            celebration.configure(request, 20f)
+            celebration.layout(true)
+            assertEquals(1, celebration.starts)
+            celebration.stop()
+            assertTrue(!celebration.isRunning)
+            celebration.configure(JSONObject().put("replay", 1), 20f)
+            celebration.layout(false)
+            assertEquals(1, celebration.starts)
+            celebration.layout(true)
+            assertEquals(1, celebration.starts)
+            celebration.configure(JSONObject().put("replay", 2).put("enabled", false), 20f)
+            celebration.layout(true)
+            assertEquals(1, celebration.starts)
+            celebration.configure(JSONObject().put("replay", -1), 20f)
+            celebration.layout(true)
+            assertEquals(1, celebration.starts)
+            celebration.configure(JSONObject().put("replay", 3), 20f)
+            celebration.layout(true)
+            assertEquals(2, celebration.starts)
+        }
+        SystemClock.sleep(3300)
+        scenario.onActivity { assertTrue(!celebration.isRunning) }
+        scenario.close()
+    }
+
     private fun findImage(view: View): ImageView? {
         if (view is ImageView) return view
         if (view is ViewGroup) {
