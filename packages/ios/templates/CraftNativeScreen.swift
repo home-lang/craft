@@ -1834,7 +1834,172 @@ extension UIView {
     }
 }
 
+/// A finite, opt-in native celebration. Reconciliation with the same replay
+/// value never restarts it; Reduce Motion always leaves the complete card still.
+struct CraftNativeCelebrationSpec: Equatable {
+    let replay: Double
+    let enabled: Bool
+
+    init?(_ raw: Any?) {
+        guard let value = raw as? [String: Any],
+              let replay = value["replay"] as? NSNumber,
+              CFGetTypeID(replay) != CFBooleanGetTypeID(),
+              replay.doubleValue.isFinite, replay.doubleValue >= 0 else { return nil }
+        self.replay = replay.doubleValue
+        enabled = value["enabled"] as? Bool != false
+    }
+}
+
+final class CraftNativeCelebration {
+    private weak var view: UIView?
+    private var request: CraftNativeCelebrationSpec?
+    private var pending = false
+    private var overlay: CALayer?
+    private var sheen: CALayer?
+    private var cleanup: DispatchWorkItem?
+    private var observers: [NSObjectProtocol] = []
+    private(set) var starts = 0
+    var isRunning: Bool { overlay != nil }
+
+    init(view: UIView) {
+        self.view = view
+        for name in [UIApplication.didEnterBackgroundNotification, UIAccessibility.reduceMotionStatusDidChangeNotification] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.stop() })
+        }
+    }
+
+    deinit {
+        cleanup?.cancel()
+        overlay?.removeFromSuperlayer()
+        sheen?.removeFromSuperlayer()
+        observers.forEach(NotificationCenter.default.removeObserver)
+    }
+
+    func configure(_ raw: Any?) {
+        let next = CraftNativeCelebrationSpec(raw)
+        guard next != request else { return }
+        stop()
+        request = next
+        pending = next?.enabled == true
+        view?.setNeedsLayout()
+    }
+
+    func stop() {
+        pending = false
+        cleanup?.cancel()
+        cleanup = nil
+        view?.layer.removeAnimation(forKey: "craft.celebration.entrance")
+        overlay?.removeFromSuperlayer()
+        overlay = nil
+        sheen?.removeFromSuperlayer()
+        sheen = nil
+    }
+
+    func layout(reduceMotion: Bool = UIAccessibility.isReduceMotionEnabled) {
+        guard pending, let view, let window = view.window,
+              view.bounds.width > 0, view.bounds.height > 0, !view.isHidden else { return }
+        var ancestor: UIView? = view.superview
+        while let parent = ancestor {
+            if parent.isHidden { return }
+            ancestor = parent.superview
+        }
+        pending = false
+        guard !reduceMotion else { return }
+        starts += 1
+        let frame = view.convert(view.bounds, to: window)
+        let overlay = CALayer()
+        overlay.name = "craft.celebration.confetti"
+        overlay.frame = window.bounds
+        window.layer.addSublayer(overlay)
+        self.overlay = overlay
+
+        // Core Animation owns every frame. No script timers, per-frame bridge
+        // messages, bitmap assets or touch-intercepting overlay views.
+        let colors: [UIColor] = [.init(red: 0.23, green: 0.51, blue: 0.96, alpha: 1), .init(red: 0.6, green: 0.96, blue: 0.89, alpha: 1), .init(red: 0.9, green: 0.77, blue: 0.55, alpha: 1), .white]
+        let now = CACurrentMediaTime()
+        for index in 0..<52 {
+            let side: CGFloat = index % 2 == 0 ? -1 : 1
+            let spread = CGFloat((index * 37) % 101) / 100
+            let start = CGPoint(x: frame.midX + side * frame.width * 0.42, y: frame.minY + 28)
+            let end = CGPoint(x: frame.midX + side * (35 + spread * window.bounds.width * 0.7), y: window.bounds.height + 30)
+            let piece = CALayer()
+            piece.bounds = CGRect(x: 0, y: 0, width: index % 3 == 0 ? 4 : 7, height: 11)
+            piece.cornerRadius = 1
+            piece.backgroundColor = colors[index % colors.count].cgColor
+            piece.position = end
+            piece.opacity = 0
+            overlay.addSublayer(piece)
+            let path = CAKeyframeAnimation(keyPath: "position")
+            path.values = [NSValue(cgPoint: start), NSValue(cgPoint: CGPoint(x: start.x + side * (45 + spread * 65), y: max(0, start.y - 70 - spread * 100))), NSValue(cgPoint: end)]
+            path.keyTimes = [0, 0.28, 1]
+            path.calculationMode = .cubic
+            let tumble = CABasicAnimation(keyPath: "transform.rotation")
+            tumble.fromValue = side * Double(index)
+            tumble.toValue = side * (Double(index) + 7 + Double(spread) * 10)
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            fade.values = [0, 1, 1, 0]
+            fade.keyTimes = [0, 0.04, 0.7, 1]
+            let group = CAAnimationGroup()
+            group.animations = [path, tumble, fade]
+            group.duration = 2.2 + Double(spread) * 0.45
+            group.beginTime = now + Double(index % 7) * 0.018
+            group.fillMode = .backwards
+            piece.add(group, forKey: "craft.celebration.particle")
+        }
+
+        let entrance = CASpringAnimation(keyPath: "transform")
+        var from = CATransform3DMakeTranslation(0, 34, 0)
+        from = CATransform3DRotate(from, -0.045, 0, 0, 1)
+        from = CATransform3DScale(from, 0.86, 0.86, 1)
+        entrance.fromValue = NSValue(caTransform3D: CATransform3DConcat(view.layer.transform, from))
+        entrance.toValue = NSValue(caTransform3D: view.layer.transform)
+        entrance.damping = 19
+        entrance.stiffness = 160
+        entrance.mass = 1
+        entrance.duration = 0.95
+        view.layer.add(entrance, forKey: "craft.celebration.entrance")
+
+        let sheen = CAGradientLayer()
+        sheen.name = "craft.celebration.sheen"
+        sheen.frame = view.bounds
+        sheen.colors = [UIColor.clear.cgColor, UIColor.white.withAlphaComponent(0.2).cgColor, UIColor.clear.cgColor]
+        sheen.locations = [0.25, 0.5, 0.75]
+        sheen.startPoint = CGPoint(x: 0, y: 0.3)
+        sheen.endPoint = CGPoint(x: 1, y: 0.7)
+        sheen.opacity = 0
+        let mask = CAShapeLayer()
+        mask.path = UIBezierPath(roundedRect: view.bounds, cornerRadius: view.layer.cornerRadius).cgPath
+        sheen.mask = mask
+        view.layer.addSublayer(sheen)
+        self.sheen = sheen
+        let sweep = CABasicAnimation(keyPath: "transform.translation.x")
+        sweep.fromValue = -view.bounds.width
+        sweep.toValue = view.bounds.width
+        let light = CAKeyframeAnimation(keyPath: "opacity")
+        light.values = [0, 1, 1, 0]
+        light.keyTimes = [0, 0.15, 0.8, 1]
+        let shine = CAAnimationGroup()
+        shine.animations = [sweep, light]
+        shine.duration = 1.15
+        shine.beginTime = now + 0.55
+        sheen.add(shine, forKey: "craft.celebration.sweep")
+        let cleanup = DispatchWorkItem { [weak self] in self?.stop() }
+        self.cleanup = cleanup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: cleanup)
+    }
+}
+
 private class CraftNativeFlowView: UIStackView {
+    var celebration: CraftNativeCelebration?
+    func configureCelebration(_ raw: Any?) {
+        if raw != nil && celebration == nil { celebration = CraftNativeCelebration(view: self) }
+        celebration?.configure(raw)
+    }
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window == nil { celebration?.stop() }
+        else { setNeedsLayout() }
+    }
     var pressActiveOpacity: CGFloat?
     var pressBaseOpacity: CGFloat = 1
     var pressUnderlayColor: UIColor?
@@ -2051,6 +2216,7 @@ private class CraftNativeFlowView: UIStackView {
     override func layoutSubviews() {
         super.layoutSubviews()
         craftApplyCornerRadius()
+        celebration?.layout()
         let scale = window?.screen.scale ?? traitCollection.displayScale
         let result = layout(width: bounds.width, height: bounds.height, maxWidth: bounds.width, maxHeight: bounds.height, place: true)
         var moved = false
@@ -4134,6 +4300,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        stopCelebrations(in: view)
         // The accessory belongs to the visible native screen. Clear the
         // shared shell state before a hybrid/web route appears, otherwise a
         // destination from the outgoing screen remains tappable on top of it.
@@ -4188,6 +4355,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// `SCREEN_FOCUS { focused: true }`, and going away is `focused: false`.
     func screenVisibilityChanged(_ visible: Bool) {
         guard !runtimeDisposed else { return }
+        if !visible, isViewLoaded { stopCelebrations(in: view) }
         // Hidden tab stacks receive no UIKit appearance callback. A cancelled
         // preview also restores a screen that never lost focus, so restore its
         // chrome even when no new SCREEN_FOCUS event is needed.
@@ -6217,7 +6385,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if disabled { result.isUserInteractionEnabled = false }
         }
         applyAccessibility(props, type: type, to: result)
+        (result as? CraftNativeFlowView)?.configureCelebration(props["celebration"])
         return current
+    }
+
+    private func stopCelebrations(in root: UIView) {
+        (root as? CraftNativeFlowView)?.celebration?.stop()
+        root.subviews.forEach { stopCelebrations(in: $0) }
     }
 
     private func makeView(_ type: String, props: [String: Any]) -> UIView {

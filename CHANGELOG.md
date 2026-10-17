@@ -1,5 +1,29 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.235...v0.0.236)
+
+## 🚀 Features
+
+- add finite native card celebrations ([5374fb0](https://github.com/craft-native/craft/commit/5374fb0)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- exercise native celebration props through mutations ([fad16c7](https://github.com/craft-native/craft/commit/fad16c7)) _(by Chris Breuer)_
+- verify celebrations with system animations disabled ([fd8f4af](https://github.com/craft-native/craft/commit/fd8f4af)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- validate required mobile legs for every scope ([4a45317](https://github.com/craft-native/craft/commit/4a45317)) _(by Chris Breuer)_
+- isolate Android motion acceptance from iOS runs ([5017329](https://github.com/craft-native/craft/commit/5017329)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- merge accepted native contrast release ([bf325c6](https://github.com/craft-native/craft/commit/bf325c6)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.234...v0.0.235)
 
 ## 🐛 Bug Fixes

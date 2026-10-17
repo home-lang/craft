@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'bun:test'
 
 const root = join(import.meta.dir, '..')
@@ -3438,4 +3439,47 @@ describe('native renderer component contract', () => {
     expect(androidCapabilities).toContain('CRAFT_NATIVE_FILE_DEFAULT_MAX_PIXELS = 2048')
     expect(android).toContain('capabilities.onActivityResult(requestCode, resultCode, data)')
   })
+})
+
+describe('mobile acceptance scopes', () => {
+  const workflow = readFileSync(join(root, '.github/workflows/mobile-e2e.yml'), 'utf8')
+  const legs = ['harness', 'ios-native', 'ios-simulator', 'android-emulator', 'ios-zig-slice', 'android-navigation', 'media-cache']
+  const selected: Record<string, string[]> = {
+    '': legs,
+    'all': legs,
+    'android': ['harness', 'android-emulator', 'android-navigation'],
+    'ios-render': ['harness', 'ios-native'],
+    'ios-navigation': ['harness', 'ios-native'],
+    'android-navigation': ['harness', 'android-navigation'],
+  }
+  const summary = workflow.match(/- name: Fail if any leg failed\n\s+if: >-\n([\s\S]*?)\n\s+run:/)?.[1]
+  if (!summary) throw new Error('Missing mobile acceptance failure gate')
+
+  function evaluate(expression: string, scope: string, results: Record<string, string> = {}): boolean {
+    return Boolean(runInNewContext(`(${expression.replace(/needs\.([a-z-]+)\.result/g, 'needs["$1"].result')})`, {
+      inputs: { scope },
+      needs: Object.fromEntries(legs.map(leg => [leg, { result: results[leg] || 'success' }])),
+      contains: (values: unknown[], value: unknown) => values.includes(value),
+      fromJSON: JSON.parse,
+    }, { timeout: 100 }))
+  }
+
+  function enabled(leg: string, scope: string): boolean {
+    const block = workflow.split(/^  (?=[a-z][\w-]*:)/m).find(value => value.startsWith(`${leg}:`))
+    if (!block) throw new Error(`Missing mobile job ${leg}`)
+    const expression = block.match(/^    if:\s*\$\{\{(.*)\}\}\s*$/m)?.[1]
+    return expression ? evaluate(expression, scope) : true
+  }
+
+  for (const [scope, required] of Object.entries(selected)) {
+    it(`runs and requires every selected leg for ${scope || 'a normal push'}`, () => {
+      expect(legs.filter(leg => enabled(leg, scope)).sort()).toEqual([...required].sort())
+      const results = Object.fromEntries(legs.map(leg => [leg, required.includes(leg) ? 'success' : 'skipped']))
+      expect(evaluate(summary, scope, results)).toBe(false)
+      for (const leg of required) {
+        expect(evaluate(summary, scope, { ...results, [leg]: 'failure' }), leg).toBe(true)
+        expect(evaluate(summary, scope, { ...results, [leg]: 'skipped' }), leg).toBe(true)
+      }
+    })
+  }
 })
