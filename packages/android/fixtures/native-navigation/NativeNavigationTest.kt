@@ -314,15 +314,17 @@ class NativeNavigationTest {
             // The appearance flag alone cannot detect Android 15's opaque
             // three-button scrim. Check the composed system-bar pixels.
             var actual: Int? = null
-            repeat(30) {
+            for (attempt in 0 until 30) {
                 val image = instrumentation.uiAutomation.takeScreenshot()
                     ?: throw AssertionError("system screenshot unavailable")
                 actual = image.getPixel(image.width / 2, image.height - 2)
                 image.recycle()
-                if (actual == color) return@repeat
-                SystemClock.sleep(100)
+                if (actual == color) break
+                if (attempt < 29) SystemClock.sleep(100)
             }
             assertEquals("$message (composed bottom system bar)", color, actual)
+            assertEquals("Android 15 navigation surface must be transparent",
+                Color.TRANSPARENT, activity.window.navigationBarColor)
             assertFalse("Android 15 must not overlay the authored inset background",
                 activity.window.isNavigationBarContrastEnforced)
         }
