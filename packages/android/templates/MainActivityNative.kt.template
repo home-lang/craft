@@ -3780,6 +3780,8 @@ class MainActivity : AppCompatActivity() {
     private var tabSwipeTarget: Screen? = null
     private var tabSwipeTargetIndex = -1
     private var tabSwipeDirection = 0
+    private var tabSwipeGeneration = 0
+    private var tabSwipeSettling = false
     /** The app script's isolate (`nativeApp`), when the app has one. */
     private var appScreen: Screen? = null
     private val urlSchemes = mutableSetOf<String>()
@@ -3960,6 +3962,7 @@ class MainActivity : AppCompatActivity() {
         bars.onAccessory = { path -> navigateOpen(path) }
         bars.onButton = { id -> visibleScreen?.takeIf { it.active }?.let { send(it, "NAV_BUTTON", JSONObject().put("id", id)) } }
         bars.onTab = { index ->
+            interruptTabSwipe()
             haptic()
             if (index == currentTab) popToRoot() else selectTab(index)
         }
@@ -3996,6 +3999,7 @@ class MainActivity : AppCompatActivity() {
     /** A tab chosen: its stack shows, its root screen opened the first time. */
     private fun selectTab(index: Int) {
         if (index !in tabStacks.indices) return
+        interruptTabSwipe()
         currentTab = index
         screens = tabStacks[index]
         chrome?.selectTab(index)
@@ -4017,6 +4021,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Start an interactive horizontal transition to the adjacent tab. */
     private fun beginTabSwipe(dx: Float, x: Float, y: Float): Boolean {
+        if (tabSwipeSettling) interruptTabSwipe()
         if (tabSwipeTarget != null || screens.size != 1 || chrome?.tabSwipeEnabled != true) return false
         val direction = if (dx < 0) 1 else -1
         val targetIndex = currentTab + direction
@@ -4055,16 +4060,23 @@ class MainActivity : AppCompatActivity() {
         val host = chrome?.content ?: return
         val width = host.width.toFloat().coerceAtLeast(1f)
         val complete = !cancelled && kotlin.math.abs(dx) >= width * 0.28f
+        val generation = ++tabSwipeGeneration
+        val targetIndex = tabSwipeTargetIndex
+        tabSwipeSettling = true
         val endOffset = if (complete) {
             if (tabSwipeDirection > 0) -width else width
         } else 0f
         val targetOffset = if (complete) 0f else if (tabSwipeDirection > 0) width else -width
         current.view.animate().translationX(endOffset).setDuration(180).start()
         target.view.animate().translationX(targetOffset).setDuration(180).withEndAction {
+            // A later tab tap or gesture owns the display even if Android
+            // delivers this animator's completion after it was cancelled.
+            if (generation != tabSwipeGeneration || tabSwipeTarget !== target || visibleScreen !== current) return@withEndAction
             target.view.animate().setListener(null)
+            tabSwipeSettling = false
             if (complete) {
                 current.view.translationX = 0f
-                currentTab = tabSwipeTargetIndex
+                currentTab = targetIndex
                 screens = tabStacks[currentTab]
                 tabSwipeTarget = null
                 tabSwipeTargetIndex = -1
@@ -4080,6 +4092,24 @@ class MainActivity : AppCompatActivity() {
                 tabSwipeDirection = 0
             }
         }.start()
+    }
+
+    /** Restore the owning stack before a newer navigation action takes over. */
+    private fun interruptTabSwipe() {
+        val target = tabSwipeTarget ?: return
+        ++tabSwipeGeneration
+        tabSwipeTarget = null
+        tabSwipeTargetIndex = -1
+        tabSwipeDirection = 0
+        tabSwipeSettling = false
+        val current = visibleScreen
+        current?.view?.animate()?.withEndAction(null)?.setListener(null)?.cancel()
+        target.view.animate().withEndAction(null).setListener(null).cancel()
+        current?.view?.translationX = 0f
+        target.view.translationX = 0f
+        if (target !== current) (target.view.parent as? ViewGroup)?.removeView(target.view)
+        chrome?.selectTab(currentTab)
+        current?.let(::applyChrome)
     }
 
     /**
@@ -4172,6 +4202,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openScreen(route: String?, params: JSONObject = JSONObject(), headless: Boolean = false, showImmediately: Boolean = true): Screen? {
+        if (showImmediately && !headless) interruptTabSwipe()
         val engine = sandbox ?: return null
         val isolate = engine.createIsolate()
         val view = CraftNativeFlexLayout(this).apply {
@@ -6943,6 +6974,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Back to the first screen in one move. */
     private fun popToRoot() {
+        interruptTabSwipe()
         val stack = screens
         val removed = mutableListOf<Screen>()
         while (stack.size > 1) removed.add(stack.removeAt(stack.lastIndex))
@@ -6954,6 +6986,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Back: the screen below in this tab, then the first tab, then out of the app. */
     private fun back() {
+        interruptTabSwipe()
         // A previous back is still draining its screen's teardown messages.
         if (visibleScreen == null) return
         if (screens.size > 1) {
@@ -7281,6 +7314,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        interruptTabSwipe()
         if (animationScaleObserverRegistered) contentResolver.unregisterContentObserver(animationScaleObserver)
         CraftNativeBackground.foreground = null
         backgroundWaiters.values.forEach { it(false) }

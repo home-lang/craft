@@ -41,6 +41,7 @@ try {
       tabs: [
         { id: '/', title: 'Home', symbol: 'house' },
         { id: '/details', title: 'Details', symbol: 'doc.text' },
+        { id: '/summary', title: 'Summary', symbol: 'list.bullet' },
       ],
       enableDeepLinks: true,
       enableLocalDatabase: true,
@@ -64,7 +65,8 @@ try {
 
   if (!process.argv.includes('--prepare-only')) {
     try {
-      run(['gradle', '--no-daemon', ':app:connectedDebugAndroidTest'], output)
+      const selection = process.env.CRAFT_ANDROID_TEST_CLASS
+      run(['gradle', '--no-daemon', ':app:connectedDebugAndroidTest', ...(selection ? [`-Pandroid.testInstrumentationRunnerArguments.class=${selection}`] : [])], output)
     }
     catch (error) {
       run(['adb', 'logcat', '-d', '-s', 'CraftNativeAndroid:V', 'AndroidRuntime:E'], output)
