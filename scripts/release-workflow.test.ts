@@ -100,8 +100,10 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
     const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/', file), 'utf8')) as { jobs: Record<string, Job> }
     for (const [name, job] of Object.entries(workflow.jobs)) {
       for (const step of job.steps ?? []) {
-        if (step.uses?.startsWith('pantry-pm/pantry/packages/action@'))
-          expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe('0.11.64')
+        if (step.uses?.startsWith('pantry-pm/pantry/packages/action@')) {
+          expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe('0.11.88')
+          expect(step.uses, `${file} ${name} must pin the matching action source`).toBe('pantry-pm/pantry/packages/action@d915c5dec025692f8613d0ed3ce1abbb82c9d7ca')
+        }
       }
     }
   }
@@ -248,7 +250,7 @@ test('a failed native leg cannot publish a partial GitHub, Zig, or npm release',
   expect(release.jobs.npm.if).toContain("needs.prepare-npm.result == 'success'")
   expect(release.jobs.npm.if).toContain("needs.publish-release.result == 'success'")
   const zigPublish = registry.steps!.find(step => step.name === 'Publish Zig package')
-  expect(zigPublish?.with).toMatchObject({ version: '0.11.64', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
+  expect(zigPublish?.with).toMatchObject({ version: '0.11.88', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
   expect(zigPublish?.with?.release).toBeUndefined()
   expect(Object.entries(release.jobs).flatMap(([name, job]) =>
     (job.steps ?? []).filter(step => step.with?.publish === 'zig').map(() => name))).toEqual(['publish-pantry'])
