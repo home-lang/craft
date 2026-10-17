@@ -1396,13 +1396,14 @@ class NativeNavigationTest {
             val accessory = awaitView(activity, "Open capabilities")
             instrumentation.runOnMainSync { accessory.performClick() }
             awaitView(activity, "capabilities-title")
-            assertTrue("tab accessory remained visible over its destination", find(activity.window.decorView, "Open capabilities") == null)
+            // The shell retains its accessory view and hides it with GONE.
+            awaitView(activity, "Open capabilities") { !it.isShown }
             instrumentation.runOnMainSync { activity.onBackPressedDispatcher.onBackPressed() }
             awaitText(activity, "details-title", "Details for Ada")
             awaitView(activity, "Open capabilities")
             click(activity, "details-back")
             awaitView(activity, "home-title")
-            assertTrue("tab accessory was not cleared after leaving the pushed screen", find(activity.window.decorView, "Open capabilities") == null)
+            awaitView(activity, "Open capabilities") { !it.isShown }
         } finally {
             activity.finishAndRemoveTask()
         }
