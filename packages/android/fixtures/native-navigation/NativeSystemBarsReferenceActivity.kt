@@ -30,7 +30,7 @@ class NativeSystemBarsReferenceActivity : Activity() {
         })
         if (android.os.Build.VERSION.SDK_INT >= 35) {
             window.setDecorFitsSystemWindows(false)
-            window.navigationBarColor = Color.TRANSPARENT
+            window.navigationBarColor = if (intent.getBooleanExtra("opaqueNav", false)) background else Color.TRANSPARENT
             window.isNavigationBarContrastEnforced = false
             val mask = WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS or
                 WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS

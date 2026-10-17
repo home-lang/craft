@@ -364,11 +364,12 @@ class NativeNavigationTest {
                     android.util.Log.i("CraftNativeBarProbe", metadata)
                     // Preserve the original failure, then compare the same
                     // display/sampling with literal native Android windows.
-                    for (stockTheme in listOf(false, true)) {
+                    for ((stockTheme, opaqueNav) in listOf(false to false, false to true, true to false, true to true)) {
                         val reference = instrumentation.startActivitySync(
                             Intent(activity, NativeSystemBarsReferenceActivity::class.java)
                                 .putExtra("background", expected)
                                 .putExtra("stockTheme", stockTheme)
+                                .putExtra("opaqueNav", opaqueNav)
                                 .putExtra("brightness", activity.window.attributes.screenBrightness)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         ) as NativeSystemBarsReferenceActivity
@@ -376,11 +377,11 @@ class NativeNavigationTest {
                             SystemClock.sleep(500)
                             val comparison = instrumentation.uiAutomation.takeScreenshot()
                                 ?: throw AssertionError("native reference screenshot unavailable")
-                            java.io.File(directory, "$name-reference-$stockTheme.png").outputStream().use {
+                            java.io.File(directory, "$name-reference-$stockTheme-opaque-$opaqueNav.png").outputStream().use {
                                 comparison.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
                             }
                             val attributes = reference.window.attributes
-                            java.io.File(directory, "$name-reference-$stockTheme.txt").writeText(
+                            java.io.File(directory, "$name-reference-$stockTheme-opaque-$opaqueNav.txt").writeText(
                                 "background=${backgroundColor(reference.window.decorView)} " +
                                     "appearance=${reference.window.insetsController?.systemBarsAppearance} " +
                                     "brightness=${attributes.screenBrightness} flags=${attributes.flags} format=${attributes.format}\n"
