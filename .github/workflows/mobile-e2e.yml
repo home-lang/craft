@@ -599,7 +599,7 @@ jobs:
   android-navigation:
     env:
       CRAFT_ANDROID_NATIVE_SUITE: ${{ inputs.android_suite || 'focused' }}
-      CRAFT_ANDROID_TEST_CLASS: ${{ inputs.android_suite != 'full' && 'dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#nativePullToRefreshSurvivesViewReattachment,dev.craft.navigationtest.NativeNavigationTest#pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack,dev.craft.navigationtest.NativeFlatListTest#refreshAppearanceUsesTheScreenContrastFallback,dev.craft.navigationtest.NativeNavigationTest#nativeDatePickerKeepsFollowingControlsMounted' || '' }}
+      CRAFT_ANDROID_TEST_CLASS: ${{ inputs.android_suite != 'full' && 'dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#cancelledSwipeTargetIsVisibleWhenSelectedLater,dev.craft.navigationtest.NativeNavigationTest#completedReverseSwipeKeepsRetainedTabVisible,dev.craft.navigationtest.NativeNavigationTest#nativePullToRefreshSurvivesViewReattachment,dev.craft.navigationtest.NativeNavigationTest#pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack,dev.craft.navigationtest.NativeFlatListTest#refreshAppearanceUsesTheScreenContrastFallback,dev.craft.navigationtest.NativeNavigationTest#nativeDatePickerKeepsFollowingControlsMounted' || '' }}
     if: ${{ inputs.scope == 'android-navigation' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
