@@ -311,6 +311,25 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(tracked.textAlignment, .center)
     }
 
+    func testImagePixelsHonorRoundedCornersWithoutHiddenOverflow() throws {
+        func document(_ radius: CGFloat) -> [String: Any] {
+            box("root", [
+                ["id": "avatar", "type": "Image", "props": ["testID": "avatar"],
+                 "style": ["width": 48, "height": 48, "borderRadius": radius, "overflow": "visible"]],
+            ])
+        }
+        let controller = screen(document(9999))
+        let image = try XCTUnwrap(find("avatar", below: controller.view) as? UIImageView)
+        XCTAssertTrue(image.clipsToBounds)
+        XCTAssertTrue(image.layer.masksToBounds)
+        XCTAssertEqual(image.layer.cornerRadius, 24, accuracy: 0.5)
+        controller.render(document(6))
+        controller.view.layoutIfNeeded()
+        XCTAssertTrue(image === find("avatar", below: controller.view))
+        XCTAssertTrue(image.clipsToBounds)
+        XCTAssertEqual(image.layer.cornerRadius, 6, accuracy: 0.5)
+    }
+
     func testButtonHonoursAlignSelfStretch() throws {
         let controller = screen(box("root", style: ["padding": 16, "alignItems": "center"], [
             ["id": "start", "type": "Button", "props": ["testID": "start"], "style": ["height": 44, "alignSelf": "stretch"], "children": ["Start"]],

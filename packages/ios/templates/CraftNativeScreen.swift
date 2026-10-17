@@ -7006,6 +7006,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         view.clipsToBounds = overflow == "hidden"
             || (view is UIScrollView && overflow != "visible")
             || (view is UILabel && (view.craftRequestedCornerRadius ?? 0) > 0)
+            || (view is UIImageView && (borderRadius > 0 || hasCornerRadii))
         view.layer.masksToBounds = view.clipsToBounds
         view.craftLayoutStyle = CraftNativeLayoutStyle(style)
         (view as? CraftNativeFlowView)?.invalidateMeasurements()
