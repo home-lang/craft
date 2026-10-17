@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.226...v0.0.227)
+
+## 🚀 Features
+
+- **navigation**: support live tab captions and accessible icon pulses ([f05d680](https://github.com/craft-native/craft/commit/f05d680)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **navigation**: keep stable identifiers on tabs with live captions ([5af9ea8](https://github.com/craft-native/craft/commit/5af9ea8)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.225...v0.0.226)
 
 ## 🐛 Bug Fixes
