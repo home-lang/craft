@@ -17,16 +17,16 @@ var latestTask: URLSessionTask?
 var latestErrorCode: String?
 func start(_ address: String, _ done: @escaping (Bool) -> Void) {
     if let local = CraftNativeMedia.local(address) { done((CraftNativeMedia.describe(address, local)["size"] as? Int ?? 0) > 0); return }
-    if CraftNativeMedia.join(address, { result in
+    guard let flight = CraftNativeMedia.begin(address, { result in
         if case .success(let data) = result { done((data as? [String: Any])?["ok"] as? Bool == true) }
         else if case .failure(let error) = result { latestErrorCode = error.code; done(false) }
-    }) { return }
+    }) else { return }
     let task = URLSession.shared.downloadTask(with: URL(string: address)!) { location, response, error in
         let result: Result<Any, CraftNativeActionError>
         if error != nil { result = .failure(CraftNativeActionError(code: "NETWORK_ERROR", message: "Interrupted")) }
-        else if let location, let response = response as? HTTPURLResponse { result = CraftNativeMedia.store(address, at: location, response: response) }
+        else if let location, let response = response as? HTTPURLResponse { result = CraftNativeMedia.store(address, at: location, response: response, flight: flight) }
         else { result = .failure(CraftNativeActionError(code: "NETWORK_ERROR", message: "No file")) }
-        CraftNativeMedia.finish(address, result)
+        CraftNativeMedia.finish(address, flight: flight, result)
     }
     latestTask = task
     task.resume()
@@ -116,3 +116,19 @@ check(answers == [true, true], "concurrent downloads coalesce and survive prune"
 let parts = (try? fm.contentsOfDirectory(atPath: CraftNativeMedia.root.path))?.filter { $0.hasSuffix(".part") } ?? []
 check(parts.isEmpty, "no abandoned staging files remain")
 _ = CraftNativeMedia.prune(keep: [])
+let privateVideo = base + "/account/slow.mp4"
+var previousAnswer: Bool?
+start(privateVideo) { previousAnswer = $0 }
+let previousTask = latestTask!
+wait { previousTask.countOfBytesReceived > 0 }
+_ = try CraftNativeMedia.clear()
+check(previousAnswer == false && latestErrorCode == "CANCELLED", "sign-out cancels the previous athlete's download")
+check(CraftNativeMedia.local(privateVideo) == nil, "signed-out video is not playable from cache")
+check(keep(privateVideo), "the next athlete downloads the same URL in a new transfer")
+wait { previousTask.state == .completed }
+let cached = CraftNativeMedia.local(privateVideo)!
+let generator = AVAssetImageGenerator(asset: AVURLAsset(url: cached))
+_ = try generator.copyCGImage(at: CMTime(seconds: 1, preferredTimescale: 600), actualTime: nil)
+check(true, "the next athlete's local video decodes after the old download settles")
+_ = try CraftNativeMedia.clear()
+check(CraftNativeMedia.local(privateVideo) == nil, "sign-out removes the next athlete's cached copy too")

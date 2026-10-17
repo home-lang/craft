@@ -254,6 +254,12 @@ enum CraftNativeActions {
             return
         case ("Media", "usage"):
             sync = .success(CraftNativeMedia.usage())
+        case ("Media", "clear"):
+            DispatchQueue.global(qos: .utility).async {
+                do { complete(requestToken, .success(try CraftNativeMedia.clear()), completion) }
+                catch { complete(requestToken, failure("IO_ERROR", "The video cache could not be cleared"), completion) }
+            }
+            return
         case ("Lifecycle", "getState"):
             sync = .success(currentAppState())
         case ("DeepLinks", "getInitialURL"):
@@ -782,7 +788,7 @@ enum CraftNativeActions {
             request.allowsExpensiveNetworkAccess = false
             request.allowsConstrainedNetworkAccess = false
         }
-        if CraftNativeMedia.join(address, { complete(requestToken, $0, completion) }) { return }
+        guard let flight = CraftNativeMedia.begin(address, { complete(requestToken, $0, completion) }) else { return }
         let task = fetchSession.downloadTask(with: request) { location, response, error in
             cancellationLock.lock()
             fetchTasks.removeValue(forKey: requestToken)
@@ -790,25 +796,25 @@ enum CraftNativeActions {
             if let error = error {
                 // Refused only because the connection is metered: not a failure, a wait.
                 if let reason = (error as? URLError)?.networkUnavailableReason, reason == .expensive || reason == .constrained {
-                    CraftNativeMedia.finish(address, .success(["ok": false, "url": address, "reason": "cellular"]))
+                    CraftNativeMedia.finish(address, flight: flight, .success(["ok": false, "url": address, "reason": "cellular"]))
                     return
                 }
                 let code = (error as? URLError)?.code == .timedOut ? "TIMEOUT" : "NETWORK_ERROR"
-                CraftNativeMedia.finish(address, failure(CraftNativeMedia.errorCode(error, fallback: code), error.localizedDescription))
+                CraftNativeMedia.finish(address, flight: flight, failure(CraftNativeMedia.errorCode(error, fallback: code), error.localizedDescription))
                 return
             }
             guard let http = response as? HTTPURLResponse, let location else {
-                CraftNativeMedia.finish(address, failure("NETWORK_ERROR", "media.keep received a response that is not HTTP"))
+                CraftNativeMedia.finish(address, flight: flight, failure("NETWORK_ERROR", "media.keep received a response that is not HTTP"))
                 return
             }
             // The system deletes `location` once this returns: move it now.
-            CraftNativeMedia.finish(address, CraftNativeMedia.store(address, at: location, response: http))
+            CraftNativeMedia.finish(address, flight: flight, CraftNativeMedia.store(address, at: location, response: http, flight: flight))
         }
         cancellationLock.lock()
         let alreadyCancelled = cancelledRequests.contains(requestToken)
         if !alreadyCancelled { fetchTasks[requestToken] = task }
         cancellationLock.unlock()
-        if alreadyCancelled { CraftNativeMedia.finish(address, failure("CANCELLED", "media.keep was cancelled")) }
+        if alreadyCancelled { CraftNativeMedia.finish(address, flight: flight, failure("CANCELLED", "media.keep was cancelled")) }
         else { task.resume() }
     }
 
