@@ -1,5 +1,14 @@
-import { appendFileSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+
+/** Fail before a bump if a sparse checkout omits manifests that CI will publish. */
+export function validateReleaseCheckout(root: string): void {
+  const tracked = Bun.spawnSync(['git', 'ls-files', '--', 'packages/*/package.json'], { cwd: root })
+  if (tracked.exitCode !== 0) throw new Error('Release preflight must run in the Git checkout')
+  const missing = tracked.stdout.toString().trim().split('\n').filter(file => file && !existsSync(join(root, file)))
+  if (missing.length)
+    throw new Error(`Release checkout omits package manifests: ${missing.join(', ')}. Expand the sparse checkout before releasing.`)
+}
 
 export function validateReleaseVersion(ref: string, version: string, manifests: Record<string, unknown>): void {
   const errors: string[] = []
@@ -35,7 +44,13 @@ export function checkReleaseVersion(root: string, ref: string): string {
 }
 
 if (import.meta.main) {
-  const version = checkReleaseVersion(resolve(import.meta.dir, '..'), process.env.GITHUB_REF ?? '')
+  const root = resolve(import.meta.dir, '..')
+  if (process.argv.includes('--preflight')) {
+    validateReleaseCheckout(root)
+    console.log('Release checkout contains every tracked package manifest')
+    process.exit(0)
+  }
+  const version = checkReleaseVersion(root, process.env.GITHUB_REF ?? '')
   console.log(`Verified release v${version}`)
   if (process.env.GITHUB_OUTPUT)
     appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`)

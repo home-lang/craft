@@ -1,6 +1,6 @@
 {
   "name": "craft",
-  "version": "0.0.229",
+  "version": "0.0.230",
   "private": true,
   "description": "Build desktop apps with web languages, powered by Zig",
   "author": "Chris Breuer <chris@stacksjs.org>",
@@ -60,8 +60,8 @@
     "changelog:preview": "bun scripts/changelog-preview.ts",
     "changelog:generate": "bun scripts/generate-release-changelog.ts",
     "test:release": "bun test ./scripts/changelog-preview.test.ts ./scripts/release-workflow.test.ts ./scripts/release-manifest.test.ts ./scripts/verify-sbom.test.ts",
-    "release": "bun x --bun @stacksjs/bumpx prompt --recursive",
-    "release:patch": "bun x --bun @stacksjs/bumpx patch --recursive --commit --tag --push --yes --no-changelog --execute \"bun scripts/sync-release-version.ts && bun scripts/generate-release-changelog.ts && git add packages/zig/build.zig.zon packages/zig/pantry.json CHANGELOG.md\""
+    "release": "bun scripts/release-version.ts --preflight && bun x --bun @stacksjs/bumpx prompt --recursive",
+    "release:patch": "bun scripts/release-version.ts --preflight && bun x --bun @stacksjs/bumpx patch --recursive --commit --tag --push --yes --no-changelog --execute \"bun scripts/sync-release-version.ts && bun scripts/generate-release-changelog.ts && git add packages/zig/build.zig.zon packages/zig/pantry.json CHANGELOG.md\""
   },
   "devDependencies": {
     "@stacksjs/buddy": "0.72.56",

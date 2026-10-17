@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.229...v0.0.230)
+
+## 🐛 Bug Fixes
+
+- **release**: reject incomplete sparse checkouts before bumping ([4ad038e](https://github.com/craft-native/craft/commit/4ad038e)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.228...v0.0.229)
 
 ## 🚀 Features
