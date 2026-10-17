@@ -1893,9 +1893,9 @@ describe('Craft iOS builder', () => {
     // Wi-Fi only: iOS refuses a metered connection, and that answer is a wait, not a failure.
     expect(actions).toContain('request.allowsExpensiveNetworkAccess = false')
     expect(actions).toContain('request.allowsConstrainedNetworkAccess = false')
-    expect(actions).toContain('CraftNativeMedia.finish(address, .success(["ok": false, "url": address, "reason": "cellular"]))')
+    expect(actions).toContain('CraftNativeMedia.finish(address, flight: flight, .success(["ok": false, "url": address, "reason": "cellular"]))')
     // Two screens asking for the same address share one download.
-    expect(actions).toContain('if CraftNativeMedia.join(address, { complete(requestToken, $0, completion) }) { return }')
+    expect(actions).toContain('guard let flight = CraftNativeMedia.begin(address, { complete(requestToken, $0, completion) }) else { return }')
     // The Video element plays the kept copy, and says so when an address cannot load.
     expect(screen).toContain('let kept = CraftNativeMedia.local(uri)')
     expect(screen).toContain('self.fire("onError", ["message": "The video address is not a full URL: \\(uri)"])')
