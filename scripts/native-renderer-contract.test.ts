@@ -3310,7 +3310,7 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('let recognizer = UIPanGestureRecognizer(target: self, action: #selector(tabSwipeRecognized(_:)))')
     expect(hybrid).toContain('beginInteractiveTabSwipe(to: tabs[next], direction: direction < 0 ? -1 : 1)')
     expect(hybrid).toContain('updateInteractiveTabSwipe(translation: translation)')
-    expect(hybrid).toContain('finishInteractiveTabSwipe(completed: complete)')
+    expect(hybrid).toContain('finishInteractiveTabSwipe(completed: complete, velocity: velocity)')
     // The incoming root starts opposite the finger and keeps that edge for
     // the whole gesture; recomputing it from the moving frame makes it jump.
     expect(hybrid).toContain('tabSwipeFrom = -direction * width')

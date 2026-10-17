@@ -194,7 +194,32 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(link.gestureRecognizers?.filter { $0 is UITapGestureRecognizer }.count, 1)
     }
 
+    func testIdlePreparationKeepsSelectionAndCurrentStackIntact() async throws {
+        let home = try XCTUnwrap(stack("/"))
+        let root = home.topViewController
+        await displayWait("adjacent native root prepared while idle") { self.stack("/details") != nil }
+        let prepared = try XCTUnwrap(stack("/details"))
+        XCTAssertTrue(prepared.view.isHidden)
+        XCTAssertFalse(home.view.isHidden)
+        XCTAssertTrue(home.topViewController === root)
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
+        XCTAssertEqual(prepared.view.bounds.size, home.view.bounds.size)
+        drag(-150)
+        XCTAssertTrue(stack("/details") === prepared)
+        drag(-150, phase: .cancelled)
+        await settle()
+        XCTAssertFalse(home.view.isHidden)
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
+    }
+
     func testFirstSwipeMountsAnUnvisitedNativeTabBesideTheCurrentScreen() async throws {
+        // Do not yield an idle run-loop turn between constructing this shell
+        // and dragging: this explicitly covers the cold fallback as well as
+        // the separately tested idle preparation path.
+        shell = CraftHybridController(config: CraftHybrid.shared.config)
+        window.rootViewController = shell
+        shell.view.frame = window.bounds
+        shell.view.layoutIfNeeded()
         XCTAssertNil(stack("/details"))
         let width = shell.view.bounds.width
         drag(-150)
@@ -215,6 +240,7 @@ final class NativeNavigationUnitTests: XCTestCase {
             drag(-amount)
             XCTAssertEqual(details.view.frame.minX, width - amount, accuracy: 0.5)
             XCTAssertEqual(home.view.frame.maxX, details.view.frame.minX, accuracy: 0.5)
+            XCTAssertEqual(CraftChrome.shared.tabSwipePosition ?? -1, amount / width, accuracy: 0.001)
         }
         attachFrame("Left swipe beyond halfway")
         drag(-width, phase: .ended)
@@ -226,11 +252,13 @@ final class NativeNavigationUnitTests: XCTestCase {
             drag(amount)
             XCTAssertEqual(home.view.frame.maxX, amount, accuracy: 0.5)
             XCTAssertEqual(home.view.frame.maxX, details.view.frame.minX, accuracy: 0.5)
+            XCTAssertEqual(CraftChrome.shared.tabSwipePosition ?? -1, 1 - amount / width, accuracy: 0.001)
         }
         attachFrame("Right swipe beyond halfway")
         drag(width, phase: .ended)
         await settle()
         XCTAssertEqual(CraftChrome.shared.selected, "/")
+        XCTAssertNil(CraftChrome.shared.tabSwipePosition)
         XCTAssertFalse(home.view.isHidden)
         XCTAssertEqual(home.view.frame, shell.view.bounds)
     }

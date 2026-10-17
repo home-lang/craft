@@ -1104,6 +1104,11 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         DispatchQueue.main.async { [weak self] in self?.hybrid.shellReady() }
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        prepareAdjacentNativeTabs()
+    }
+
     private var webAttached = false
 
     private func installTabSwipeGestures() {
@@ -1152,9 +1157,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             let speed = velocity * direction
             let complete = recognizer.state == .ended && speed > -700
                 && (progress >= max(32, view.bounds.width * 0.28) || speed > 700)
-            finishInteractiveTabSwipe(completed: complete) { [weak self] in
+            finishInteractiveTabSwipe(completed: complete, velocity: velocity) { [weak self] in
                 self?.activeTabSwipeTarget = nil
                 self?.tabSwipeSettling = false
+                self?.prepareAdjacentNativeTabs()
                 guard complete else {
                     CraftChrome.shared.cancelTabSwipe()
                     return
@@ -1224,9 +1230,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             : max(0, min(width, translation))
         target.view.frame.origin.x = tabSwipeFrom + offset
         current.view.frame.origin.x = offset
+        CraftChrome.shared.updateTabSwipe(progress: abs(offset) / width)
     }
 
-    private func finishInteractiveTabSwipe(completed: Bool, completion: @escaping () -> Void) {
+    private func finishInteractiveTabSwipe(completed: Bool, velocity: CGFloat, completion: @escaping () -> Void) {
         guard let targetId = activeTabSwipeTarget, let current = visibleStack,
               let target = stacks[targetId] else { completion(); return }
         let width = view.bounds.width
@@ -1235,7 +1242,12 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         let settlingDuration = completed ? 0.22 : 0.18
         let duration = CraftChrome.motion(.easeOut(duration: settlingDuration)) == nil ? 0 : settlingDuration
         let generation = tabSwipeGeneration
-        UIView.animate(withDuration: duration, delay: 0, options: [.curveEaseOut, .beginFromCurrentState], animations: {
+        CraftChrome.shared.settleTabSwipe(completed: completed, duration: duration)
+        let remaining = end - target.view.frame.minX
+        let initialVelocity = abs(remaining) > 1 ? max(0, min(12, velocity / remaining)) : 0
+        UIView.animate(withDuration: duration, delay: 0, usingSpringWithDamping: 1,
+                       initialSpringVelocity: initialVelocity,
+                       options: [.beginFromCurrentState, .allowUserInteraction], animations: {
             target.view.frame.origin.x = end
             current.view.frame.origin.x = completed ? -direction * width : 0
         }, completion: { _ in
@@ -1449,11 +1461,37 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         for (key, other) in stacks { other.view.isHidden = key != id }
         nav.view.frame = view.bounds
         view.bringSubviewToFront(nav.view)
+        prepareAdjacentNativeTabs()
         if let slot = nav.topViewController as? CraftHybridWebSlot, slot.isViewLoaded {
             adoptWeb(into: slot)
         } else if !(nav.topViewController is CraftHybridWebSlot) {
             parkWeb()
         }
+    }
+
+    /// Prepare one neighbour after the first frame, never inside the finger's
+    /// tracking run-loop mode. A first swipe then uses a laid-out native root
+    /// rather than compiling, measuring and fetching at gesture start.
+    private func prepareAdjacentNativeTabs() {
+        let owner = currentTab
+        let timer = Timer(timeInterval: 0.15, repeats: false) { [weak self] _ in
+            guard let self, self.currentTab == owner, self.activeTabSwipeTarget == nil,
+                  self.view.window != nil,
+                  let index = self.hybrid.tabIds.firstIndex(of: owner) else { return }
+            let tabs = self.hybrid.tabIds
+            for neighbour in [index + 1, index - 1] where tabs.indices.contains(neighbour) {
+                let id = tabs[neighbour]
+                guard self.stacks[id] == nil, self.hybrid.routes.match(id) != nil else { continue }
+                let nav = self.makeStack(tab: id, rootPath: id)
+                nav.view.isHidden = true
+                nav.view.layoutIfNeeded()
+                (nav.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(false)
+                (self.visibleStack?.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(true)
+                self.prepareAdjacentNativeTabs()
+                break
+            }
+        }
+        RunLoop.main.add(timer, forMode: .default)
     }
 
     private func cancelPendingTab() {

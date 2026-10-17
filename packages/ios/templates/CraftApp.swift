@@ -627,6 +627,7 @@ final class CraftChrome: ObservableObject {
     @Published var tabs: [Tab] = []
     @Published var tabAccessory: Tab?
     @Published var selected: String?
+    @Published private(set) var tabSwipePosition: CGFloat?
     @Published var tabBarVisible = false
     @Published var splashVisible = true
     @Published var tint: UIColor?
@@ -640,6 +641,7 @@ final class CraftChrome: ObservableObject {
     private var pendingHide: DispatchWorkItem?
     private var splashDeadline: DispatchWorkItem?
     private var tabSwipePrevious: String?
+    private var tabSwipeTarget: String?
     /// The keyboard is up and covers the tab bar, so the page need not leave
     /// room for it: the web view ends at the keyboard (CraftHybrid's webHost).
     private var keyboardUp = false
@@ -821,12 +823,34 @@ final class CraftChrome: ObservableObject {
         // A page's pending selection report may disagree with the native
         // stack. Cancellation belongs to the stack the finger left.
         tabSwipePrevious = previous
-        withAnimation(nil) { selected = id }
+        tabSwipeTarget = id
+        withAnimation(nil) {
+            tabSwipePosition = tabs.firstIndex(where: { $0.id == previous }).map { CGFloat($0) }
+            selected = id
+        }
+    }
+
+    /// The capsule shares the gesture's progress, rather than jumping to the
+    /// next item as soon as the pan recognizer begins.
+    func updateTabSwipe(progress: CGFloat) {
+        guard let previous = tabSwipePrevious, let target = tabSwipeTarget,
+              let from = tabs.firstIndex(where: { $0.id == previous }),
+              let to = tabs.firstIndex(where: { $0.id == target }) else { return }
+        let position = CGFloat(from) + CGFloat(to - from) * min(1, max(0, progress))
+        if tabSwipePosition != position { withAnimation(nil) { tabSwipePosition = position } }
+    }
+
+    func settleTabSwipe(completed: Bool, duration: TimeInterval) {
+        guard let id = completed ? tabSwipeTarget : tabSwipePrevious,
+              let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        withAnimation(Self.motion(.easeOut(duration: duration))) { tabSwipePosition = CGFloat(index) }
     }
 
     func cancelTabSwipe(restoringSelection: Bool = true) {
         guard let previous = tabSwipePrevious else { return }
         tabSwipePrevious = nil
+        tabSwipeTarget = nil
+        withAnimation(nil) { tabSwipePosition = nil }
         if restoringSelection {
             withAnimation(nil) { selected = previous }
         }
@@ -834,6 +858,8 @@ final class CraftChrome: ObservableObject {
 
     func commitTabSwipe(to id: String) {
         tabSwipePrevious = nil
+        tabSwipeTarget = nil
+        withAnimation(nil) { tabSwipePosition = nil }
         guard tabs.contains(where: { $0.id == id }) else { return }
         withAnimation(nil) { selected = id }
         UISelectionFeedbackGenerator().selectionChanged()
@@ -934,7 +960,6 @@ final class CraftChromeRelay: NSObject, WKScriptMessageHandler {
 /// The floating tab bar: Liquid Glass on iOS 26 and later, a material capsule before.
 struct CraftTabBarView: View {
     @ObservedObject private var chrome = CraftChrome.shared
-    @Namespace private var selection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     // Dynamic Type, relative to the styles UIKit's own bar uses. The bar is
@@ -1064,13 +1089,6 @@ struct CraftTabBarView: View {
                     }
                     .foregroundStyle(isSelected ? selectedColor : Color.primary)
                     .frame(maxWidth: .infinity, minHeight: 54)
-                    .background {
-                        if isSelected {
-                            Capsule()
-                                .fill(Color.primary.opacity(0.09))
-                                .matchedGeometryEffect(id: "selection", in: selection)
-                        }
-                    }
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -1082,6 +1100,20 @@ struct CraftTabBarView: View {
                 .accessibilityLabel(tab.accessibilityLabel ?? tab.badge.map { "\(tab.displayTitle), \($0)" } ?? tab.displayTitle)
                 .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
             }
+        }
+        .background {
+            GeometryReader { geometry in
+                if let position = chrome.tabSwipePosition
+                    ?? chrome.tabs.firstIndex(where: { $0.id == chrome.selected }).map({ CGFloat($0) }) {
+                    let width = geometry.size.width / CGFloat(max(1, chrome.tabs.count))
+                    Capsule()
+                        .fill(Color.primary.opacity(0.09))
+                        .frame(width: width, height: geometry.size.height)
+                        .offset(x: position * width)
+                }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
 
