@@ -91,7 +91,7 @@
       "version": "0.0.237",
       "devDependencies": {
         "@types/bun": "^1.2.0",
-        "ts-maps": "^0.3.1",
+        "ts-maps": "^0.3.9",
         "very-happy-dom": "^0.1.4",
       },
     },
@@ -120,9 +120,6 @@
         "vue": "^3.0.0",
       },
     },
-  },
-  "patchedDependencies": {
-    "ts-maps@0.3.1": "patches/ts-maps@0.3.1.patch",
   },
   "packages": {
     "@ampproject/remapping": ["@ampproject/remapping@2.3.0", "", { "dependencies": { "@jridgewell/gen-mapping": "^0.3.5", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="],
@@ -679,7 +676,7 @@
 
     "ts-jpeg": ["ts-jpeg@0.3.1", "", {}, "sha512-KIGTJj4UIlkGoCFEofx8jHHQEkJfSLFJY0MHz60Mu4Scjrcj7K/0UJGCbL9QvfIaFGAOGdf0xNFpYSuzUpimwA=="],
 
-    "ts-maps": ["ts-maps@0.3.1", "", {}, "sha512-/ree3wHYTEsVTf0vOvNBeqDCLjkT2VejVrycNd2y8ev8LbP7fPxvEcoau8a3AuY+E6wcLRgJy2YruMy6bmBC2Q=="],
+    "ts-maps": ["ts-maps@0.3.23", "", {}, "sha512-gWm67tTU0GRMKJ1FpgCu9D1GghUWkxL8jQe++F/jLOoCv3sU/mI4hIcsIz1ZMBN9GAc0tx3GfXsHM9Mb2gQcxg=="],
 
     "ts-pantry": ["ts-pantry@0.11.39", "", { "bin": { "ts-pantry": "./dist/bin/cli.js" } }, "sha512-rqq73VTqtkJ6J73o+yHQ4IHzFJ5XH0c52TWzjHJ+/l7Ut8KA+7S1ASpyYTSxqQPi1bxMvUg8A/kDmZp2AYey4A=="],
 
