@@ -1186,3 +1186,18 @@ This will:
 ## License
 
 MIT
+
+### Custom native fonts
+
+Set `nativeFonts` to bundle TTF/OTF files and their licenses. Keys are the font's
+PostScript name (for example `Allura-Regular`); use that same name in a native
+Text node's `fontFamily` style. Paths are local files, resolved before packaging.
+
+```ts
+nativeFonts: {
+  'Allura-Regular': { src: '/app/fonts/Allura-Regular.ttf', license: '/app/fonts/OFL.txt' },
+}
+```
+
+The iOS project registers the files through `UIAppFonts`. Android loads bundled
+typefaces from assets. Both work offline; a missing file fails the build.

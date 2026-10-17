@@ -26,6 +26,7 @@
     <true/>
     <key>ITSAppUsesNonExemptEncryption</key>
     <{{NON_EXEMPT_ENCRYPTION}}/>
+{{NATIVE_FONTS}}
     <key>UILaunchScreen</key>
     <dict>
 {{LAUNCH_SCREEN}}

@@ -11,6 +11,34 @@ import { renderAndroidPromiseRuntime } from './promise-runtime'
 
 export { runKotlinFixture } from './testing.js'
 
+/** Package custom fonts and their licenses; removed fonts cannot linger in the app. */
+export function syncNativeFonts(fonts: CraftAndroidConfig['nativeFonts'], output: string): string[] {
+  const destination = join(output, 'app/src/main/assets/NativeFonts')
+  const names = new Set<string>()
+  const files = Object.entries(fonts ?? {}).map(([family, entry]) => {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(family))
+      throw new Error(`Invalid native font PostScript name: ${family}`)
+    if (names.has(family.toLowerCase())) throw new Error(`Duplicate native font name: ${family}`)
+    names.add(family.toLowerCase())
+    if ([entry.src, entry.license].some(file => file && resolve(file).startsWith(resolve(destination) + sep)))
+      throw new Error('Native font sources must be outside the generated NativeFonts directory')
+    const extension = extname(entry.src).toLowerCase()
+    if (!['.ttf', '.otf'].includes(extension) || !existsSync(entry.src) || !statSync(entry.src).isFile())
+      throw new Error(`Native font ${family} must reference an existing TTF or OTF file: ${entry.src}`)
+    if (entry.license && (!existsSync(entry.license) || !statSync(entry.license).isFile()))
+      throw new Error(`Native font license not found: ${entry.license}`)
+    return { family, ...entry, filename: `${family}${extension}` }
+  })
+  rmSync(destination, { recursive: true, force: true })
+  if (!files.length) return []
+  mkdirSync(destination, { recursive: true })
+  for (const file of files) {
+    cpSync(file.src, join(destination, file.filename))
+    if (file.license) cpSync(file.license, join(destination, `${file.family}.LICENSE.txt`))
+  }
+  return files.map(file => `NativeFonts/${file.filename}`)
+}
+
 const TEMPLATES_DIR = join(dirname(import.meta.dir), 'templates')
 
 /**
@@ -72,6 +100,9 @@ const KOTLIN_KEYWORDS = new Set([
 export const ANDROID_MIN_SDK = 26
 
 export interface CraftAndroidConfig {
+  /** Bundled font files keyed by their PostScript font name, used as native fontFamily. */
+  nativeFonts?: Record<string, { src: string, license?: string }>
+
   appName: string
   packageName: string
   renderer?: 'web' | 'native'
@@ -1181,6 +1212,8 @@ zipStorePath=wrapper/dists
 `
   writeFileSync(join(output, 'app/src/main/res/layout/activity_main.xml'), activityMainXml)
 
+  syncNativeFonts(config.nativeFonts, output)
+
   // Create placeholder index.html
   const placeholderHtml = `<!DOCTYPE html>
 <html>
@@ -1315,6 +1348,8 @@ export async function build(options: BuildOptions): Promise<void> {
     writeAndroidConfig(output, config)
     console.log(`   Synced: ${htmlPath} → assets/`)
   }
+
+  syncNativeFonts(config.nativeFonts, output)
 
   if (!compile) return
 
