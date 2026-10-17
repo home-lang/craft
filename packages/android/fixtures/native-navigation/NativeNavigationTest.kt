@@ -360,6 +360,27 @@ class NativeNavigationTest {
                             "windowBackground=${backgroundColor(activity.window.decorView)} nativeAppearance=${activity.window.insetsController?.systemBarsAppearance} " +
                             "navigationMode=${Settings.Secure.getString(activity.contentResolver, "navigation_mode")}\n"
                     )
+                    // Preserve the original failure, then compare the same
+                    // display/sampling with literal native Android windows.
+                    for (stockTheme in listOf(false, true)) {
+                        val reference = instrumentation.startActivitySync(
+                            Intent(activity, NativeSystemBarsReferenceActivity::class.java)
+                                .putExtra("background", expected)
+                                .putExtra("stockTheme", stockTheme)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        ) as NativeSystemBarsReferenceActivity
+                        try {
+                            SystemClock.sleep(500)
+                            val comparison = instrumentation.uiAutomation.takeScreenshot()
+                                ?: throw AssertionError("native reference screenshot unavailable")
+                            java.io.File(directory, "$name-reference-$stockTheme.png").outputStream().use {
+                                comparison.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+                            }
+                            comparison.recycle()
+                        } finally {
+                            instrumentation.runOnMainSync { reference.finish() }
+                        }
+                    }
                 }
                 image.recycle()
                 if (actual == color && glyphContrast >= 3.0) break

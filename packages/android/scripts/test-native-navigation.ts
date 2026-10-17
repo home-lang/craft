@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { build, init } from '../src/index'
 import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
@@ -62,6 +62,10 @@ try {
   copyFileSync(join(import.meta.dir, '../fixtures/native-navigation/NativeFlatListTest.kt'), join(testDirectory, 'NativeFlatListTest.kt'))
   copyFileSync(join(import.meta.dir, '../fixtures/native-navigation/NativeCapabilitiesTest.kt'), join(testDirectory, 'NativeCapabilitiesTest.kt'))
   copyFileSync(join(import.meta.dir, '../fixtures/native-navigation/NativeCapabilityUiTest.kt'), join(testDirectory, 'NativeCapabilityUiTest.kt'))
+  const debugDirectory = join(output, 'app/src/debug/java', ...packageName.split('.'))
+  mkdirSync(debugDirectory, { recursive: true })
+  copyFileSync(join(import.meta.dir, '../fixtures/native-navigation/NativeSystemBarsReferenceActivity.kt'), join(debugDirectory, 'NativeSystemBarsReferenceActivity.kt'))
+  writeFileSync(join(output, 'app/src/debug/AndroidManifest.xml'), `<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application><activity android:name=".NativeSystemBarsReferenceActivity" android:exported="false" /></application></manifest>`)
 
   if (!process.argv.includes('--prepare-only')) {
     try {
