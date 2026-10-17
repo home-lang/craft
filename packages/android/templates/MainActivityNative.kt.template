@@ -4568,7 +4568,12 @@ class MainActivity : AppCompatActivity() {
             ?.takeUnless { it == JSONObject.NULL }
             ?.let { craftNativeOptionalString(it) }
             ?.let { runCatching { craftNativeColor(it) }.getOrNull() }
-        screen.view.setBackgroundColor(configured ?: ContextCompat.getColor(this, R.color.background))
+        val background = configured ?: ContextCompat.getColor(this, R.color.background)
+        screen.view.setBackgroundColor(background)
+        // The root also paints the window-inset padding above/below the
+        // screen. Retained screens still receive options and theme updates;
+        // only the visible one may change the colour behind system bars.
+        if (visibleScreen === screen) root.setBackgroundColor(background)
     }
 
     /** Refresh controls use a contrasting system tint when no color is authored. */
