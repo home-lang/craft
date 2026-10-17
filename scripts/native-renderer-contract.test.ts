@@ -2686,9 +2686,9 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps picker initialization assertions aligned with the shared status baseline', () => {
-    expect(androidNavigationTest).toContain('initial picker selection must not emit onChange", "button style accented"')
+    expect(androidNavigationTest).toContain('initial picker selection must not emit onChange", "button prop default"')
     // Each host checks the status its own last action wrote: Android reaches
-    // the picker after the button style toggle, iOS after the switch.
+    // the picker after resetting the direct button color, iOS after the switch.
     expect(iosNavigationTest).toContain('app.staticTexts["native-link-status"].label, "switch on"')
   })
 
