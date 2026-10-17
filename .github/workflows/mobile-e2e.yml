@@ -597,6 +597,10 @@ jobs:
           retention-days: 30
 
   android-navigation:
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: ${{ fromJSON(inputs.android_suite == 'full' && '[34,35]' || '[34]') }}
     env:
       CRAFT_ANDROID_NATIVE_SUITE: ${{ inputs.android_suite || 'focused' }}
       CRAFT_ANDROID_TEST_CLASS: ${{ inputs.android_suite != 'full' && 'dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#cancelledSwipeTargetIsVisibleWhenSelectedLater,dev.craft.navigationtest.NativeNavigationTest#completedReverseSwipeKeepsRetainedTabVisible,dev.craft.navigationtest.NativeNavigationTest#nativePullToRefreshSurvivesViewReattachment,dev.craft.navigationtest.NativeNavigationTest#pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack,dev.craft.navigationtest.NativeFlatListTest#refreshAppearanceUsesTheScreenContrastFallback,dev.craft.navigationtest.NativeNavigationTest#nativeDatePickerKeepsFollowingControlsMounted' || '' }}
@@ -634,7 +638,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: ${{ matrix.api-level }}
           arch: x86_64
           profile: pixel_6
           emulator-options: -no-window -no-snapshot-save -gpu swiftshader_indirect -noaudio -no-boot-anim
