@@ -5,6 +5,30 @@ import XCTest
 
 @MainActor
 final class NativeRenderUnitTests: XCTestCase {
+    func testTabUpdatesKeepTheIconAndSelectionWhileChangingItsLiveCaption() {
+        let chrome = CraftChrome.shared
+        let previous = chrome.tabs
+        let selected = chrome.selected
+        defer { chrome.tabs = previous; chrome.selected = selected }
+        chrome.tabs = [CraftChrome.Tab(id: "/health", title: "Health", symbol: "heart", badge: "2")]
+        chrome.selected = "/other"
+        chrome.updateTab(["id": "/health", "title": "123 bpm", "iconText": NSNull(), "iconTint": "#ff3b30", "iconPulse": true, "accessibilityLabel": "Health, live heart rate, 123 bpm"])
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "123 bpm")
+        XCTAssertEqual(chrome.tabs[0].symbol, "heart")
+        XCTAssertNil(chrome.tabs[0].iconText)
+        XCTAssertEqual(chrome.tabs[0].iconTint, "#ff3b30")
+        XCTAssertTrue(chrome.tabs[0].iconPulse)
+        XCTAssertEqual(chrome.tabs[0].badge, "2")
+        XCTAssertEqual(chrome.selected, "/other")
+        chrome.updateTab(["id": "/health", "title": NSNull(), "iconTint": NSNull(), "iconPulse": false, "accessibilityLabel": NSNull()])
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "Health")
+        XCTAssertNil(chrome.tabs[0].iconTint)
+        XCTAssertNil(chrome.tabs[0].accessibilityLabel)
+        XCTAssertFalse(chrome.tabs[0].iconPulse)
+        chrome.updateTab(["id": "/missing", "title": "Ignored", "iconPulse": true])
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "Health")
+    }
+
     func testInitialLinkWaitsForLaunchIntentInsteadOfScreenReadiness() {
         let launch = CraftInitialLinkState()
         var answers: [URL?] = []

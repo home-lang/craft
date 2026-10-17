@@ -616,6 +616,10 @@ final class CraftChrome: ObservableObject {
         let symbol: String
         var badge: String?
         var iconText: String? = nil
+        var titleOverride: String? = nil
+        var iconTint: String? = nil
+        var iconPulse = false
+        var displayTitle: String { titleOverride ?? title }
         var accessibilityLabel: String? = nil
         var image: String? = nil
     }
@@ -673,11 +677,20 @@ final class CraftChrome: ObservableObject {
     /// the next screen shown says again. The page's own hideTabBar is apart.
     private(set) var hiddenByScreen = false
 
-    /// Change one tab's icon without replacing tabs, navigation stacks or selection.
+    /// Change one tab's caption or icon without replacing stacks or selection.
     func updateTab(_ item: [String: Any]) {
         guard let id = item["id"] as? String, let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         if item.keys.contains("iconText") {
             tabs[index].iconText = (item["iconText"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) }
+        }
+        if item.keys.contains("title") {
+            tabs[index].titleOverride = (item["title"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(40)) }
+        }
+        if item.keys.contains("iconTint") {
+            tabs[index].iconTint = (item["iconTint"] as? String).flatMap { UIColor(hex: $0) == nil ? nil : $0 }
+        }
+        if item.keys.contains("iconPulse") {
+            tabs[index].iconPulse = item["iconPulse"] as? Bool ?? false
         }
         if item.keys.contains("accessibilityLabel") {
             tabs[index].accessibilityLabel = (item["accessibilityLabel"] as? String).map { String($0.prefix(160)) }
@@ -923,6 +936,7 @@ struct CraftTabBarView: View {
     @ObservedObject private var chrome = CraftChrome.shared
     @Namespace private var selection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     // Dynamic Type, relative to the styles UIKit's own bar uses. The bar is
     // capped at the largest standard size (below), as UITabBar is; past that
     // a long press shows the large content viewer instead.
@@ -1030,9 +1044,7 @@ struct CraftTabBarView: View {
                                     .minimumScaleFactor(0.7)
                                     .frame(height: iconSize + 6)
                             } else {
-                                Image(systemName: symbol(tab.symbol, selected: isSelected))
-                                    .font(.system(size: iconSize, weight: isSelected ? .semibold : .regular))
-                                    .frame(height: iconSize + 6)
+                                tabSymbol(tab, selected: isSelected)
                             }
                             if let badge = tab.badge {
                                 Text(badge)
@@ -1044,8 +1056,9 @@ struct CraftTabBarView: View {
                                     .offset(x: 10, y: -4)
                             }
                         }
-                        Text(tab.title)
+                        Text(tab.displayTitle)
                             .font(.system(size: labelSize, weight: isSelected ? .semibold : .medium))
+                            .monospacedDigit()
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
@@ -1063,9 +1076,9 @@ struct CraftTabBarView: View {
                 .buttonStyle(.plain)
                 .accessibilityShowsLargeContentViewer {
                     Image(systemName: symbol(tab.symbol, selected: isSelected))
-                    Text(tab.title)
+                    Text(tab.displayTitle)
                 }
-                .accessibilityLabel(tab.accessibilityLabel ?? tab.badge.map { "\(tab.title), \($0)" } ?? tab.title)
+                .accessibilityLabel(tab.accessibilityLabel ?? tab.badge.map { "\(tab.displayTitle), \($0)" } ?? tab.displayTitle)
                 .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
             }
         }
@@ -1073,6 +1086,20 @@ struct CraftTabBarView: View {
 
     private var selectedColor: Color {
         chrome.tint.map { Color($0) } ?? Color.primary
+    }
+
+    /// Live styling belongs to the icon, leaving selection and the caption clear.
+    @ViewBuilder private func tabSymbol(_ tab: CraftChrome.Tab, selected: Bool) -> some View {
+        let color = tab.iconTint.flatMap { UIColor(hex: $0) }.map { Color($0) } ?? (selected ? selectedColor : Color.primary)
+        let icon = Image(systemName: symbol(tab.symbol, selected: selected))
+            .font(.system(size: iconSize, weight: selected ? .semibold : .regular))
+            .foregroundStyle(color)
+            .frame(height: iconSize + 6)
+        if #available(iOS 17.0, *) {
+            icon.symbolEffect(.pulse, options: .repeating, isActive: tab.iconPulse && !reduceMotion && scenePhase == .active)
+        } else {
+            icon
+        }
     }
 
     /// The filled variant for the current tab, when the symbol has one.

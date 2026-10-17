@@ -782,6 +782,30 @@ iOS, account-style buttons are independent 44-point custom bar items with
 their own circular material surface; they opt out of iOS 26's shared bar-item
 platter so adjacent buttons cannot merge into one oversized background.
 
+A screen can update one tab without replacing the bar or its navigation stacks.
+The iOS and Android shells accept a live `title`, `iconTint`, and `iconPulse`:
+
+```js
+craft.navigation.setOptions({
+  tabItem: {
+    id: '/health',
+    title: '123 bpm',
+    iconText: null,
+    iconTint: '#ff3b30',
+    iconPulse: true,
+    accessibilityLabel: 'Health, live heart rate, 123 bpm',
+  },
+})
+```
+
+The configured symbol stays in place. `iconText` is a separate optional icon
+replacement; clear it when showing the symbol. A null `title` restores the
+configured caption, a null `iconTint` restores the normal selected/unselected
+color, and `iconPulse: false` stops the effect. Pulsing is subtle, stops while
+the app is inactive, and honors Reduce Motion on iOS and disabled system
+animations on Android. iOS 16 shows a static icon; iOS 17 and later use the
+system symbol pulse. Changing the caption does not restart the animation.
+
 `tabAccessory` adds one destination button beside the tab pill without adding
 it to any tab stack or to the tab-swipe order. Give it an app-local path,
 title, and symbol; an optional badge and accessibility label are shared across

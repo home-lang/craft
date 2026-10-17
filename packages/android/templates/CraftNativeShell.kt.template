@@ -643,6 +643,10 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     private var accessorySpec: JSONObject? = null
     private val tabViews = mutableListOf<Pair<TextView, TextView>>()
     private val tabIconText = mutableMapOf<String, String>()
+    private val tabTitles = mutableMapOf<String, String>()
+    private val tabAccessibilityLabels = mutableMapOf<String, String>()
+    private val tabIconTints = mutableMapOf<String, Int>()
+    private val tabIconPulses = mutableSetOf<String>()
     private val tabImageURLs = mutableMapOf<String, String>()
     private val tabImages = mutableMapOf<String, android.graphics.drawable.Drawable>()
     private val navButtonSpecs = mutableMapOf<TextView, JSONObject>()
@@ -716,6 +720,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             val label = TextView(context)
             label.text = tab.title
             label.textSize = 12f
+            label.fontFeatureSettings = "tnum"
             label.gravity = Gravity.CENTER
             label.isSingleLine = true
             cell.addView(icon, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -844,11 +849,24 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         val id = item.optString("id")
         val index = tabs.indexOfFirst { it.id == id }
         if (index < 0) return
-        val cell = tabBar.getChildAt(index)
-        if (item.has("accessibilityLabel")) cell.contentDescription = item.optString("accessibilityLabel").takeUnless { item.isNull("accessibilityLabel") || it.isBlank() } ?: tabs[index].title
+        if (item.has("accessibilityLabel")) {
+            tabAccessibilityLabels.remove(id)
+            item.optString("accessibilityLabel").takeUnless { item.isNull("accessibilityLabel") || it.isBlank() }?.let { tabAccessibilityLabels[id] = it.take(160) }
+        }
         if (item.has("iconText")) {
             tabIconText.remove(id)
             item.optString("iconText").takeUnless { item.isNull("iconText") || it.isBlank() }?.let { tabIconText[id] = it.take(8) }
+        }
+        if (item.has("title")) {
+            tabTitles.remove(id)
+            item.optString("title").takeUnless { item.isNull("title") || it.isBlank() }?.let { tabTitles[id] = it.take(40) }
+        }
+        if (item.has("iconTint")) {
+            tabIconTints.remove(id)
+            if (!item.isNull("iconTint")) runCatching { Color.parseColor(item.optString("iconTint")) }.getOrNull()?.let { tabIconTints[id] = it }
+        }
+        if (item.has("iconPulse")) {
+            if (item.optBoolean("iconPulse", false)) tabIconPulses.add(id) else tabIconPulses.remove(id)
         }
         if (item.has("image")) {
             val address = item.optString("image").takeIf { !item.isNull("image") && it.startsWith("https://") }
@@ -896,14 +914,39 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         tabViews.forEachIndexed { index, (icon, label) ->
             tabBar.getChildAt(index).isSelected = index == selectedTab
             val color = if (index == selectedTab) accent else muted
-            val number = tabIconText[tabs[index].id]
-            icon.setTextColor(if (number != null) Color.parseColor("#FF2D55") else color)
+            val id = tabs[index].id
+            val number = tabIconText[id]
+            val iconColor = tabIconTints[id] ?: if (number != null) Color.parseColor("#FF2D55") else color
+            icon.setTextColor(iconColor)
+            label.text = tabTitles[id] ?: tabs[index].title
+            tabBar.getChildAt(index).contentDescription = tabAccessibilityLabels[id] ?: label.text
             label.setTextColor(color)
-            val vector = tabImages[tabs[index].id] ?: if (number == null) CraftNativeIcons.drawable(context, null, tabs[index].symbol, color) else null
+            val vector = tabImages[id] ?: if (number == null) CraftNativeIcons.drawable(context, null, tabs[index].symbol, iconColor) else null
+            val pulse = tabIconPulses.contains(id) && number == null && tabImages[id] == null && hasWindowFocus() && android.animation.ValueAnimator.areAnimatorsEnabled()
+            if (pulse && icon.animation == null) {
+                icon.startAnimation(android.view.animation.AlphaAnimation(1f, 0.55f).apply {
+                    duration = 700
+                    repeatCount = android.view.animation.Animation.INFINITE
+                    repeatMode = android.view.animation.Animation.REVERSE
+                })
+            } else if (!pulse) {
+                icon.clearAnimation()
+                icon.alpha = 1f
+            }
             icon.foreground = vector
             icon.text = if (vector != null) "" else number ?: CraftNativeSymbols.glyph(tabs[index].symbol)
         }
         navButtonSpecs.forEach { (view, spec) -> applyNavButtonTint(view, spec, dark) }
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        if (hasWindowFocus) refreshColors() else tabViews.forEach { (icon, _) -> icon.clearAnimation() }
+    }
+
+    override fun onDetachedFromWindow() {
+        tabViews.forEach { (icon, _) -> icon.clearAnimation() }
+        super.onDetachedFromWindow()
     }
 
     private fun navButton(button: JSONObject): View {

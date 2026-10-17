@@ -406,6 +406,40 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun liveTabCaptionKeepsItsSymbolAndResetsWithoutChangingSelection() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        try {
+            awaitView(activity, "navigation-home-state")
+            instrumentation.runOnMainSync {
+                val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
+                    ?: throw AssertionError("native chrome did not mount")
+                chrome.apply(org.json.JSONObject().put("tabItem", org.json.JSONObject()
+                    .put("id", "/").put("title", "123 bpm").put("iconText", org.json.JSONObject.NULL)
+                    .put("iconTint", "#ff3b30").put("iconPulse", true).put("accessibilityLabel", "Live reading, 123 bpm")), 0, "Home")
+                val cell = find(chrome, "Live reading, 123 bpm") as LinearLayout
+                val icon = cell.getChildAt(0) as TextView
+                val label = cell.getChildAt(1) as TextView
+                assertEquals("123 bpm", label.text.toString())
+                assertEquals(Color.parseColor("#ff3b30"), icon.currentTextColor)
+                assertTrue("updating a caption changed tab selection", cell.isSelected)
+                chrome.apply(org.json.JSONObject().put("tabItem", org.json.JSONObject()
+                    .put("id", "/").put("title", org.json.JSONObject.NULL).put("iconTint", org.json.JSONObject.NULL)
+                    .put("iconPulse", false).put("accessibilityLabel", org.json.JSONObject.NULL)), 0, "Home")
+                assertEquals("Home", label.text.toString())
+                assertEquals("Home", cell.contentDescription.toString())
+                assertTrue("the pulse was not stopped", icon.animation == null)
+                assertTrue("resetting a caption changed tab selection", cell.isSelected)
+            }
+        } finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
     fun outgoingTabTapWinsOverSettlingSwipe() {
         assertTabTapInterruptsSettlingSwipe(0, "navigation-home-state", "Home state: Ada/1")
     }
