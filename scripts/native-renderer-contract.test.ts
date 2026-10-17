@@ -1227,7 +1227,7 @@ describe('native renderer component contract', () => {
 
   it('preserves UIKit interaction traits for native controls without authored roles', () => {
     expect(ios).toContain('case "Slider", "Picker", "DatePicker": traits.insert(.adjustable)')
-    expect(ios).toContain('case "Switch": traits.insert(.button)')
+    expect(iosNativeUnitTests).toContain('testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges')
     expect(iosNativeUnitTests).toContain('testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles')
   })
 
