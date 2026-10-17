@@ -310,6 +310,21 @@ class NativeNavigationTest {
         if (android.os.Build.VERSION.SDK_INT < 35) {
             assertEquals("$message (legacy status bar)", color, activity.window.statusBarColor)
             assertEquals("$message (legacy navigation bar)", color, activity.window.navigationBarColor)
+        } else {
+            // The appearance flag alone cannot detect Android 15's opaque
+            // three-button scrim. Check the composed system-bar pixels.
+            var actual: Int? = null
+            repeat(30) {
+                val image = instrumentation.uiAutomation.takeScreenshot()
+                    ?: throw AssertionError("system screenshot unavailable")
+                actual = image.getPixel(image.width / 2, image.height - 2)
+                image.recycle()
+                if (actual == color) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertEquals("$message (composed bottom system bar)", color, actual)
+            assertFalse("Android 15 must not overlay the authored inset background",
+                activity.window.isNavigationBarContrastEnforced)
         }
     }
 
