@@ -216,6 +216,27 @@ does not change placement semantics.
 Reverse flex directions also retain wrapped line order on the cross axis while
 reversing each line's main-axis children, matching Android's native host.
 
+For rapid or interrupted input, `touches` submits multiple touch paths in one
+native XCTest event record. Each point has `at` in seconds and either normalized
+`x`/`y` coordinates or a `tab` name resolved to its native button center before
+submission. For example, two taps 80 ms apart:
+
+```ts
+serializeSimulatorSteps([{ command: 'touches', paths: [
+  [{ tab: 'Today', at: 0 }, { tab: 'Today', at: 0.025 }],
+  [{ tab: 'Progress', at: 0.08 }, { tab: 'Progress', at: 0.105 }],
+] }])
+```
+
+Unlike separate coordinate taps, the event record preserves timing between
+paths without waiting for app quiescence. Save the scheduled paths and verify
+the resulting selection and native content. Timing schedules are not FPS
+measurements. The Objective-C bridge belongs only to the test target and uses
+runtime-checked private XCTest event APIs; unsupported toolchains fail the
+journey rather than silently switching to synchronized input. Nothing is linked
+into the installed app. Native input semantics follow the [event-record API
+used by XCTest automation](https://appium.github.io/appium-xcuitest-driver/latest/guides/input-events/).
+
 For multiple native screens, configure named `.stx` routes and an initial screen in `native.config.json` (see [`fixtures/native-navigation`](./fixtures/native-navigation)). Compile without a positional file: `stx native compile --format bundle --output ./screen.js`. A screen can call `craft.navigation.push('details', { id: 7 })`, `.replace('home')`, or `.back()`; the destination reads `craft.route.params`. Craft uses a native navigation stack, so the back button and edge-swipe reveal the existing controller and retain its JavaScript and input state. `bun packages/ios/scripts/test-native-navigation.ts` compiles the fixture and runs its simulator test; the default WebView renderer is unchanged.
 
 Hybrid web-to-web pushes use the same shared WebView across stack entries. The maintained [`fixtures/hybrid-navigation`](./fixtures/hybrid-navigation) fixture samples the outgoing page during the UIKit transition and is run by CI with:

@@ -1872,4 +1872,4 @@ else {
 }
 
 export { createNativeMutationValidator, initSimulatorDriver, serializeSimulatorSteps } from './testing.js'
-export type { NativeMutationValidator, NativeValidationResult, SimulatorDriverOptions, SimulatorStep } from './testing.js'
+export type { NativeMutationValidator, NativeValidationResult, SimulatorDriverOptions, SimulatorStep, TimedTouchPoint } from './testing.js'

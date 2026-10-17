@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { Glob } from 'bun'
 import { bootSimulator, init, pickSimulator, type CraftConfig } from '../src/index'
+import { initSimulatorDriver } from '../src/testing'
 import { checkLoadFailureClassifier } from './load-failure'
 import { checkRecoveryBudget } from './recovery-budget'
 import { watchCompanionProblems } from './watch-bundle'
@@ -214,6 +215,14 @@ function buildTarget(output: string, projectName: string, targetName: string, sd
 
 
 try {
+  // Compile the separate test host too: the application template builds cannot
+  // catch Swift/Objective-C importer or bridging-header failures in the driver.
+  const driverOutput = join(workspace, 'TimedInputDriver')
+  initSimulatorDriver({ output: driverOutput, bundleId: 'dev.craft.installed-release', projectName: 'TimedInputDriver' })
+  run(['xcodegen', 'generate'], driverOutput, 'Generating timed input driver')
+  run(['xcodebuild', '-quiet', '-project', 'TimedInputDriver.xcodeproj', '-scheme', 'TimedInputDriver',
+    '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', join(workspace, 'DriverDerivedData'),
+    'CODE_SIGNING_ALLOWED=NO', 'build-for-testing'], driverOutput, 'Compiling generated native input test host')
   checkLoadFailureClassifier(workspace, run)
   checkRecoveryBudget(workspace, run)
 
