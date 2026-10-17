@@ -385,6 +385,16 @@ class NativeNavigationTest {
                 assertEquals("an interrupted preview remained attached", 1, chrome.content.childCount)
                 assertEquals(0f, chrome.content.getChildAt(0).translationX, 0.01f)
             }
+            instrumentation.runOnMainSync {
+                val dx = chrome.content.width * if (index == 0) -0.1f else 0.1f
+                assertTrue("an interrupted swipe blocked the next gesture", chrome.onTabSwipeStart?.invoke(
+                    dx, chrome.width * 0.5f, chrome.content.top + chrome.content.height * 0.85f,
+                ) == true)
+                chrome.onTabSwipeMove?.invoke(dx)
+                chrome.onTabSwipeEnd?.invoke(dx, true)
+            }
+            SystemClock.sleep(400)
+            awaitText(activity, id, expected)
             assertNoWebView(activity)
         } finally {
             animatorScale(previousScale)
@@ -716,7 +726,8 @@ class NativeNavigationTest {
             click(activity, "toggle-image-tint")
             awaitText(activity, "image-tint-status", "image tint off")
             awaitImageTintCleared(activity, "native-image")
-            assertTrue("ImageBackground tint was not cleared", backgroundImage.colorFilter == null)
+            val clearedBackgroundImage = (awaitView(activity, "native-image-background") as ViewGroup).getChildAt(0) as ImageView
+            assertTrue("ImageBackground tint was not cleared", clearedBackgroundImage.colorFilter == null)
             val tintedUnsupported = awaitView(activity, "unsupported-image") as ImageView
             assertEquals(1, tintedUnsupported.contentDescription.toString().split("Unsupported image source").size - 1)
             val paddingButton = awaitView(activity, "toggle-button-padding") as Button
@@ -733,20 +744,20 @@ class NativeNavigationTest {
                 SystemClock.sleep(100)
             }
             assertEquals("removed button padding style was retained", initialButtonPadding, paddingButton.paddingLeft)
-            val nameInput = awaitView(activity, "name-input") as EditText
-            val initialInputPadding = nameInput.paddingLeft
+            val paddedNameInput = awaitView(activity, "name-input") as EditText
+            val initialInputPadding = paddedNameInput.paddingLeft
             click(activity, "toggle-input-padding")
             repeat(75) {
-                if (nameInput.paddingLeft > initialInputPadding) return@repeat
+                if (paddedNameInput.paddingLeft > initialInputPadding) return@repeat
                 SystemClock.sleep(100)
             }
-            assertTrue("input padding style was not applied", nameInput.paddingLeft > initialInputPadding)
+            assertTrue("input padding style was not applied", paddedNameInput.paddingLeft > initialInputPadding)
             click(activity, "toggle-input-padding")
             repeat(75) {
-                if (nameInput.paddingLeft == initialInputPadding) return@repeat
+                if (paddedNameInput.paddingLeft == initialInputPadding) return@repeat
                 SystemClock.sleep(100)
             }
-            assertEquals("removed input padding style was retained", initialInputPadding, nameInput.paddingLeft)
+            assertEquals("removed input padding style was retained", initialInputPadding, paddedNameInput.paddingLeft)
             val styleToggle = awaitView(activity, "toggle-button-style") as Button
             var styleInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { styleInfo = styleToggle.createAccessibilityNodeInfo() }
@@ -989,16 +1000,16 @@ class NativeNavigationTest {
             assertEquals("mixed", ViewCompat.getStateDescription(indeterminateCheckbox))
             instrumentation.runOnMainSync { indeterminateCheckbox.performClick() }
             assertTrue("indeterminate checkbox should become checked on first toggle", indeterminateCheckbox.isChecked)
-            val nativeIndicator = awaitView(activity, "native-indicator") as ProgressBar
-            assertTrue("authored activity-indicator color should be applied", nativeIndicator.indeterminateTintList != null)
+            val styledIndicator = awaitView(activity, "native-indicator") as ProgressBar
+            assertTrue("authored activity-indicator color should be applied", styledIndicator.indeterminateTintList != null)
             click(activity, "toggle-invalid-control-colors")
             awaitText(activity, "invalid-control-style-status", "invalid control colors on")
             assertTrue("Invalid checkbox color should restore the native default", (checkbox as CheckBox).buttonTintList == null)
-            assertTrue("Invalid activity-indicator color should restore the native default", nativeIndicator.indeterminateTintList == null)
+            assertTrue("Invalid activity-indicator color should restore the native default", styledIndicator.indeterminateTintList == null)
             click(activity, "toggle-invalid-control-colors")
             awaitText(activity, "invalid-control-style-status", "invalid control colors off")
             assertTrue("Restored checkbox color should be applied", (checkbox as CheckBox).buttonTintList != null)
-            assertTrue("Restored activity-indicator color should be applied", nativeIndicator.indeterminateTintList != null)
+            assertTrue("Restored activity-indicator color should be applied", styledIndicator.indeterminateTintList != null)
             val modal = awaitView(activity, "native-modal")
             assertTrue("native modal should be a container", modal is ViewGroup)
             assertEquals("modal should start hidden", View.GONE, modal.visibility)
