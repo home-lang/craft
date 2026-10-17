@@ -120,6 +120,7 @@ internal class CraftNativeServices(
                         done(success(CraftNativeMedia.prune(context, (0 until keep.length()).map { keep.optString(it) })))
                     }
                     "usage" -> done(success(CraftNativeMedia.usage(context)))
+                    "clear" -> done(success(CraftNativeMedia.clear(context)))
                     else -> done(failure("UNKNOWN_ACTION", "Unsupported Media method"))
                 }
                 "Background" -> {
