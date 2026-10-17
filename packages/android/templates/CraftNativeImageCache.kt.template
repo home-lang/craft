@@ -1,0 +1,141 @@
+package {{PACKAGE_NAME}}
+
+import java.io.File
+import java.io.BufferedInputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
+import java.io.IOException
+import java.io.OutputStream
+import java.security.MessageDigest
+import java.util.Locale
+
+internal data class CraftNativeImagePolicy(val expiresAt: Long)
+
+internal fun craftNativeImagePolicy(
+    requestHeaders: Map<String, String>,
+    responseHeaders: Map<String, List<String>>,
+    now: Long,
+): CraftNativeImagePolicy? {
+    // Persist only the anonymous content the server explicitly calls public.
+    // A custom header can carry an account credential just like Authorization.
+    if (requestHeaders.isNotEmpty()) return null
+    fun values(name: String) = responseHeaders.entries
+        .filter { it.key.equals(name, ignoreCase = true) }.flatMap { it.value }
+    val variants = values("Vary").flatMap { it.split(',') }.map { it.trim().lowercase(Locale.ROOT) }
+    if (values("Set-Cookie").isNotEmpty() || variants.any { it in setOf("*", "cookie", "authorization") }) return null
+    val directives = values("Cache-Control").flatMap { it.split(',') }.map { it.trim().lowercase(Locale.ROOT) }
+    if ("public" !in directives || directives.any { it.substringBefore('=').trim() in setOf("private", "no-store", "no-cache") }) return null
+    val ages = directives.filter { it.substringBefore('=').trim() == "max-age" }
+    if (ages.isEmpty()) return null
+    val seconds = ages.map {
+        it.substringAfter('=', "").trim().removeSurrounding("\"").toLongOrNull()?.takeIf { age -> age > 0 } ?: return null
+    }.min().coerceAtMost(31_536_000L)
+    val ageHeader = values("Age").firstOrNull()
+    val age = if (ageHeader == null) 0L else ageHeader.trim().toLongOrNull()?.takeIf { it >= 0 } ?: return null
+    val remaining = seconds - age
+    if (remaining <= 0) return null
+    return runCatching { CraftNativeImagePolicy(Math.addExact(now, remaining * 1000)) }.getOrNull()
+}
+
+internal class CraftNativeImageCache(
+    private val root: File,
+    private val maxBytes: Long = 32L * 1024 * 1024,
+    private val maxEntryBytes: Long = 8L * 1024 * 1024,
+    private val maxEntries: Int = 128,
+    private val now: () -> Long = System::currentTimeMillis,
+) {
+    init {
+        require(maxBytes > 0 && maxEntryBytes > 0 && maxEntries > 0)
+        // A process killed while encoding can leave a staging file behind.
+        // All instances share this lock, so another writer cannot own it now.
+        synchronized(lock) {
+            runCatching {
+                root.listFiles().orEmpty().filter { it.name.endsWith(".tmp") }.forEach(File::delete)
+                prune()
+            }
+        }
+    }
+
+    private fun file(address: String): File {
+        val digest = MessageDigest.getInstance("SHA-256").digest(address.toByteArray(Charsets.UTF_8))
+        val name = digest.joinToString("") { (it.toInt() and 255).toString(16).padStart(2, '0') }
+        return File(root, "$name.cache")
+    }
+
+    fun read(address: String): ByteArray? = synchronized(lock) {
+        runCatching {
+            val target = file(address)
+            if (!target.isFile) return@runCatching null
+            if (target.length() <= HEADER_BYTES || target.length() > HEADER_BYTES + minOf(maxEntryBytes, maxBytes)) {
+                target.delete()
+                return@runCatching null
+            }
+            val data = DataInputStream(BufferedInputStream(target.inputStream())).use { input ->
+                if (input.readInt() != MAGIC || input.readLong() <= now()) null else input.readBytes()
+            }
+            if (data == null || data.isEmpty()) { target.delete(); null }
+            else { target.setLastModified(now()); data }
+        }.getOrNull()
+    }
+
+    fun write(address: String, policy: CraftNativeImagePolicy, encode: (OutputStream) -> Boolean): Boolean = synchronized(lock) {
+        var staging: File? = null
+        try {
+            if (policy.expiresAt <= now() || (!root.isDirectory && !root.mkdirs())) return@synchronized false
+            val target = file(address)
+            staging = File.createTempFile(target.name, ".tmp", root)
+            staging.outputStream().buffered().use { raw ->
+                val header = DataOutputStream(raw)
+                header.writeInt(MAGIC)
+                header.writeLong(policy.expiresAt)
+                val payload = BoundedImageOutput(raw, minOf(maxEntryBytes, maxBytes))
+                if (!encode(payload) || payload.written == 0L) throw IOException("Incomplete cached image")
+                payload.flush()
+            }
+            // Freshness and pixels are committed together; a failed write
+            // never replaces an earlier, complete image with a partial file.
+            if (!staging.renameTo(target)) return@synchronized false
+            target.setLastModified(now())
+            prune()
+            true
+        }
+        catch (error: Exception) { false }
+        finally { staging?.delete() }
+    }
+
+    fun remove(address: String) = synchronized(lock) { runCatching { file(address).delete() }; Unit }
+
+    private fun prune() {
+        val entries = root.listFiles().orEmpty().filter { entryName.matches(it.name) }.sortedBy(File::lastModified)
+        var count = entries.size
+        var bytes = entries.sumOf { (it.length() - HEADER_BYTES).coerceAtLeast(0) }
+        for (entry in entries) {
+            if (count <= maxEntries && bytes <= maxBytes) break
+            val size = (entry.length() - HEADER_BYTES).coerceAtLeast(0)
+            if (entry.delete()) { count--; bytes -= size }
+        }
+    }
+
+    private class BoundedImageOutput(private val output: OutputStream, private val limit: Long) : OutputStream() {
+        var written = 0L
+            private set
+        override fun write(value: Int) {
+            if (written >= limit) throw IOException("Cached image is too large")
+            output.write(value)
+            written++
+        }
+        override fun write(bytes: ByteArray, offset: Int, length: Int) {
+            if (written + length > limit) throw IOException("Cached image is too large")
+            output.write(bytes, offset, length)
+            written += length
+        }
+        override fun flush() = output.flush()
+    }
+
+    private companion object {
+        const val MAGIC = 0x43494d31
+        const val HEADER_BYTES = 12L
+        val entryName = Regex("^[a-f0-9]{64}\\.cache$")
+        val lock = Any()
+    }
+}
