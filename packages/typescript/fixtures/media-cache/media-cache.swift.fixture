@@ -1,0 +1,118 @@
+// Compiled with the released CraftNativeMedia into an iOS simulator process.
+import AVFoundation
+
+let base = CommandLine.arguments[1]
+let phase = CommandLine.arguments[2]
+let fm = FileManager.default
+func check(_ yes: @autoclosure () -> Bool, _ message: String) {
+    guard yes() else { print("FAIL: \(message)"); exit(1) }
+    print("PASS: \(message)")
+}
+func wait(_ ready: () -> Bool) {
+    let limit = Date().addingTimeInterval(25)
+    while !ready() && Date() < limit { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+    check(ready(), "operation settled")
+}
+var latestTask: URLSessionTask?
+var latestErrorCode: String?
+func start(_ address: String, _ done: @escaping (Bool) -> Void) {
+    if let local = CraftNativeMedia.local(address) { done((CraftNativeMedia.describe(address, local)["size"] as? Int ?? 0) > 0); return }
+    if CraftNativeMedia.join(address, { result in
+        if case .success(let data) = result { done((data as? [String: Any])?["ok"] as? Bool == true) }
+        else if case .failure(let error) = result { latestErrorCode = error.code; done(false) }
+    }) { return }
+    let task = URLSession.shared.downloadTask(with: URL(string: address)!) { location, response, error in
+        let result: Result<Any, CraftNativeActionError>
+        if error != nil { result = .failure(CraftNativeActionError(code: "NETWORK_ERROR", message: "Interrupted")) }
+        else if let location, let response = response as? HTTPURLResponse { result = CraftNativeMedia.store(address, at: location, response: response) }
+        else { result = .failure(CraftNativeActionError(code: "NETWORK_ERROR", message: "No file")) }
+        CraftNativeMedia.finish(address, result)
+    }
+    latestTask = task
+    task.resume()
+}
+func keep(_ address: String) -> Bool {
+    var result: Bool?
+    start(address) { result = $0 }
+    wait { result != nil }
+    return result!
+}
+let restart = base + "/restart.mp4"
+if phase == "storage" {
+    let volume = CraftNativeMedia.root.deletingLastPathComponent()
+    let capacity = try volume.resourceValues(forKeys: [.volumeTotalCapacityKey]).volumeTotalCapacity ?? 0
+    check(capacity > 0 && capacity <= 32 * 1024 * 1024, "storage pressure is confined to a bounded disposable volume")
+    let progress = volume.appendingPathComponent("workout-progress.json")
+    let saved = Data(#"{"sets":["A1"],"note":"Keep this workout","rpe":7}"#.utf8)
+    try saved.write(to: progress)
+    let pressure = volume.appendingPathComponent("pressure")
+    defer { try? fm.removeItem(at: pressure); try? fm.removeItem(at: progress) }
+    let retained = base + "/retained.mp4"
+    check(keep(retained), "existing video is kept before storage pressure")
+    let original = try Data(contentsOf: CraftNativeMedia.local(retained)!)
+    fm.createFile(atPath: pressure.path, contents: nil)
+    let writer = try FileHandle(forWritingTo: pressure)
+    var written = 0
+    for size in [65536, 1024] {
+        let chunk = Data(repeating: 0x5A, count: size)
+        while written < 32 * 1024 * 1024 {
+            do { try writer.write(contentsOf: chunk); written += size }
+            catch { break }
+        }
+    }
+    try writer.close()
+    let fresh = base + "/storage.mp4"
+    check(!keep(fresh), "full cache volume refuses a new video")
+    check(latestErrorCode == "NO_SPACE", "a full disk is reported as NO_SPACE, not a network failure")
+    check(CraftNativeMedia.local(fresh) == nil, "storage failure never publishes a partial video")
+    check((try? Data(contentsOf: CraftNativeMedia.local(retained)!)) == original, "storage failure preserves an existing video")
+    check(((try? fm.contentsOfDirectory(atPath: CraftNativeMedia.root.path)) ?? []).allSatisfy { !$0.hasSuffix(".part") }, "storage failure removes staging files")
+    check(CraftNativeMedia.prune(keep: []) == 1, "cache cleanup frees only the retained video")
+    check((try? Data(contentsOf: progress)) == saved, "cache cleanup preserves workout progress and feedback")
+    check(keep(fresh), "same missing video downloads after cache cleanup frees space")
+    let generator = AVAssetImageGenerator(asset: AVURLAsset(url: CraftNativeMedia.local(fresh)!))
+    do { _ = try generator.copyCGImage(at: CMTime(seconds: 1, preferredTimescale: 600), actualTime: nil) }
+    catch { check(false, "downloaded replacement decodes: \(error)") }
+    check(true, "downloaded replacement plays from its local file")
+    check((try? Data(contentsOf: progress)) == saved, "redownloading leaves workout progress and feedback unchanged")
+    _ = CraftNativeMedia.prune(keep: [])
+    exit(0)
+}
+if phase == "interrupt" {
+    _ = CraftNativeMedia.prune(keep: [])
+    start(restart) { _ in }
+    print("INTERRUPTING"); fflush(stdout)
+    wait { (latestTask?.countOfBytesReceived ?? 0) > 0 }
+    print("KILLING"); fflush(stdout)
+    raise(SIGKILL)
+    exit(2)
+}
+if phase == "recover" {
+    check(CraftNativeMedia.local(restart) == nil, "interrupted process never published a partial video")
+    check(keep(restart), "retry after process death downloads a complete video")
+    let local = CraftNativeMedia.local(restart)!
+    let generator = AVAssetImageGenerator(asset: AVURLAsset(url: local))
+    do { _ = try generator.copyCGImage(at: CMTime(seconds: 1, preferredTimescale: 600), actualTime: nil) }
+    catch { check(false, "recovered video decodes offline: \(error)") }
+    check(true, "recovered local video decodes a frame without network")
+    _ = CraftNativeMedia.prune(keep: [])
+    exit(0)
+}
+_ = CraftNativeMedia.prune(keep: [])
+let broken = base + "/broken.mp4"
+check(!keep(broken), "truncated transfer fails")
+check(CraftNativeMedia.local(broken) == nil, "truncated transfer is not playable cache")
+check(keep(broken), "same URL retries successfully")
+check(!keep(base + "/partial.mp4"), "unsolicited partial response is refused")
+check(!keep(base + "/empty.mp4"), "empty file is refused")
+let slow = base + "/slow.mp4"
+var answers = [Bool]()
+start(slow) { answers.append($0) }
+start(slow) { answers.append($0) }
+RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+_ = CraftNativeMedia.prune(keep: [])
+wait { answers.count == 2 }
+check(answers == [true, true], "concurrent downloads coalesce and survive prune")
+let parts = (try? fm.contentsOfDirectory(atPath: CraftNativeMedia.root.path))?.filter { $0.hasSuffix(".part") } ?? []
+check(parts.isEmpty, "no abandoned staging files remain")
+_ = CraftNativeMedia.prune(keep: [])
