@@ -599,6 +599,7 @@ jobs:
   android-navigation:
     env:
       CRAFT_ANDROID_NATIVE_SUITE: ${{ inputs.android_suite || 'focused' }}
+      CRAFT_ANDROID_TEST_CLASS: ${{ inputs.android_suite != 'full' && 'dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#nativePullToRefreshSurvivesViewReattachment,dev.craft.navigationtest.NativeNavigationTest#pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack,dev.craft.navigationtest.NativeFlatListTest#refreshAppearanceUsesTheScreenContrastFallback,dev.craft.navigationtest.NativeNavigationTest#nativeDatePickerKeepsFollowingControlsMounted' || '' }}
     if: ${{ inputs.scope == 'android-navigation' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -641,11 +642,6 @@ jobs:
           script: |
             mkdir -p artifacts/android-navigation
             adb shell settings put global animator_duration_scale 1
-            if [ "$CRAFT_ANDROID_NATIVE_SUITE" = full ]; then
-              export CRAFT_ANDROID_TEST_CLASS=''
-            else
-              export CRAFT_ANDROID_TEST_CLASS="dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#nativePullToRefreshSurvivesViewReattachment,dev.craft.navigationtest.NativeNavigationTest#pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack,dev.craft.navigationtest.NativeFlatListTest#refreshAppearanceUsesTheScreenContrastFallback,dev.craft.navigationtest.NativeNavigationTest#nativeDatePickerKeepsFollowingControlsMounted"
-            fi
             STX_CLI="$GITHUB_WORKSPACE/.stx-compiler/packages/stx/bin/cli.ts" CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1 TMPDIR="$GITHUB_WORKSPACE/artifacts/android-navigation" bun packages/android/scripts/test-native-navigation.ts
       - name: Require the selected Android suite to pass without skips
         run: |
