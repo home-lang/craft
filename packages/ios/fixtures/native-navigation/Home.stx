@@ -547,6 +547,7 @@ function openDetailsThenUpdateBackground() {
       <Text testID="retained-safe-area-label">Safe retained container</Text>
     </SafeAreaView>
     <Button testID="toggle-screen-background" @click="toggleScreenBackground()">Toggle screen background</Button>
+    <Button testID="black-screen-background" @click="globalThis.craft.navigation.setOptions({ backgroundColor: '#000000' })">Black focus background</Button>
     <Button testID="background-open-details" @click="openDetailsThenUpdateBackground()">Update retained background</Button>
     <ScrollView testID="tab-swipe-carousel" horizontal style={{"width":240,"height":48}}>
       <View style={{"width":720,"height":40,"flexDirection":"row","alignItems":"center","gap":16,"paddingHorizontal":12,"backgroundColor":"#1e293b"}}>
