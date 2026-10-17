@@ -4583,12 +4583,6 @@ class MainActivity : AppCompatActivity() {
             if (Build.VERSION.SDK_INT < 35) {
                 window.statusBarColor = background
                 window.navigationBarColor = background
-            } else {
-                // Android 15 still overlays a three-button scrim by
-                // default. The root already paints this inset and the
-                // glyph appearance above follows its actual luminance.
-                window.navigationBarColor = Color.TRANSPARENT
-                window.isNavigationBarContrastEnforced = false
             }
         }
     }
