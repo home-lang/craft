@@ -4563,6 +4563,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Applies a screen-specific background, falling back to the dynamic app colour. */
+    @Suppress("DEPRECATION")
     private fun applyScreenBackground(screen: Screen) {
         val configured = screen.options.opt("backgroundColor")
             ?.takeUnless { it == JSONObject.NULL }
@@ -4573,7 +4574,12 @@ class MainActivity : AppCompatActivity() {
         // The root also paints the window-inset padding above/below the
         // screen. Retained screens still receive options and theme updates;
         // only the visible one may change the colour behind system bars.
-        if (visibleScreen === screen) root.setBackgroundColor(background)
+        if (visibleScreen === screen) {
+            root.setBackgroundColor(background)
+            // Android 15+ draws the root behind transparent system bars.
+            // Older releases still paint a separate window status surface.
+            if (Build.VERSION.SDK_INT < 35) window.statusBarColor = background
+        }
     }
 
     /** Refresh controls use a contrasting system tint when no color is authored. */

@@ -304,6 +304,14 @@ class NativeNavigationTest {
         else -> null
     }
 
+    @Suppress("DEPRECATION")
+    private fun assertSystemInsetBackground(activity: MainActivity, color: Int?, message: String) {
+        assertEquals(message, color, backgroundColor(activity.findViewById<View>(R.id.native_root)))
+        if (android.os.Build.VERSION.SDK_INT < 35) {
+            assertEquals("$message (legacy status bar)", color, activity.window.statusBarColor)
+        }
+    }
+
     private fun chromeBackgroundColor(activity: MainActivity, childIndex: Int): Int? =
         findType(activity.window.decorView, CraftNativeChrome::class.java)
             ?.getChildAt(childIndex)
@@ -1597,12 +1605,11 @@ class NativeNavigationTest {
             val screen = root.parent as? View
                 ?: throw AssertionError("native root is not attached to a screen host")
             val initial = backgroundColor(screen)
-            val insetSurface = activity.findViewById<View>(R.id.native_root)
             val themeProbe = awaitView(activity, "theme-probe")
             val initialTraitBackground = backgroundColor(themeProbe)
             assertTrue("screen host did not receive a dynamic background", initial != null)
             assertEquals(initial, chromeBackgroundColor(activity, 0))
-            assertEquals(initial, backgroundColor(insetSurface))
+            assertSystemInsetBackground(activity, initial, "initial system inset background")
 
             click(activity, "toggle-screen-background")
             repeat(75) {
@@ -1615,8 +1622,8 @@ class NativeNavigationTest {
             assertEquals(Color.rgb(0x12, 0x34, 0x56), backgroundColor(screen))
             assertEquals(Color.rgb(0x12, 0x34, 0x56), chromeBackgroundColor(activity, 0))
             assertEquals(Color.rgb(0x12, 0x34, 0x56), chromeBackgroundColor(activity, 1))
-            assertEquals("system inset surface ignored the active screen background",
-                Color.rgb(0x12, 0x34, 0x56), backgroundColor(insetSurface))
+            assertSystemInsetBackground(activity, Color.rgb(0x12, 0x34, 0x56),
+                "system inset surface ignored the active screen background")
 
             // A retained screen can still receive timer/state updates. Its
             // authored colour must not leak into the screen pushed above it.
@@ -1624,8 +1631,8 @@ class NativeNavigationTest {
             awaitText(activity, "details-title", "Details for Ada")
             awaitBackgroundColor(screen, Color.rgb(0x12, 0x34, 0x56))
             assertEquals(Color.rgb(0x65, 0x43, 0x21), backgroundColor(screen))
-            assertEquals("offscreen options recoloured the visible system insets",
-                initial, backgroundColor(insetSurface))
+            assertSystemInsetBackground(activity, initial,
+                "offscreen options recoloured the visible system insets")
 
             val currentNight = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
             instrumentation.runOnMainSync {
@@ -1640,20 +1647,20 @@ class NativeNavigationTest {
             // inset surface with the current configured system fallback.
             awaitBackgroundColor(themeProbe, initialTraitBackground)
             val themedDefault = androidx.core.content.ContextCompat.getColor(activity, R.color.background)
-            assertEquals("theme refresh used a retained screen's authored colour",
-                themedDefault, backgroundColor(insetSurface))
+            assertSystemInsetBackground(activity, themedDefault,
+                "theme refresh used a retained screen's authored colour")
             click(activity, "details-back")
             awaitView(activity, "home-title")
-            assertEquals("pop did not restore the retained screen's inset background",
-                Color.rgb(0x65, 0x43, 0x21), backgroundColor(insetSurface))
+            assertSystemInsetBackground(activity, Color.rgb(0x65, 0x43, 0x21),
+                "pop did not restore the retained screen's inset background")
 
             click(activity, "toggle-screen-background")
             awaitBackgroundColor(screen, Color.rgb(0x65, 0x43, 0x21))
             assertEquals(themedDefault, backgroundColor(screen))
             assertEquals(themedDefault, chromeBackgroundColor(activity, 0))
             assertEquals(themedDefault, chromeBackgroundColor(activity, 1))
-            assertEquals("clearing the option did not restore dynamic system insets",
-                themedDefault, backgroundColor(insetSurface))
+            assertSystemInsetBackground(activity, themedDefault,
+                "clearing the option did not restore dynamic system insets")
         } finally {
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
             instrumentation.waitForIdleSync()
