@@ -2,7 +2,7 @@ import { afterAll, afterEach, describe, expect, it } from 'bun:test'
 import { readFileSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { init, restoreShell } from './index'
-import type { SimulatorStep } from './testing'
+import type { SimulatorStep, TimedTouchPoint } from './testing'
 import { createNativeMutationValidator, initSimulatorDriver, serializeSimulatorSteps } from './testing'
 import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
 
@@ -93,6 +93,22 @@ describe('package-owned iOS shells', () => {
     expect(() => readFileSync(path)).toThrow()
   })
 
+  it('preserves timed native paths and rejects unsafe schedules before generation', () => {
+    const paths: TimedTouchPoint[][] = [[{ x: 0.2, y: 0.92, at: 0 }, { x: 0.2, y: 0.92, at: 0.025 }],
+      [{ x: 0.4, y: 0.92, at: 0.08 }, { x: 0.4, y: 0.92, at: 0.105 }]]
+    expect(serializeSimulatorSteps([{ command: 'touches', paths: [[{ tab: 'Today', at: 0 }, { tab: 'Today', at: 0.02 }]] }])).toContain('Today')
+    expect(serializeSimulatorSteps([{ command: 'touches', paths }])).toBe(`touches ${JSON.stringify(paths)}\n`)
+    for (const invalid of [[], [paths[0]!.slice(0, 1)], [[paths[0]![1]!, paths[0]![0]!]],
+      [[{ x: 2, y: 0, at: 0 }, { x: 0, y: 0, at: 1 }]],
+      [[{ x: 0, y: 0, at: 0 }, { x: 0, y: 0, at: 13 }]],
+      [[{ x: NaN, y: 0, at: 0 }, { x: 0, y: 0, at: 1 }]]])
+      expect(() => serializeSimulatorSteps([{ command: 'touches', paths: invalid }])).toThrow()
+    const output = folder()
+    initSimulatorDriver({ output, bundleId: 'org.example.release' })
+    expect(readFileSync(join(output, 'project.yml'), 'utf8')).toContain('SWIFT_OBJC_BRIDGING_HEADER: UITests/CraftTimedInput.h')
+    expect(readFileSync(join(output, 'UITests/CraftTimedInput.m'), 'utf8')).toContain('return [record synthesizeWithError:error]')
+  })
+
   it('serializes guarded steps and exact label checks', () => {
     expect(serializeSimulatorSteps([
       { command: 'ifid', id: 'welcome-skip', step: { command: 'tapid', text: 'welcome-skip' } },
@@ -121,7 +137,7 @@ describe('package-owned iOS shells', () => {
     initSimulatorDriver({ output, bundleId: 'org.example.app' })
     const source = readFileSync(join(output, 'UITests/DriverTests.swift'), 'utf8')
     const handled = new Set([...source.matchAll(/case "([a-z]+)"/g)].map(match => match[1]))
-    const commands: SimulatorStep['command'][] = ['launch', 'activate', 'terminate', 'home', 'back', 'return', 'unlabelled', 'background', 'wait', 'delay', 'net', 'swipe', 'drag', 'edge', 'tabbar', 'tapxy', 'field', 'typeid', 'labelid', 'expect', 'expectexact', 'expectid', 'tap', 'tapif', 'tapid', 'tapexact', 'type', 'absent', 'absentid', 'selected', 'tab', 'scrollto', 'dismiss', 'log', 'shot', 'tree', 'audit', 'exec', 'openurl', 'universallink', 'ifid', 'notifications', 'systemexpect', 'systemabsent', 'systemtap', 'systemtree']
+    const commands: SimulatorStep['command'][] = ['launch', 'activate', 'terminate', 'home', 'back', 'return', 'unlabelled', 'background', 'wait', 'delay', 'net', 'swipe', 'drag', 'edge', 'tabbar', 'tapxy', 'touches', 'field', 'typeid', 'labelid', 'expect', 'expectexact', 'expectid', 'tap', 'tapif', 'tapid', 'tapexact', 'type', 'absent', 'absentid', 'selected', 'tab', 'scrollto', 'dismiss', 'log', 'shot', 'tree', 'audit', 'exec', 'openurl', 'universallink', 'ifid', 'notifications', 'systemexpect', 'systemabsent', 'systemtap', 'systemtree']
     expect(commands.filter(command => !handled.has(command))).toEqual([])
     // ifid re-enters the same dispatcher, so a guarded command is any command.
     expect(source).toContain('func run(_ line: String)')

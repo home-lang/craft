@@ -1,6 +1,8 @@
+import { copyFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Glob } from 'bun'
 import { bootSimulator, init, pickSimulator, type CraftConfig } from '../src/index'
+import { initSimulatorDriver, serializeSimulatorSteps } from '../src/testing'
 import { checkLoadFailureClassifier } from './load-failure'
 import { checkRecoveryBudget } from './recovery-budget'
 import { watchCompanionProblems } from './watch-bundle'
@@ -214,6 +216,34 @@ function buildTarget(output: string, projectName: string, targetName: string, sd
 
 
 try {
+  // Compile the separate test host too: the application template builds cannot
+  // catch Swift/Objective-C importer or bridging-header failures in the driver.
+  const driverOutput = join(workspace, 'TimedInputDriver')
+  const inputNames = ['One', 'Two', 'Three', 'Four']
+  const inputSequence = Array.from({ length: 24 }, (_, index) => inputNames[index % 4]!)
+  const script = serializeSimulatorSteps([
+    { command: 'launch' }, { command: 'labelid', id: 'received-taps', text: 'none' },
+    { command: 'touches', paths: inputSequence.map((tab, index) => [
+      { tab, at: index * 0.08 }, { tab, at: index * 0.08 + 0.025 },
+    ]) },
+    { command: 'labelid', id: 'received-taps', text: inputSequence.join(',') },
+    { command: 'selected', text: 'Four' },
+  ])
+  initSimulatorDriver({ output: driverOutput, bundleId: 'dev.craft.timedinput.host',
+    bundleIdPrefix: 'dev.craft.timedinput', projectName: 'TimedInputDriver', tabs: inputNames, script })
+  copyFileSync(join(import.meta.dir, '../fixtures/timed-input/HostApp.swift'), join(driverOutput, 'Host/HostApp.swift'))
+  run(['xcodegen', 'generate'], driverOutput, 'Generating timed input driver')
+  run(['xcodebuild', '-quiet', '-project', 'TimedInputDriver.xcodeproj', '-scheme', 'TimedInputDriver',
+    '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', join(workspace, 'DriverDerivedData'),
+    'CODE_SIGNING_ALLOWED=NO', 'build-for-testing'], driverOutput, 'Compiling generated native input test host')
+  const inputDevice = await pickSimulator()
+  await bootSimulator(inputDevice)
+  run(['xcodebuild', '-quiet', '-project', 'TimedInputDriver.xcodeproj', '-scheme', 'TimedInputDriver',
+    '-destination', `id=${inputDevice.udid}`, '-derivedDataPath', join(workspace, 'DriverDerivedData'),
+    '-parallel-testing-enabled', 'NO', '-collect-test-diagnostics', 'never', 'CODE_SIGNING_ALLOWED=NO',
+    '-resultBundlePath', join(workspace, 'TimedInputDriver.xcresult'), 'test-without-building'],
+  driverOutput, 'Verifying 24 timed native taps reach independent native buttons')
+
   checkLoadFailureClassifier(workspace, run)
   checkRecoveryBudget(workspace, run)
 

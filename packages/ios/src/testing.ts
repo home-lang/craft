@@ -50,6 +50,8 @@ export function initSimulatorDriver(options: SimulatorDriverOptions): void {
   for (const [source, destination] of [
     ['HostApp.swift', 'Host/HostApp.swift'],
     ['DriverTests.swift.template', 'UITests/DriverTests.swift'],
+    ['CraftTimedInput.h', 'UITests/CraftTimedInput.h'],
+    ['CraftTimedInput.m', 'UITests/CraftTimedInput.m'],
     ['project.yml.template', 'project.yml'],
   ]) {
     const path = join(output, destination)
@@ -71,6 +73,8 @@ export function initSimulatorDriver(options: SimulatorDriverOptions): void {
   }
 }
 
+export type TimedTouchPoint = { x: number, y: number, at: number } | { tab: string, at: number }
+
 export type SimulatorStep =
   | { command: 'launch' | 'activate' | 'terminate' | 'home' | 'back' | 'return' | 'unlabelled' | 'notifications' }
   | { command: 'background' | 'wait', seconds: number }
@@ -83,6 +87,8 @@ export type SimulatorStep =
   | { command: 'edge', direction: 'left' | 'right' }
   | { command: 'tabbar', state: 'shown' | 'hidden' }
   | { command: 'tapxy', x: number, y: number }
+  /** One native event record, without quiescence between paths. Times are seconds. */
+  | { command: 'touches', paths: TimedTouchPoint[][] }
   | { command: 'field', index: number, text: string }
   | { command: 'typeid' | 'labelid', id: string, text: string }
   | { command: 'expect' | 'expectexact' | 'expectid' | 'systemexpect', text: string, seconds?: number }
@@ -106,7 +112,22 @@ export function serializeSimulatorSteps(steps: readonly SimulatorStep[]): string
   }
   const line = (step: SimulatorStep): string => {
     let arg = ''
-    if ('step' in step) arg = `${token(step.id)} ${line(step.step)}`
+    if ('paths' in step) {
+      if (!step.paths.length || step.paths.length > 64) throw new Error('Expected 1–64 touch paths')
+      for (const path of step.paths) {
+        if (path.length < 2 || path.length > 64) throw new Error('Expected 2–64 points per touch')
+        let previous = -1
+        for (const point of path) {
+          if ('tab' in point ? !point.tab.trim() || /[\r\n]/.test(point.tab) : number(point.x) > 1 || number(point.y) > 1)
+            throw new Error('Touch targets must be tab names or normalized coordinates')
+          if (number(point.at) > 12 || point.at <= previous)
+            throw new Error('Touch coordinates must be normalized and times strictly increase within 12 seconds')
+          previous = point.at
+        }
+      }
+      arg = JSON.stringify(step.paths)
+    }
+    else if ('step' in step) arg = `${token(step.id)} ${line(step.step)}`
     else if ('seconds' in step && !('text' in step)) arg = String(number(step.seconds!))
     else if ('milliseconds' in step) arg = String(number(step.milliseconds))
     else if ('state' in step) arg = step.state

@@ -1,4 +1,5 @@
 import XCTest
+import Darwin
 
 /// Drives the installed app from a script the Mac serves (netswitch.ts
 /// `/script`), one command a line:
@@ -20,6 +21,7 @@ import XCTest
 ///   tap <text>            first hittable element whose label contains text
 ///   tapif <text>          tap it when it is on screen, else carry on (the big timer's "Show the controls")
 ///   tapid <identifier>
+///   touches <JSON>       timed normalized touch paths in one native dispatch
 ///   tapxy <x> <y>         normalised 0…1 of the screen
 ///   tapexact <label>      a button whose label is exactly this
 ///   back                  the navigation bar's back button, else an edge swipe
@@ -288,6 +290,52 @@ final class DriverTests: XCTestCase {
             let target = identified(arg)
             if target.waitForExistence(timeout: 10) { press(target); note("tapid \(arg): ok") }
             else { XCTFail("Element not found"); note("FAIL tapid \(arg): NOT FOUND") }
+        case "touches":
+            do {
+                guard let data = arg.data(using: .utf8),
+                      let rawPaths = try JSONSerialization.jsonObject(with: data) as? [[[String: Any]]] else {
+                    check(false, "touches requires JSON arrays of x/y/at or tab/at points")
+                    return
+                }
+                let frame = app.frame
+                var tabLocations: [String: CGPoint] = [:]
+                var paths: [[[String: NSNumber]]] = []
+                for rawPath in rawPaths {
+                    var path: [[String: NSNumber]] = []
+                    for rawPoint in rawPath {
+                        var point = rawPoint
+                        if let name = point.removeValue(forKey: "tab") as? String {
+                            if tabLocations[name] == nil {
+                                guard let button = tabButton(name), frame.width > 0, frame.height > 0 else {
+                                    check(false, "Timed native input cannot find tab \(name)")
+                                    return
+                                }
+                                let rect = button.frame
+                                tabLocations[name] = CGPoint(x: (rect.midX - frame.minX) / frame.width,
+                                                             y: (rect.midY - frame.minY) / frame.height)
+                            }
+                            point["x"] = tabLocations[name]!.x
+                            point["y"] = tabLocations[name]!.y
+                        }
+                        guard let numbers = point as? [String: NSNumber] else {
+                            check(false, "Timed touch points must contain numeric coordinates and times")
+                            return
+                        }
+                        path.append(numbers)
+                    }
+                    paths.append(path)
+                }
+                let scheduled = try JSONSerialization.data(withJSONObject: paths, options: [.sortedKeys])
+                let started = ProcessInfo.processInfo.systemUptime
+                if (paths.flatMap { $0 }.compactMap { $0["at"]?.doubleValue }.max() ?? 0) >= 2 {
+                    note("BEGIN held timed native input")
+                    fflush(nil)
+                }
+                try CraftTimedInput.synthesize(paths: paths, frame: frame)
+                let elapsed = ProcessInfo.processInfo.systemUptime - started
+                post("/save?name=timed-input-\(Int(started * 1000)).json", scheduled)
+                check(true, "timed native input: \(paths.count) paths, \(elapsed)s wall time")
+            } catch { check(false, "timed native input: \(error)") }
         case "tapxy":
             let xy = arg.split(separator: " ").compactMap { Double($0) }
             if xy.count == 2 && xy.allSatisfy({ $0 >= 0 && $0 <= 1 }) {
