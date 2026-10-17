@@ -3676,11 +3676,17 @@ test "JNI_OnLoad asks for the version Android actually provides, and captures th
     java_vm = null;
 }
 
-test "the registered natives name methods the Kotlin actually declares" {
-    // A descriptor is checked by the JVM at registration, so a wrong one fails
-    // at load rather than at call — but only if the *name* matches something.
-    // These two strings are the contract with CraftBridge.kt.
-    try testing.expectEqual(@as(usize, 114), natives.len);
+test "registered natives have unique names and the fixed Kotlin holder" {
+    // The host-neutral renderer contract compares every name and descriptor
+    // against CraftNative.kt. Keep registration invariants here without a
+    // count that becomes stale whenever a native capability is added.
+    for (natives, 0..) |native, index| {
+        const name = std.mem.span(native.name);
+        try testing.expect(name.len > 0);
+        for (natives[0..index]) |previous| {
+            try testing.expect(!std.mem.eql(u8, name, std.mem.span(previous.name)));
+        }
+    }
     try testing.expectEqualStrings("nativeGetDeviceInfo", std.mem.span(natives[0].name));
 
     // And the class they bind to is the fixed one, not the templated bridge.

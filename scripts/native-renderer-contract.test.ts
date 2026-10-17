@@ -1995,6 +1995,41 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`aspectRatio` derives a missing width or height')
   })
 
+
+  it('registers exactly the Kotlin native methods with matching JNI descriptors', () => {
+    const descriptors: Record<string, string> = {
+      Activity: 'Landroid/app/Activity;',
+      IntentSender: 'Landroid/content/IntentSender;',
+      WebView: 'Landroid/webkit/WebView;',
+      SharedPreferences: 'Landroid/content/SharedPreferences;',
+      SQLiteDatabase: 'Landroid/database/sqlite/SQLiteDatabase;',
+      String: 'Ljava/lang/String;',
+      Boolean: 'Z', Int: 'I', Long: 'J', Float: 'F', Double: 'D',
+      FloatArray: '[F', ByteArray: '[B', Unit: 'V',
+    }
+    const descriptor = (type: string): string => {
+      const value = descriptors[type.replace(/\?$/, '')]
+      if (!value) throw new Error(`Unhandled Kotlin JNI type: ${type}`)
+      return value
+    }
+    const kotlinMethods = [...androidNative.matchAll(/private external fun (\w+)\(([\s\S]*?)\)(?:\s*:\s*(\w+\??))?/g)]
+    const registeredTable = androidDispatch.slice(androidDispatch.indexOf('const natives ='), androidDispatch.indexOf('\n};', androidDispatch.indexOf('const natives =')))
+    const registrations = [...registeredTable.matchAll(/\.name = "([^"]+)",\s*\.signature = "([^"]+)"/g)]
+    expect(kotlinMethods.length).toBeGreaterThan(0)
+    const expected = kotlinMethods.map(([, name, params, returns]) => {
+      const argumentsDescriptor = params!.split(',').map(param => param.trim()).filter(Boolean).map((param) => {
+        const type = /^\w+\s*:\s*(\w+\??)$/.exec(param)?.[1]
+        if (!type) throw new Error(`Unhandled Kotlin native parameter: ${param}`)
+        return descriptor(type)
+      }).join('')
+      return [name!, `(${argumentsDescriptor})${descriptor(returns || 'Unit')}`]
+    })
+    const actual = registrations.map(([, name, signature]) => [name!, signature!])
+    expect(new Set(expected.map(([name]) => name)).size).toBe(expected.length)
+    expect(new Set(actual.map(([name]) => name)).size).toBe(actual.length)
+    expect(actual.sort(([a], [b]) => a!.localeCompare(b!))).toEqual(expected.sort(([a], [b]) => a!.localeCompare(b!)))
+  })
+
   it('keeps grid alignContent in the shared layout core', () => {
     expect(nativeLayout).toContain('test "distributes leftover grid rows with align content"')
     expect(nativeLayout).toContain('test "distributes grid rows evenly with align content"')
@@ -2009,7 +2044,6 @@ describe('native renderer component contract', () => {
     expect(androidNative).toContain('nativeGridAligned(')
     expect(androidDispatch).toContain('.name = "nativeGridAligned"')
     expect(androidDispatch).toContain('.name = "nativeGridAutoRowsAligned"')
-    expect(androidDispatch).toContain('expectEqual(@as(usize, 114), natives.len)')
     expect(ios).toContain('var rowExtra: CGFloat = 0')
     expect(android).toContain('var rowLeading = 0f')
     expect(android).toContain('rowBetween += freeRows / (rowCount + 1).toFloat()')
