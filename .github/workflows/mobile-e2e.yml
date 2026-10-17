@@ -59,9 +59,9 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: Test all mobile suites or only native iOS navigation
+        description: Test all mobile suites or focused native navigation
         type: choice
-        options: [all, ios-navigation]
+        options: [all, ios-navigation, android-navigation]
         default: all
       selectors:
         description: Optional comma-separated XCTest selectors for native iOS navigation
@@ -108,6 +108,7 @@ jobs:
         run: bun test ./scripts/mobile-e2e/protocol.test.ts
 
   ios-native:
+    if: ${{ inputs.scope != 'android-navigation' }}
     name: iOS native UI
     runs-on: macos-15
     # A hung simulator launch would otherwise burn the six-hour default. The
@@ -154,7 +155,7 @@ jobs:
 
       - name: Test native UIKit reconciliation
         id: uikit
-        if: ${{ inputs.scope != 'ios-navigation' }}
+        if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' }}
         run: |
           mkdir -p artifacts/mobile-e2e/ios-native
           bun packages/ios/scripts/test-native-render.ts 2>&1 | tee artifacts/mobile-e2e/ios-native/uikit.log
@@ -225,7 +226,7 @@ jobs:
 
   ios-simulator:
     name: iOS simulator
-    if: ${{ inputs.scope != 'ios-navigation' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' }}
     runs-on: macos-15
     # A hung simulator launch would otherwise burn the six-hour default. The
     # harness has its own per-app timeout; this is the backstop for everything
@@ -353,7 +354,7 @@ jobs:
 
   android-emulator:
     name: Android emulator
-    if: ${{ inputs.scope != 'ios-navigation' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -519,7 +520,7 @@ jobs:
   # passing, and wired into no workflow.
   ios-zig-slice:
     name: iOS Zig runtime slice
-    if: ${{ inputs.scope != 'ios-navigation' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' }}
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -574,9 +575,74 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  android-navigation:
+    if: ${{ inputs.scope == 'android-navigation' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.11.1'
+      - run: bun install --frozen-lockfile
+      - uses: actions/checkout@v6
+        with:
+          repository: stacksjs/stx
+          ref: 3dd3240fc9a64f360e9690eee50c483be3325705
+          path: .stx-compiler
+      - run: bun install --no-save
+        working-directory: .stx-compiler
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -no-snapshot-save -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: false
+          script: |
+            mkdir -p artifacts/android-navigation
+            adb shell settings put global animator_duration_scale 1
+            STX_CLI="$GITHUB_WORKSPACE/.stx-compiler/packages/stx/bin/cli.ts" CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1 TMPDIR="$GITHUB_WORKSPACE/artifacts/android-navigation" CRAFT_ANDROID_TEST_CLASS="dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe" bun packages/android/scripts/test-native-navigation.ts
+      - name: Require both regressions to pass without skips
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          files = list(Path('artifacts/android-navigation').rglob('TEST-*.xml'))
+          cases = [case for file in files for case in ET.parse(file).iter('testcase')]
+          assert len(cases) == 2, f'Expected two tests, got {len(cases)}'
+          assert not any(case.find(tag) is not None for case in cases for tag in ['failure', 'error', 'skipped'])
+          print('Passed two animated Android interruption regressions, zero skips')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-navigation-recovery
+          path: |
+            artifacts/android-navigation/**/app/build/outputs/androidTest-results/**
+            artifacts/android-navigation/**/app/build/reports/androidTests/**
+          if-no-files-found: error
+          retention-days: 14
+
   mobile-summary:
     name: Mobile E2E summary
-    needs: [harness, ios-native, ios-simulator, android-emulator, ios-zig-slice]
+    needs: [harness, ios-native, ios-simulator, android-emulator, ios-zig-slice, android-navigation]
     runs-on: ubuntu-latest
     if: always()
 
@@ -591,6 +657,7 @@ jobs:
             echo
             echo "| Leg | Result |"
             echo "|-----|--------|"
+            echo "| Focused Android navigation | ${{ needs.android-navigation.result }} |"
             echo "| Harness unit tests | ${{ needs.harness.result }} |"
             echo "| iOS native UIKit and navigation | ${{ needs.ios-native.result }} |"
             echo "| iOS simulator (generated app) | ${{ needs.ios-simulator.result }} |"
@@ -609,8 +676,9 @@ jobs:
       - name: Fail if any leg failed
         if: >-
           contains(fromJSON('["failure", "skipped"]'), needs.harness.result)
-          || contains(fromJSON('["failure", "skipped"]'), needs.ios-native.result)
-          || (inputs.scope != 'ios-navigation' && (
+          || (inputs.scope == 'android-navigation' && contains(fromJSON('["failure", "skipped"]'), needs.android-navigation.result))
+          || (inputs.scope != 'android-navigation' && contains(fromJSON('["failure", "skipped"]'), needs.ios-native.result))
+          || (inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && (
             contains(fromJSON('["failure", "skipped"]'), needs.ios-simulator.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.ios-zig-slice.result)

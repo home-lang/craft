@@ -51,7 +51,7 @@ test('mobile device jobs use the same pinned stx compiler', () => {
     const options = step.with as Record<string, string> | undefined
     return options?.repository === 'stacksjs/stx'
   })
-  expect(compilerCheckouts).toHaveLength(3)
+  expect(compilerCheckouts).toHaveLength(4)
   for (const step of compilerCheckouts)
     expect((step.with as Record<string, string>).ref).toBe(stxCompilerCommit)
 })

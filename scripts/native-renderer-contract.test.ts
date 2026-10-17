@@ -973,7 +973,7 @@ describe('native renderer component contract', () => {
 
   it('pins one @stacksjs/stx compiler revision across mobile E2E hosts', () => {
     const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: ([0-9a-f]{40})/g)].map(match => match[1])
-    expect(refs).toHaveLength(3)
+    expect(refs).toHaveLength(4)
     expect(new Set(refs).size).toBe(1)
     expect(mobileE2EWorkflow).toContain('stx native compile')
     expect(mobileE2EWorkflow).not.toContain('stx-native')
@@ -1994,7 +1994,6 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('test "derives aspect ratio dimensions in flex and grid trees"')
     expect(guide).toContain('`aspectRatio` derives a missing width or height')
   })
-
 
   it('registers exactly the Kotlin native methods with matching JNI descriptors', () => {
     const descriptors: Record<string, string> = {
