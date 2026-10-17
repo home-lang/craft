@@ -648,10 +648,16 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import os
+          import re
           import xml.etree.ElementTree as ET
           files = list(Path('artifacts/android-navigation').rglob('TEST-*.xml'))
           cases = [case for file in files for case in ET.parse(file).iter('testcase')]
-          expected = 28 if os.environ['CRAFT_ANDROID_NATIVE_SUITE'] == 'full' else 6
+          if os.environ['CRAFT_ANDROID_NATIVE_SUITE'] == 'full':
+              expected = sum(len(re.findall(r'^\s*@Test\s*$', file.read_text(), re.M))
+                             for file in Path('packages/android/fixtures/native-navigation').glob('*Test.kt'))
+          else:
+              expected = len([item for item in os.environ['CRAFT_ANDROID_TEST_CLASS'].split(',') if item])
+          assert expected > 0, 'The selected Android suite contains no tests'
           assert len(cases) == expected, f'Expected {expected} tests, got {len(cases)}'
           assert not any(case.find(tag) is not None for case in cases for tag in ['failure', 'error', 'skipped'])
           print(f'Passed {expected} Android native checks, zero skips')
