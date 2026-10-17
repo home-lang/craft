@@ -529,7 +529,7 @@ class NativeNavigationTest {
             assertEquals(Color.rgb(0x22, 0xc5, 0x5e), notes.highlightColor)
             val booleanMaxLength = awaitView(activity, "boolean-max-length") as EditText
             instrumentation.runOnMainSync { booleanMaxLength.setText("AB") }
-            assertEquals("AB", booleanMaxLength.text.toString(), "Boolean maxLength was treated as numeric")
+            assertEquals("Boolean maxLength was treated as numeric", "AB", booleanMaxLength.text.toString())
             val booleanInputLines = awaitView(activity, "boolean-input-lines") as EditText
             assertEquals("Boolean TextInput numberOfLines was treated as numeric", Int.MAX_VALUE, booleanInputLines.maxLines)
             val readonly = awaitView(activity, "readonly-input") as EditText
