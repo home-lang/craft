@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.227...v0.0.228)
+
+## ⚡ Performance Improvements
+
+- **ios**: track tab swipes continuously and prepare adjacent screens ([780543a](https://github.com/craft-native/craft/commit/780543a)) _(by Chris Breuer)_
+- **ios**: retain snapshot and layout caches across tab visits ([2b3f53d](https://github.com/craft-native/craft/commit/2b3f53d)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.226...v0.0.227)
 
 ## 🚀 Features
