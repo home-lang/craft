@@ -8,6 +8,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.SystemClock
+import android.provider.Settings
 import android.text.InputFilter
 import android.text.InputType
 import android.text.Layout
@@ -344,6 +345,62 @@ class NativeNavigationTest {
             "native ScrollView did not move through overflow content " +
                 "(viewport=$viewportHeight, content=$contentHeight, offset=${scroll.scrollY})"
         )
+    }
+
+    private fun assertTabTapInterruptsSettlingSwipe(index: Int, id: String, expected: String) {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        val previousScale = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        fun animatorScale(value: Float) {
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
+                "settings put global animator_duration_scale $value",
+            )).use { it.readBytes() }
+        }
+        try {
+            animatorScale(1f)
+            awaitText(activity, "navigation-home-state", "Home state: Ada/0")
+            click(activity, "navigation-increment")
+            awaitText(activity, "navigation-home-state", "Home state: Ada/1")
+            assertTrue("interruption coverage requires real animator timing", Settings.Global.getFloat(
+                context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
+            ) > 0f)
+            val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
+                ?: throw AssertionError("native chrome did not mount")
+            instrumentation.runOnMainSync {
+                val dx = -chrome.content.width * 0.65f
+                assertTrue("native swipe did not start", chrome.onTabSwipeStart?.invoke(
+                    dx, chrome.width * 0.85f, chrome.content.top + chrome.content.height * 0.85f,
+                ) == true)
+                chrome.onTabSwipeMove?.invoke(dx)
+                chrome.onTabSwipeEnd?.invoke(dx, false)
+                // Same UI turn, before the 180ms completion callback runs.
+                chrome.onTab?.invoke(index)
+            }
+            SystemClock.sleep(500)
+            awaitText(activity, id, expected)
+            instrumentation.runOnMainSync {
+                assertEquals("an interrupted preview remained attached", 1, chrome.content.childCount)
+                assertEquals(0f, chrome.content.getChildAt(0).translationX, 0.01f)
+            }
+            assertNoWebView(activity)
+        } finally {
+            animatorScale(previousScale)
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
+    fun outgoingTabTapWinsOverSettlingSwipe() {
+        assertTabTapInterruptsSettlingSwipe(0, "navigation-home-state", "Home state: Ada/1")
+    }
+
+    @Test
+    fun thirdTabTapWinsOverSettlingSwipe() {
+        assertTabTapInterruptsSettlingSwipe(2, "summary-title", "Summary for ")
     }
 
     @Test
