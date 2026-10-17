@@ -1599,6 +1599,23 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(date.accessibilityTraits.contains(.adjustable))
     }
 
+    func testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        let reference = UISwitch()
+        for (value, disabled) in [(false, false), (true, false), (true, true), (false, false)] {
+            reference.isOn = value
+            reference.isEnabled = !disabled
+            controller.render(document([[
+                "type": "Switch",
+                "props": ["key": "native-toggle", "value": value, "disabled": disabled],
+            ]]))
+            let toggle = try XCTUnwrap(find(UISwitch.self, key: "native-toggle", below: controller.view))
+            XCTAssertEqual(toggle.accessibilityTraits.rawValue, reference.accessibilityTraits.rawValue,
+                           "Craft replaced the system switch's native accessibility identity")
+        }
+    }
+
     func testPickerBooleanValuesFallBackToTheirLabels() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
