@@ -25,11 +25,11 @@
     },
     "packages/android": {
       "name": "@craft-native/android",
-      "version": "0.0.228",
+      "version": "0.0.229",
     },
     "packages/create-craft": {
       "name": "create-craft",
-      "version": "0.0.228",
+      "version": "0.0.229",
       "bin": {
         "create-craft": "./bin/cli.ts",
       },
@@ -52,14 +52,14 @@
     },
     "packages/ios": {
       "name": "@craft-native/ios",
-      "version": "0.0.228",
+      "version": "0.0.229",
       "bin": {
         "craft-ios": "dist/cli.js",
       },
     },
     "packages/macos": {
       "name": "@craft-native/macos",
-      "version": "0.0.228",
+      "version": "0.0.229",
     },
     "packages/react": {
       "name": "@craft-native/react",
@@ -88,7 +88,7 @@
     },
     "packages/ts-maps": {
       "name": "@craft-native/ts-maps",
-      "version": "0.0.228",
+      "version": "0.0.229",
       "devDependencies": {
         "@types/bun": "^1.2.0",
         "ts-maps": "^0.3.1",
@@ -97,7 +97,7 @@
     },
     "packages/typescript": {
       "name": "craft-native",
-      "version": "0.0.228",
+      "version": "0.0.229",
       "bin": {
         "craft-sdk": "./dist/cli.js",
       },

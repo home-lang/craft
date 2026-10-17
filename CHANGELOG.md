@@ -1,5 +1,20 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.228...v0.0.229)
+
+## 🚀 Features
+
+- **android**: render native text with bundled custom fonts ([8e282a1](https://github.com/craft-native/craft/commit/8e282a1)) _(by Chris Breuer)_
+- **ios**: bundle custom native text fonts and licenses ([2406e70](https://github.com/craft-native/craft/commit/2406e70)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- describe portable native font configuration ([89b471c](https://github.com/craft-native/craft/commit/89b471c)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.227...v0.0.228)
 
 ## ⚡ Performance Improvements
