@@ -1248,6 +1248,9 @@ final class NativeRenderUnitTests: XCTestCase {
         let marked = try XCTUnwrap(proof.markedTextRange)
         XCTAssertEqual(proof.text(in: marked), "ラン")
 
+        controller.render(content("", fontSize: 16, caption: "Unrelated caption changed"))
+        XCTAssertNotNil(proof.markedTextRange, "An unchanged input must keep its composing range")
+        XCTAssertEqual(proof.text, "ラン")
         controller.render(content("", fontSize: 22, caption: "Updated while composing"))
 
         XCTAssertTrue(proof === find(UITextView.self, key: "claim-proof", below: controller.view))
