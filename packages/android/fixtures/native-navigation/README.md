@@ -113,3 +113,12 @@ without needing an emulator. Set `CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1` to keep
 the generated project for inspection. On an emulator failure, the test prints
 the activity's native view tree and the harness dumps `CraftNativeAndroid`
 errors from logcat.
+
+The animated interruption regressions tap the outgoing or a third tab before a
+swipe's completion callback runs. They verify the newer tab, one attached root,
+zero translation, native selected accessibility state, and that the next gesture
+still starts and cancels. These cases enable and restore the platform animator
+scale even when the broader suite disables animations. Use the Mobile E2E
+workflow's `android-navigation` scope for the two focused cases; the normal suite
+continues to run the complete fixture. `CRAFT_ANDROID_TEST_CLASS` accepts Gradle's
+class/method instrumentation selector when diagnosing a specific case.

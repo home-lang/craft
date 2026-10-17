@@ -894,6 +894,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         accessory.background = GradientDrawable().apply { setColor(surface); cornerRadius = dp(32).toFloat() }
         accessorySpec?.let { accessoryIcon.setImageDrawable(CraftNativeIcons.drawable(context, null, it.optString("symbol"), text)) }
         tabViews.forEachIndexed { index, (icon, label) ->
+            tabBar.getChildAt(index).isSelected = index == selectedTab
             val color = if (index == selectedTab) accent else muted
             val number = tabIconText[tabs[index].id]
             icon.setTextColor(if (number != null) Color.parseColor("#FF2D55") else color)

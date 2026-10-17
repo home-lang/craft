@@ -384,6 +384,8 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync {
                 assertEquals("an interrupted preview remained attached", 1, chrome.content.childCount)
                 assertEquals(0f, chrome.content.getChildAt(0).translationX, 0.01f)
+                val title = if (index == 0) "Home" else "Summary"
+                assertTrue("the owning tab lacks native selected accessibility state", find(activity.window.decorView, title)?.isSelected == true)
             }
             instrumentation.runOnMainSync {
                 val dx = chrome.content.width * if (index == 0) -0.1f else 0.1f
