@@ -82,6 +82,12 @@ The navigation fixture also toggles a screen's explicit `backgroundColor`
 through `craft.navigation.setOptions`, checks the host color, and clears it back
 to the current light/dark resource so per-screen backgrounds cannot become
 permanent after an incremental update.
+On Android 15, it captures the composed system bars in both device light and
+dark mode, including a black timer, a retained screen update, a local app theme
+change, pop, and option reset. Each of the three navigation buttons must reach
+a contrast ratio of at least 3 against its protected surface. Stock native
+windows are captured only to diagnose a failure; matching an unreadable stock
+bar does not pass. The device's original appearance is restored after the test.
 The image control also verifies that an explicit `null` tint style clears the
 previous native color filter during an incremental update.
 The shared name field is controlled, so its value and caret remain stable
