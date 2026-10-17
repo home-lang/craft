@@ -1598,6 +1598,8 @@ class NativeNavigationTest {
                 ?: throw AssertionError("native root is not attached to a screen host")
             val initial = backgroundColor(screen)
             val insetSurface = activity.findViewById<View>(R.id.native_root)
+            val themeProbe = awaitView(activity, "theme-probe")
+            val initialTraitBackground = backgroundColor(themeProbe)
             assertTrue("screen host did not receive a dynamic background", initial != null)
             assertEquals(initial, chromeBackgroundColor(activity, 0))
             assertEquals(initial, backgroundColor(insetSurface))
@@ -1633,7 +1635,10 @@ class NativeNavigationTest {
                     androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
                 }
             }
-            awaitBackgroundColor(insetSurface, initial)
+            // An app may configure the same background in both appearances.
+            // Wait for an actual trait-driven view change, then compare the
+            // inset surface with the current configured system fallback.
+            awaitBackgroundColor(themeProbe, initialTraitBackground)
             val themedDefault = androidx.core.content.ContextCompat.getColor(activity, R.color.background)
             assertEquals("theme refresh used a retained screen's authored colour",
                 themedDefault, backgroundColor(insetSurface))
