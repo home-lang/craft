@@ -1,5 +1,41 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.233...v0.0.234)
+
+## 🐛 Bug Fixes
+
+- **ios**: align restored runtime identity with Xcode Cloud build ([b67061f](https://github.com/craft-native/craft/commit/b67061f)) _(by Chris Breuer)_
+- **android**: let native screen backgrounds paint button navigation ([61e323f](https://github.com/craft-native/craft/commit/61e323f)) _(by Chris Breuer)_
+- **ios**: preserve native switch accessibility identity ([0f17fd1](https://github.com/craft-native/craft/commit/0f17fd1)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: require focused native windows for pixel acceptance ([194c1ca](https://github.com/craft-native/craft/commit/194c1ca)) _(by Chris Breuer)_
+- **android**: compare low contrast system glyphs with stock native windows ([0a01b5f](https://github.com/craft-native/craft/commit/0a01b5f)) _(by Chris Breuer)_
+- **android**: compare opaque and transparent native navigation ([330b86b](https://github.com/craft-native/craft/commit/330b86b)) _(by Chris Breuer)_
+- **android**: match brightness in native bar comparisons ([dc39230](https://github.com/craft-native/craft/commit/dc39230)) _(by Chris Breuer)_
+- **android**: preserve diagnostics through Gradle test cleanup ([262db95](https://github.com/craft-native/craft/commit/262db95)) _(by Chris Breuer)_
+- **android**: compare failing bars with stock native windows ([97b5233](https://github.com/craft-native/craft/commit/97b5233)) _(by Chris Breuer)_
+- **android**: record failing system bar pixel provenance ([9a75be9](https://github.com/craft-native/craft/commit/9a75be9)) _(by Chris Breuer)_
+- **android**: retain composed system bar failure evidence ([bc8bd55](https://github.com/craft-native/craft/commit/bc8bd55)) _(by Chris Breuer)_
+- **ios**: enforce the native switch accessibility baseline ([091f2a9](https://github.com/craft-native/craft/commit/091f2a9)) _(by Chris Breuer)_
+- **android**: inspect native navigation glyph contrast ([b4e7291](https://github.com/craft-native/craft/commit/b4e7291)) _(by Chris Breuer)_
+- **android**: verify composed system navigation backgrounds ([69d0a8e](https://github.com/craft-native/craft/commit/69d0a8e)) _(by Chris Breuer)_
+- **ios**: compare switch accessibility with native UIKit ([6a0b380](https://github.com/craft-native/craft/commit/6a0b380)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- **android**: require full native navigation on modern and legacy APIs ([e6007a7](https://github.com/craft-native/craft/commit/e6007a7)) _(by Chris Breuer)_
+- **android**: require fresh launcher readiness with portable checks ([c69580d](https://github.com/craft-native/craft/commit/c69580d)) _(by Chris Breuer)_
+- **android**: compile before boot and reject unhealthy launchers ([06ac528](https://github.com/craft-native/craft/commit/06ac528)) _(by Chris Breuer)_
+- **android**: isolate native system bar pixel diagnostics ([1cd6ee9](https://github.com/craft-native/craft/commit/1cd6ee9)) _(by Chris Breuer)_
+- **android**: retain results for each navigation API level ([f79dad9](https://github.com/craft-native/craft/commit/f79dad9)) _(by Chris Breuer)_
+- **android**: cover modern and legacy native system bars ([88e068e](https://github.com/craft-native/craft/commit/88e068e)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.232...v0.0.233)
 
 ## 🐛 Bug Fixes
