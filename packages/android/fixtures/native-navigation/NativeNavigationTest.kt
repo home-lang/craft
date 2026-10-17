@@ -309,6 +309,7 @@ class NativeNavigationTest {
         assertEquals(message, color, backgroundColor(activity.findViewById<View>(R.id.native_root)))
         if (android.os.Build.VERSION.SDK_INT < 35) {
             assertEquals("$message (legacy status bar)", color, activity.window.statusBarColor)
+            assertEquals("$message (legacy navigation bar)", color, activity.window.navigationBarColor)
         }
     }
 
@@ -1624,6 +1625,9 @@ class NativeNavigationTest {
             assertEquals(Color.rgb(0x12, 0x34, 0x56), chromeBackgroundColor(activity, 1))
             assertSystemInsetBackground(activity, Color.rgb(0x12, 0x34, 0x56),
                 "system inset surface ignored the active screen background")
+            assertFalse("dark screen background needs light system navigation glyphs",
+                androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                    .isAppearanceLightNavigationBars)
 
             // A retained screen can still receive timer/state updates. Its
             // authored colour must not leak into the screen pushed above it.
@@ -1653,6 +1657,9 @@ class NativeNavigationTest {
             awaitView(activity, "home-title")
             assertSystemInsetBackground(activity, Color.rgb(0x65, 0x43, 0x21),
                 "pop did not restore the retained screen's inset background")
+            assertFalse("returning to a dark screen lost system navigation glyph contrast",
+                androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                    .isAppearanceLightNavigationBars)
 
             click(activity, "toggle-screen-background")
             awaitBackgroundColor(screen, Color.rgb(0x65, 0x43, 0x21))

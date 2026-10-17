@@ -4576,9 +4576,14 @@ class MainActivity : AppCompatActivity() {
         // only the visible one may change the colour behind system bars.
         if (visibleScreen === screen) {
             root.setBackgroundColor(background)
+            WindowCompat.getInsetsController(window, window.decorView)
+                .isAppearanceLightNavigationBars = Color.luminance(background) >= 0.5f
             // Android 15+ draws the root behind transparent system bars.
-            // Older releases still paint a separate window status surface.
-            if (Build.VERSION.SDK_INT < 35) window.statusBarColor = background
+            // Older releases still paint separate window bar surfaces.
+            if (Build.VERSION.SDK_INT < 35) {
+                window.statusBarColor = background
+                window.navigationBarColor = background
+            }
         }
     }
 
