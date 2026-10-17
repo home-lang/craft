@@ -320,11 +320,14 @@ class NativeNavigationTest {
             var actual: Int? = null
             var glyphContrast = 1.0
             var glyphColor = 0
+            var glyphX = 0
+            var glyphY = 0
             for (attempt in 0 until 30) {
                 val image = instrumentation.uiAutomation.takeScreenshot()
                     ?: throw AssertionError("system screenshot unavailable")
                 actual = image.getPixel(image.width / 2, image.height - 2)
                 glyphContrast = 1.0
+                glyphColor = expected
                 val backgroundLuminance = Color.luminance(expected)
                 // Exclude divider/border pixels; inspect the area occupied
                 // by the native buttons or gesture handle themselves.
@@ -336,6 +339,8 @@ class NativeNavigationTest {
                         if (contrast > glyphContrast) {
                             glyphContrast = contrast
                             glyphColor = image.getPixel(x, y)
+                            glyphX = x
+                            glyphY = y
                         }
                     }
                 }
@@ -351,8 +356,8 @@ class NativeNavigationTest {
                         .getInsetsController(activity.window, activity.window.decorView)
                     java.io.File(directory, "$name.txt").writeText(
                         "size=${image.width}x${image.height} inset=$inset background=$actual expected=$color " +
-                            "glyph=$glyphColor contrast=$glyphContrast navigationLight=${appearance.isAppearanceLightNavigationBars} " +
-                            "windowBackground=${activity.window.decorView.background} " +
+                            "glyph=$glyphColor at=$glyphX,$glyphY contrast=$glyphContrast navigationLight=${appearance.isAppearanceLightNavigationBars} " +
+                            "windowBackground=${backgroundColor(activity.window.decorView)} nativeAppearance=${activity.window.insetsController?.systemBarsAppearance} " +
                             "navigationMode=${Settings.Secure.getString(activity.contentResolver, "navigation_mode")}\n"
                     )
                 }
