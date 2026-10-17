@@ -1597,8 +1597,10 @@ class NativeNavigationTest {
             val screen = root.parent as? View
                 ?: throw AssertionError("native root is not attached to a screen host")
             val initial = backgroundColor(screen)
+            val insetSurface = activity.findViewById<View>(R.id.native_root)
             assertTrue("screen host did not receive a dynamic background", initial != null)
             assertEquals(initial, chromeBackgroundColor(activity, 0))
+            assertEquals(initial, backgroundColor(insetSurface))
 
             click(activity, "toggle-screen-background")
             repeat(75) {
@@ -1611,12 +1613,42 @@ class NativeNavigationTest {
             assertEquals(Color.rgb(0x12, 0x34, 0x56), backgroundColor(screen))
             assertEquals(Color.rgb(0x12, 0x34, 0x56), chromeBackgroundColor(activity, 0))
             assertEquals(Color.rgb(0x12, 0x34, 0x56), chromeBackgroundColor(activity, 1))
+            assertEquals("system inset surface ignored the active screen background",
+                Color.rgb(0x12, 0x34, 0x56), backgroundColor(insetSurface))
+
+            // A retained screen can still receive timer/state updates. Its
+            // authored colour must not leak into the screen pushed above it.
+            click(activity, "background-open-details")
+            awaitText(activity, "details-title", "Details for Ada")
+            awaitBackgroundColor(screen, Color.rgb(0x12, 0x34, 0x56))
+            assertEquals(Color.rgb(0x65, 0x43, 0x21), backgroundColor(screen))
+            assertEquals("offscreen options recoloured the visible system insets",
+                initial, backgroundColor(insetSurface))
+
+            val currentNight = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+            instrumentation.runOnMainSync {
+                activity.delegate.localNightMode = if (currentNight == Configuration.UI_MODE_NIGHT_YES) {
+                    androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+                } else {
+                    androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+                }
+            }
+            awaitBackgroundColor(insetSurface, initial)
+            val themedDefault = androidx.core.content.ContextCompat.getColor(activity, R.color.background)
+            assertEquals("theme refresh used a retained screen's authored colour",
+                themedDefault, backgroundColor(insetSurface))
+            click(activity, "details-back")
+            awaitView(activity, "home-title")
+            assertEquals("pop did not restore the retained screen's inset background",
+                Color.rgb(0x65, 0x43, 0x21), backgroundColor(insetSurface))
 
             click(activity, "toggle-screen-background")
-            awaitBackgroundColor(screen, Color.rgb(0x12, 0x34, 0x56))
-            assertEquals(initial, backgroundColor(screen))
-            assertEquals(initial, chromeBackgroundColor(activity, 0))
-            assertEquals(initial, chromeBackgroundColor(activity, 1))
+            awaitBackgroundColor(screen, Color.rgb(0x65, 0x43, 0x21))
+            assertEquals(themedDefault, backgroundColor(screen))
+            assertEquals(themedDefault, chromeBackgroundColor(activity, 0))
+            assertEquals(themedDefault, chromeBackgroundColor(activity, 1))
+            assertEquals("clearing the option did not restore dynamic system insets",
+                themedDefault, backgroundColor(insetSurface))
         } finally {
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
             instrumentation.waitForIdleSync()

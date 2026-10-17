@@ -519,6 +519,14 @@ function toggleScreenBackground() {
   screenBackgroundSolid.set(solid)
   globalThis.craft.navigation.setOptions({ backgroundColor: solid ? '#123456' : null })
 }
+
+function openDetailsThenUpdateBackground() {
+  setTimeout(() => {
+    screenBackgroundSolid.set(true)
+    globalThis.craft.navigation.setOptions({ backgroundColor: '#654321' })
+  }, 300)
+  openDetails()
+}
 </script>
 
 <template>
@@ -539,6 +547,7 @@ function toggleScreenBackground() {
       <Text testID="retained-safe-area-label">Safe retained container</Text>
     </SafeAreaView>
     <Button testID="toggle-screen-background" @click="toggleScreenBackground()">Toggle screen background</Button>
+    <Button testID="background-open-details" @click="openDetailsThenUpdateBackground()">Update retained background</Button>
     <ScrollView testID="tab-swipe-carousel" horizontal style={{"width":240,"height":48}}>
       <View style={{"width":720,"height":40,"flexDirection":"row","alignItems":"center","gap":16,"paddingHorizontal":12,"backgroundColor":"#1e293b"}}>
         <Text testID="tab-swipe-carousel-label" style={{"width":220,"color":"#ffffff"}}>Horizontal carousel content</Text>
