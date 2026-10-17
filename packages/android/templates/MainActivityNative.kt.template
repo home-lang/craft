@@ -4159,13 +4159,22 @@ class MainActivity : AppCompatActivity() {
      * page on the app's site in the in-app browser. Another site's address
      * opens in the browser too.
      */
-    private fun navigateOpen(target: String, fromLink: Boolean = false) {
+    private fun navigateOpen(target: String, fromLink: Boolean = false, replace: Boolean = false) {
         val path = routes.appPath(target, urlSchemes)
         if (path == null) {
             openExternal(target)
             return
         }
         val match = routes.match(path)
+        if (replace && match != null && screens.isNotEmpty()) {
+            val stack = screens
+            val removed = stack.removeAt(stack.lastIndex)
+            val previous = stack.lastOrNull()
+            closeScreen(removed) {
+                if (screens === stack && stack.lastOrNull() === previous) navigateOpen(path, fromLink)
+            }
+            return
+        }
         val tab = routes.tabFor(path)
         if (tab != null) {
             selectTab(routes.tabs.indexOf(tab))
@@ -4773,6 +4782,12 @@ class MainActivity : AppCompatActivity() {
                 // app script has no stack of its own; it uses NAVIGATE_OPEN.
                 if (visibleScreen !== screen) return
                 val route = payload.optString("screen").takeIf { it.isNotBlank() } ?: return
+                // Resolve and replace in one host operation. A pop followed by
+                // open would send the second message from a closing isolate.
+                if (message.optString("type") == "NAVIGATE_REPLACE" && route.startsWith("/")) {
+                    navigateOpen(route, replace = true)
+                    return
+                }
                 if (message.optString("type") == "NAVIGATE_REPLACE") {
                     val stack = screens
                     val removed = stack.removeAt(stack.lastIndex)

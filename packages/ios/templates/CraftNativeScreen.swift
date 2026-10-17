@@ -5416,6 +5416,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             guard !isAppScript, navigationController?.topViewController === self,
                   let screen = payload["screen"] as? String, !screen.isEmpty,
                   let navigation = navigationController else { return }
+            if type == "NAVIGATE_REPLACE", screen.hasPrefix("/") {
+                hybridEvents?.nativeScreen(self, replace: screen)
+                return
+            }
             let params = payload["params"] as? [String: Any] ?? [:]
             let next = CraftNativeScreenController(config: config, routeName: screen, routeParams: params)
             next.hybridEvents = hybridEvents

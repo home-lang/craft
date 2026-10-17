@@ -265,6 +265,12 @@ rejected before a project is generated.
   before parameters), a tab's path selecting its tab, a path no screen draws
   opening the site in a Custom Tab; deep links and tapped notifications route
   the same way;
+- `craft.navigation.replace('/m/claim?kind=club&slug=rappid')` finishes a flow
+  atomically: the host resolves the path and query, closes the current screen,
+  and opens or reuses the destination. Android and iOS also keep supporting
+  `replace(screenName, params)` for screens without URL routes. A closing isolate
+  cannot send a second navigation message, so use this operation when completing
+  sign-in instead of sending `popToRoot()` followed by `open(path)`;
 - the app script (`nativeApp`) in its own isolate for the app's life, and in a
   WorkManager job for `backgroundRefresh` and silent pushes
   (`craftBackgroundRefresh`, `craftSilentPush`, answered with
@@ -272,6 +278,7 @@ rejected before a project is generated.
   the app script may open a matched path through `craft.navigation.open`, but
   has no native stack of its own, so `push`, `replace`, `back`, and
   `popToRoot` are no-ops;
+
 - `craft.storage.getSync`, `craft.secureStorage.getSync` and `craft.snapshots`:
   JavaScriptSandbox cannot call the host synchronously, so every isolate starts
   with a copy of these stores and the host keeps each copy current. Timers and

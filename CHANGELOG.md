@@ -1,5 +1,31 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.224...v0.0.225)
+
+## 🚀 Features
+
+- **android**: add bounded public image cache storage ([835bcdd](https://github.com/craft-native/craft/commit/835bcdd)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **navigation**: replace canonical paths atomically ([13f1cb4](https://github.com/craft-native/craft/commit/13f1cb4)) _(by Chris Breuer)_
+- **native**: restore cached images and clip rounded avatars ([03c67d5](https://github.com/craft-native/craft/commit/03c67d5)) _(by Chris Breuer)_
+- **ci**: select Android acceptance tests through the job environment ([78a07a9](https://github.com/craft-native/craft/commit/78a07a9)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **native**: cover rounded image rendering in shared fixtures ([5e73086](https://github.com/craft-native/craft/commit/5e73086)) _(by Chris Breuer)_
+- **android**: pass the input assertion message in JUnit order ([6ffa78c](https://github.com/craft-native/craft/commit/6ffa78c)) _(by Chris Breuer)_
+- **android**: compare safe-area restoration with the native window ([62b0e54](https://github.com/craft-native/craft/commit/62b0e54)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- **android**: run complete native acceptance independently ([f077707](https://github.com/craft-native/craft/commit/f077707)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.223...v0.0.224)
 
 ## 🐛 Bug Fixes
