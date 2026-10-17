@@ -1345,7 +1345,7 @@ class NativeNavigationTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
         try {
-            click(activity, "open-details")
+            click(activity, "navigation-open-details")
             val host = awaitView(activity, "people-list") { it.width > 0 && it.height > 0 } as SwipeRefreshLayout
             assertTrue("default refresh travel collapsed", host.progressViewEndOffset > host.progressViewStartOffset)
             assertTrue("native refresh indicator was detached", findType(host, ImageView::class.java) != null)
@@ -1391,14 +1391,14 @@ class NativeNavigationTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
         ) as MainActivity
         try {
-            click(activity, "open-details")
-            awaitText(activity, "details-title", "Details for ")
+            click(activity, "navigation-open-details")
+            awaitText(activity, "details-title", "Details for Ada")
             val accessory = awaitView(activity, "Open capabilities")
             instrumentation.runOnMainSync { accessory.performClick() }
             awaitView(activity, "capabilities-title")
             assertTrue("tab accessory remained visible over its destination", find(activity.window.decorView, "Open capabilities") == null)
             instrumentation.runOnMainSync { activity.onBackPressedDispatcher.onBackPressed() }
-            awaitText(activity, "details-title", "Details for ")
+            awaitText(activity, "details-title", "Details for Ada")
             awaitView(activity, "Open capabilities")
             click(activity, "details-back")
             awaitView(activity, "home-title")

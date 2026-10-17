@@ -634,17 +634,17 @@ jobs:
           script: |
             mkdir -p artifacts/android-navigation
             adb shell settings put global animator_duration_scale 1
-            STX_CLI="$GITHUB_WORKSPACE/.stx-compiler/packages/stx/bin/cli.ts" CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1 TMPDIR="$GITHUB_WORKSPACE/artifacts/android-navigation" CRAFT_ANDROID_TEST_CLASS="dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe" bun packages/android/scripts/test-native-navigation.ts
-      - name: Require both regressions to pass without skips
+            STX_CLI="$GITHUB_WORKSPACE/.stx-compiler/packages/stx/bin/cli.ts" CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1 TMPDIR="$GITHUB_WORKSPACE/artifacts/android-navigation" CRAFT_ANDROID_TEST_CLASS="dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#nativePullToRefreshSurvivesViewReattachment,dev.craft.navigationtest.NativeNavigationTest#pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack,dev.craft.navigationtest.NativeFlatListTest#refreshAppearanceUsesTheScreenContrastFallback" bun packages/android/scripts/test-native-navigation.ts
+      - name: Require all focused navigation checks to pass without skips
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
           files = list(Path('artifacts/android-navigation').rglob('TEST-*.xml'))
           cases = [case for file in files for case in ET.parse(file).iter('testcase')]
-          assert len(cases) == 2, f'Expected two tests, got {len(cases)}'
+          assert len(cases) == 5, f'Expected five tests, got {len(cases)}'
           assert not any(case.find(tag) is not None for case in cases for tag in ['failure', 'error', 'skipped'])
-          print('Passed two animated Android interruption regressions, zero skips')
+          print('Passed five focused Android navigation checks, zero skips')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
