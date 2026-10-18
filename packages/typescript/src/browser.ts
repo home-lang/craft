@@ -1,3 +1,4 @@
+import { secureUUID } from './bridge/ids'
 import { createBrowserStorage } from './browser/storage'
 import { showBrowserDialog, type BrowserDialogOptions } from './browser/dialogs'
 
@@ -119,6 +120,7 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
   window.addEventListener('storage', storageEvent)
   const capabilityNames = ['storage', 'secureStorage', 'lifecycle', 'dialog', 'browser', 'linking', 'files', 'share', 'device']
   if (persistence.atomicStorage) capabilityNames.push('storageCompareAndSet', 'storageSetIfAbsent')
+  if (typeof globalThis.crypto?.randomUUID === 'function' || typeof globalThis.crypto?.getRandomValues === 'function') capabilityNames.push('crypto')
   if (navigator.clipboard) capabilityNames.push('clipboard')
   if ('vibrate' in navigator) capabilityNames.push('haptics')
   if ('speechSynthesis' in window) capabilityNames.push('speech')
@@ -159,6 +161,7 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
         if (before !== persistence.craft.secureStorage.getSync('auth.token')) await resetAccount()
         return answer
       }
+      if (module === 'Crypto' && method === 'randomUUID') return secureUUID()
       if (module === 'Dialog') return showBrowserDialog(method, first as BrowserDialogOptions, signal)
       if (module === 'Device' && method === 'getInfo') return { platform: 'web', userAgent: navigator.userAgent, language: navigator.language, native: false }
       if (module === 'Haptics') { if (typeof navigator.vibrate !== 'function') return unsupported(module, method); navigator.vibrate(method === 'selection' ? 5 : 10); return true }

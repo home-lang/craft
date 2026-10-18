@@ -868,6 +868,11 @@ export interface LocationOptions {
   maximumAge?: number
 }
 
+/** Persist this ID with the owning intent before starting a native recording. */
+export interface RecordingStartOptions {
+  recordingId?: string
+}
+
 /** Fence a recording operation to the ID returned by start or explicit recovery. */
 export interface RecordingOwnershipOptions {
   expectedId: string
@@ -878,6 +883,22 @@ function storageHost(method: string): any {
   if (typeof host?.[method] !== 'function')
     throw Object.assign(new Error('This host does not provide native storage'), { code: 'STORAGE_UNSUPPORTED' })
   return host
+}
+
+/** Secure IDs supplied by the platform, including WebView-free mobile hosts. */
+export const crypto = {
+  async randomUUID(): Promise<string> {
+    const root = getCraftRoot()
+    if (!root) return secureUUID()
+    const caps = root.capabilities
+    const advertised = Array.isArray(caps) ? caps.includes('crypto') : caps?.crypto === true
+    if (!advertised || typeof root.crypto?.randomUUID !== 'function')
+      throw Object.assign(new Error('This host does not provide secure UUIDs'), { code: 'CRYPTO_UNSUPPORTED' })
+    const id: unknown = await root.crypto.randomUUID()
+    if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))
+      throw Object.assign(new Error('The host returned an invalid secure UUID'), { code: 'CRYPTO_INVALID_RESPONSE' })
+    return id
+  },
 }
 
 /** Native storage, including an existing-key atomic checkpoint. */
@@ -921,6 +942,28 @@ function recordingOwnershipSupported(namespace: 'location' | 'heartRate'): boole
   const caps = root?.capabilities
   const advertised = Array.isArray(caps) ? caps.includes(flag) : caps?.[flag] === true
   return advertised && ['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'].every(method => typeof root?.[namespace]?.[method] === 'function')
+}
+
+function recordingIntentSupported(namespace: 'location' | 'heartRate'): boolean {
+  const root = getCraftRoot()
+  const flag = namespace === 'location' ? 'locationRecordingIntentIdentity' : 'heartRateRecordingIntentIdentity'
+  const caps = root?.capabilities
+  const advertised = Array.isArray(caps) ? caps.includes(flag) : caps?.[flag] === true
+  return advertised && recordingOwnershipSupported(namespace) && typeof root?.[namespace]?.startRecording === 'function'
+}
+
+function validateRecordingStart(namespace: 'location' | 'heartRate', options: RecordingStartOptions): void {
+  if (!Object.prototype.hasOwnProperty.call(options, 'recordingId')) return
+  if (typeof options.recordingId !== 'string' || !options.recordingId.trim())
+    throw Object.assign(new Error('recordingId must be a nonempty recording ID'), { code: 'INVALID_ARGUMENT' })
+  if (!recordingIntentSupported(namespace))
+    throw Object.assign(new Error('This app build cannot start the persisted recording intent'), { code: 'RECORDING_INTENT_IDENTITY_UNSUPPORTED' })
+}
+
+function verifyRecordingStart<T extends { id: string | null }>(options: RecordingStartOptions, result: T): T {
+  if (options.recordingId !== undefined && result.id !== options.recordingId)
+    throw Object.assign(new Error('The native recording does not match the persisted intent'), { code: 'RECORDING_CONFLICT' })
+  return result
 }
 
 function validateRecordingOwnership(namespace: 'location' | 'heartRate', options?: Partial<RecordingOwnershipOptions>): void {
@@ -974,6 +1017,7 @@ let webLocationRecordingWatchId: number | null = null
  */
 export const location = {
   supportsRecordingOwnership: (): boolean => recordingOwnershipSupported('location'),
+  supportsRecordingIntentIdentity: (): boolean => recordingIntentSupported('location'),
   /**
    * Get current position.
    *
@@ -1050,10 +1094,11 @@ export const location = {
     navigator.geolocation.clearWatch(watchId)
   },
 
-  async startRecording(options: LocationOptions = {}): Promise<LocationRecordingState> {
+  async startRecording(options: LocationOptions & RecordingStartOptions = {}): Promise<LocationRecordingState> {
+    validateRecordingStart('location', options)
     const craft = getCraftMobile()
     if (typeof window !== 'undefined' && craft?.location?.startRecording)
-      return craft.location.startRecording(options)
+      return verifyRecordingStart(options, await craft.location.startRecording(options))
 
     if (webLocationRecording.active)
       throw Object.assign(new Error('A location recording is already active'), { code: 'RECORDING_ALREADY_ACTIVE' })
@@ -2185,6 +2230,7 @@ const noRecording = (): HeartRateRecordingState => normalizeHeartRateRecording({
 
 export const heartRate = {
   supportsRecordingOwnership: (): boolean => recordingOwnershipSupported('heartRate'),
+  supportsRecordingIntentIdentity: (): boolean => recordingIntentSupported('heartRate'),
   /** Whether this app can read a heart-rate strap. */
   isAvailable(): boolean {
     return typeof nativeHeartRate()?.getState === 'function'
@@ -2229,7 +2275,10 @@ export const heartRate = {
   disconnect: (options: { forget?: boolean } = {}): Promise<HeartRateState> => heartRateCall('disconnect', noHeartRate, normalizeHeartRateState, options),
 
   /** Keep every reading natively from now on: screen locked, page suspended or app closed. */
-  startRecording: (): Promise<HeartRateRecordingState> => heartRateCall('startRecording', noRecording, normalizeHeartRateRecording),
+  async startRecording(options: RecordingStartOptions = {}): Promise<HeartRateRecordingState> {
+    validateRecordingStart('heartRate', options)
+    return verifyRecordingStart(options, await heartRateCall('startRecording', noRecording, normalizeHeartRateRecording, options))
+  },
   async pauseRecording(options?: RecordingOwnershipOptions): Promise<HeartRateRecordingState> {
     validateRecordingOwnership('heartRate', options)
     return heartRateCall('pauseRecording', noRecording, normalizeHeartRateRecording, ...(options === undefined ? [] : [options]))
@@ -3556,7 +3605,7 @@ interface CraftMobileBridge {
     getCurrentPosition(options: LocationOptions): Promise<Location>
     watchPosition(callback: (location: Location) => void, options: LocationOptions): number
     clearWatch(watchId: number): void
-    startRecording?(options: LocationOptions): Promise<LocationRecordingState>
+    startRecording?(options: LocationOptions & RecordingStartOptions): Promise<LocationRecordingState>
     pauseRecording?(options?: RecordingOwnershipOptions): Promise<LocationRecordingState>
     resumeRecording?(options?: RecordingOwnershipOptions): Promise<LocationRecordingState>
     stopRecording?(options?: RecordingOwnershipOptions): Promise<LocationRecordingResult>
@@ -3621,6 +3670,8 @@ function getCraftMobile(): CraftMobileBridge | undefined {
 }
 
 const mobile: {
+  crypto: typeof crypto
+  storage: typeof storage
   device: typeof device
   haptics: typeof haptics
   permissions: typeof permissions
@@ -3659,6 +3710,8 @@ const mobile: {
   background: typeof background
   appearance: typeof appearance
 } = {
+  crypto: crypto,
+  storage: storage,
   device: device,
   haptics: haptics,
   permissions: permissions,

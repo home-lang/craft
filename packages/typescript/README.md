@@ -585,8 +585,20 @@ The check requires both the current SDK adapter and a capable native host.
 Unsupported hosts reject guarded operations with
 `RECORDING_OWNERSHIP_UNSUPPORTED`; they never discard the guard and retry.
 
-Capture the ID returned by `startRecording()` and pass `{ expectedId: id }` to
-pause, resume, stop, read and get-state calls. Heart-rate reads also accept
+For account-owned recordings, also require `supportsRecordingIntentIdentity()`
+on the chosen service. Allocate distinct GPS and heart-rate IDs with
+`await crypto.randomUUID()` from `craft-native/mobile`, capture the account,
+workout and clock generation, and persist those IDs **before** calling
+`startRecording({ recordingId: id })`. Recheck the captured owner after each
+await. The native recorder starts that exact ID and refuses reuse of a current,
+completed or acknowledged ID. The SDK checks the response ID; older hosts and
+adapters reject with `RECORDING_INTENT_IDENTITY_UNSUPPORTED`. A lost start
+response or a full disk during a later checkpoint can then recover the exact
+precommitted ID without adopting an unknown recording. The asynchronous Crypto
+service uses the platform's secure UUID generator; an unsupported native host
+rejects with `CRYPTO_UNSUPPORTED` without falling back to JavaScript entropy.
+
+Pass `{ expectedId: id }` to pause, resume, stop, read and get-state calls. Heart-rate reads also accept
 `since`. A supplied empty, whitespace or non-string ID rejects with
 `INVALID_ARGUMENT`. Starting while another session is active rejects with
 `RECORDING_ALREADY_ACTIVE`, preserving its files.
@@ -614,7 +626,16 @@ A storage failure rejects, preserving the previous value. Hosts without the
 explicit `storageCompareAndSet` capability reject with
 `STORAGE_COMPARE_AND_SET_UNSUPPORTED`; there is no read-then-set fallback.
 
-Durably register the captured recording intent before starting native recording.
+For a missing draft, require `storage.supportsSetIfAbsent()` and atomically
+register it with `storage.setIfAbsent(key, intent)`. It returns `true` only after
+durable creation; any existing value, including JSON `null`, returns `false`.
+An unsupported host rejects with `STORAGE_SET_IF_ABSENT_UNSUPPORTED`. Use CAS
+for an existing draft; neither registration path uses ordinary `set` after a
+read. The browser driver uses Web Locks across tabs for all Storage operations
+and account cleanup. A queued operation whose captured account changes rejects
+with `STORAGE_SCOPE_CHANGED`, so a previous account cannot write into the new
+account's namespace or mistake that namespace for a deleted draft.
+
 When keeping a completed result, read the latest value through asynchronous
 `storage.get`, validate its captured account/session/recording identity, merge
 its latest feedback, then compare-and-set that exact value. Retry concurrent

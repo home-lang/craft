@@ -18,6 +18,7 @@ export interface CraftBridge {
 
   /** Available capabilities on the current device */
   capabilities: CraftCapabilities;
+  crypto?: { randomUUID(): Promise<string> };
 
   // ==================== Debug & Error Handling ====================
 
@@ -1245,6 +1246,9 @@ export type NativeBridgeErrorCode =
 /** Native wire codes plus existing mobile/shim names retained for compatibility. */
 export type CraftErrorCode = NativeBridgeErrorCode
   | 'RECORDING_OWNERSHIP_UNSUPPORTED'
+  | 'RECORDING_INTENT_IDENTITY_UNSUPPORTED'
+  | 'CRYPTO_UNSUPPORTED'
+  | 'CRYPTO_INVALID_RESPONSE'
   | 'STORAGE_COMPARE_AND_SET_UNSUPPORTED'
   | 'STORAGE_SET_IF_ABSENT_UNSUPPORTED'
   | 'STORAGE_UNSUPPORTED'
@@ -1415,7 +1419,7 @@ export interface CraftHeartRate {
   reconnect(): Promise<CraftHeartRateState>;
   disconnect(options?: { forget?: boolean }): Promise<CraftHeartRateState>;
   /** Keep every reading natively from now on, screen locked or app closed. */
-  startRecording(): Promise<CraftHeartRateRecordingState>;
+  startRecording(options?: { recordingId?: string }): Promise<CraftHeartRateRecordingState>;
   pauseRecording(options?: { expectedId: string }): Promise<CraftHeartRateRecordingState>;
   resumeRecording(options?: { expectedId: string }): Promise<CraftHeartRateRecordingState>;
   stopRecording(options?: { expectedId: string }): Promise<CraftHeartRateRecordingState & { samples: CraftHeartRateSample[] }>;
@@ -1552,6 +1556,7 @@ export interface CraftSpeech {
 }
 
 export interface CraftCapabilities {
+  crypto?: boolean;
   haptics: boolean;
   speechRecognition: boolean;
   share: boolean;
@@ -1568,6 +1573,8 @@ export interface CraftCapabilities {
   /** Synchronous app state plus change events. */
   lifecycle?: boolean;
   geolocation: boolean;
+  locationRecordingOwnership?: boolean;
+  locationRecordingIntentIdentity?: boolean;
   clipboard: boolean;
   contacts: boolean;
   calendar: boolean;
@@ -1583,6 +1590,8 @@ export interface CraftCapabilities {
   music?: boolean;
   /** A Bluetooth heart-rate strap through `craft.heartRate` (iOS, `enableHeartRate`). */
   heartRate?: boolean;
+  heartRateRecordingOwnership?: boolean;
+  heartRateRecordingIntentIdentity?: boolean;
   /** Workouts scheduled onto the Apple Watch through `craft.scheduledWorkouts` (iOS, `enableScheduledWorkouts`). */
   scheduledWorkouts?: boolean;
   /** Native text-to-speech through `craft.speech`. */
