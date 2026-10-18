@@ -31,6 +31,15 @@ import java.util.Locale
 import java.util.UUID
 {{NATIVE_PUSH_IMPORTS}}
 
+private fun craftLocationFix(location: android.location.Location): JSONObject = JSONObject()
+    .put("latitude", location.latitude)
+    .put("longitude", location.longitude)
+    .put("altitude", location.altitude)
+    .put("accuracy", location.accuracy.toDouble())
+    .put("speed", location.speed.toDouble())
+    .put("heading", location.bearing.toDouble())
+    .put("timestamp", location.time.toDouble())
+
 /**
  * The capabilities a native screen asks for beyond Craft's core set
  * (CraftNativeCapabilities): the system's dialogs, the in-app browser, the
@@ -66,7 +75,7 @@ internal class CraftNativeServices(
             // Native screens must also hear a recording started by the page.
             // Keep this process sink independent from the page's listener.
             com.craft.runtime.CraftLocationRecordingStore.nativeListener = { location, id ->
-                CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", fix(location).put("recordingId", id)))
+                CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", craftLocationFix(location).put("recordingId", id)))
             }
         }
     }
@@ -376,14 +385,6 @@ internal class CraftNativeServices(
     private var watchCallback: com.google.android.gms.location.LocationCallback? = null
     private var pendingLocationPermission: ((Boolean) -> Unit)? = null
 
-    private fun fix(location: android.location.Location): JSONObject = JSONObject()
-        .put("latitude", location.latitude)
-        .put("longitude", location.longitude)
-        .put("altitude", location.altitude)
-        .put("accuracy", location.accuracy.toDouble())
-        .put("speed", location.speed.toDouble())
-        .put("heading", location.bearing.toDouble())
-        .put("timestamp", location.time.toDouble())
 
     private fun hasLocation(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -418,7 +419,7 @@ internal class CraftNativeServices(
                 val priority = if (options.optBoolean("enableHighAccuracy", true)) com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY
                 else com.google.android.gms.location.Priority.PRIORITY_BALANCED_POWER_ACCURACY
                 locationClient.getCurrentLocation(priority, null)
-                    .addOnSuccessListener { location -> done(if (location != null) success(fix(location)) else failure("POSITION_UNAVAILABLE", "No location fix")) }
+                    .addOnSuccessListener { location -> done(if (location != null) success(craftLocationFix(location)) else failure("POSITION_UNAVAILABLE", "No location fix")) }
                     .addOnFailureListener { error -> done(failure("POSITION_UNAVAILABLE", error.message ?: "No location fix")) }
             }
             "watchPosition" -> withLocation(done) {
@@ -426,7 +427,7 @@ internal class CraftNativeServices(
                 val callback = object : com.google.android.gms.location.LocationCallback() {
                     override fun onLocationResult(result: com.google.android.gms.location.LocationResult) {
                         for (location in result.locations) {
-                            CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", fix(location)))
+                            CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", craftLocationFix(location)))
                         }
                     }
                 }
