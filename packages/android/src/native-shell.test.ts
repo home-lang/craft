@@ -167,7 +167,7 @@ describe('the native app shell in a generated project', () => {
           healthConnect: { read: ['steps', 'mindful'], write: ['mindful'] },
           devServerURL: 'https://example.com/m',
           nativeScreens: { '/m': 'Today', '/m/workout/:id': 'Workout' },
-          tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }],
+          tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max', selectedSymbol: 'sun.max.fill', selectedIconTint: '#ff3b30', selectedIconPulse: false }],
           nativeApp: '__app',
           backgroundRefresh: { enabled: true, minimumIntervalMinutes: 60 },
         },
@@ -199,7 +199,7 @@ describe('the native app shell in a generated project', () => {
       expect(gradle).toContain('signingConfig = signingConfigs.getByName("release")')
       const config = JSON.parse(readFileSync(join(output, 'app/src/main/assets/craft.config.json'), 'utf8'))
       expect(config.nativeScreens['/m/workout/:id']).toBe('Workout')
-      expect(config.tabs[0].symbol).toBe('sun.max')
+      expect(config.tabs[0]).toEqual({ id: '/m', title: 'Today', symbol: 'sun.max', selectedSymbol: 'sun.max.fill', selectedIconTint: '#ff3b30', selectedIconPulse: false })
 
       // The app's icons go in as an asset the shell draws.
       const iconTable = join(root, 'icons.json')

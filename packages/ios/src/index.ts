@@ -333,6 +333,11 @@ export interface CraftTab {
   title: string
   /** An SF Symbol name. */
   symbol?: string
+  /** Native selected-tab icon overrides; retained pushed screens keep their owning tab's policy. */
+  selectedSymbol?: string
+  selectedIconTint?: string
+  /** False suppresses the legacy pulse while selected; omission uses the legacy policy. */
+  selectedIconPulse?: boolean
 }
 
 /** `/a//b/?q#h` → `/a/b`, the way the shell and the page compare paths. Null for a relative path. */
