@@ -12,8 +12,6 @@ export interface AndroidEmulatorOptions {
   temporaryDirectory?: string
   port?: number
   acceptLicenses?: boolean
-  /** Readiness budget in milliseconds, from 1 second to 30 minutes; defaults to 10 minutes. */
-  bootTimeoutMs?: number
   env?: Record<string, string | undefined>
 }
 
@@ -35,9 +33,6 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
     throw new Error('The Android system image must match the host architecture')
   if (options.acceleration === 'software' && process.arch !== 'x64')
     throw new Error('Android software emulation requires an x86_64 host and system image')
-  const bootTimeoutMs = options.bootTimeoutMs ?? 600_000
-  if (!Number.isSafeInteger(bootTimeoutMs) || bootTimeoutMs < 1000 || bootTimeoutMs > 1_800_000)
-    throw new Error('Android bootTimeoutMs must be between 1000 and 1800000 milliseconds')
   const port = options.port ?? 5558
   if (!Number.isInteger(port) || port < 5554 || port > 5682 || port % 2 !== 0) throw new Error('Android console ports must be even and between 5554 and 5682')
   const sdk = resolve(options.sdkRoot)
@@ -108,9 +103,9 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
     created = true
     log = openSync(join(artifacts, 'emulator.log'), 'w')
     child = Bun.spawn([executable, '-avd', name, '-port', String(port), '-no-window', '-no-snapshot', '-no-audio', '-no-boot-anim', '-gpu', 'software', '-memory', '2048', '-cores', '2', '-accel', options.acceleration === 'software' ? 'off' : 'on'], { env, stdout: log, stderr: log })
-    const identity = { image: options.image, acceleration: options.acceleration, bootTimeoutMs, accelerationProbeExitCode: acceleration.code, serial, avdDirectory: env.ANDROID_AVD_HOME, emulatorPid: child.pid }
+    const identity = { image: options.image, acceleration: options.acceleration, accelerationProbeExitCode: acceleration.code, serial, avdDirectory: env.ANDROID_AVD_HOME, emulatorPid: child.pid }
     await Bun.write(join(artifacts, 'android-emulator.json'), JSON.stringify(identity, null, 2) + '\n')
-    const deadline = Date.now() + bootTimeoutMs
+    const deadline = Date.now() + 600_000
     while (Date.now() < deadline && child.exitCode === null) {
       let booted = false
       // Nonzero ADB exits are expected while services initialize. Filesystem,
@@ -137,7 +132,7 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
       }
       await Bun.sleep(2000)
     }
-    throw new Error(`The owned Android emulator did not boot within ${bootTimeoutMs}ms; inspect ${artifacts}`)
+    throw new Error(`The owned Android emulator did not boot; inspect ${artifacts}`)
   }
   catch (error) {
     if (child) {
