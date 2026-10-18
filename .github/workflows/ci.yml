@@ -2,6 +2,11 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      software_cold_provisioning_diagnostic:
+        description: Measure bounded stock Play software cold provisioning; does not run release acceptance
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -19,6 +24,7 @@ defaults:
 
 jobs:
   android-software-emulator:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     name: Android software emulator
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -40,7 +46,37 @@ jobs:
           path: artifacts/android-software-emulator
           if-no-files-found: error
 
+  android-software-cold-provisioning-diagnostic:
+    name: Software cold provisioning diagnostic (not release acceptance)
+    if: ${{ inputs.software_cold_provisioning_diagnostic == true }}
+    runs-on: ubuntu-latest
+    # Tool installation is separate from the at-most-1200s boot measurement.
+    # This backstop includes setup, the bounded diagnostic and owned disposal.
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install the identical managed Android toolchain
+        uses: pantry-pm/pantry/packages/action@e4b2d439c174c41d3e1c99b5743acb5789e92231 # v0.11.93
+        with:
+          version: '0.11.93'
+          install: 'false'
+          packages: bun.com@1.4.3 git-scm.org@2.53.0 openjdk.org@17.0.20.8 android.com/cmdline-tools@14742923.0.0
+      - name: Verify bounded budget validation and normal readiness contracts
+        run: bun test ./packages/typescript/src/__tests__/android-emulator.test.ts
+      - name: Measure actual stock Play software cold provisioning
+        env:
+          CRAFT_ANDROID_DIAGNOSTIC_FINGERPRINT: google/sdk_gphone64_x86_64/emu64xa:15/AE3A.240806.036/12592187:user/release-keys
+        run: bun scripts/verify-android-emulator.ts --cold-provisioning-diagnostic
+      - name: Retain diagnostic identity, elapsed time, host CPU and cleanup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-software-cold-provisioning-diagnostic
+          path: artifacts/android-software-cold-provisioning
+          if-no-files-found: error
+
   zig-core:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     strategy:
       # Without this, one red leg cancels the others mid-step and nobody sees a
       # result for the platforms that were fine. release.yml and
@@ -132,6 +168,7 @@ jobs:
           fi
 
   windows-multi-window:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     runs-on: windows-2025
     timeout-minutes: 30
 
@@ -191,6 +228,7 @@ jobs:
           bun scripts/verify-packaged-app.ts packages/zig/zig-out/bin/craft.exe $version
 
   typescript-sdk:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     runs-on: ubuntu-latest
 
     steps:
@@ -236,6 +274,7 @@ jobs:
   # straight from the environment, so the suite passed 12/12 in a clean shell
   # and 8/12 in a developer's, and CI never had an opinion either way.
   ios-builder:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     runs-on: ubuntu-latest
 
     steps:
@@ -262,6 +301,7 @@ jobs:
         run: bun run build
 
   ios-native-templates:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     runs-on: macos-latest
 
     steps:
@@ -299,6 +339,7 @@ jobs:
           if-no-files-found: warn
 
   android-builder:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     runs-on: ubuntu-latest
 
     steps:
@@ -349,6 +390,7 @@ jobs:
         run: bun run test:templates
 
   create-craft:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     runs-on: ubuntu-latest
 
     steps:
@@ -367,6 +409,7 @@ jobs:
         run: bun run typecheck
 
   ts-maps:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     runs-on: ubuntu-latest
 
     steps:
@@ -393,6 +436,7 @@ jobs:
         run: bun run build
 
   lint:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     runs-on: ubuntu-latest
 
     steps:
@@ -468,6 +512,7 @@ jobs:
         run: bun test ./scripts/verify-sbom.test.ts ./scripts/release-workflow.test.ts
 
   integration:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     runs-on: ubuntu-latest
     needs: [zig-core, typescript-sdk, create-craft, ts-maps]
 
@@ -523,6 +568,7 @@ jobs:
         run: bun run verify
 
   publish-commit:
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     needs: [android-software-emulator, zig-core, windows-multi-window, typescript-sdk, ios-builder, ios-native-templates, android-builder, create-craft, ts-maps, lint, integration]
     runs-on: ubuntu-latest
 

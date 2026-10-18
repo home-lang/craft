@@ -1,5 +1,5 @@
 import { appendFileSync, closeSync, mkdirSync, mkdtempSync, openSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { availableParallelism, cpus, tmpdir, totalmem } from 'node:os'
 import { basename, isAbsolute, join, resolve } from 'node:path'
 
 export interface AndroidEmulatorOptions {
@@ -12,6 +12,8 @@ export interface AndroidEmulatorOptions {
   temporaryDirectory?: string
   port?: number
   acceptLicenses?: boolean
+  /** Explicit cold-provisioning budget, 1 second to 20 minutes; defaults to 10 minutes. */
+  bootTimeoutMs?: number
   env?: Record<string, string | undefined>
 }
 
@@ -33,6 +35,9 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
     throw new Error('The Android system image must match the host architecture')
   if (options.acceleration === 'software' && process.arch !== 'x64')
     throw new Error('Android software emulation requires an x86_64 host and system image')
+  const bootTimeoutMs = options.bootTimeoutMs ?? 600_000
+  if (!Number.isSafeInteger(bootTimeoutMs) || bootTimeoutMs < 1000 || bootTimeoutMs > 1_200_000)
+    throw new Error('Android bootTimeoutMs must be an integer between 1000 and 1200000 milliseconds')
   const port = options.port ?? 5558
   if (!Number.isInteger(port) || port < 5554 || port > 5682 || port % 2 !== 0) throw new Error('Android console ports must be even and between 5554 and 5682')
   const sdk = resolve(options.sdkRoot)
@@ -63,6 +68,21 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
   let created = false
   let sequence = 0
   let disposal: Promise<void> | undefined
+  let bootStartedAt = 0
+  let cpuStart = 0
+  let idleStart = 0
+  let identity: Record<string, unknown> | undefined
+  async function recordBootResult(status: 'booted' | 'failed', endedAt = Date.now()): Promise<void> {
+    if (!identity) return
+    const cpuEnd = cpus()
+    const totalDeltaMs = cpuEnd.reduce((total, cpu) => total + Object.values(cpu.times).reduce((sum, value) => sum + value, 0), 0) - cpuStart
+    const idleDeltaMs = cpuEnd.reduce((total, cpu) => total + cpu.times.idle, 0) - idleStart
+    await Bun.write(join(artifacts, 'android-emulator.json'), JSON.stringify({
+      ...identity, status, [status === 'booted' ? 'bootedAt' : 'failedAt']: new Date(endedAt).toISOString(),
+      bootElapsedMs: endedAt - bootStartedAt,
+      hostCpuInterval: { totalDeltaMs, idleDeltaMs, busyDeltaMs: totalDeltaMs - idleDeltaMs },
+    }, null, 2) + '\n')
+  }
   async function run(args: string[], input?: string, timeout = 900_000, allowFailure = false): Promise<{ code: number, stdout: string }> {
     const startedAt = new Date().toISOString()
     const command = Bun.spawn(args, { env, stdin: input === undefined ? 'ignore' : new TextEncoder().encode(input), stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(timeout) })
@@ -102,40 +122,53 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
     await run([options.avdmanager, 'create', 'avd', '--name', name, '--package', options.image, '--device', 'pixel_6'], 'no\n')
     created = true
     log = openSync(join(artifacts, 'emulator.log'), 'w')
+    bootStartedAt = Date.now()
+    const hostCpus = cpus()
+    cpuStart = hostCpus.reduce((total, cpu) => total + Object.values(cpu.times).reduce((sum, value) => sum + value, 0), 0)
+    idleStart = hostCpus.reduce((total, cpu) => total + cpu.times.idle, 0)
     child = Bun.spawn([executable, '-avd', name, '-port', String(port), '-no-window', '-no-snapshot', '-no-audio', '-no-boot-anim', '-gpu', 'software', '-memory', '2048', '-cores', '2', '-accel', options.acceleration === 'software' ? 'off' : 'on'], { env, stdout: log, stderr: log })
-    const identity = { image: options.image, acceleration: options.acceleration, accelerationProbeExitCode: acceleration.code, serial, avdDirectory: env.ANDROID_AVD_HOME, emulatorPid: child.pid }
+    identity = {
+      image: options.image, acceleration: options.acceleration, accelerationProbeExitCode: acceleration.code,
+      bootTimeoutMs, bootStartedAt: new Date(bootStartedAt).toISOString(),
+      host: { cpuModel: hostCpus[0]?.model, logicalCpus: hostCpus.length, availableParallelism: availableParallelism(), memoryBytes: totalmem() },
+      virtualCpus: 2, memoryMb: 2048, serial, avdDirectory: env.ANDROID_AVD_HOME, emulatorPid: child.pid,
+    }
     await Bun.write(join(artifacts, 'android-emulator.json'), JSON.stringify(identity, null, 2) + '\n')
-    const deadline = Date.now() + 600_000
+    const deadline = bootStartedAt + bootTimeoutMs
+    const probeTimeout = (): number => Math.max(1, Math.min(10_000, deadline - Date.now()))
     while (Date.now() < deadline && child.exitCode === null) {
       let booted = false
       // Nonzero ADB exits are expected while services initialize. Filesystem,
       // logging and process-launch errors must remain fatal and visible.
-      const connection = await run([adb, 'devices'], undefined, 10_000, true)
+      const connection = await run([adb, 'devices'], undefined, probeTimeout(), true)
       if (connection.code === 0 && connection.stdout.includes(`${serial}\tdevice`)) {
-        const completion = await run([adb, '-s', serial, 'shell', 'getprop', 'sys.boot_completed'], undefined, 10_000, true)
+        const completion = await run([adb, '-s', serial, 'shell', 'getprop', 'sys.boot_completed'], undefined, probeTimeout(), true)
         if (completion.code === 0 && completion.stdout.trim() === '1') {
           // boot_completed can precede SettingsProvider and System UI readiness.
-          const settings = await run([adb, '-s', serial, 'shell', 'settings', 'get', 'global', 'animator_duration_scale'], undefined, 10_000, true)
-          const packages = await run([adb, '-s', serial, 'shell', 'pm', 'path', 'android'], undefined, 10_000, true)
-          const systemUi = await run([adb, '-s', serial, 'shell', 'pidof', 'com.android.systemui'], undefined, 10_000, true)
+          const settings = await run([adb, '-s', serial, 'shell', 'settings', 'get', 'global', 'animator_duration_scale'], undefined, probeTimeout(), true)
+          const packages = await run([adb, '-s', serial, 'shell', 'pm', 'path', 'android'], undefined, probeTimeout(), true)
+          const systemUi = await run([adb, '-s', serial, 'shell', 'pidof', 'com.android.systemui'], undefined, probeTimeout(), true)
           // Native acceptance must be able to observe platform crashes before
           // launching any app. boot_completed/System UI can precede logd's ADB
           // event stream; declaring readiness then loses that first health check.
-          const events = await run([adb, '-s', serial, 'logcat', '-b', 'events', '-d', '-t', '1'], undefined, 10_000, true)
+          const events = await run([adb, '-s', serial, 'logcat', '-b', 'events', '-d', '-t', '1'], undefined, probeTimeout(), true)
           booted = settings.code === 0 && packages.code === 0 && systemUi.code === 0 && events.code === 0
             && /^package:\/\S+/m.test(packages.stdout) && /^\d+(?:\s+\d+)*$/.test(systemUi.stdout.trim())
         }
       }
-      if (booted) {
-        await Bun.write(join(artifacts, 'android-emulator.json'), JSON.stringify({ ...identity, bootedAt: new Date().toISOString() }, null, 2) + '\n')
+      const checkedAt = Date.now()
+      if (booted && checkedAt <= deadline) {
+        await recordBootResult('booted', checkedAt)
         return { serial, adb, env, dispose }
       }
-      await Bun.sleep(2000)
+      await Bun.sleep(Math.min(2000, Math.max(0, deadline - Date.now())))
     }
-    throw new Error(`The owned Android emulator did not boot; inspect ${artifacts}`)
+    throw new Error(`The owned Android emulator did not boot within ${bootTimeoutMs}ms; inspect ${artifacts}`)
   }
   catch (error) {
     if (child) {
+      try { await recordBootResult('failed') }
+      catch (diagnostic) { console.error(`Could not retain emulator boot timing: ${diagnostic}`) }
       for (const args of [['logcat', '-d', '-b', 'all'], ['shell', 'getprop'], ['shell', 'dumpsys', 'activity', 'processes']]) {
         try { await run([adb, '-s', serial, ...args], undefined, 10_000, true) }
         catch { /* The emulator log remains available if ADB has disconnected. */ }
