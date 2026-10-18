@@ -101,8 +101,8 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
     for (const [name, job] of Object.entries(workflow.jobs)) {
       for (const step of job.steps ?? []) {
         if (step.uses?.startsWith('pantry-pm/pantry/packages/action@')) {
-          expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe('0.11.91')
-          expect(step.uses, `${file} ${name} must pin the matching action source`).toBe('pantry-pm/pantry/packages/action@2b6653b20b830c152f7491847a91d2d9d7cf4cc7')
+          expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe('0.11.92')
+          expect(step.uses, `${file} ${name} must pin the matching action source`).toBe('pantry-pm/pantry/packages/action@edda9c23439a37a35e0f828315e2380889cc75e9')
         }
       }
     }
@@ -250,7 +250,7 @@ test('a failed native leg cannot publish a partial GitHub, Zig, or npm release',
   expect(release.jobs.npm.if).toContain("needs.prepare-npm.result == 'success'")
   expect(release.jobs.npm.if).toContain("needs.publish-release.result == 'success'")
   const zigPublish = registry.steps!.find(step => step.name === 'Publish Zig package')
-  expect(zigPublish?.with).toMatchObject({ version: '0.11.91', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
+  expect(zigPublish?.with).toMatchObject({ version: '0.11.92', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
   expect(zigPublish?.with?.release).toBeUndefined()
   expect(Object.entries(release.jobs).flatMap(([name, job]) =>
     (job.steps ?? []).filter(step => step.with?.publish === 'zig').map(() => name))).toEqual(['publish-pantry'])
