@@ -882,6 +882,12 @@ function storageHost(method: string): any {
 
 /** Native storage, including an existing-key atomic checkpoint. */
 export const storage = {
+  supportsSetIfAbsent(): boolean {
+    const root = getCraftRoot()
+    const caps = root?.capabilities
+    const supported = Array.isArray(caps) ? caps.includes('storageSetIfAbsent') : caps?.storageSetIfAbsent === true
+    return supported && typeof root?.storage?.setIfAbsent === 'function'
+  },
   supportsCompareAndSet(): boolean {
     const root = getCraftRoot()
     const caps = root?.capabilities
@@ -893,6 +899,13 @@ export const storage = {
   async remove(key: string): Promise<boolean> { return storageHost('remove').remove(key) },
   async clear(): Promise<boolean> { return storageHost('clear').clear() },
   async keys(): Promise<string[]> { return storageHost('keys').keys() },
+  async setIfAbsent(key: string, value: unknown): Promise<boolean> {
+    if (!storage.supportsSetIfAbsent())
+      throw Object.assign(new Error('This app build cannot atomically register an intent'), { code: 'STORAGE_SET_IF_ABSENT_UNSUPPORTED' })
+    if (typeof key !== 'string' || !key.trim() || JSON.stringify(value) === undefined)
+      throw Object.assign(new Error('setIfAbsent needs a key and JSON value'), { code: 'INVALID_ARGUMENT' })
+    return storageHost('setIfAbsent').setIfAbsent(key, value)
+  },
   async compareAndSet(key: string, expectedValue: unknown, nextValue: unknown): Promise<boolean> {
     if (!storage.supportsCompareAndSet())
       throw Object.assign(new Error('This app build cannot atomically checkpoint existing storage'), { code: 'STORAGE_COMPARE_AND_SET_UNSUPPORTED' })

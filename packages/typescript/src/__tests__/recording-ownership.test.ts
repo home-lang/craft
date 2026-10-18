@@ -88,3 +88,17 @@ test('storage CAS preserves arguments, false conflicts and real storage failures
   await expect(storage.compareAndSet('draft', old, next)).rejects.toBe(full)
   expect(calls).toEqual(Array.from({ length: 3 }, () => ['draft', old, next]))
 })
+
+test('initial storage registration requires its own capability and forwards false without fallback', async () => {
+  const calls: unknown[][] = []
+  const native = { setIfAbsent: async (...args: unknown[]) => { calls.push(args); return false } }
+  const craft = { capabilities: { storageSetIfAbsent: false }, storage: native }
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { craft } })
+  expect(storage.supportsSetIfAbsent()).toBe(false)
+  await expect(storage.setIfAbsent('intent', null)).rejects.toMatchObject({ code: 'STORAGE_SET_IF_ABSENT_UNSUPPORTED' })
+  expect(calls).toEqual([])
+  craft.capabilities.storageSetIfAbsent = true
+  expect(storage.supportsSetIfAbsent()).toBe(true)
+  expect(await storage.setIfAbsent('intent', null)).toBe(false)
+  expect(calls).toEqual([['intent', null]])
+})

@@ -450,6 +450,7 @@ export interface CraftBridge {
     clear(): Promise<boolean>;
     keys(): Promise<string[]>;
     compareAndSet(key: string, expectedValue: CraftStorageValue, nextValue: CraftStorageValue): Promise<boolean>;
+    setIfAbsent(key: string, value: CraftStorageValue): Promise<boolean>;
   };
 
   // ==================== Clipboard ====================
@@ -1245,7 +1246,10 @@ export type NativeBridgeErrorCode =
 export type CraftErrorCode = NativeBridgeErrorCode
   | 'RECORDING_OWNERSHIP_UNSUPPORTED'
   | 'STORAGE_COMPARE_AND_SET_UNSUPPORTED'
+  | 'STORAGE_SET_IF_ABSENT_UNSUPPORTED'
   | 'STORAGE_UNSUPPORTED'
+  | 'STORAGE_SCOPE_CHANGED'
+  | 'STORAGE_CORRUPT'
   | 'CRAFT_ERROR'           // Generic error
   | 'PERMISSION_DENIED'     // Permission not granted
   | 'NOT_AVAILABLE'         // Feature not available on device
@@ -1558,6 +1562,7 @@ export interface CraftCapabilities {
   /** JSON key-value persistence in WebView-free STX screens. */
   storage?: boolean;
   storageCompareAndSet?: boolean;
+  storageSetIfAbsent?: boolean;
   /** SQLite persistence in WebView-free STX screens. */
   localDatabase?: boolean;
   /** Synchronous app state plus change events. */
