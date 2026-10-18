@@ -1,6 +1,8 @@
 # Installation
 
-Craft can be installed with Bun or built from source for advanced use cases.
+Install the native Craft CLI through Pantry and add its TypeScript SDK to your
+application with Bun. Building from source also requires the repository's pinned
+toolchain and first-party dependencies.
 
 ## TypeScript SDK (Recommended)
 
@@ -47,7 +49,7 @@ bun create craft my-app --template todo-app
 Install globally for CLI usage:
 
 ```bash
-bun add -g craft-native
+pantry install craft
 ```
 
 Then use the CLI:
@@ -60,7 +62,10 @@ craft http://localhost:3000 --title "My App"
 
 ### macOS
 
-No additional dependencies required. Craft uses the built-in WKWebView.
+The desktop CLI uses macOS's built-in WKWebView and system frameworks. Building
+iOS applications also requires Xcode and the appropriate Apple SDKs. Mobile
+`renderer: 'native'` uses JavaScriptCore and UIKit without WKWebView; see the
+[Native STX guide](guides/native-stx.md) for mobile requirements and configuration.
 
 ### Linux
 
@@ -95,18 +100,21 @@ For advanced use cases, you can build Craft from source:
 
 ### Prerequisites
 
-- Pantry-managed stable Zig toolchain
-- Git
+- Bun and Git
+- The exact Pantry-managed Zig version pinned in `pantry.lock`
+- The three first-party Zig sibling checkouts at their pinned revisions; follow
+  [the source setup instructions](../AGENTS.md#environment) before building
 
 ### Build Steps
 
 ```bash
 # Clone the repository
-git clone https://github.com/home-lang/craft.git
+git clone https://github.com/craft-native/craft.git
 cd craft
 
 # Install pantry dependencies and use Craft's pantry-aware runner
 pantry install
+bun install --frozen-lockfile
 
 # Build
 bun run build:core
@@ -118,29 +126,20 @@ bun run build:core
 ### Build Options
 
 ```bash
-# Debug build (faster compilation)
-eval "$(pantry env)"
-cd packages/zig
-zig build
+# Run these from the repository root. The runner verifies the pinned compiler.
+bun run build:debug
 
 # Release build (optimized)
-eval "$(pantry env)"
-cd packages/zig
-zig build -Doptimize=ReleaseFast
+bun scripts/zig.ts --core --versioned build -Doptimize=ReleaseFast
 
-# Cross-compile for different platforms
-eval "$(pantry env)"
-cd packages/zig
-zig build -Dtarget=x86_64-linux
-zig build -Dtarget=x86_64-windows
-zig build -Dtarget=aarch64-macos
-eval "$(pantry env)"
-cd packages/zig
-zig build -Dtarget=x86_64-windows
-eval "$(pantry env)"
-cd packages/zig
-zig build -Dtarget=aarch64-macos
+# Windows cross-build, as exercised by the Linux core CI job
+bun scripts/zig.ts --core --versioned build -Doptimize=ReleaseSafe -Dtarget=x86_64-windows
 ```
+
+Cross-compilation still needs the target's libraries and SDKs. Normal release
+archives build on a native runner for each platform; one host does not verify
+all release targets. Run the separate core, SDK and platform checks described
+in the [Quick Start](QUICK_START.md#work-on-craft-itself).
 
 ## Verification
 
@@ -151,7 +150,7 @@ Verify your installation:
 craft --version
 
 # Run a simple test
-echo '<h1>Hello Craft!</h1>' | craft --title "Test"
+craft http://localhost:3000 --title "Test"
 ```
 
 ## IDE Setup
