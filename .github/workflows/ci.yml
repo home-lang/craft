@@ -288,6 +288,15 @@ jobs:
         run: bun run test:templates
         env:
           CRAFT_IOS_RUNTIME: ''
+          CRAFT_IOS_TEMPLATE_EVIDENCE: ${{ github.workspace }}/artifacts/ios-template-compilation
+
+      - name: Retain native template XCTest evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-template-compilation
+          path: artifacts/ios-template-compilation
+          if-no-files-found: warn
 
   android-builder:
     runs-on: ubuntu-latest

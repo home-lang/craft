@@ -1,5 +1,5 @@
-import { copyFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { copyFileSync, cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { Glob } from 'bun'
 import { bootSimulator, init, pickSimulator, type CraftConfig } from '../src/index'
 import { initSimulatorDriver, serializeSimulatorSteps } from '../src/testing'
@@ -115,6 +115,26 @@ function run(args: string[], cwd: string, label: string): void {
   })
   if (result.exitCode !== 0)
     throw new Error(`${label} exited with ${result.exitCode}`)
+}
+
+/** Keep XCTest's own failure details before the disposable project is removed. */
+function retainTimedInputEvidence(): void {
+  const results = join(workspace, 'TimedInputDriver.xcresult')
+  if (!existsSync(results)) return
+  const evidence = process.env.CRAFT_IOS_TEMPLATE_EVIDENCE
+  const output = evidence ? resolve(evidence) : undefined
+  if (output) mkdirSync(output, { recursive: true })
+  for (const kind of ['summary', 'tests']) {
+    const report = Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', kind, '--path', results], { stdout: 'pipe', stderr: 'pipe' })
+    console.log(`XCTest ${kind} (exit ${report.exitCode}):\n${report.stdout.toString()}`)
+    if (report.stderr.length) console.error(report.stderr.toString())
+    if (output) {
+      writeFileSync(join(output, `${kind}.json`), report.stdout)
+      writeFileSync(join(output, `${kind}.stderr.log`), report.stderr)
+      writeFileSync(join(output, `${kind}.exit-code.txt`), String(report.exitCode))
+    }
+  }
+  if (output) cpSync(results, join(output, 'TimedInputDriver.xcresult'), { recursive: true, force: false, errorOnExist: true })
 }
 
 /**
@@ -287,6 +307,12 @@ try {
       throw new Error(`${configuration} signs aps-environment=${signed}, expected ${expected}`)
     console.log(`ok: ${configuration} signs aps-environment=${signed}`)
   }
+  retainTimedInputEvidence()
+}
+catch (error) {
+  try { retainTimedInputEvidence() }
+  catch (diagnosticError) { console.error('Unable to retain XCTest diagnostics:', diagnosticError) }
+  throw error
 }
 finally {
   if (keepProjects) {
