@@ -124,12 +124,14 @@ test('release notes can include changes since the last published release after a
 
 test('patch release uses the guarded changelog generator before committing', () => {
   const project = JSON.parse(readFileSync(join(import.meta.dir, '..', 'package.json'), 'utf8'))
-  const command = project.scripts['release:patch'] as string
   expect(project.scripts['changelog:generate']).toBe('bun scripts/generate-release-changelog.ts')
-  expect(command).toContain('--no-changelog')
-  expect(command).toContain('bun scripts/generate-release-changelog.ts')
-  expect(command).not.toContain('--files')
-  expect(command).toContain('bun scripts/release-version.ts --pending && bun scripts/generate-release-changelog.ts')
+  for (const name of ['release', 'release:patch', 'release:version']) {
+    const command = project.scripts[name] as string
+    expect(command).toContain('bun scripts/release-version.ts --preflight')
+    expect(command).toContain('--no-changelog')
+    expect(command).not.toContain('--files')
+    expect(command).toContain('bun scripts/release-version.ts --pending && bun scripts/generate-release-changelog.ts')
+  }
 })
 
 function nativeWorkspace(directory: string, git: (...args: string[]) => string): string[] {
