@@ -603,6 +603,13 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    // The shared UUID primitive's Darwin test calls Foundation's real NSUUID
+    // on a Mac host, even when reached through the Android JNI test root.
+    if (target.result.os.tag.isDarwin()) {
+        android_bridge_tests.root_module.link_libc = true;
+        android_bridge_tests.root_module.linkSystemLibrary("objc", .{});
+        android_bridge_tests.root_module.linkFramework("Foundation", .{});
+    }
     const run_android_bridge_tests = b.addRunArtifact(android_bridge_tests);
 
     // The reply channel's escaping, across every Kotlin template.
