@@ -12,12 +12,12 @@ function previousTag(cwd: string): string {
 }
 
 /** Generate the next release section before bumpx commits and tags it. */
-export function generateReleaseChangelog(cwd: string): string {
+export function generateReleaseChangelog(cwd: string, fromRef?: string): string {
   const version = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8')).version
   if (typeof version !== 'string' || !/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(version))
     throw new Error('The root package must have a valid release version')
 
-  const from = previousTag(cwd)
+  const from = fromRef ?? previousTag(cwd)
   const to = `v${version}`
   if (from === to)
     throw new Error(`Release ${to} is already tagged`)
@@ -44,4 +44,4 @@ export function generateReleaseChangelog(cwd: string): string {
 }
 
 if (import.meta.main)
-  generateReleaseChangelog(process.cwd())
+  generateReleaseChangelog(process.cwd(), process.env.CRAFT_CHANGELOG_FROM)

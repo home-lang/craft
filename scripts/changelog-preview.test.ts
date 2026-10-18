@@ -109,6 +109,18 @@ test('failed release generation leaves the changelog unchanged', () => {
   })
 })
 
+test('release notes can include changes since the last published release after an abandoned tag', () => {
+  fixture((directory, git) => {
+    git('commit', '--allow-empty', '-qm', 'feat: native trail maps')
+    git('tag', 'v1.0.1')
+    writeFileSync(join(directory, 'package.json'), '{"name":"fixture","version":"1.0.2"}')
+    const content = generateReleaseChangelog(directory, 'v1.0.0')
+    expect(content).toContain('native trail maps')
+    expect(content).toContain('/compare/v1.0.0...v1.0.2)')
+    expect(git('tag', '--list', 'v1.0.1')).toBe('v1.0.1\n')
+  })
+})
+
 test('patch release uses the guarded changelog generator before committing', () => {
   const project = JSON.parse(readFileSync(join(import.meta.dir, '..', 'package.json'), 'utf8'))
   const command = project.scripts['release:patch'] as string
@@ -118,14 +130,15 @@ test('patch release uses the guarded changelog generator before committing', () 
   expect(command).toContain('git add packages/zig/build.zig.zon packages/zig/pantry.json CHANGELOG.md')
 })
 
-test('bumpx commits and tags the guarded changelog without its duplicate generator', () => {
+test('an explicit version commits and tags the guarded changelog without its duplicate generator', () => {
   fixture((directory, git) => {
     git('commit', '--allow-empty', '-qm', 'Merge pull request #326 from example/feature')
     const bumpx = Bun.resolveSync('@stacksjs/bumpx/bin/cli.js', import.meta.dir)
     const generator = join(import.meta.dir, 'generate-release-changelog.ts')
     const result = Bun.spawnSync([
-      process.execPath, bumpx, 'patch', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
+      process.execPath, bumpx, '--recursive', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
       '--execute', `bun ${JSON.stringify(generator)} && git add CHANGELOG.md`,
+      '1.0.2',
     ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
     expect(result.exitCode, result.stderr.toString()).toBe(0)
     expect(git('tag', '--list', 'v1.0.2')).toBe('v1.0.2\n')
