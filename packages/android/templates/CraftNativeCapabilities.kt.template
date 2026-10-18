@@ -115,7 +115,8 @@ internal class CraftNativeCapabilities(
     }
 
     fun names(): JSONArray = JSONArray().apply {
-        listOf("device", "clipboard", "haptics", "storage", "storageCompareAndSet", "lifecycle", "fetch", "files").forEach(::put)
+        listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files").forEach(::put)
+        put("storageCompareAndSet")
         if (config.optBoolean("enableBluetooth")) put("bluetooth")
         if (config.optBoolean("enableBiometric")) put("biometric")
         if (config.optBoolean("enableSecureStorage")) put("secureStorage")
