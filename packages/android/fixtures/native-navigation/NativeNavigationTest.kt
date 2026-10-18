@@ -626,6 +626,48 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun liveTabUpdatesRetainToolbarViewsAndActionsUntilTheirSpecsChange() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        try {
+            awaitView(activity, "navigation-home-state")
+            instrumentation.runOnMainSync {
+                val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
+                    ?: throw AssertionError("native chrome did not mount")
+                val options = org.json.JSONObject().put("title", "Home")
+                    .put("leftButtons", org.json.JSONArray().put(org.json.JSONObject()
+                        .put("id", "perf-leading").put("title", "Lead").put("accessibilityLabel", "Perf leading")))
+                    .put("rightButtons", org.json.JSONArray().put(org.json.JSONObject()
+                        .put("id", "perf-action").put("title", "Save").put("accessibilityLabel", "Perf action")))
+                chrome.apply(options, 0, "Home")
+                val leading = find(chrome, "Perf leading") ?: throw AssertionError("missing leading action")
+                val action = find(chrome, "Perf action") ?: throw AssertionError("missing trailing action")
+                for (beat in 1..120) {
+                    options.put("tabItem", org.json.JSONObject().put("id", "/").put("title", "$beat bpm"))
+                    chrome.apply(options, 0, "Home")
+                    assertSame("a live tab update recreated the leading toolbar", leading, find(chrome, "Perf leading"))
+                    assertSame("a live tab update recreated the trailing toolbar", action, find(chrome, "Perf action"))
+                }
+                var pressed = ""
+                val previous = chrome.onButton
+                try {
+                    chrome.onButton = { pressed = it }
+                    action.performClick()
+                    assertEquals("perf-action", pressed)
+                } finally { chrome.onButton = previous }
+                options.put("rightButtons", org.json.JSONArray())
+                chrome.apply(options, 0, "Home")
+                assertTrue("an explicit clear retained a stale action", find(chrome, "Perf action") == null)
+            }
+        } finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
     fun liveTabCaptionKeepsItsSymbolAndResetsWithoutChangingSelection() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(

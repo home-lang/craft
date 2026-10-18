@@ -661,6 +661,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     private val tabImageURLs = mutableMapOf<String, String>()
     private val tabImages = mutableMapOf<String, android.graphics.drawable.Drawable>()
     private val navButtonSpecs = mutableMapOf<TextView, JSONObject>()
+    private var renderedButtonSpecs: Pair<String, String>? = null
     private val density = resources.displayMetrics.density
     private var screenBackgroundColor: Int? = null
     private var selectedTab = 0
@@ -826,18 +827,24 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         titleView.text = if (large) "" else title
         largeTitleView.text = title
         largeTitleView.visibility = if (!hidden && large && title.isNotBlank()) View.VISIBLE else View.GONE
-        buttons.removeAllViews()
-        leadingButtons.removeAllViews()
-        navButtonSpecs.clear()
         val leading = options.optJSONArray("leftButtons") ?: JSONArray()
-        for (index in 0 until leading.length()) {
-            val button = leading.optJSONObject(index) ?: continue
-            leadingButtons.addView(navButton(button))
-        }
         val list = options.optJSONArray("rightButtons") ?: JSONArray()
-        for (index in 0 until list.length()) {
-            val button = list.optJSONObject(index) ?: continue
-            buttons.addView(navButton(button))
+        // The activity passes cumulative screen options, even for a live BPM
+        // patch. Keep unchanged toolbar views, images and touch targets alive.
+        val buttonSpecs = leading.toString() to list.toString()
+        if (buttonSpecs != renderedButtonSpecs) {
+            buttons.removeAllViews()
+            leadingButtons.removeAllViews()
+            navButtonSpecs.clear()
+            for (index in 0 until leading.length()) {
+                val button = leading.optJSONObject(index) ?: continue
+                leadingButtons.addView(navButton(button))
+            }
+            for (index in 0 until list.length()) {
+                val button = list.optJSONObject(index) ?: continue
+                buttons.addView(navButton(button))
+            }
+            renderedButtonSpecs = buttonSpecs
         }
         val tabBarHidden = options.optBoolean("tabBarHidden", false) || depth > 0 && options.optBoolean("tabBarHiddenWhenPushed", false)
         tabRow.visibility = if (tabs.isEmpty() || tabBarHidden) View.GONE else View.VISIBLE
@@ -918,7 +925,6 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
                 }
             }
         }
-        refreshColors()
     }
 
     /** Selection belongs to the native tab stack, including retained pushed screens. */
