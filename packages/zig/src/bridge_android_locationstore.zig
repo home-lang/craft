@@ -315,20 +315,7 @@ pub fn stopStore(j: Jni, allocator: std.mem.Allocator, activity: jobject) !void 
 /// define, and `UUID.toString` is a specific hyphenated format a page may well
 /// be matching on.
 pub fn newRecordingId(j: Jni, allocator: std.mem.Allocator) ![]u8 {
-    try j.pushLocalFrame(8);
-    defer _ = j.popLocalFrame(null);
-
-    const uuid_cls = try j.findClass("java/util/UUID");
-    const uuid = try j.callStaticObjectMethodA(
-        uuid_cls,
-        try j.staticMethodId(uuid_cls, "randomUUID", "()Ljava/util/UUID;"),
-        &.{},
-    );
-    const text = try j.callObjectMethod(
-        uuid,
-        try j.methodId(uuid_cls, "toString", "()Ljava/lang/String;"),
-    );
-    return j.stringToUtf8(allocator, text);
+    return @import("platform_uuid.zig").android(j, allocator);
 }
 
 /// `System.currentTimeMillis()`.

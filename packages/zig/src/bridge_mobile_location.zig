@@ -1200,14 +1200,7 @@ fn noActiveRecording() bridge_error.BridgeError {
 /// is that it is unique and that it comes from the same source Swift's does.
 /// Caller owns the result.
 fn newRecordingId(allocator: std.mem.Allocator) ![]u8 {
-    if (!is_darwin) return error.UnsupportedPlatform;
-
-    const NSUUID = objc.objc_getClass("NSUUID") orelse return error.ClassNotFound;
-    const sel_uuid = try selector("UUID");
-    const uuid = objc.msgSendId(NSUUID, sel_uuid) orelse return error.NativeCallFailed;
-
-    const text = readNSString(uuid, "UUIDString") orelse return error.NativeCallFailed;
-    return allocator.dupe(u8, text);
+    return @import("platform_uuid.zig").darwin(allocator);
 }
 
 /// `Date().timeIntervalSince1970 * 1000`.
