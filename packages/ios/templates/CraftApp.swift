@@ -688,27 +688,33 @@ final class CraftChrome: ObservableObject {
     /// Change one tab's caption or icon without replacing stacks or selection.
     func updateTab(_ item: [String: Any]) {
         guard let id = item["id"] as? String, let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        // One live reading is one change. Mutating a member of a Published
+        // array sends objectWillChange for every field, including equal ones,
+        // rebuilding the glass bar repeatedly while its content scrolls.
+        var next = tabs[index]
         if item.keys.contains("iconText") {
-            tabs[index].iconText = (item["iconText"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) }
+            next.iconText = (item["iconText"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) }
         }
         if item.keys.contains("title") {
-            tabs[index].titleOverride = (item["title"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(40)) }
+            next.titleOverride = (item["title"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(40)) }
         }
         if item.keys.contains("iconTint") {
-            tabs[index].iconTint = (item["iconTint"] as? String).flatMap { UIColor(hex: $0) == nil ? nil : $0 }
+            next.iconTint = (item["iconTint"] as? String).flatMap { UIColor(hex: $0) == nil ? nil : $0 }
         }
         if item.keys.contains("iconPulse") {
-            tabs[index].iconPulse = item["iconPulse"] as? Bool ?? false
+            next.iconPulse = item["iconPulse"] as? Bool ?? false
         }
         if item.keys.contains("accessibilityLabel") {
-            tabs[index].accessibilityLabel = (item["accessibilityLabel"] as? String).map { String($0.prefix(160)) }
+            next.accessibilityLabel = (item["accessibilityLabel"] as? String).map { String($0.prefix(160)) }
         }
         if item.keys.contains("image") {
-            tabs[index].image = (item["image"] as? String).flatMap { URL(string: $0)?.scheme == "https" ? $0 : nil }
+            next.image = (item["image"] as? String).flatMap { URL(string: $0)?.scheme == "https" ? $0 : nil }
         }
         if item.keys.contains("badge") {
-            tabs[index].badge = (item["badge"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) }
+            next.badge = (item["badge"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(8)) }
         }
+        guard next != tabs[index] else { return }
+        tabs[index] = next
     }
     /// A destination beside the tab pill, outside the tab stacks and swipe order.
     func updateTabAccessory(_ item: [String: Any]?) {

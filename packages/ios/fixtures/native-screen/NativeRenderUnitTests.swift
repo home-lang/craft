@@ -1,3 +1,4 @@
+import Combine
 import UIKit
 import MapKit
 import XCTest
@@ -5,6 +6,25 @@ import XCTest
 
 @MainActor
 final class NativeRenderUnitTests: XCTestCase {
+    func testLiveTabReadingPublishesOnceAndEqualReadingsDoNotRedrawChrome() {
+        let chrome = CraftChrome.shared
+        let previous = chrome.tabs
+        defer { chrome.tabs = previous }
+        chrome.tabs = [CraftChrome.Tab(id: "/health", title: "Health", symbol: "heart", badge: nil)]
+        var publications = 0
+        let subscription = chrome.objectWillChange.sink { publications += 1 }
+        defer { subscription.cancel() }
+        let reading: [String: Any] = ["id": "/health", "title": "123 bpm", "iconText": NSNull(), "iconTint": "#ff3b30", "iconPulse": true, "accessibilityLabel": "Health, 123 bpm"]
+        chrome.updateTab(reading)
+        XCTAssertEqual(publications, 1, "all fields of one reading are committed together")
+        for _ in 0..<120 { chrome.updateTab(reading) }
+        XCTAssertEqual(publications, 1, "repeated readings must not invalidate SwiftUI during scrolling")
+        chrome.updateTab(["id": "/health", "title": NSNull(), "iconTint": NSNull(), "iconPulse": false, "accessibilityLabel": NSNull()])
+        XCTAssertEqual(publications, 2)
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "Health")
+        XCTAssertFalse(chrome.tabs[0].iconPulse)
+    }
+
     func testConfiguredHomeShortcutUsesTheNativeAppDestination() throws {
         let shortcut = try XCTUnwrap(UIApplication.shared.shortcutItems?.first { $0.type == "saved" })
         XCTAssertEqual(shortcut.localizedTitle, "Saved trails")
