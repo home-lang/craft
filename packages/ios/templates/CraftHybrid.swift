@@ -1402,7 +1402,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     // MARK: Stacks
 
-    private func makeStack(tab: String, rootPath: String) -> UINavigationController {
+    /// `hidden`: a stack prepared off screen. It is hidden before it joins
+    /// the view hierarchy, so its screen never takes the shell's chrome (the
+    /// bar, the tab accessory) from the one on screen.
+    private func makeStack(tab: String, rootPath: String, hidden: Bool = false) -> UINavigationController {
         let nav = UINavigationController(rootViewController: entry(for: rootPath, isTabRoot: true, depth: nil))
         nav.delegate = self
         nav.view.backgroundColor = config.resolvedBackgroundColor
@@ -1411,6 +1414,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         addChild(nav)
         nav.view.frame = view.bounds
         nav.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        nav.view.isHidden = hidden
         view.addSubview(nav.view)
         nav.didMove(toParent: self)
         // Only once the stack's view has loaded: the recognizer is made then,
@@ -1515,8 +1519,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             let id = tabs[next]
             guard self.stacks[id] == nil else { self.prepareAdjacentNativeTabs(); return }
             let nav = CraftFramePacing.shared.measure("prepare \(id)") { () -> UINavigationController in
-                let nav = self.makeStack(tab: id, rootPath: id)
-                nav.view.isHidden = true
+                let nav = self.makeStack(tab: id, rootPath: id, hidden: true)
                 nav.view.layoutIfNeeded()
                 // Draw its text and pictures now. A hidden layer is not
                 // drawn at commit, so the first swipe to this tab drew
@@ -1752,7 +1755,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             // Keep this screen up until the page has switched, rather than
             // showing it half way.
             cancelPendingTab()
-            if stacks[id] == nil { _ = makeStack(tab: id, rootPath: id); stacks[id]?.view.isHidden = true; view.bringSubviewToFront(visibleStack?.view ?? view) }
+            if stacks[id] == nil { _ = makeStack(tab: id, rootPath: id, hidden: true); view.bringSubviewToFront(visibleStack?.view ?? view) }
             let deadline = DispatchWorkItem { [weak self] in self?.show(tab: id) }
             pendingTab = (id, deadline)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: deadline)

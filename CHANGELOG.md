@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.242...v0.0.243)
+
+## 🐛 Bug Fixes
+
+- **ios**: keep a prepared tab's screen out of the shell's chrome ([6678916](https://github.com/craft-native/craft/commit/6678916)) _(by Chris Breuer)_
+- **ios**: keep the incoming tab as the swipe's selection preview ([2040a8a](https://github.com/craft-native/craft/commit/2040a8a)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.241...v0.0.242)
 
 ## 🚀 Features
