@@ -1,5 +1,36 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.240...v0.0.241)
+
+## 🚀 Features
+
+- **android**: a white notification glyph instead of the launcher icon ([fa26d66](https://github.com/craft-native/craft/commit/fa26d66)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **native**: read align-content stretch and space-evenly the way hosts send them ([c51b88b](https://github.com/craft-native/craft/commit/c51b88b)) _(by Chris Breuer)_
+- validate pending versions for interactive releases too ([2f51f8e](https://github.com/craft-native/craft/commit/2f51f8e)) _(by Chris Breuer)_
+- retain workspace discovery when releasing native manifests ([741ff91](https://github.com/craft-native/craft/commit/741ff91)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- align release rehearsal deadlines with subprocess budgets ([327e4e4](https://github.com/craft-native/craft/commit/327e4e4)) _(by Chris Breuer)_
+- reject incomplete workspace versions before release tagging ([7ed8a55](https://github.com/craft-native/craft/commit/7ed8a55)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- adopt the published native manifest release fix ([19301a8](https://github.com/craft-native/craft/commit/19301a8)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge pull request #366 from craft-native/codex/native-release-rehearsal-budget ([81e54db](https://github.com/craft-native/craft/commit/81e54db)) _(by Chris)_ ([#366](https://github.com/craft-native/craft/issues/366))
+- Merge pull request #365 from craft-native/codex/native-sdk-workspace-release ([3921a4f](https://github.com/craft-native/craft/commit/3921a4f)) _(by Chris)_ ([#365](https://github.com/craft-native/craft/issues/365))
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.238...v0.0.240)
 
 ## 🚀 Features
