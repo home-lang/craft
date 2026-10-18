@@ -111,7 +111,8 @@ API 35 image took 943,520 ms in the retained diagnostic run
 [39113277828](https://github.com/craft-native/craft/actions/runs/39113277828).
 This is OS provisioning before app installation; app and performance budgets
 are unchanged. Both modes require a readable event-log stream, SettingsProvider,
-the package manager and System UI to be ready. Logs record the budget, actual
+the package manager and System UI to be ready, with HOME resolved beyond the
+automatic Android SDK setup activity. Logs record the budget, actual
 boot duration, host CPU interval, selected image, acceleration
 probe, process identity and boot result. Disposal reaps only the owned process
 and deletes only its disposable AVD; the managed SDK and other devices remain

@@ -153,8 +153,16 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
           // launching any app. boot_completed/System UI can precede logd's ADB
           // event stream; declaring readiness then loses that first health check.
           const events = await run([adb, '-s', serial, 'logcat', '-b', 'events', '-d', '-t', '1'], undefined, probeTimeout(), true)
+          // AOSP's first boot can report all those services ready while its
+          // automatic SDK setup activity still owns HOME. Launching HOME then
+          // opens that transient activity; after it finishes UI automation has
+          // no foreground root. Wait for the real HOME destination instead of
+          // modifying device setup or relaxing native acceptance.
+          const home = await run([adb, '-s', serial, 'shell', 'cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.HOME'], undefined, probeTimeout(), true)
+          const homeActivity = home.stdout.trim().split(/\r?\n/).at(-1) ?? ''
           booted = settings.code === 0 && packages.code === 0 && systemUi.code === 0 && events.code === 0
             && /^package:\/\S+/m.test(packages.stdout) && /^\d+(?:\s+\d+)*$/.test(systemUi.stdout.trim())
+            && home.code === 0 && /^[\w.]+\/[\w.$]+$/.test(homeActivity) && !homeActivity.startsWith('com.android.sdksetup/')
         }
       }
       const checkedAt = Date.now()
