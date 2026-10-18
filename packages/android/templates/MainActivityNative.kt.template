@@ -5881,17 +5881,23 @@ class MainActivity : AppCompatActivity() {
         }
         if (craftNativeOptionalString(style.opt("flexDirection"))?.endsWith("-reverse") == true) desired.reverse()
         val desiredSet = desired.toSet()
-        for ((index, childView) in desired.withIndex()) {
-            if (layout.getChildAt(index) !== childView) {
-                if (index < layout.childCount && layout.getChildAt(index) !in desiredSet) layout.removeViewAt(index)
+        for (index in layout.childCount - 1 downTo 0) {
+            if (layout.getChildAt(index) !in desiredSet) layout.removeViewAt(index)
+        }
+        for (childView in desired) {
+            if (childView.parent !== layout) {
                 (childView.parent as? ViewGroup)?.removeView(childView)
-                layout.addView(childView, index)
+                layout.addView(childView)
             }
             val params = childView.layoutParams as? LinearLayout.LayoutParams
                 ?: LinearLayout.LayoutParams(childView.layoutParams?.width ?: -1, childView.layoutParams?.height ?: -2)
             childView.layoutParams = params
         }
-        while (layout.childCount > desired.size) layout.removeViewAt(layout.childCount - 1)
+        // Reorder attached children without removing their focused inputs.
+        // Removing and adding an existing row clears Android's native focus.
+        if (desired.indices.any { layout.getChildAt(it) !== desired[it] }) {
+            desired.forEach(layout::bringChildToFront)
+        }
         layout.requestLayout()
     }
 
