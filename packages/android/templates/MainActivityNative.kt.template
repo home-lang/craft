@@ -6575,6 +6575,7 @@ class MainActivity : AppCompatActivity() {
         val label = craftNativeOptionalString(props.opt("accessibilityLabel"))
             ?: craftNativeOptionalString(props.opt("alt"))?.takeIf { type == "Image" || type == "ImageBackground" }
         val value = craftNativeOptionalString(props.opt("accessibilityValue"))
+        val testId = craftNativeOptionalString(props.opt("testID"))
         view.contentDescription = when {
             label != null && value != null -> "$label, $value"
             label != null -> label
@@ -6599,6 +6600,9 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.setAccessibilityDelegate(view, object : AccessibilityDelegateCompat() {
             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
                 super.onInitializeAccessibilityNodeInfo(host, info)
+                // Expose STX test identities to Android's native automation
+                // tree without replacing the label read by TalkBack.
+                info.viewIdResourceName = testId
                 info.className = when (role) {
                     "button" -> Button::class.java.name
                     "image" -> ImageView::class.java.name

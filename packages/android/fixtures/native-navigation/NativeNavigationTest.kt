@@ -603,6 +603,43 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun nativeTestIdsRemainQueryableWithoutReplacingVisibleLabels() {
+        val automation = instrumentation.uiAutomation
+        val previousServiceInfo = automation.serviceInfo
+        automation.serviceInfo = automation.serviceInfo.apply {
+            flags = flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+        }
+        val activity = instrumentation.startActivitySync(
+            Intent(instrumentation.targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        fun node(id: String): AccessibilityNodeInfo {
+            repeat(100) {
+                automation.rootInActiveWindow?.findAccessibilityNodeInfosByViewId(id)?.firstOrNull()?.let { return it }
+                SystemClock.sleep(100)
+            }
+            throw AssertionError("The native accessibility tree did not expose STX testID $id")
+        }
+        try {
+            awaitView(activity, "home-title")
+            val title = node("home-title")
+            assertEquals("Home", title.text.toString())
+            assertEquals("The test identity must not become a spoken label", null, title.contentDescription)
+            val toggle = node("toggle-safe-area")
+            assertEquals("Toggle safe edges", toggle.text.toString())
+            assertTrue("The identified native button did not accept its accessibility click",
+                toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            awaitText(activity, "safe-area-status", "Safe edges: bottom")
+            assertEquals("The identity disappeared after native reconciliation", "Toggle safe edges",
+                node("toggle-safe-area").text.toString())
+        } finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            automation.serviceInfo = previousServiceInfo
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
     fun outgoingTabTapWinsOverSettlingSwipe() {
         assertTabTapInterruptsSettlingSwipe(0, "navigation-home-state", "Home state: Ada/1")
     }
