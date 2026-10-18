@@ -118,7 +118,11 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
           const settings = await run([adb, '-s', serial, 'shell', 'settings', 'get', 'global', 'animator_duration_scale'], undefined, 10_000, true)
           const packages = await run([adb, '-s', serial, 'shell', 'pm', 'path', 'android'], undefined, 10_000, true)
           const systemUi = await run([adb, '-s', serial, 'shell', 'pidof', 'com.android.systemui'], undefined, 10_000, true)
-          booted = settings.code === 0 && packages.code === 0 && systemUi.code === 0
+          // Native acceptance must be able to observe platform crashes before
+          // launching any app. boot_completed/System UI can precede logd's ADB
+          // event stream; declaring readiness then loses that first health check.
+          const events = await run([adb, '-s', serial, 'logcat', '-b', 'events', '-d', '-t', '1'], undefined, 10_000, true)
+          booted = settings.code === 0 && packages.code === 0 && systemUi.code === 0 && events.code === 0
             && /^package:\/\S+/m.test(packages.stdout) && /^\d+(?:\s+\d+)*$/.test(systemUi.stdout.trim())
         }
       }
