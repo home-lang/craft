@@ -915,6 +915,7 @@ export async function init(options: InitOptions): Promise<void> {
     config.renderer === 'native' ? 'MainActivityNative.kt.template' : 'MainActivity.kt.template',
   ), 'utf-8')
   const mainActivity = mainActivityTemplate
+    .replace(/\{\{NATIVE_MAP_HOST\}\}/g, () => readFileSync(join(TEMPLATES_DIR, 'CraftNativeMapGoogle.kt.template'), 'utf8'))
     .replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName)
     .replace(/\{\{APP_NAME\}\}/g, name)
 
