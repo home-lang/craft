@@ -1233,6 +1233,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         var nextMarkers: [String: (coordinate: CLLocationCoordinate2D, title: String?)] = [:]
         var nextHandlers: [String: String] = [:]
         var nextPolylines: [String: (coordinates: [CLLocationCoordinate2D], color: UIColor, width: CGFloat)] = [:]
+        var nextPolylineIDs: [String] = []
         for (index, child) in children.enumerated() {
             guard let node = child as? [String: Any], let rawType = node["type"] as? String else { continue }
             let type = rawType.lowercased()
@@ -1258,6 +1259,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
                 let authoredWidth = Self.numeric(childProps["strokeWidth"]) ?? 3
                 let width = CGFloat(authoredWidth)
                 guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }
+                if nextPolylines[id] == nil { nextPolylineIDs.append(id) }
                 nextPolylines[id] = (points, Self.color(childProps["strokeColor"] as? String), width)
             }
         }
@@ -1290,7 +1292,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             }
             overlayCoordinatesByID.removeValue(forKey: id)
         }
-        for (id, value) in nextPolylines {
+        for id in nextPolylineIDs {
+            guard let value = nextPolylines[id] else { continue }
             if let overlay = overlaysByID[id],
                let coordinates = overlayCoordinatesByID[id],
                Self.coordinatesEqual(coordinates, value.coordinates),
@@ -1309,6 +1312,19 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             overlayColors[ObjectIdentifier(overlay)] = value.color
             overlayWidths[ObjectIdentifier(overlay)] = value.width
             addOverlay(overlay)
+        }
+        // Keep authored casing/foreground order when an earlier line changes
+        // or retained children move. Exchanging native overlays preserves the
+        // unchanged objects, tile levels and current camera.
+        let ownedOverlayIDs = Set(overlaysByID.values.map { ObjectIdentifier($0) })
+        var orderedOverlays = overlays.compactMap { $0 as? MKPolyline }
+            .filter { ownedOverlayIDs.contains(ObjectIdentifier($0)) }
+        for (index, id) in nextPolylineIDs.enumerated() {
+            guard let overlay = overlaysByID[id], index < orderedOverlays.count,
+                  orderedOverlays[index] !== overlay,
+                  let previousIndex = orderedOverlays.firstIndex(where: { $0 === overlay }) else { continue }
+            exchangeOverlay(orderedOverlays[index], with: orderedOverlays[previousIndex])
+            orderedOverlays.swapAt(index, previousIndex)
         }
 
         if let region = Self.region(props["region"]) {
