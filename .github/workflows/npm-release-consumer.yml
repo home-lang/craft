@@ -1,0 +1,40 @@
+name: Published release consumer
+on:
+  push:
+    branches: [codex/native-release-registry-consumer]
+permissions:
+  contents: read
+jobs:
+  public-npm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Verify public release metadata and archive
+        run: |
+          mkdir -p release-evidence
+          bun -e '
+            const url = "https://registry.npmjs.org/@stacksjs%2fbumpx/0.2.23";
+            const response = await fetch(url);
+            await Bun.write("release-evidence/status.json", JSON.stringify({url, status:response.status, headers:Object.fromEntries(response.headers)}));
+            const body = await response.text();
+            await Bun.write("release-evidence/registry.json", body);
+            if (!response.ok) throw new Error(`Public npm returned ${response.status}: ${body}`);
+            const metadata = JSON.parse(body);
+            if (metadata.version !== "0.2.23") throw new Error("Wrong public package version");
+            const archive = await fetch(metadata.dist.tarball);
+            if (!archive.ok) throw new Error(`Public archive returned ${archive.status}`);
+            const data = await archive.arrayBuffer();
+            const digest = Buffer.from(await crypto.subtle.digest("SHA-512", data)).toString("base64");
+            if (`sha512-${digest}` !== metadata.dist.integrity) throw new Error("Public archive integrity mismatch");
+            await Bun.write("release-evidence/bumpx-0.2.23.tgz", data);
+            console.log("Public Bumpx 0.2.23 archive and registry integrity verified");
+          '
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: public-bumpx-023-consumer
+          path: release-evidence
