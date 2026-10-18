@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, readFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { appendFileSync, existsSync, readFileSync, realpathSync } from 'node:fs'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 /** Fail before a bump if a sparse checkout omits manifests that CI will publish. */
 export function validateReleaseCheckout(root: string): void {
@@ -13,7 +13,11 @@ export function validateReleaseCheckout(root: string): void {
 /** Refuse missing release tools before a version or immutable tag can change. */
 export function validateReleaseDependencies(root: string): void {
   for (const cli of ['@stacksjs/bumpx/bin/cli.js', '@stacksjs/logsmith/bin/cli.js']) {
-    try { Bun.resolveSync(cli, root) }
+    try {
+      const packageRoot = realpathSync(join(root, 'node_modules', ...cli.split('/').slice(0, 2)))
+      const resolved = relative(packageRoot, realpathSync(Bun.resolveSync(cli, root)))
+      if (resolved === '..' || resolved.startsWith(`..${sep}`) || isAbsolute(resolved)) throw new Error('The CLI resolved outside the installed project dependency')
+    }
     catch (cause) {
       throw new Error(`Cannot resolve release dependency ${cli}. Run bun install --frozen-lockfile before releasing.`, { cause })
     }
