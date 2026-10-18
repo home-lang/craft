@@ -823,7 +823,10 @@ pub const LocationBridge = struct {
         if (is_current and current.active) return error.RecordingAlreadyActive;
         var known = is_current or try locrec.acknowledged(self.allocator, id);
         if (!known) {
-            if (try locrec.readCompleted(self.allocator, id)) |saved| { self.allocator.free(saved); known = true; }
+            if (try locrec.readCompleted(self.allocator, id)) |saved| {
+                self.allocator.free(saved);
+                known = true;
+            }
         }
         if (!known) return error.RecordingConflict;
         try locrec.acknowledgeCompleted(self.allocator, id);
