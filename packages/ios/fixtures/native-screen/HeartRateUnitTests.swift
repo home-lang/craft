@@ -17,6 +17,37 @@ final class HeartRateUnitTests: XCTestCase {
         }
     }
 
+    func testPersistedPlannedIdentityRecoversAfterLostStartResponseAndFullCheckpointDisk() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let planned = UUID().uuidString
+        let prefix = "planned-intent-" + UUID().uuidString
+        let intent: [String: Any] = ["owner": "A", "workout": "W", "heartRecordingId": planned]
+        // Register the owner and exact native ID before invoking the recorder.
+        try CraftPersistentStorage.set("draft", data: JSONSerialization.data(withJSONObject: intent), prefix: prefix, storageDirectory: directory)
+        let monitor = CraftHeartRate(recordingDirectory: directory)
+        _ = try await recordingCall(monitor, "startRecording", ["recordingId": planned])
+        // Deliberately discard the start response. A later write cannot be the
+        // only place where the app learns which native recording it owns.
+        let samples = Data("{\"timestamp\":1000,\"bpm\":140}\n".utf8)
+        let track = directory.appendingPathComponent("craft-heart-rate-recording.jsonl")
+        try samples.write(to: track)
+        XCTAssertThrowsError(try CraftPersistentStorage.compareAndSet("draft", expected: intent, value: ["owner": "A", "completed": true], prefix: prefix, storageDirectory: directory, writer: { _, _ in throw NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC)) }))
+        let saved = try XCTUnwrap(CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory))
+        let reopened = try XCTUnwrap(JSONSerialization.jsonObject(with: saved) as? [String: Any])
+        XCTAssertEqual(reopened["heartRecordingId"] as? String, planned)
+        let restored = CraftHeartRate(recordingDirectory: directory)
+        let state = try await recordingCall(restored, "getRecordingState", ["expectedId": planned]) as? [String: Any]
+        XCTAssertEqual(state?["id"] as? String, planned)
+        let read = try await recordingCall(restored, "readRecording", ["expectedId": planned]) as? [[String: Any]]
+        XCTAssertEqual(read?.first?["bpm"] as? Int, 140)
+        _ = try await recordingCall(restored, "stopRecording", ["expectedId": planned])
+        _ = try await recordingCall(restored, "acknowledgeRecording", ["expectedId": planned])
+        do { _ = try await recordingCall(restored, "startRecording", ["recordingId": planned]); XCTFail("reused acknowledged ID") }
+        catch let error as CraftHeartRateError { XCTAssertEqual(error.code, "RECORDING_CONFLICT") }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: track.path))
+    }
+
     func testStartingAgainPreservesTheActiveRecordingAndItsPersistedSamples() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -228,6 +259,37 @@ final class LocationRecordingOwnershipUnitTests: XCTestCase {
         }
     }
 
+    func testPlannedLocationIdentitySurvivesLostResponseAndReopen() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var config = CraftConfig()
+        config.enableGeolocation = true
+        let previous = CraftSwiftShim.coordinator
+        defer { CraftSwiftShim.coordinator = previous }
+        let initial = CraftWebView.Coordinator(config: config, recordingDirectory: directory)
+        defer { withExtendedLifetime(initial) {} }
+        CraftSwiftShim.coordinator = initial
+        let planned = UUID().uuidString
+        _ = try await call("startRecording", ["recordingId": planned])
+        let track = directory.appendingPathComponent("craft-location-recording.jsonl")
+        let sample = Data("{\"latitude\":1,\"longitude\":2,\"timestamp\":2000}\n".utf8)
+        try sample.write(to: track)
+        let restored = CraftWebView.Coordinator(config: config, recordingDirectory: directory)
+        defer { withExtendedLifetime(restored) {} }
+        CraftSwiftShim.coordinator = restored
+        let state = try await call("getRecordingState", ["expectedId": planned]) as? [String: Any]
+        XCTAssertEqual(state?["id"] as? String, planned)
+        let read = try await call("readRecording", ["expectedId": planned]) as? [[String: Any]]
+        XCTAssertEqual(read?.count, 1)
+        _ = try await call("stopRecording", ["expectedId": planned])
+        do { _ = try await call("startRecording", ["recordingId": planned]); XCTFail("reused completed location ID") }
+        catch let error as CraftNativeActionError { XCTAssertEqual(error.code, "RECORDING_CONFLICT") }
+        XCTAssertEqual(try Data(contentsOf: track), sample)
+        _ = try await call("acknowledgeRecording", ["expectedId": planned])
+        do { _ = try await call("startRecording", ["recordingId": planned]); XCTFail("reused acknowledged location ID") }
+        catch let error as CraftNativeActionError { XCTAssertEqual(error.code, "RECORDING_CONFLICT") }
+    }
+
     func testStaleNativeLocationCallsPreserveTheRestoredOwnerAndTrack() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -335,6 +397,27 @@ final class CompletedRecordingRecoveryUnitTests: XCTestCase {
 
 @MainActor
 final class PersistentRecordingCheckpointUnitTests: XCTestCase {
+    func testSecureUuidUsesTheNativePlatformWithoutJavaScriptEntropy() async throws {
+        XCTAssertTrue(CraftNativeActions.capabilities(config: CraftConfig()).contains("crypto"))
+        func create() async throws -> String {
+            try await withCheckedThrowingContinuation { continuation in
+                CraftNativeActions.perform(requestToken: UUID().uuidString, version: craftNativeCapabilityProtocolVersion, module: "Crypto", method: "randomUUID", args: [], config: CraftConfig()) { result in
+                    switch result {
+                    case .success(let value):
+                        guard let id = value as? String, UUID(uuidString: id) != nil else { return continuation.resume(throwing: NSError(domain: "UUID", code: 1)) }
+                        continuation.resume(returning: id)
+                    case .failure(let error): continuation.resume(throwing: error)
+                    }
+                }
+            }
+        }
+        let first = try await create()
+        let second = try await create()
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(Array(first)[14], "4")
+        XCTAssertTrue("89ab".contains(Array(first)[19]))
+    }
+
     func testPublicStorageCapabilityRoutesAtomicCheckpointsAndDeletion() async throws {
         let key = "checkpoint-wire-" + UUID().uuidString
         defer { try? CraftPersistentStorage.set(key, data: nil, prefix: "craft.native.storage.") }
@@ -352,7 +435,8 @@ final class PersistentRecordingCheckpointUnitTests: XCTestCase {
         XCTAssertTrue(CraftNativeActions.capabilities(config: CraftConfig()).contains("storageSetIfAbsent"))
         async let first = call("setIfAbsent", [key, ["owner": "A"]])
         async let second = call("setIfAbsent", [key, ["owner": "A"]])
-        let created = try await [first, second].compactMap { $0 as? Bool }
+        let responses = try await (first, second)
+        let created = [responses.0, responses.1].compactMap { $0 as? Bool }
         XCTAssertEqual(created.filter { $0 }.count, 1)
         XCTAssertEqual(created.filter { !$0 }.count, 1)
         let saved = try await call("compareAndSet", [key, ["owner": "A"], ["owner": "A", "completed": true]])
