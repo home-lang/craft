@@ -243,8 +243,10 @@ final class CompletedRecordingRecoveryUnitTests: XCTestCase {
             do { _ = try await call(restored, method, ["expectedId": a]); XCTFail("stale owner changed B") }
             catch let error as CraftHeartRateError { XCTAssertEqual(error.code, "RECORDING_CONFLICT") }
         }
-        XCTAssertEqual(try await call(restored, "acknowledgeRecording", ["expectedId": a]) as? Bool, true)
-        XCTAssertEqual(try await call(restored, "acknowledgeRecording", ["expectedId": a]) as? Bool, true)
+        let firstAcknowledgement = try await call(restored, "acknowledgeRecording", ["expectedId": a]) as? Bool
+        let repeatedAcknowledgement = try await call(restored, "acknowledgeRecording", ["expectedId": a]) as? Bool
+        XCTAssertEqual(firstAcknowledgement, true)
+        XCTAssertEqual(repeatedAcknowledgement, true)
         do { _ = try await call(restored, "readRecording", ["expectedId": a]); XCTFail("acknowledged data reappeared") }
         catch let error as CraftHeartRateError { XCTAssertEqual(error.code, "RECORDING_NOT_FOUND") }
         let stateB = try await call(restored, "getRecordingState", ["expectedId": b]) as? [String: Any]
