@@ -419,6 +419,25 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertNil(CraftChrome.shared.tabAccessory)
     }
 
+    func testDisappearingHiddenNativeTabCannotClearTheVisibleAccessory() async throws {
+        shell.open("/linked-details")
+        let home = try XCTUnwrap(stack("/"))
+        await displayWait("details accessory is visible") {
+            home.transitionCoordinator == nil && CraftChrome.shared.tabAccessory?.id == "/capabilities"
+        }
+        let background = CraftNativeScreenController(config: CraftHybrid.shared.config)
+        background.loadViewIfNeeded()
+        // A prepared or retained controller may finish disappearing after the
+        // current screen has published its chrome. It cannot clear that owner.
+        background.viewWillDisappear(false)
+        XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
+        let visible = try XCTUnwrap(home.topViewController as? CraftNativeScreenController)
+        visible.viewWillDisappear(false)
+        XCTAssertNil(CraftChrome.shared.tabAccessory, "the owning screen must still clear its accessory")
+        visible.screenVisibilityChanged(true)
+        XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
+    }
+
     func testCancelledColdSwipeRestoresTheVisibleScreensAccessory() async throws {
         let previous = CraftChrome.shared.tabAccessory
         drag(-150)
