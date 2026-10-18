@@ -658,6 +658,16 @@ const natives = [_]jni.JNINativeMethod{
     // Both answer by returning a String, like clipboardRead: null means "ask
     // the shim" rather than "there is nothing".
     .{
+        .name = "nativeRecordingOwnershipVersion",
+        .signature = "()I",
+        .fnPtr = @ptrCast(&nativeRecordingOwnershipVersion),
+    },
+    .{
+        .name = "nativeRecordingAction",
+        .signature = "(Landroid/app/Activity;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+        .fnPtr = @ptrCast(&nativeRecordingAction),
+    },
+    .{
         .name = "nativeGetLocationRecordingState",
         .signature = "(Landroid/app/Activity;)Ljava/lang/String;",
         .fnPtr = @ptrCast(&nativeGetLocationRecordingState),
@@ -2933,6 +2943,30 @@ fn nativeSaveFile(
     return jni.JNI_TRUE;
 }
 
+fn recordingStoreCall(j: Jni, activity: jni.jobject, method: jni.jstring, options: jni.jstring) !jni.jstring {
+    const cls = try j.findClass("com/craft/runtime/CraftLocationRecordingStore");
+    const perform = try j.staticMethodId(cls, "perform", "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+    return try j.callStaticObjectMethodA(cls, perform, &.{ .{ .l = activity }, .{ .l = method }, .{ .l = options } });
+}
+
+fn nativeRecordingOwnershipVersion(_: jni.JNIEnv, _: jni.jobject) callconv(.c) jni.jint {
+    return 1;
+}
+
+fn nativeRecordingAction(env: jni.JNIEnv, _: jni.jobject, activity: jni.jobject, method: jni.jstring, options: jni.jstring) callconv(.c) jni.jstring {
+    return recordingStoreCall(Jni.init(env), activity, method, options) catch null;
+}
+
+fn legacyRecordingStore(j: Jni, activity: jni.jobject, comptime method: [:0]const u8) jni.jstring {
+    const response = recordingStoreCall(j, activity, j.newStringUtf(method) catch return null, j.newStringUtf("{}") catch return null) catch return null;
+    const cls = j.findClass("org/json/JSONObject") catch return null;
+    const object = j.newObjectA(cls, j.methodId(cls, "<init>", "(Ljava/lang/String;)V") catch return null, &.{.{ .l = response }}) catch return null;
+    const ok = j.callBooleanMethodA(object, j.methodId(cls, "getBoolean", "(Ljava/lang/String;)Z") catch return null, &.{.{ .l = j.newStringUtf("ok") catch return null }}) catch return null;
+    if (!ok) return null;
+    const value = j.callObjectMethodA(object, j.methodId(cls, "get", "(Ljava/lang/String;)Ljava/lang/Object;") catch return null, &.{.{ .l = j.newStringUtf("data") catch return null }}) catch return null;
+    return j.callObjectMethod(value, j.methodId(j.objectClass(value) catch return null, "toString", "()Ljava/lang/String;") catch return null) catch null;
+}
+
 /// `nativeGetLocationRecordingState(activity)`.
 ///
 /// Null means "ask the shim". A recording that never started is not null — it
@@ -2942,28 +2976,7 @@ fn nativeGetLocationRecordingState(
     _: jni.jobject,
     activity: jni.jobject,
 ) callconv(.c) jni.jstring {
-    const j = Jni.init(env);
-    var arena = std.heap.ArenaAllocator.init(backing);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    const contents = locationstore.readFile(j, allocator, activity) catch |err| {
-        std.log.warn("craft: getLocationRecordingState fell through to the shim ({s})", .{@errorName(err)});
-        return null;
-    };
-
-    // A line the shim would drop and this cannot parse: hand the whole read
-    // back rather than disagreeing about how many samples there are.
-    const locations = (locationstore.renderLocations(allocator, contents) catch |err| return fellThrough("getLocationRecordingState", err, @as(jni.jstring, null))) orelse
-        return null;
-
-    const state = locationstore.readState(j, allocator, activity, locations.count) catch |err| {
-        std.log.warn("craft: getLocationRecordingState fell through to the shim ({s})", .{@errorName(err)});
-        return null;
-    };
-
-    const json = locationstore.renderState(allocator, state) catch |err| return fellThrough("getLocationRecordingState", err, @as(jni.jstring, null));
-    return j.newStringUtf8(allocator, json) catch |err| fellThrough("getLocationRecordingState", err, @as(jni.jstring, null));
+    return legacyRecordingStore(Jni.init(env), activity, "getRecordingState");
 }
 
 /// `nativeReadLocationRecording(activity)`.
@@ -2972,19 +2985,7 @@ fn nativeReadLocationRecording(
     _: jni.jobject,
     activity: jni.jobject,
 ) callconv(.c) jni.jstring {
-    const j = Jni.init(env);
-    var arena = std.heap.ArenaAllocator.init(backing);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    const contents = locationstore.readFile(j, allocator, activity) catch |err| {
-        std.log.warn("craft: readLocationRecording fell through to the shim ({s})", .{@errorName(err)});
-        return null;
-    };
-
-    const locations = (locationstore.renderLocations(allocator, contents) catch |err| return fellThrough("readLocationRecording", err, @as(jni.jstring, null))) orelse
-        return null;
-    return j.newStringUtf8(allocator, locations.json) catch |err| fellThrough("readLocationRecording", err, @as(jni.jstring, null));
+    return legacyRecordingStore(Jni.init(env), activity, "readRecording");
 }
 
 /// The current state as a Java String, or null if any part of the read
@@ -3014,30 +3015,7 @@ fn nativeStartLocationRecording(
     _: jni.jobject,
     activity: jni.jobject,
 ) callconv(.c) jni.jstring {
-    const j = Jni.init(env);
-    var arena = std.heap.ArenaAllocator.init(backing);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    const granted = permissions.hasForegroundLocation(j, activity) catch
-        return null;
-
-    if (!granted) {
-        // A different object from "never recorded": this path builds a fresh
-        // JSONObject with an explicit JSONObject.NULL id, so the key is
-        // present and null rather than absent.
-        const json = locationstore.renderDenied(allocator) catch |err| return fellThrough("startLocationRecording", err, @as(jni.jstring, null));
-        return j.newStringUtf8(allocator, json) catch |err| fellThrough("startLocationRecording", err, @as(jni.jstring, null));
-    }
-
-    const id = locationstore.newRecordingId(j, allocator) catch |err| return fellThrough("startLocationRecording", err, @as(jni.jstring, null));
-    const started_at = locationstore.nowMillis(j) catch |err| return fellThrough("startLocationRecording", err, @as(jni.jstring, null));
-    locationstore.startStore(j, allocator, activity, id, started_at) catch |err| return fellThrough("startLocationRecording", err, @as(jni.jstring, null));
-
-    // Kotlin names the service class, because its package is templated.
-    startRecordingService(j, activity) catch |err| return fellThrough("startLocationRecording", err, @as(jni.jstring, null));
-
-    return recordingStateString(j, allocator, activity, false);
+    return legacyRecordingStore(Jni.init(env), activity, "startRecording");
 }
 
 /// `nativeStopLocationRecording(activity)`.
@@ -3049,20 +3027,7 @@ fn nativeStopLocationRecording(
     _: jni.jobject,
     activity: jni.jobject,
 ) callconv(.c) jni.jstring {
-    const j = Jni.init(env);
-    var arena = std.heap.ArenaAllocator.init(backing);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    locationstore.stopStore(j, allocator, activity) catch |err| return fellThrough("stopLocationRecording", err, @as(jni.jstring, null));
-
-    // Declining after the store write is safe: `stop` is idempotent, so the
-    // shim runs the whole method again and reaches `stopService` itself.
-    const result = recordingStateString(j, allocator, activity, true);
-    if (result == null) return null;
-
-    stopRecordingService(j, activity) catch |err| return fellThrough("stopLocationRecording", err, @as(jni.jstring, null));
-    return result;
+    return legacyRecordingStore(Jni.init(env), activity, "stopRecording");
 }
 
 /// `nativePauseLocationRecording(activity)`.
@@ -3071,13 +3036,7 @@ fn nativePauseLocationRecording(
     _: jni.jobject,
     activity: jni.jobject,
 ) callconv(.c) jni.jstring {
-    const j = Jni.init(env);
-    var arena = std.heap.ArenaAllocator.init(backing);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    locationstore.setPaused(j, allocator, activity, true) catch |err| return fellThrough("pauseLocationRecording", err, @as(jni.jstring, null));
-    return recordingStateString(j, allocator, activity, false);
+    return legacyRecordingStore(Jni.init(env), activity, "pauseRecording");
 }
 
 /// `nativeResumeLocationRecording(activity)`.
@@ -3090,17 +3049,7 @@ fn nativeResumeLocationRecording(
     _: jni.jobject,
     activity: jni.jobject,
 ) callconv(.c) jni.jstring {
-    const j = Jni.init(env);
-    var arena = std.heap.ArenaAllocator.init(backing);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    locationstore.setPaused(j, allocator, activity, false) catch |err| return fellThrough("resumeLocationRecording", err, @as(jni.jstring, null));
-
-    const active = locationstore.isActive(j, allocator, activity) catch |err| return fellThrough("resumeLocationRecording", err, @as(jni.jstring, null));
-    if (active) startRecordingService(j, activity) catch |err| return fellThrough("resumeLocationRecording", err, @as(jni.jstring, null));
-
-    return recordingStateString(j, allocator, activity, false);
+    return legacyRecordingStore(Jni.init(env), activity, "resumeRecording");
 }
 
 fn startRecordingService(j: Jni, activity: jni.jobject) !void {

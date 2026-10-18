@@ -588,6 +588,32 @@ export fn craft_ios_handle_action(
     return false;
 }
 
+/// The native UI and the page use the same synchronous recorder owner. This
+/// deliberately accepts only recorder actions: a scoped C callback cannot own
+/// a delayed CoreLocation permission/fix response. No page ID or WebView is used.
+export fn craft_ios_recording_ownership_version() callconv(.c) i32 {
+    return 1;
+}
+
+export fn craft_ios_perform_recording_action(
+    action_ptr: [*]const u8,
+    action_len: usize,
+    payload_ptr: [*]const u8,
+    payload_len: usize,
+    context: ?*anyopaque,
+    callback: *const fn (?*anyopaque, bool, [*]const u8, usize) callconv(.c) void,
+) callconv(.c) bool {
+    const action = action_ptr[0..action_len];
+    const allowed = inline for (.{ "startLocationRecording", "pauseLocationRecording", "resumeLocationRecording", "stopLocationRecording", "getLocationRecordingState", "readLocationRecording", "acknowledgeLocationRecording" }) |name| {
+        if (std.mem.eql(u8, action, name)) break true;
+    } else false;
+    if (!allowed) return false;
+    const previous = bridge_error.native_reply;
+    bridge_error.native_reply = .{ .context = context, .callback = callback };
+    defer bridge_error.native_reply = previous;
+    return craft_ios_handle_action(action_ptr, action_len, payload_ptr, payload_len, -1);
+}
+
 /// Deliver a result the host shim produced.
 ///
 /// Exported for the shim to call. Everything after this point is the same path
@@ -994,4 +1020,38 @@ test "clearing the webview only forgets the one the caller named" {
 
     craft_ios_clear_webview(second);
     try testing.expect(getWebView() == null);
+}
+
+test "native recording C ABI answers once without a WebView and permits nested requests" {
+    const Capture = struct {
+        count: usize = 0,
+        hook_was_consumed: bool = true,
+        refused: bool = true,
+        nested_claimed: bool = false,
+
+        fn receive(raw: ?*anyopaque, failed: bool, bytes: [*]const u8, size: usize) callconv(.c) void {
+            const self: *@This() = @ptrCast(@alignCast(raw.?));
+            self.count += 1;
+            self.hook_was_consumed = self.hook_was_consumed and bridge_error.native_reply == null;
+            self.refused = self.refused and failed and std.mem.indexOf(u8, bytes[0..size], "CAPABILITY_DISABLED") != null;
+            if (self.count == 1) {
+                const action = "startLocationRecording";
+                self.nested_claimed = craft_ios_perform_recording_action(action, action.len, "{}", 2, self, receive);
+            }
+        }
+    };
+    try testing.expect(bridge_error.native_reply == null);
+    try testing.expectEqual(@as(i32, 1), craft_ios_recording_ownership_version());
+    var capture: Capture = .{};
+    const action = "startLocationRecording";
+    try testing.expect(craft_ios_perform_recording_action(action, action.len, "{}", 2, &capture, Capture.receive));
+    try testing.expectEqual(@as(usize, 2), capture.count);
+    try testing.expect(capture.refused);
+    try testing.expect(capture.hook_was_consumed);
+    try testing.expect(capture.nested_claimed);
+    try testing.expect(bridge_error.native_reply == null);
+    const asynchronous = "getCurrentPosition";
+    try testing.expect(!craft_ios_perform_recording_action(asynchronous, asynchronous.len, "{}", 2, &capture, Capture.receive));
+    try testing.expectEqual(@as(usize, 2), capture.count);
+    try testing.expect(bridge_error.native_reply == null);
 }

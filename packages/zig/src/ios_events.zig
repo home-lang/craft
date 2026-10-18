@@ -213,6 +213,19 @@ fn deliverOnMain(context: ?*anyopaque) callconv(.c) void {
     const payload = detail orelse return;
     defer allocator.free(payload);
 
+    // The same native event reaches STX screens and a native app script even
+    // when no WebView exists. The shim never repeats the page delivery below.
+    const objc = @import("objc_runtime.zig").objc;
+    if (objc.objc_getClass("CraftSwiftShim")) |shim| {
+        if (objc.sel_registerName("forwardNativeEvent:payload:")) |selector| {
+            const name = objc.createNSString(event.eventName(), allocator) catch return;
+            const detail_json = objc.createNSString(payload, allocator) catch return;
+            const Fn = *const fn (objc.id, objc.SEL, objc.id, objc.id) callconv(.c) void;
+            const send: Fn = @ptrCast(&objc.objc_msgSend);
+            send(shim, selector, name, detail_json);
+        }
+    }
+
     const js = formatEvent(allocator, event, payload) catch return;
     defer allocator.free(js);
 
