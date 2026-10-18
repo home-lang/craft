@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from 'bun:test'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { validateReleaseCheckout, checkReleaseVersion, validateReleaseVersion } from './release-version'
 import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
@@ -59,4 +59,18 @@ test('refuses an incomplete sparse release checkout before a version bump', () =
   expect(() => validateReleaseCheckout(root)).not.toThrow()
   rmSync(manifest)
   expect(() => validateReleaseCheckout(root)).toThrow('packages/react/package.json')
+})
+
+test('release preflight rejects missing tools before changing package versions or tags', () => {
+  const root = createTempDir('craft-release-prerequisites-')
+  mkdirSync(join(root, 'scripts'))
+  const manifest = '{"version":"1.2.3"}\n'
+  writeFileSync(join(root, 'package.json'), manifest)
+  writeFileSync(join(root, 'scripts/release-version.ts'), readFileSync(join(import.meta.dir, 'release-version.ts')))
+  expect(Bun.spawnSync(['git', 'init', '-q'], { cwd: root }).exitCode).toBe(0)
+  const result = Bun.spawnSync([process.execPath, 'scripts/release-version.ts', '--preflight'], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
+  expect(result.exitCode).not.toBe(0)
+  expect(result.stderr.toString()).toContain('bun install --frozen-lockfile')
+  expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe(manifest)
+  expect(Bun.spawnSync(['git', 'tag', '--list'], { cwd: root, stdout: 'pipe' }).stdout.toString()).toBe('')
 })

@@ -10,6 +10,16 @@ export function validateReleaseCheckout(root: string): void {
     throw new Error(`Release checkout omits package manifests: ${missing.join(', ')}. Expand the sparse checkout before releasing.`)
 }
 
+/** Refuse missing release tools before a version or immutable tag can change. */
+export function validateReleaseDependencies(root: string): void {
+  for (const cli of ['@stacksjs/bumpx/bin/cli.js', '@stacksjs/logsmith/bin/cli.js']) {
+    try { Bun.resolveSync(cli, root) }
+    catch (cause) {
+      throw new Error(`Cannot resolve release dependency ${cli}. Run bun install --frozen-lockfile before releasing.`, { cause })
+    }
+  }
+}
+
 export function validateReleaseVersion(ref: string, version: string, manifests: Record<string, unknown>): void {
   const errors: string[] = []
   const identifier = '(?:0|[1-9]\\d*|[\\da-z-]*[a-z-][\\da-z-]*)'
@@ -47,6 +57,7 @@ if (import.meta.main) {
   const root = resolve(import.meta.dir, '..')
   if (process.argv.includes('--preflight')) {
     validateReleaseCheckout(root)
+    validateReleaseDependencies(root)
     console.log('Release checkout contains every tracked package manifest')
     process.exit(0)
   }
