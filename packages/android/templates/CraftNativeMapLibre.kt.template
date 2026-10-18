@@ -10,6 +10,9 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
     private var styleVersion = 0
     private var readyStyle: Style? = null
     private var initialCameraKey: String? = null
+    private var reportedRegion: LatLngBounds? = null
+    private var reportedCamera: CameraPosition? = null
+    private var reportedViewport: Pair<Int, Int>? = null
     private var userChangingCamera = false
     private var geometryPoints = emptyList<LatLng>()
     private val markerHandlers = mutableMapOf<String, String>()
@@ -73,10 +76,16 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
                 val bounds = nativeMap.projection.visibleRegion.latLngBounds
                 val camera = nativeMap.cameraPosition
                 val center = camera.target
-                if (center != null) onRegionChangeComplete?.invoke(JSONObject()
-                    .put("center", JSONObject().put("latitude", center.latitude).put("longitude", center.longitude))
-                    .put("span", JSONObject().put("latitudeDelta", bounds.latitudeNorth - bounds.latitudeSouth).put("longitudeDelta", bounds.longitudeEast - bounds.longitudeWest))
-                    .put("heading", camera.bearing).put("pitch", camera.tilt))
+                if (center != null) {
+                    val event = JSONObject()
+                        .put("center", JSONObject().put("latitude", center.latitude).put("longitude", center.longitude))
+                        .put("span", JSONObject().put("latitudeDelta", bounds.latitudeNorth - bounds.latitudeSouth).put("longitudeDelta", bounds.longitudeEast - bounds.longitudeWest))
+                        .put("heading", camera.bearing).put("pitch", camera.tilt)
+                    reportedRegion = region(event)
+                    reportedCamera = camera
+                    reportedViewport = width to height
+                    onRegionChangeComplete?.invoke(event)
+                }
             }
         }
         applyPending()
@@ -123,7 +132,10 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
         val explicit = region(pendingProps.optJSONObject("region"))
         val initial = region(pendingProps.optJSONObject("initialRegion"))
         if (explicit != null) {
-            moveCamera(explicit, 0)
+            // A measured region is a bounding envelope, especially with
+            // padding or rotation. Refitting its unchanged echo would zoom
+            // out after every gesture. New requests still move the camera.
+            if (!isCurrentReportedRegion(explicit)) moveCamera(explicit, 0)
             initialCameraKey = null
         } else if (initial != null) {
             val key = "region:${pendingProps.optJSONObject("initialRegion")}"
@@ -298,6 +310,20 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
         }
     }
 
+    private fun isCurrentReportedRegion(requested: LatLngBounds): Boolean {
+        val reported = reportedRegion ?: return false
+        val measured = reportedCamera ?: return false
+        val current = map?.cameraPosition ?: return false
+        val measuredTarget = measured.target ?: return false
+        val currentTarget = current.target ?: return false
+        fun same(a: Double, b: Double): Boolean = abs(a - b) < 0.000000001
+        return reportedViewport == (width to height) &&
+            same(requested.latitudeNorth, reported.latitudeNorth) && same(requested.latitudeSouth, reported.latitudeSouth) &&
+            same(requested.longitudeEast, reported.longitudeEast) && same(requested.longitudeWest, reported.longitudeWest) &&
+            abs(current.zoom - measured.zoom) < 0.000001 &&
+            same(currentTarget.latitude, measuredTarget.latitude) && same(currentTarget.longitude, measuredTarget.longitude)
+    }
+
     private fun applyOrientation() {
         val nativeMap = map ?: return
         val camera = nativeMap.cameraPosition
@@ -351,6 +377,7 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
         if (lifecycleStarted) { mapView.onPause(); mapView.onStop(); lifecycleStarted = false }
         mapView.onDestroy()
         readyStyle = null; map = null
+        reportedRegion = null; reportedCamera = null; reportedViewport = null
     }
 
     private fun coordinates(value: JSONArray?): List<LatLng> {
