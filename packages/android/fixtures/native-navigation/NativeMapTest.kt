@@ -208,6 +208,37 @@ class NativeMapTest {
     }
 
     @Test
+    fun controlledRegionEchoPreservesTheCameraAfterANativeDrag() = withMap { _, host, _, map, _ ->
+        val before = AtomicReference<org.maplibre.android.camera.CameraPosition>()
+        val after = AtomicReference<org.maplibre.android.camera.CameraPosition>()
+        val settled = CountDownLatch(1)
+        val origin = main {
+            host.onRegionChangeComplete = { region ->
+                before.set(map.cameraPosition)
+                host.configure(props().put("region", region), overlays()) {}
+                host.postDelayed({ after.set(map.cameraPosition); settled.countDown() }, 500)
+            }
+            IntArray(2).also { host.getLocationOnScreen(it) } to (host.width to host.height)
+        }
+        val downAt = SystemClock.uptimeMillis()
+        for (step in 0..8) {
+            val action = if (step == 0) android.view.MotionEvent.ACTION_DOWN else if (step == 8) android.view.MotionEvent.ACTION_UP else android.view.MotionEvent.ACTION_MOVE
+            val touch = android.view.MotionEvent.obtain(downAt, SystemClock.uptimeMillis(), action,
+                origin.first[0] + origin.second.first * (0.3f + step * 0.025f),
+                origin.first[1] + origin.second.second * (0.3f + step * 0.01f), 0)
+            try { assertTrue(instrumentation.uiAutomation.injectInputEvent(touch, true)) } finally { touch.recycle() }
+            SystemClock.sleep(35)
+        }
+        assertTrue("The native drag did not publish a settled region", settled.await(15, TimeUnit.SECONDS))
+        main {
+            assertEquals("Echoing a native region must preserve zoom", before.get().zoom, after.get().zoom, 0.001)
+            assertEquals("Echoing a native region must preserve latitude", before.get().target!!.latitude, after.get().target!!.latitude, 0.000001)
+            assertEquals("Echoing a native region must preserve longitude", before.get().target!!.longitude, after.get().target!!.longitude, 0.000001)
+        }
+        evidence("map-controlled-region-after-drag")
+    }
+
+    @Test
     fun showingTheLocationDotDoesNotRequestPermissionDuringRendering() = withMap { activity, host, _, map, _ ->
         assertEquals(PackageManager.PERMISSION_DENIED, activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION))
         main {
