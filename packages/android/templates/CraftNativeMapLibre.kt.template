@@ -47,6 +47,7 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
             bottomMargin = (8 * resources.displayMetrics.density).roundToInt()
         })
         mapView.onCreate(null)
+        mapView.addOnDidFinishLoadingMapListener { if (!destroyed && initialCameraKey == null) applyPending() }
         mapView.getMapAsync(this)
     }
 
@@ -128,7 +129,7 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
             val key = "region:${pendingProps.optJSONObject("initialRegion")}"
             if (initialCameraKey != key) { moveCamera(initial, 0); initialCameraKey = key }
         } else if (craftNativeBoolean(pendingProps.opt("fitToBounds"))) {
-            val key = "$width,$height:${pendingProps.optJSONObject("edgePadding")}:" + geometryPoints.joinToString(";") { "${it.latitude},${it.longitude}" }
+            val key = "$width,$height:${pendingProps.optJSONObject("edgePadding")}:${pendingProps.opt("cameraPitch")}:${pendingProps.opt("cameraHeading")}:" + geometryPoints.joinToString(";") { "${it.latitude},${it.longitude}" }
             if (initialCameraKey != key && geometryPoints.isNotEmpty() && width > 0 && height > 0) {
                 val distinct = geometryPoints.distinctBy { it.latitude to it.longitude }
                 if (distinct.size == 1) nativeMap.moveCamera(CameraUpdateFactory.newLatLngZoom(distinct.first(), 15.0))
@@ -198,7 +199,7 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
             val events = child.optJSONObject("events") ?: JSONObject()
             val id = craftNativeOptionalString(props.opt("id")) ?: craftNativeOptionalString(child.opt("id")) ?: "overlay-$index"
             val points = coordinates(props.optJSONArray("geometry"))
-            val properties = JSONObject()
+            val properties = JSONObject().put("craftOverlayId", id)
             val geometry = JSONObject()
             if ((type == "mapmarker" || type == "marker") && points.isNotEmpty()) {
                 val point = points.first()
@@ -273,7 +274,18 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
     }
 
     private fun moveCamera(bounds: LatLngBounds, padding: Int) {
-        post { if (!destroyed && width > 0 && height > 0) { map?.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding)); applyOrientation() } }
+        post {
+            val nativeMap = map
+            if (!destroyed && nativeMap != null && width > 0 && height > 0) {
+                val camera = nativeMap.cameraPosition
+                val bearing = finiteNumber(pendingProps.opt("cameraHeading")) ?: camera.bearing
+                val tilt = finiteNumber(pendingProps.opt("cameraPitch"))?.coerceIn(0.0, 60.0) ?: camera.tilt
+                val insets = nativeMap.padding.map { it + padding }.toIntArray()
+                val target = nativeMap.getCameraForLatLngBounds(bounds, insets, bearing, tilt)
+                if (target == null) initialCameraKey = null
+                else nativeMap.moveCamera(CameraUpdateFactory.newCameraPosition(target))
+            }
+        }
     }
 
     private fun applyOrientation() {
