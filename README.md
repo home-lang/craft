@@ -15,7 +15,7 @@ Craft is a lightweight, high-performance cross-platform application framework. C
 ### 🌍 Platform Support
 
 - 🖥️ **Desktop** — macOS, Linux, Windows
-- 📱 **Mobile** — iOS _(WKWebView, UIKit)_ and Android _(WebView, Activity)_
+- 📱 **Mobile** — iOS and Android, with a default web renderer and an opt-in native STX renderer
 - 🪟 **Menubar Apps** — Native system tray/menubar integration
 - ⚡ **Native Performance** — sub-second cold start and small idle footprint; see [`benchmarks/`](./benchmarks) for the latest numbers
 - 🪶 **Compact Binary** — small enough to embed; sized in CI under `.github/workflows/binary-size.yml`
@@ -23,8 +23,21 @@ Craft is a lightweight, high-performance cross-platform application framework. C
 
 ### 📱 Mobile Platform Support
 
+Choose the renderer explicitly. The default `web` mode hosts web content in
+WKWebView on iOS or WebView on Android. Experimental `native` mode runs the
+compiled STX route bundle without a browser view: JavaScriptCore and UIKit on
+iOS, JavaScriptSandbox and Android views on Android. Both native targets can
+compile the same STX components; the browser target renders those components as
+HTML. See [Native STX](docs/guides/native-stx.md) for supported components,
+capabilities, configuration and verification.
+
+Native screens and their imported code ship in the app. Updating them requires
+a new app build and release. A server deployment can update API responses and
+web pages, but does not replace an installed native bundle.
+
 - **iOS Integration**
-  - WKWebView with JavaScript bridge
+  - WKWebView with JavaScript bridge in web mode
+  - JavaScriptCore and UIKit screen host in native mode
   - UIKit native components
   - Haptic feedback _(light, medium, heavy, selection, success, warning, error)_
   - Device permissions _(camera, location, notifications, photos, contacts, microphone)_
@@ -33,7 +46,8 @@ Craft is a lightweight, high-performance cross-platform application framework. C
   - App lifecycle management
 
 - **Android Integration**
-  - WebView with JavaScript interface
+  - WebView with JavaScript interface in web mode
+  - JavaScriptSandbox and Android screen host in native mode
   - Activity lifecycle
   - Permissions system
   - Vibration and haptic feedback

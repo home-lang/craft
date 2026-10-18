@@ -1,118 +1,77 @@
-# Craft - Quick Start
+# Craft Quick Start
 
-## ✅ Build Status
+Craft provides a native CLI and a TypeScript SDK. Desktop apps host web content
+in the platform WebView. Mobile apps choose between that web renderer and the
+experimental [native STX renderer](guides/native-stx.md), which creates UIKit or
+Android controls from a compiled STX bundle without a browser view.
 
-The Craft package is **fully functional** and builds successfully with Pantry's current stable Zig toolchain.
+## Create an application
 
-## Commands
+Install the native CLI through Pantry, then create a project with Bun:
 
 ```bash
-# Build the project
+pantry install craft
+bun create craft my-app
+cd my-app
+bun run dev
+```
+
+The SDK resolves `craft` on `PATH`. See [Installation](install.md) for platform
+requirements and [Native STX](guides/native-stx.md) for mobile route bundles,
+renderer configuration and platform capabilities.
+
+When sharing a phone UI across the web, iOS and Android, author the same STX
+components and composables for all three targets. STX owns component translation
+and reactivity; Craft supplies platform controls and device services. Verify
+each host with the same routes and data. A browser preview does not exercise
+native permissions, lifecycle, background services or platform navigation.
+
+Native screens and their imported code ship with the app and require a new
+build and release to update. Deploying the website changes web pages and server
+behavior; it does not replace an installed native bundle.
+
+## Work on Craft itself
+
+Use the toolchain pinned in `pantry.lock`, rather than an arbitrary system Zig.
+The core also requires the `zig-js`, `zig-regex` and `zig-gc` sibling checkouts at
+the exact commits in `.github/actions/first-party-zig-deps/pins.env`. Follow
+[AGENTS.md](../AGENTS.md) for their paths and the managed toolchain setup.
+
+From the repository root:
+
+```bash
+bun install --frozen-lockfile
 bun run build:core
-
-# Run the example app
-bun run run
-
-# Run tests
+bun run build:sdk
 bun run test
-
-# Clean build artifacts
-rm -rf zig-cache zig-out
+bun run test:sdk
+bun run typecheck
+bun run lint
 ```
 
-## What Works
+`bun run test` runs the Zig core suite; `bun run test:sdk` runs the TypeScript
+SDK suite. Avoid a bare `bun test` at the root because it can collect managed
+toolchain fixtures. Package-specific suites run from their package directories.
 
-✅ **Core API**: Complete window and app management
-✅ **Build System**: Configured for macOS, Linux, Windows
-✅ **Tests**: Unit tests pass
-✅ **Example App**: Demonstrates the full API
-✅ **Documentation**: Comprehensive README and guides
+The normal CI workflow builds and tests the core on macOS and Linux, checks
+Windows packaging, and compiles generated iOS, Watch and Android projects. The
+separate Mobile E2E workflow exercises actual simulator/emulator hosts. Inspect
+the results for the exact source revision being consumed; a successful build
+on one platform does not establish behavior on another.
 
-## Example Output
+## Repository layout
 
-When you run `zig build run`:
+| Path | Purpose |
+|------|---------|
+| `packages/zig/` | Native core and platform bridges |
+| `packages/typescript/` | Public `craft-native` SDK |
+| `packages/ios/` | iOS project generator and native host templates |
+| `packages/android/` | Android project generator and native host templates |
+| `packages/create-craft/` | Application scaffolding |
+| `scripts/` | Build, package and runtime verification |
+| `.github/workflows/` | Platform and release gates |
 
-```
-Starting Craft desktop app...
-Note: Full webview implementation requires platform-specific bindings.
-This example demonstrates the API structure.
-```
-
-## Binary Size
-
-The compiled example is **~1.3MB** - impressively small for a desktop app framework!
-
-```bash
-$ ls -lh zig-out/bin/
--rwxr-xr-x  1.3M  craft
-```
-
-## Next Steps for Full Functionality
-
-To get actual webview rendering working, we need to implement platform-specific bindings:
-
-### macOS (Objective-C/Swift)
-
-- Use `objc` library to interface with Cocoa
-- Create `WKWebView` instances
-- Implement event loop with `NSApplication`
-
-### Linux (C/GTK)
-
-- Link to GTK3 and WebKit2GTK
-- Create webview widgets
-- Implement GTK main loop
-
-### Windows (C++)
-
-- Interface with WebView2 COM API
-- Create WebView2 instances
-- Implement Windows message loop
-
-## API Example
-
-```zig
-const std = @import("std");
-const craft = @import("craft");
-
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-
-    var app = craft.App.init(gpa.allocator());
-    defer app.deinit();
-
-    _ = try app.createWindow(
-        "My App",           // title
-        800,                // width
-        600,                // height
-        "<h1>Hello!</h1>",  // HTML content
-    );
-
-    try app.run();
-}
-```
-
-## Architecture
-
-```
-craft/
-├── src/
-│   ├── main.zig      - Core library (App, Window API)
-│   └── example.zig   - Example desktop app
-├── build.zig         - Build configuration
-└── docs/             - Documentation
-```
-
-## Package Info
-
-- **Name**: `craft-native`
-- **Version**: `0.1.0`
-- **Zig Version**: Pantry-managed stable Zig
-- **License**: MIT
-
-## Resources
-
-- [Full Documentation](./README.md)
-- [Getting Started Guide](./GETTING_STARTED.md)
-- [Stacks Ecosystem](https://github.com/stacksjs/stx)
+Component support and lifecycle semantics are documented in the
+[Native STX guide](guides/native-stx.md). Binary size and startup measurements
+belong in the reproducible [benchmarks](../benchmarks/), rather than a fixed
+number in this guide.

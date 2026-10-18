@@ -132,4 +132,32 @@ describe('browser atomic account checkpoints', () => {
     saved.setItem = original
     expect(await a.call('Storage', 'get', ['draft'])).toEqual({ owner: 'A' })
   })
+  it('rejects stale credential operations and sign-out without touching the next account', async () => {
+    const { saved, a, lock } = await atomicFixture()
+    await a.call('SecureStorage', 'set', ['auth.token', 'A'])
+    await a.call('SecureStorage', 'set', ['private-key', 'A-secret'])
+    saved.setItem('atomic:account:hash-B:credential:private-key', 'B-secret')
+    let release!: () => void
+    let entered!: () => void
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const held = lock('atomic:storage', () => new Promise<void>(resolve => { release = resolve; entered() }))
+    await started
+    const stale = [
+      ['get', ['private-key']],
+      ['set', ['private-key', 'stale-A-secret']],
+      ['remove', ['private-key']],
+      ['clear', []],
+      ['set', ['auth.token', 'stale-A-token']],
+      ['remove', ['auth.token']],
+    ].map(([method, args]) => a.call('SecureStorage', method as string, args as unknown[])
+      .then(() => 'unexpected-success', error => error.code))
+    saved.setItem('auth_token', 'B')
+    const transition = a.accountChanged()
+    release()
+    expect(await Promise.all(stale)).toEqual(Array(6).fill('STORAGE_SCOPE_CHANGED'))
+    await Promise.all([held, transition])
+    expect(saved.getItem('auth_token')).toBe('B')
+    expect(await a.call('SecureStorage', 'get', ['private-key'])).toBe('B-secret')
+    expect(saved.getItem('atomic:account:hash-B:credential:private-key')).toBe('B-secret')
+  })
 })

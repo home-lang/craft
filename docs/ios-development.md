@@ -1,14 +1,26 @@
-# iOS Development
+# iOS Zig Migration: Historical Audit
+
+This is the original migration audit and implementation plan, retained to explain
+the defects and phase gates that motivated the work. Its counts, line references
+and statements about broken builds describe that audit, not the current source.
+Use [Native STX on iOS and Android](guides/native-stx.md) and the
+[iOS package guide](../packages/ios/README.md) for current application development.
+
+Current iOS apps choose a renderer: `web` uses WKWebView; experimental `native`
+evaluates a local STX bundle with JavaScriptCore and renders UIKit controls,
+without a WKWebView. Native code and bundled screens update through an app build
+and release. The web bridge plan below applies to the web renderer; it does not
+define the native screen architecture.
 
 Making iOS a Zig-native platform: Zig drives UIKit through `objc_msgSend`, exactly as
 `packages/zig/src/macos.zig` drives AppKit today.
 
-This document is the working plan. It is meant to be checked off, and the phase gates are
-meant to be run.
+The following sections preserve the original working plan. Check current source
+and the corresponding CI gates before treating an item as outstanding.
 
 ---
 
-## Where iOS actually stands
+## Findings at the original audit
 
 Three facts, each verified, that together explain why "iOS is broken" has been true for
 months without anyone being able to point at a single cause.
@@ -103,7 +115,8 @@ is exactly how five accumulated.
   use only the ObjC runtime, Foundation, and WebKit — **zero AppKit** — and register under
   the name `"craft"`, which is what the page already posts to.
 - `craft-bridge.js:161-166` already builds `{t,a,d,i}` and posts to
-  `webkit.messageHandlers.craft`. iOS *is* WKWebView, so **the page side needs no change**.
+  `webkit.messageHandlers.craft`. In the web renderer, the page runs in WKWebView,
+  so that transport can be reused. Native STX screens use a separate DOM-free host.
 - Adding a `.ios` arm to `bridge.evalJS` (`bridge.zig:6-22`, currently
   `error.UnsupportedPlatform`) lights up every existing `bridge_*.zig` reply path. Six lines.
 - ~20 of the 25 frameworks `CraftApp.swift` imports are Objective-C and reachable via

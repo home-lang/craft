@@ -150,10 +150,25 @@ export async function createBrowserStorage(options: BrowserStorageOptions): Prom
         })
       }
       if (module === 'SecureStorage') {
-        if (method === 'get') return storage.getItem(secureKey(name))
-        if (method === 'set') { storage.setItem(secureKey(name), String(args[1])); if (name === 'auth.token') await accountChanged(); return true }
-        if (method === 'remove') { storage.removeItem(secureKey(name)); if (name === 'auth.token') await accountChanged(); return true }
-        if (method === 'clear') { for (const item of keys(key('credential:'))) storage.removeItem(item); storage.removeItem(tokenKey); await accountChanged(); return true }
+        if (!wasAvailable) throw scopeChanged()
+        const result = await exclusive(() => {
+          requireScope(captured)
+          const address = name === 'auth.token' ? tokenKey : `${prefix}account:${captured.scope}:credential:${name}`
+          if (method === 'get') return storage.getItem(address)
+          if (method === 'set') { storage.setItem(address, String(args[1])); return true }
+          if (method === 'remove') { storage.removeItem(address); return true }
+          if (method === 'clear') {
+            for (const item of keys(`${prefix}account:${captured.scope}:credential:`)) storage.removeItem(item)
+            storage.removeItem(tokenKey)
+            return true
+          }
+          throw Object.assign(new Error(`Unsupported browser storage operation ${module}.${method}`), { code: 'UNSUPPORTED' })
+        })
+        // Account cleanup takes the same lock. Start it only after releasing
+        // this operation's lock, while stale queued calls already fail scope.
+        if (method === 'clear' || (name === 'auth.token' && (method === 'set' || method === 'remove')))
+          await accountChanged()
+        return result
       }
       throw Object.assign(new Error(`Unsupported browser storage operation ${module}.${method}`), { code: 'UNSUPPORTED' })
     },
