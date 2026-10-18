@@ -656,7 +656,11 @@ final class NativeLayoutUnitTests: XCTestCase {
 
         controller.evaluateScript("craft.storage.setSync('layout.test', { visits: 2 })")
         XCTAssertEqual(controller.evaluateScript("craft.storage.getSync('layout.test').visits")?.toInt32(), 2)
-        XCTAssertEqual(CraftNativeActions.storageJSON(forKey: "layout.test"), "{\"visits\":2}")
+        XCTAssertEqual(try CraftNativeActions.storageJSON(forKey: "layout.test"), "{\"visits\":2}")
+        let corruptKey = "corrupt-checkpoint-" + UUID().uuidString
+        UserDefaults.standard.set(Data("not JSON".utf8), forKey: "craft.native.storage." + corruptKey)
+        defer { UserDefaults.standard.removeObject(forKey: "craft.native.storage." + corruptKey) }
+        XCTAssertTrue(controller.evaluateScript("(function() { try { craft.storage.getSync('\(corruptKey)'); return false; } catch (error) { return error.message.indexOf('STORAGE_ERROR') !== -1; } })()")?.toBool() == true)
         controller.evaluateScript("craft.storage.setSync('layout.test', null)")
         XCTAssertTrue(controller.evaluateScript("craft.storage.getSync('layout.test') === null")?.toBool() == true)
 

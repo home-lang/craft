@@ -335,6 +335,58 @@ final class CompletedRecordingRecoveryUnitTests: XCTestCase {
 
 @MainActor
 final class PersistentRecordingCheckpointUnitTests: XCTestCase {
+    func testPublicStorageCapabilityRoutesAtomicCheckpointsAndDeletion() async throws {
+        let key = "checkpoint-wire-" + UUID().uuidString
+        defer { try? CraftPersistentStorage.set(key, data: nil, prefix: "craft.native.storage.") }
+        func call(_ method: String, _ args: [Any]) async throws -> Any {
+            try await withCheckedThrowingContinuation { continuation in
+                CraftNativeActions.perform(requestToken: UUID().uuidString, version: craftNativeCapabilityProtocolVersion, module: "Storage", method: method, args: args, config: CraftConfig()) { result in
+                    switch result {
+                    case .success(let value): continuation.resume(returning: value)
+                    case .failure(let error): continuation.resume(throwing: error)
+                    }
+                }
+            }
+        }
+        XCTAssertTrue(CraftNativeActions.capabilities(config: CraftConfig()).contains("storageCompareAndSet"))
+        _ = try await call("set", [key, ["owner": "A"]])
+        let saved = try await call("compareAndSet", [key, ["owner": "A"], ["owner": "A", "completed": true]])
+        XCTAssertEqual(saved as? Bool, true)
+        _ = try await call("remove", [key])
+        let deleted = try await call("compareAndSet", [key, ["owner": "A", "completed": true], ["owner": "A"]])
+        XCTAssertEqual(deleted as? Bool, false)
+        let absent = try await call("get", [key])
+        XCTAssertTrue(absent is NSNull)
+    }
+
+    func testConditionalCheckpointRespectsDeletionFeedbackTypesAndDiskFailure() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let prefix = "craft-cas-test-" + UUID().uuidString()
+        defer { try? FileManager.default.removeItem(at: directory); UserDefaults.standard.removeObject(forKey: prefix + "draft") }
+        let old: [String: Any] = ["owner": "A", "feedback": "latest", "visits": 1]
+        let next: [String: Any] = ["owner": "A", "feedback": "latest", "visits": 2]
+        XCTAssertFalse(try CraftPersistentStorage.compareAndSet("draft", expected: NSNull(), value: next, prefix: prefix, storageDirectory: directory))
+        try CraftPersistentStorage.set("draft", data: JSONSerialization.data(withJSONObject: old), prefix: prefix, storageDirectory: directory)
+        XCTAssertFalse(try CraftPersistentStorage.compareAndSet("draft", expected: ["owner": "A", "feedback": "stale", "visits": 1], value: next, prefix: prefix, storageDirectory: directory))
+        XCTAssertThrowsError(try CraftPersistentStorage.compareAndSet("draft", expected: old, value: next, prefix: prefix, storageDirectory: directory, writer: { _, _ in throw NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC)) }))
+        let stillOld = try JSONSerialization.jsonObject(with: XCTUnwrap(CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory)))
+        XCTAssertTrue(CraftPersistentStorage.jsonEqual(stillOld, old))
+        XCTAssertTrue(try CraftPersistentStorage.compareAndSet("draft", expected: ["visits": 1, "feedback": "latest", "owner": "A"], value: next, prefix: prefix, storageDirectory: directory))
+        try CraftPersistentStorage.set("draft", data: nil, prefix: prefix, storageDirectory: directory)
+        XCTAssertFalse(try CraftPersistentStorage.compareAndSet("draft", expected: next, value: old, prefix: prefix, storageDirectory: directory))
+        XCTAssertNil(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory))
+        XCTAssertFalse(CraftPersistentStorage.jsonEqual(true, 1))
+        XCTAssertFalse(CraftPersistentStorage.jsonEqual([1, 2], [2, 1]))
+    }
+
+    func testCorruptLegacyValueDoesNotBecomeAMissingDraft() throws {
+        let prefix = "craft-corrupt-test-" + UUID().uuidString()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { UserDefaults.standard.removeObject(forKey: prefix + "draft"); try? FileManager.default.removeItem(at: directory) }
+        UserDefaults.standard.set(Data("not JSON".utf8), forKey: prefix + "draft")
+        XCTAssertThrowsError(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory))
+    }
+
     func testFailedLegacyMigrationKeepsTheReadableCheckpointAndRejectsNewWrites() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let prefix = "craft-checkpoint-test-" + UUID().uuidString()

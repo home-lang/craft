@@ -2237,7 +2237,7 @@ struct CraftWebView: UIViewRepresentable {
                 rejectCallback(callbackId, error: "Unable to restore recording data", code: "RECORDING_STORAGE_ERROR")
                 return
             }
-            if ["getLocationRecordingState", "readLocationRecording", "stopLocationRecording", "acknowledgeLocationRecording"].contains(action),
+            if ["getLocationRecordingState", "readLocationRecording", "stopLocationRecording"].contains(action),
                archivedLocationAction(action, body: body, callbackId: callbackId) { return }
             if let answer = CraftNativeActions.perform(action: action, body: body, config: config) {
                 switch answer {
@@ -2449,6 +2449,8 @@ struct CraftWebView: UIViewRepresentable {
                 getLocationRecordingState(callbackId: callbackId)
             case "readLocationRecording":
                 if requireLocationRecordingOwner(body, callbackId: callbackId) { readLocationRecording(callbackId: callbackId) }
+            case "acknowledgeLocationRecording":
+                _ = archivedLocationAction(action, body: body, callbackId: callbackId)
             // App Badge
             case "setBadge":
                 if let count = body["count"] as? Int {
