@@ -154,7 +154,7 @@ next route.
 | `Image` | `UIImageView` | `ImageView` |
 | `ImageBackground` | `CraftNativeImageBackgroundView` | `CraftNativeImageBackgroundView` |
 | `Video` | `CraftNativeVideoView` (`AVPlayerViewController`) | `CraftNativeVideoView` (`VideoView`) |
-| `Map` | `CraftNativeMapView` (`MKMapView`) | `CraftNativeMapView` (`GoogleMap`) |
+| `Map` | `CraftNativeMapView` (`MKMapView`) | `CraftNativeMapView` (native MapLibre or Google Maps) |
 | `MapPolyline`, `MapMarker` | overlays inside `CraftNativeMapView` | overlays inside `CraftNativeMapView` |
 | `Svg` | `CraftNativeSvgView` | `CraftNativeSvgView` |
 | `G`, `SvgText` | drawn inside `CraftNativeSvgView` | drawn inside `CraftNativeSvgView` |
@@ -228,12 +228,21 @@ or `fitToBounds`, which recenters only when its overlay geometry changes. Explic
 authored camera bounds on both hosts; only `fitToBounds` adds framing padding. A marker's `onPress` or
 `onMarkerPress` receives `nativeEvent.id`; a marker's own handler wins, and the map-level handler is
 used as a fallback when the marker has no non-empty handler.
-It is backed by MapKit on iOS and the Google Maps SDK on
-Android; the Android template adds that dependency only for screens that opt
-into the native map host. The shared `mapType` values are `standard`,
+It is backed by MapKit on iOS and the configured native provider on Android.
+Set the Craft Android config's `mapProvider` to `maplibre` for a key-free native
+GL view; `google` preserves the existing Google Maps host. Only the selected
+provider's SDK is included in the generated Android project. These STX map
+components do not use the DOM-based `@craft-native/ts-maps` adapter.
+The shared `mapType` values are `standard`,
 `satellite`, and `hybrid`; Android's terrain-only style is intentionally not
-part of the cross-platform contract. Tile styling, clustering, directions, and
-offline tiles remain outside this contract. Set `showsUserLocation` to opt into the
+part of the cross-platform contract. `tileOverlay` accepts an HTTPS raster URL
+template and its visible provider attribution. `edgePadding` reserves logical
+points around a fitted route for floating controls. `pitchEnabled` controls
+tilt gestures; `cameraPitch` and `cameraHeading` set the camera explicitly.
+Markers accept `pinColor` for trailheads and inspected profile positions, or
+`bearing` for a contrasting route-direction sign. Clustering, turn-by-turn
+directions, and offline tile downloads remain outside this view contract.
+Set `showsUserLocation` to opt into the
 platform location dot; the host only enables it when the app's existing
 location permission is already granted, and never prompts from a renderer
 pass. Android also forwards `MapView` start/stop lifecycle callbacks as map

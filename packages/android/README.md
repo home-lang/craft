@@ -140,18 +140,28 @@ craft android build --native-bundle ../native-screen.js
 Native mode maps STX `View`, `SafeAreaView`, `KeyboardAvoidingView`, `StatusBar`,
 `RefreshControl`, `Text`, `Button`, `Link`, `Icon`,
 `Pressable`, `TouchableOpacity`, `TouchableHighlight`, `Checkbox`, `TextInput`, `Picker`, `DatePicker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `ImageBackground`, `Video`, `Svg`, `G`, `SvgText`, `ScrollView`,
-`Map`, `SectionList`, and `FlatList` to Android views. `Map` uses the Google
-Maps SDK for trail polylines and marker taps; its overlays carry flat
+`Map`, `SectionList`, and `FlatList` to Android views. `Map` uses the configured
+native map provider for trail polylines and marker taps; its overlays carry flat
 latitude/longitude `geometry` arrays, `strokeWidth` is expressed in logical
 points, and the camera supports controlled `region`, one-time `initialRegion`,
-and `fitToBounds`. Set `mapsApiKey` in the Android config to emit the SDK manifest key;
+and `fitToBounds`. Select `mapProvider: 'maplibre'` for the key-free native
+MapLibre renderer. It uses native GL views and needs neither a Google map SDK
+dependency nor a Google map key. `mapProvider: 'google'` retains the existing
+Google Maps host and uses `mapsApiKey` for its SDK manifest key; Google remains
+the default for compatibility with existing projects.
+
 Coordinates must be JSON numbers (numeric strings are not coerced), are
 range-checked at the native boundary, and invalid points or pole-crossing
 regions are ignored. `fitToBounds` waits for the map viewport to
 be measured before caching a successful camera fit, so an early map callback
 does not lose the initial route framing.
-without it, the native map remains an explicit opt-in integration that needs
-the app's own Maps credentials. `SectionList` uses the same
+The shared controls include `showsCompass`, `showsScale`, `pitchEnabled`,
+`cameraPitch`, `cameraHeading`, and floating-control `edgePadding`. Markers
+accept `pinColor` and route-direction `bearing`. The builder's
+`nativeMapProviders` export advertises the providers it actually implements,
+so a build orchestrator can refuse an unsupported explicit choice.
+
+`SectionList` uses the same
 native scroll host for ordinary `.stx` slot children; grouped section data
 should use `FlatList` until the section-data protocol is available. The
 generated host routes both list names through `CraftNativeScrollView` for this
