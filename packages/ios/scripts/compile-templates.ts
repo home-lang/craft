@@ -1,5 +1,5 @@
-import { copyFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { copyFileSync, cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { Glob } from 'bun'
 import { bootSimulator, init, pickSimulator, type CraftConfig } from '../src/index'
 import { initSimulatorDriver, serializeSimulatorSteps } from '../src/testing'
@@ -113,18 +113,38 @@ function run(args: string[], cwd: string, label: string): void {
     stdout: 'inherit',
     stderr: 'inherit',
   })
-  if (result.exitCode !== 0) {
-    const bundleIndex = args.indexOf('-resultBundlePath')
-    const bundle = bundleIndex < 0 ? undefined : args[bundleIndex + 1]
-    if (args[0] === 'xcodebuild' && bundle && existsSync(bundle)) {
-      console.log('xcodebuild failed; reporting XCTest diagnostics before fixture cleanup')
-      for (const view of ['summary', 'tests']) {
-        Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', view, '--path', bundle], {
-          cwd, stdout: 'inherit', stderr: 'inherit',
-        })
-      }
-    }
+  if (result.exitCode !== 0)
     throw new Error(`${label} exited with ${result.exitCode}`)
+}
+
+/** Keep XCTest's own failure details before the disposable project is removed. */
+function retainTimedInputEvidence(requirePassed = false): void {
+  const results = join(workspace, 'TimedInputDriver.xcresult')
+  if (!existsSync(results)) {
+    if (requirePassed) throw new Error('Timed input returned no XCTest result bundle')
+    return
+  }
+  const evidence = process.env.CRAFT_IOS_TEMPLATE_EVIDENCE
+  const output = evidence ? resolve(evidence) : undefined
+  if (output) mkdirSync(output, { recursive: true })
+  let summary: { exitCode: number, output: string } | undefined
+  for (const kind of ['summary', 'tests']) {
+    const report = Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', kind, '--path', results], { stdout: 'pipe', stderr: 'pipe' })
+    if (kind === 'summary') summary = { exitCode: report.exitCode, output: report.stdout.toString() }
+    console.log(`XCTest ${kind} (exit ${report.exitCode}):\n${report.stdout.toString()}`)
+    if (report.stderr.length) console.error(report.stderr.toString())
+    if (output) {
+      writeFileSync(join(output, `${kind}.json`), report.stdout)
+      writeFileSync(join(output, `${kind}.stderr.log`), report.stderr)
+      writeFileSync(join(output, `${kind}.exit-code.txt`), String(report.exitCode))
+    }
+  }
+  if (output) cpSync(results, join(output, 'TimedInputDriver.xcresult'), { recursive: true, force: false, errorOnExist: true })
+  if (requirePassed) {
+    if (!summary || summary.exitCode !== 0) throw new Error('Unable to verify the timed input XCTest summary')
+    const counts = JSON.parse(summary.output)
+    if (counts.result !== 'Passed' || !Number.isInteger(counts.totalTestCount) || counts.totalTestCount < 1 || counts.passedTests !== counts.totalTestCount || counts.failedTests !== 0 || counts.skippedTests !== 0)
+      throw new Error(`Expected actual passed timed input tests without skips: ${summary.output}`)
   }
 }
 
@@ -298,6 +318,12 @@ try {
       throw new Error(`${configuration} signs aps-environment=${signed}, expected ${expected}`)
     console.log(`ok: ${configuration} signs aps-environment=${signed}`)
   }
+  retainTimedInputEvidence(true)
+}
+catch (error) {
+  try { retainTimedInputEvidence() }
+  catch (diagnosticError) { console.error('Unable to retain XCTest diagnostics:', diagnosticError) }
+  throw error
 }
 finally {
   if (keepProjects) {

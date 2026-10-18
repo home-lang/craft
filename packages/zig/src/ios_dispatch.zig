@@ -592,7 +592,7 @@ export fn craft_ios_handle_action(
 /// deliberately accepts only recorder actions: a scoped C callback cannot own
 /// a delayed CoreLocation permission/fix response. No page ID or WebView is used.
 export fn craft_ios_recording_ownership_version() callconv(.c) i32 {
-    return 1;
+    return 2;
 }
 
 export fn craft_ios_perform_recording_action(
@@ -1041,7 +1041,7 @@ test "native recording C ABI answers once without a WebView and permits nested r
         }
     };
     try testing.expect(bridge_error.native_reply == null);
-    try testing.expectEqual(@as(i32, 1), craft_ios_recording_ownership_version());
+    try testing.expectEqual(@as(i32, 2), craft_ios_recording_ownership_version());
     var capture: Capture = .{};
     const action = "startLocationRecording";
     try testing.expect(craft_ios_perform_recording_action(action, action.len, "{}", 2, &capture, Capture.receive));

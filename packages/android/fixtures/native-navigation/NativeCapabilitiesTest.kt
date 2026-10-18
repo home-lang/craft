@@ -22,6 +22,19 @@ class NativeCapabilitiesTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
     @Test
+    fun secureUuidUsesTheNativePlatformWithoutJavaScriptEntropy() {
+        val capabilities = CraftNativeCapabilities(instrumentation.targetContext, JSONObject())
+        try {
+            assertTrue(capabilities.names().toString().contains("crypto"))
+            val first = call(capabilities, "Crypto", "randomUUID").data as String
+            val second = call(capabilities, "Crypto", "randomUUID").data as String
+            assertEquals(4, UUID.fromString(first).version())
+            assertEquals(2, UUID.fromString(first).variant())
+            assertFalse(first == second)
+        } finally { capabilities.close() }
+    }
+
+    @Test
     fun conditionalCheckpointCannotResurrectDeletedDataOrOverwriteFeedback() {
         val base = instrumentation.targetContext
         val name = "cas-test-${UUID.randomUUID()}"
@@ -36,13 +49,17 @@ class NativeCapabilitiesTest {
         fun cas(expected: Any, value: Any) = call(capabilities, "Storage", "compareAndSet", JSONArray().put("draft").put(expected).put(value))
         try {
             assertTrue(capabilities.names().toString().contains("storageCompareAndSet"))
+            assertTrue(capabilities.names().toString().contains("storageSetIfAbsent"))
             assertEquals(false, cas(JSONObject.NULL, next).data)
-            assertEquals(true, call(capabilities, "Storage", "set", JSONArray().put("draft").put(old)).data)
+            assertEquals(true, call(capabilities, "Storage", "setIfAbsent", JSONArray().put("draft").put(old)).data)
+            assertEquals(false, call(capabilities, "Storage", "setIfAbsent", JSONArray().put("draft").put(JSONObject().put("owner", "B"))).data)
             assertEquals(false, cas(JSONObject(old.toString()).put("feedback", "stale"), next).data)
             assertEquals(true, cas(JSONObject().put("visits", 1).put("feedback", "latest").put("owner", "A"), next).data)
             assertEquals(true, call(capabilities, "Storage", "remove", JSONArray().put("draft")).data)
             assertEquals(false, cas(next, old).data)
             assertNull(values.getString("draft", null))
+            assertEquals(true, call(capabilities, "Storage", "setIfAbsent", JSONArray().put("draft").put(JSONObject.NULL)).data)
+            assertEquals(false, call(capabilities, "Storage", "setIfAbsent", JSONArray().put("draft").put(old)).data)
             assertFalse(CraftNativeStorage.jsonEqual(true, 1))
             assertFalse(CraftNativeStorage.jsonEqual(JSONArray().put(1).put(2), JSONArray().put(2).put(1)))
         } finally { capabilities.close(); base.deleteSharedPreferences(name) }
@@ -142,6 +159,10 @@ class NativeCapabilitiesTest {
             assertEquals(0, notifications)
             val conditional = call(capabilities, "Storage", "compareAndSet", JSONArray().put("draft").put(JSONObject().put("owner", "A")).put(JSONObject().put("owner", "B")))
             assertEquals("STORAGE_ERROR", conditional.code)
+            assertEquals(0, notifications)
+            val registration = call(capabilities, "Storage", "setIfAbsent", JSONArray().put("new-draft").put(JSONObject().put("owner", "B")))
+            assertEquals("STORAGE_ERROR", registration.code)
+            assertFalse(values.contains("new-draft"))
             assertEquals(0, notifications)
             val stored = call(capabilities, "Storage", "get", JSONArray().put("draft")).data as JSONObject
             assertEquals("A", stored.getString("owner"))

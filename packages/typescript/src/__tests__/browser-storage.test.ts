@@ -8,7 +8,7 @@ function storage(): Storage {
 async function fixture() {
   const saved = storage()
   const changes: string[] = []
-  const browser = await createBrowserStorage({ storage: saved, namespace: 'app', tokenKey: 'auth_token', accountKeys: ['auth_user'], hash: async value => `hash-${value}`, changed: name => changes.push(name) })
+  const browser = await createBrowserStorage({ storage: saved, namespace: 'app', tokenKey: 'auth_token', accountKeys: ['auth_user'], hash: async value => `hash-${value}`, changed: name => changes.push(name), lock: null })
   return { saved, browser, changes }
 }
 describe('browser account persistence', () => {
@@ -53,5 +53,83 @@ describe('browser account persistence', () => {
     expect(browser.craft.secureStorage.getSync('private-key')).toBeNull()
     expect(browser.craft.snapshots.keys()).toEqual([])
     expect(saved.getItem('other-app')).toBe('keep')
+  })
+})
+
+function locks() {
+  let tail = Promise.resolve()
+  return <T>(_name: string, operation: () => T | Promise<T>): Promise<T> => {
+    const result = tail.then(operation)
+    tail = result.then(() => undefined, () => undefined)
+    return result
+  }
+}
+async function atomicFixture() {
+  const saved = storage()
+  const lock = locks()
+  const options = { storage: saved, namespace: 'atomic', tokenKey: 'auth_token', hash: async (value: string) => `hash-${value}`, changed: () => {}, lock }
+  const a = await createBrowserStorage(options)
+  const b = await createBrowserStorage(options)
+  return { saved, a, b, lock }
+}
+
+describe('browser atomic account checkpoints', () => {
+  it('advertises atomic support only with a lock primitive and refuses unsupported writes', async () => {
+    const { browser } = await fixture()
+    expect(browser.atomicStorage).toBe(false)
+    await expect(browser.call('Storage', 'setIfAbsent', ['draft', null])).rejects.toMatchObject({ code: 'STORAGE_SET_IF_ABSENT_UNSUPPORTED' })
+    await expect(browser.call('Storage', 'compareAndSet', ['draft', null, {}])).rejects.toMatchObject({ code: 'STORAGE_COMPARE_AND_SET_UNSUPPORTED' })
+  })
+  it('serializes competing creation, preserves stored null, and makes deletion win over CAS', async () => {
+    const { a, b } = await atomicFixture()
+    expect(a.atomicStorage).toBe(true)
+    expect(await Promise.all([a.call('Storage', 'setIfAbsent', ['draft', { id: 'A', feedback: 'latest' }]), b.call('Storage', 'setIfAbsent', ['draft', { id: 'B' }])])).toEqual([true, false])
+    expect(await b.call('Storage', 'compareAndSet', ['draft', { feedback: 'latest', id: 'A' }, { id: 'A', done: true }])).toBe(true)
+    expect(await b.call('Storage', 'remove', ['draft'])).toBe(true)
+    expect(await a.call('Storage', 'compareAndSet', ['draft', { id: 'A', done: true }, { id: 'A' }])).toBe(false)
+    expect(await a.call('Storage', 'get', ['draft'])).toBeNull()
+    a.craft.storage.setSync('draft', { id: 'C' })
+    a.craft.storage.setSync('draft', null)
+    expect(a.craft.storage.getSync('draft')).toBeNull()
+    expect(await b.call('Storage', 'setIfAbsent', ['draft', { id: 'D' }])).toBe(true)
+    expect(await a.call('Storage', 'setIfAbsent', ['draft', null])).toBe(false)
+    await b.call('Storage', 'remove', ['draft'])
+    expect(await a.call('Storage', 'setIfAbsent', ['draft', null])).toBe(true)
+    expect(await b.call('Storage', 'setIfAbsent', ['draft', { id: 'B' }])).toBe(false)
+  })
+  it('puts synchronous UI writes on the same lock and keeps immediate UI reads', async () => {
+    const { a, b } = await atomicFixture()
+    a.craft.storage.setSync('draft', { id: 'A' })
+    expect(a.craft.storage.getSync('draft')).toEqual({ id: 'A' })
+    await b.call('Storage', 'remove', ['draft'])
+    expect(await a.call('Storage', 'compareAndSet', ['draft', { id: 'A' }, { id: 'A', done: true }])).toBe(false)
+    expect(await a.call('Storage', 'get', ['draft'])).toBeNull()
+  })
+  it('rejects a queued old-account read instead of retargeting the new namespace', async () => {
+    const { saved, a, lock } = await atomicFixture()
+    await a.call('SecureStorage', 'set', ['auth.token', 'A'])
+    await a.call('Storage', 'set', ['draft', { owner: 'A' }])
+    let release!: () => void
+    let entered!: () => void
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const held = lock('atomic:storage', () => new Promise<void>(resolve => { release = resolve; entered() }))
+    await started
+    const stale = a.call('Storage', 'get', ['draft'])
+    saved.setItem('auth_token', 'B')
+    const transition = a.accountChanged()
+    release()
+    await expect(stale).rejects.toMatchObject({ code: 'STORAGE_SCOPE_CHANGED' })
+    await Promise.all([held, transition])
+    expect(await a.call('Storage', 'get', ['draft'])).toBeNull()
+    expect(saved.getItem('atomic:account:hash-B:storage:draft')).toBeNull()
+  })
+  it('preserves the committed value when an atomic write runs out of storage', async () => {
+    const { saved, a } = await atomicFixture()
+    await a.call('Storage', 'set', ['draft', { owner: 'A' }])
+    const original = saved.setItem
+    saved.setItem = () => { throw new Error('quota exceeded') }
+    await expect(a.call('Storage', 'compareAndSet', ['draft', { owner: 'A' }, { owner: 'B' }])).rejects.toThrow('quota exceeded')
+    saved.setItem = original
+    expect(await a.call('Storage', 'get', ['draft'])).toEqual({ owner: 'A' })
   })
 })

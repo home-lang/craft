@@ -2438,7 +2438,7 @@ struct CraftWebView: UIViewRepresentable {
                 resolveCallback(callbackId, result: true)
             case "startLocationRecording":
                 if config.enableGeolocation {
-                    startLocationRecording(callbackId: callbackId)
+                    startLocationRecording(body: body, callbackId: callbackId)
                 } else {
                     rejectCallback(callbackId, error: "Geolocation is disabled", code: "CAPABILITY_DISABLED")
                 }
@@ -3761,7 +3761,9 @@ struct CraftWebView: UIViewRepresentable {
                     pushNotifications: \(config.enablePushNotifications),
                     secureStorage: \(config.enableSecureStorage),
                     geolocation: \(config.enableGeolocation),
+                    crypto: true,
                     locationRecordingOwnership: \(config.enableGeolocation && CraftZigRuntime.supportsRecordingOwnership),
+                    locationRecordingIntentIdentity: \(config.enableGeolocation && CraftZigRuntime.supportsRecordingIntentIdentity),
                     backgroundLocation: \(config.enableBackgroundLocation),
                     healthKit: \(config.enableHealthKit),
                     liveActivities: \(config.enableLiveActivities),
@@ -3779,6 +3781,7 @@ struct CraftWebView: UIViewRepresentable {
                     music: \(config.enableAppleMusic),
                     heartRate: \(config.enableHeartRate),
                     heartRateRecordingOwnership: \(config.enableHeartRate),
+                    heartRateRecordingIntentIdentity: \(config.enableHeartRate),
                     scheduledWorkouts: \(config.enableScheduledWorkouts),
                     speech: true,
                     crashReporter: \(CraftCrashReporter.shared.enabled),
@@ -5363,8 +5366,14 @@ struct CraftWebView: UIViewRepresentable {
                     browserOpen: true
                 };
                 craft._invoke = function(action, payload) {
-                    var recordingOptions = action === 'heartRate' && payload && ['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'].indexOf(payload.method) !== -1
-                        ? payload.options : ['pauseLocationRecording', 'resumeLocationRecording', 'stopLocationRecording', 'readLocationRecording', 'getLocationRecordingState', 'acknowledgeLocationRecording'].indexOf(action) !== -1 ? payload : null;
+                    var recordingOptions = action === 'heartRate' && payload && ['startRecording', 'pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'].indexOf(payload.method) !== -1
+                        ? payload.options : ['startLocationRecording', 'pauseLocationRecording', 'resumeLocationRecording', 'stopLocationRecording', 'readLocationRecording', 'getLocationRecordingState', 'acknowledgeLocationRecording'].indexOf(action) !== -1 ? payload : null;
+                    if (recordingOptions && Object.prototype.hasOwnProperty.call(recordingOptions, 'recordingId') &&
+                        (typeof recordingOptions.recordingId !== 'string' || !recordingOptions.recordingId.trim())) {
+                        var invalidStart = new Error('recordingId must be a nonempty recording ID');
+                        invalidStart.code = 'INVALID_ARGUMENT';
+                        return Promise.reject(invalidStart);
+                    }
                     if (recordingOptions && Object.prototype.hasOwnProperty.call(recordingOptions, 'expectedId') &&
                         (typeof recordingOptions.expectedId !== 'string' || !recordingOptions.expectedId.trim())) {
                         var invalid = new Error('expectedId must be a nonempty recording ID');
@@ -5508,6 +5517,7 @@ struct CraftWebView: UIViewRepresentable {
                     legacyLocationWatchCallbacks.length = 0;
                     return stopLocationWatchIfUnused();
                 };
+                craft.crypto = { randomUUID: function() { return craft._invoke('cryptoRandomUUID'); } };
                 craft.location = {
                     getCurrentPosition: function(options) { return legacyGeolocation.getCurrentPosition(options || {}); },
                     watchPosition: function(callback) {
@@ -5526,7 +5536,7 @@ struct CraftWebView: UIViewRepresentable {
                         if (!locationWatchCallbacks.delete(id)) return;
                         void stopLocationWatchIfUnused().catch(function() {});
                     },
-                    startRecording: function() { return craft._invoke('startLocationRecording'); },
+                    startRecording: function(options) { return craft._invoke('startLocationRecording', options || {}); },
                     pauseRecording: function(options) { return craft._invoke('pauseLocationRecording', options || {}); },
                     resumeRecording: function(options) { return craft._invoke('resumeLocationRecording', options || {}); },
                     stopRecording: function(options) { return craft._invoke('stopLocationRecording', options || {}); },
@@ -5620,7 +5630,7 @@ struct CraftWebView: UIViewRepresentable {
                         connect: function(id) { return heartRate('connect', {id: typeof id === 'string' ? id : id && id.id}); },
                         reconnect: function() { return heartRate('reconnect'); },
                         disconnect: function(options) { return heartRate('disconnect', {forget: !!(options && options.forget)}); },
-                        startRecording: function() { return heartRate('startRecording'); },
+                        startRecording: function(options) { return heartRate('startRecording', options || {}); },
                         pauseRecording: function(options) { return heartRate('pauseRecording', options || {}); },
                         resumeRecording: function(options) { return heartRate('resumeRecording', options || {}); },
                         stopRecording: function(options) { return heartRate('stopRecording', options || {}); },
@@ -6607,23 +6617,28 @@ struct CraftWebView: UIViewRepresentable {
             return true
         }
 
-        private func startLocationRecording(callbackId: String?) {
+        private func startLocationRecording(body: [String: Any], callbackId: String?) {
             guard !isRecordingLocation else {
                 rejectCallback(callbackId, error: "A location recording is already active", code: "RECORDING_ALREADY_ACTIVE")
                 return
             }
             let directory = locationRecordingTrackURL.deletingLastPathComponent()
+            let id: String
             do {
+                id = try CraftRecordingArchive.startId(body, directory: recordingBaseDirectory, kind: "location", currentId: locationRecordingId)
                 try CraftRecordingArchive.save(recordingBaseDirectory, "location", locationRecordingSummary(), samples: try loadRecordedLocationsStrict())
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 try Data().write(to: locationRecordingTrackURL, options: .atomic)
                 protectLocationFile(locationRecordingTrackURL)
+            } catch let error as CraftNativeActionError {
+                rejectCallback(callbackId, error: error.message, code: error.code)
+                return
             } catch {
                 rejectCallback(callbackId, error: "Unable to create the location recording", code: "RECORDING_STORAGE_ERROR")
                 return
             }
             let previous = (locationRecordingId, locationRecordingStartedAt, isRecordingLocation, isLocationRecordingPaused)
-            locationRecordingId = UUID().uuidString
+            locationRecordingId = id
             locationRecordingStartedAt = Date().timeIntervalSince1970 * 1000
             isRecordingLocation = true
             isLocationRecordingPaused = false
@@ -9146,7 +9161,14 @@ final class CraftZigRuntime: NSObject {
         if !isLinked { return true }
         guard performRecordingFn != nil,
               let symbol = dlsym(image, "craft_ios_recording_ownership_version") else { return false }
-        return unsafeBitCast(symbol, to: RecordingOwnershipVersionFn.self)() == 1
+        return unsafeBitCast(symbol, to: RecordingOwnershipVersionFn.self)() >= 1
+    }
+
+    static var supportsRecordingIntentIdentity: Bool {
+        if !isLinked { return true }
+        guard performRecordingFn != nil,
+              let symbol = dlsym(image, "craft_ios_recording_ownership_version") else { return false }
+        return unsafeBitCast(symbol, to: RecordingOwnershipVersionFn.self)() >= 2
     }
 
     /// Give Zig the webview its replies are evaluated against.

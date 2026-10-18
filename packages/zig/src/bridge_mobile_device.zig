@@ -23,6 +23,7 @@ const objc = objc_runtime.objc;
 /// this build, and it is declared `.unavailable` rather than guessed at. See
 /// `network_status_reason`.
 pub const A = struct {
+    pub const crypto_random_uuid = "cryptoRandomUUID";
     pub const get_memory_usage = "getMemoryUsage";
     pub const get_app_state = "getAppState";
     pub const get_network_status = "getNetworkStatus";
@@ -55,6 +56,7 @@ pub const network_status_reason =
     "iOS API can answer isConnected without fabricating it";
 
 pub const capability_actions = [_]capabilities.ActionDecl{
+    .{ .name = A.crypto_random_uuid, .reply = .result },
     .{ .name = A.get_memory_usage, .reply = .result },
     .{ .name = A.get_app_state, .reply = .result },
     // `.reply` stays `.result` because that is the contract the page's promise
@@ -78,9 +80,10 @@ pub const capability_actions = [_]capabilities.ActionDecl{
 /// `UIApplication` does not exist at all. A test that had to *call* the
 /// handlers to discover which names route could only run on a device, which is
 /// to say it would never run.
-const Route = enum { memory_usage, app_state, network_status, log };
+const Route = enum { memory_usage, app_state, network_status, log, crypto_random_uuid };
 
 fn routeFor(action: []const u8) ?Route {
+    if (std.mem.eql(u8, action, A.crypto_random_uuid)) return .crypto_random_uuid;
     if (std.mem.eql(u8, action, A.get_memory_usage)) return .memory_usage;
     if (std.mem.eql(u8, action, A.get_app_state)) return .app_state;
     if (std.mem.eql(u8, action, A.get_network_status)) return .network_status;
@@ -105,11 +108,20 @@ pub const DeviceBridge = struct {
         // without a handler is a compile error instead of a silently
         // unreachable action.
         return switch (route) {
+            .crypto_random_uuid => self.randomUUID(),
             .memory_usage => self.getMemoryUsage(),
             .app_state => self.getAppState(),
             .network_status => getNetworkStatus(),
             .log => self.log(data),
         };
+    }
+
+    fn randomUUID(self: *Self) !void {
+        const id = try @import("platform_uuid.zig").darwin(self.allocator);
+        defer self.allocator.free(id);
+        const json = try std.fmt.allocPrint(self.allocator, "\"{s}\"", .{id});
+        defer self.allocator.free(json);
+        bridge_error.sendResultToJS(self.allocator, A.crypto_random_uuid, json);
     }
 
     fn getMemoryUsage(self: *Self) !void {

@@ -230,6 +230,7 @@ object CraftNative {
     }
 
     private external fun nativeGetDeviceInfo(activity: Activity): String?
+    private external fun nativeRandomUUID(): String?
     private external fun nativeGetMemoryUsage(): String?
     private external fun nativeLog(message: String): Boolean
     private external fun nativeFlexRow(
@@ -487,6 +488,11 @@ object CraftNative {
         } catch (e: UnsatisfiedLinkError) {
             null
         }
+    }
+
+    fun randomUUID(): String? {
+        if (!isAvailable) return null
+        return try { nativeRandomUUID() } catch (_: UnsatisfiedLinkError) { null }
     }
 
     /** The JVM heap as JSON, or null to use the Kotlin implementation. */
@@ -1925,7 +1931,12 @@ object CraftNative {
      */
     fun supportsRecordingOwnership(): Boolean {
         if (!isAvailable) return true
-        return try { nativeRecordingOwnershipVersion() == 1 } catch (_: UnsatisfiedLinkError) { false }
+        return try { nativeRecordingOwnershipVersion() >= 1 } catch (_: UnsatisfiedLinkError) { false }
+    }
+
+    fun supportsRecordingIntentIdentity(): Boolean {
+        if (!isAvailable) return true
+        return try { nativeRecordingOwnershipVersion() >= 2 } catch (_: UnsatisfiedLinkError) { false }
     }
 
     fun recordingAction(activity: Activity, method: String, options: String): String? {

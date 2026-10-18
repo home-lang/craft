@@ -573,8 +573,25 @@ class NativeNavigationTest {
         val activity = instrumentation.startActivitySync(
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
+        val previousScale = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        fun animatorScale(value: Float) {
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
+                "settings put global animator_duration_scale $value",
+            )).use { it.readBytes() }
+        }
         try {
+            animatorScale(1f)
             awaitView(activity, "navigation-home-state")
+            var ready = false
+            repeat(30) {
+                if (!ready) {
+                    instrumentation.runOnMainSync {
+                        ready = activity.hasWindowFocus() && android.animation.ValueAnimator.areAnimatorsEnabled()
+                    }
+                    if (!ready) SystemClock.sleep(100)
+                }
+            }
+            assertTrue("pulse coverage requires the focused native window and enabled animations", ready)
             instrumentation.runOnMainSync {
                 val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
                     ?: throw AssertionError("native chrome did not mount")
@@ -596,18 +613,23 @@ class NativeNavigationTest {
                 assertEquals(CraftTabIconAppearance("heart.fill", Color.parseColor("#ff3b30"), true), chrome.tabIconAppearance(0, true))
                 assertEquals(Color.parseColor("#ff3b30"), icon.currentTextColor)
                 assertTrue("selected filled icon was not rendered", icon.foreground != null || icon.text.toString() == "♥")
+                assertTrue("the selected native icon never started its pulse", icon.animation is android.view.animation.AlphaAnimation)
                 assertFalse("reduced motion must suppress animation", chrome.tabIconAppearance(0, false).pulse)
                 chrome.selectTab(1)
                 assertFalse("inactive tab kept its selection pulse", chrome.tabIconAppearance(0, true).pulse)
                 assertTrue("inactive tab kept its selected symbol", chrome.tabIconAppearance(0, true).symbol != "heart.fill")
                 assertTrue("inactive tab retained its animation", icon.animation == null)
                 chrome.selectTab(0)
+                val resumedPulse = icon.animation
+                assertTrue("returning to the owning tab did not resume its pulse", resumedPulse is android.view.animation.AlphaAnimation)
                 patch(org.json.JSONObject().put("selectedSymbol", " \n "))
                 assertTrue("blank overrides must restore the base symbol", chrome.tabIconAppearance(0, true).symbol != "heart.fill")
                 patch(org.json.JSONObject().put("selectedSymbol", " heart.fill "))
                 assertEquals("heart.fill", chrome.tabIconAppearance(0, true).symbol)
                 patch(org.json.JSONObject().put("title", "145 bpm").put("iconTint", "#ff3b30").put("iconPulse", true))
+                assertSame("a live caption restarted the native pulse", resumedPulse, icon.animation)
                 patch(org.json.JSONObject().put("title", org.json.JSONObject.NULL).put("iconTint", org.json.JSONObject.NULL).put("iconPulse", false))
+                assertSame("caption cleanup interrupted the selected pulse", resumedPulse, icon.animation)
                 assertEquals("Home", (cell.getChildAt(1) as TextView).text.toString())
                 assertEquals(CraftTabIconAppearance("heart.fill", Color.parseColor("#ff3b30"), true), chrome.tabIconAppearance(0, true))
                 assertTrue("caption cleanup changed the owning native tab", cell.isSelected)
@@ -620,6 +642,7 @@ class NativeNavigationTest {
                 assertTrue(chrome.tabIconAppearance(0, true).tint == null)
             }
         } finally {
+            animatorScale(previousScale)
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
             instrumentation.waitForIdleSync()
         }

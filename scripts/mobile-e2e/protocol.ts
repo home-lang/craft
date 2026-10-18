@@ -81,6 +81,7 @@ export const NOTIFICATION_TEST_TIMEOUT_MS = 300_000 + LOCAL_NOTIFICATION_DELAY_M
 export const REQUIRED_CASES: Record<MobilePlatform, string[]> = {
   ios: [
     'bridge.ready',
+    'crypto.nativeUuid',
     'deviceInfo.isSimulator',
     'clipboard.roundTrip',
     'permissions.location.granted',
@@ -95,6 +96,7 @@ export const REQUIRED_CASES: Record<MobilePlatform, string[]> = {
   ],
   android: [
     'bridge.ready',
+    'crypto.nativeUuid',
     'deviceInfo.isEmulator',
     'clipboard.roundTrip',
     'push.disabled.rejects',
@@ -791,6 +793,7 @@ export function zigRefusals(text: string): string[] {
  * reducing what the assertion covers.
  */
 export const ZIG_TESTED_ACTIONS = [
+  'cryptoRandomUUID',
   'checkPermission',
   'clearWatch',
   'clipboardRead',

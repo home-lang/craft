@@ -108,6 +108,7 @@ internal class CraftNativeServices(
         if (config.optBoolean("enableGeolocation") || config.optBoolean("enableBackgroundLocation")) {
             add("geolocation")
             if (CraftNative.supportsRecordingOwnership()) add("locationRecordingOwnership")
+            if (CraftNative.supportsRecordingIntentIdentity()) add("locationRecordingIntentIdentity")
         }
         if (config.optJSONObject("backgroundRefresh")?.optBoolean("enabled") == true || config.optBoolean("enablePushNotifications")) add("background")
         // craft.crashReporter: the app's crash and error reporter (bughq).

@@ -786,6 +786,11 @@ const natives = [_]jni.JNINativeMethod{
         .signature = "(Landroid/app/Activity;)Z",
         .fnPtr = @ptrCast(&nativeGetCurrentPosition),
     },
+    .{
+        .name = "nativeRandomUUID",
+        .signature = "()Ljava/lang/String;",
+        .fnPtr = @ptrCast(&nativeRandomUUID),
+    },
 };
 
 /// How binding went. A value rather than a log line, so every path is
@@ -842,6 +847,15 @@ fn nativeGetDeviceInfo(env: jni.JNIEnv, _: jni.jobject, activity: jni.jobject) c
     // model name, a carrier — and `NewStringUTF` reads modified UTF-8, where a
     // NUL is two bytes and an astral character is a surrogate pair.
     return j.newStringUtf8(allocator, json) catch |err| fellThrough("getDeviceInfo", err, @as(jni.jstring, null));
+}
+
+fn nativeRandomUUID(env: jni.JNIEnv, _: jni.jobject) callconv(.c) jni.jstring {
+    var arena = std.heap.ArenaAllocator.init(backing);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const j = Jni.init(env);
+    const id = @import("platform_uuid.zig").android(j, allocator) catch |err| return fellThrough("randomUUID", err, @as(jni.jstring, null));
+    return j.newStringUtf8(allocator, id) catch |err| fellThrough("randomUUID", err, @as(jni.jstring, null));
 }
 
 /// `nativeGetMemoryUsage()` — the JVM heap, as JSON.
@@ -2950,21 +2964,25 @@ fn recordingStoreCall(j: Jni, activity: jni.jobject, method: jni.jstring, option
 }
 
 fn nativeRecordingOwnershipVersion(_: jni.JNIEnv, _: jni.jobject) callconv(.c) jni.jint {
-    return 1;
+    return 2;
 }
 
 fn nativeRecordingAction(env: jni.JNIEnv, _: jni.jobject, activity: jni.jobject, method: jni.jstring, options: jni.jstring) callconv(.c) jni.jstring {
-    return recordingStoreCall(Jni.init(env), activity, method, options) catch |err| return fellThrough("recordingAction", err, null);
+    return recordingStoreCall(Jni.init(env), activity, method, options) catch |err| return fellThrough("recordingAction", err, @as(jni.jstring, null));
 }
 
 fn legacyRecordingStore(j: Jni, activity: jni.jobject, comptime method: [:0]const u8) jni.jstring {
-    const response = recordingStoreCall(j, activity, j.newStringUtf(method) catch return null, j.newStringUtf("{}") catch return null) catch return null;
-    const cls = j.findClass("org/json/JSONObject") catch return null;
-    const object = j.newObjectA(cls, j.methodId(cls, "<init>", "(Ljava/lang/String;)V") catch return null, &.{.{ .l = response }}) catch return null;
-    const ok = j.callBooleanMethodA(object, j.methodId(cls, "getBoolean", "(Ljava/lang/String;)Z") catch return null, &.{.{ .l = j.newStringUtf("ok") catch return null }}) catch return null;
-    if (!ok) return null;
-    const value = j.callObjectMethodA(object, j.methodId(cls, "get", "(Ljava/lang/String;)Ljava/lang/Object;") catch return null, &.{.{ .l = j.newStringUtf("data") catch return null }}) catch return null;
-    return j.callObjectMethod(value, j.methodId(j.objectClass(value) catch return null, "toString", "()Ljava/lang/String;") catch return null) catch null;
+    return legacyRecordingStoreValue(j, activity, method) catch |err| return fellThrough(method, err, @as(jni.jstring, null));
+}
+
+fn legacyRecordingStoreValue(j: Jni, activity: jni.jobject, comptime method: [:0]const u8) !jni.jstring {
+    const response = try recordingStoreCall(j, activity, try j.newStringUtf(method), try j.newStringUtf("{}"));
+    const cls = try j.findClass("org/json/JSONObject");
+    const object = try j.newObjectA(cls, try j.methodId(cls, "<init>", "(Ljava/lang/String;)V"), &.{.{ .l = response }});
+    const ok = try j.callBooleanMethodA(object, try j.methodId(cls, "getBoolean", "(Ljava/lang/String;)Z"), &.{.{ .l = try j.newStringUtf("ok") }});
+    if (!ok) return error.RecordingOperationFailed;
+    const value = try j.callObjectMethodA(object, try j.methodId(cls, "get", "(Ljava/lang/String;)Ljava/lang/Object;"), &.{.{ .l = try j.newStringUtf("data") }});
+    return try j.callObjectMethod(value, try j.methodId(try j.objectClass(value), "toString", "()Ljava/lang/String;"));
 }
 
 /// `nativeGetLocationRecordingState(activity)`.

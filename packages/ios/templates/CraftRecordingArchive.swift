@@ -27,6 +27,21 @@ enum CraftRecordingArchive {
         let digest = SHA256.hash(data: Data(id.utf8)).map { String(format: "%02x", $0) }.joined()
         return directory.appendingPathComponent("craft-\(kind)-\(acknowledged ? "ack" : "completed")-\(digest).json")
     }
+    static func startId(_ options: [String: Any], directory: URL, kind: String, currentId: String?) throws -> String {
+        let id: String
+        if options.keys.contains("recordingId") {
+            guard let requested = options["recordingId"] as? String,
+                  !requested.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw CraftNativeActionError(code: "INVALID_ARGUMENT", message: "recordingId must be a nonempty recording ID")
+            }
+            id = requested
+        } else { id = UUID().uuidString }
+        let acknowledged = try isAcknowledged(directory, kind, id)
+        if id == currentId || acknowledged || FileManager.default.fileExists(atPath: url(directory, kind, id).path) {
+            throw CraftNativeActionError(code: "RECORDING_CONFLICT", message: "Recording IDs cannot be reused")
+        }
+        return id
+    }
     static func isAcknowledged(_ directory: URL, _ kind: String, _ id: String) throws -> Bool {
         let marker = url(directory, kind, id, acknowledged: true)
         guard FileManager.default.fileExists(atPath: marker.path) else { return false }

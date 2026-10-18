@@ -603,13 +603,12 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
-    // Host tests reach the shared UUID provider through Android dispatch.
-    // Its Darwin implementation uses NSUUID and the Objective-C runtime.
+    // The shared UUID primitive's Darwin test calls Foundation's real NSUUID
+    // on a Mac host, even when reached through the Android JNI test root.
     if (target.result.os.tag.isDarwin()) {
         android_bridge_tests.root_module.link_libc = true;
         android_bridge_tests.root_module.linkSystemLibrary("objc", .{});
         android_bridge_tests.root_module.linkFramework("Foundation", .{});
-        applySdkPaths(b, android_bridge_tests.root_module, macos_sdk);
     }
     const run_android_bridge_tests = b.addRunArtifact(android_bridge_tests);
 

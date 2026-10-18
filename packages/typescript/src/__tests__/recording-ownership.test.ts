@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test'
-import { heartRate, location, storage } from '../api/mobile'
+import { crypto, heartRate, location, storage } from '../api/mobile'
 
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
 afterEach(() => {
@@ -9,12 +9,12 @@ afterEach(() => {
 
 function host(capable: boolean) {
   const calls: unknown[][] = []
-  const namespace = Object.fromEntries(['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'].map(method => [method, async (...args: unknown[]) => {
+  const namespace = Object.fromEntries(['startRecording', 'pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'].map(method => [method, async (...args: unknown[]) => {
     calls.push([method, ...args])
     return method === 'acknowledgeRecording' ? true : method === 'readRecording' ? [] : { id: 'owned', active: true, paused: false, startedAt: 1 }
   }]))
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { craft: {
-    capabilities: { geolocation: true, heartRate: true, locationRecordingOwnership: capable, heartRateRecordingOwnership: capable },
+    capabilities: { geolocation: true, heartRate: true, locationRecordingOwnership: capable, heartRateRecordingOwnership: capable, locationRecordingIntentIdentity: capable, heartRateRecordingIntentIdentity: capable },
     location: namespace, heartRate: namespace,
   } } })
   return calls
@@ -87,4 +87,50 @@ test('storage CAS preserves arguments, false conflicts and real storage failures
   outcome = full
   await expect(storage.compareAndSet('draft', old, next)).rejects.toBe(full)
   expect(calls).toEqual(Array.from({ length: 3 }, () => ['draft', old, next]))
+})
+
+test('initial storage registration requires its own capability and forwards false without fallback', async () => {
+  const calls: unknown[][] = []
+  const native = { setIfAbsent: async (...args: unknown[]) => { calls.push(args); return false } }
+  const craft = { capabilities: { storageSetIfAbsent: false }, storage: native }
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { craft } })
+  expect(storage.supportsSetIfAbsent()).toBe(false)
+  await expect(storage.setIfAbsent('intent', null)).rejects.toMatchObject({ code: 'STORAGE_SET_IF_ABSENT_UNSUPPORTED' })
+  expect(calls).toEqual([])
+  craft.capabilities.storageSetIfAbsent = true
+  expect(storage.supportsSetIfAbsent()).toBe(true)
+  expect(await storage.setIfAbsent('intent', null)).toBe(false)
+  expect(calls).toEqual([['intent', null]])
+})
+
+for (const [name, api] of [['GPS', location], ['heart rate', heartRate]] as const) {
+  test(`${name} starts the persisted ID and refuses old hosts and malformed IDs`, async () => {
+    const old = host(false)
+    expect(api.supportsRecordingIntentIdentity()).toBe(false)
+    await expect(api.startRecording({ recordingId: 'owned' })).rejects.toMatchObject({ code: 'RECORDING_INTENT_IDENTITY_UNSUPPORTED' })
+    expect(old).toEqual([])
+    const calls = host(true)
+    expect(api.supportsRecordingIntentIdentity()).toBe(true)
+    expect(await api.startRecording({ recordingId: 'owned' })).toMatchObject({ id: 'owned' })
+    expect(calls).toEqual([['startRecording', { recordingId: 'owned' }]])
+    await expect(api.startRecording({ recordingId: 'different' })).rejects.toMatchObject({ code: 'RECORDING_CONFLICT' })
+    const count = calls.length
+    for (const recordingId of ['', '  ', null, undefined, 42])
+      await expect(api.startRecording({ recordingId } as never)).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' })
+    expect(calls.length).toBe(count)
+  })
+}
+
+test('secure UUIDs use the advertised native service and never fall back on old hosts', async () => {
+  let calls = 0
+  let result = 'c4847342-93ce-4b80-bdc1-d26075fbc1d3'
+  const craft = { capabilities: { crypto: false }, crypto: { randomUUID: async () => { calls += 1; return result } } }
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { craft } })
+  await expect(crypto.randomUUID()).rejects.toMatchObject({ code: 'CRYPTO_UNSUPPORTED' })
+  expect(calls).toBe(0)
+  craft.capabilities.crypto = true
+  expect(await crypto.randomUUID()).toBe(result)
+  result = 'Math.random-is-not-a-UUID'
+  await expect(crypto.randomUUID()).rejects.toMatchObject({ code: 'CRYPTO_INVALID_RESPONSE' })
+  expect(calls).toBe(2)
 })

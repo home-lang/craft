@@ -264,7 +264,7 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
             case "connect": self.connect(id: options["id"] as? String, wait: true, completion: completion)
             case "reconnect": self.connect(id: nil, wait: false, completion: completion)
             case "disconnect": self.disconnect(forget: options["forget"] as? Bool ?? false, completion: completion)
-            case "startRecording": self.startRecording(completion: completion)
+            case "startRecording": self.startRecording(options: options, completion: completion)
             case "pauseRecording": self.setRecordingPaused(true, completion: completion)
             case "resumeRecording": self.setRecordingPaused(false, completion: completion)
             case "stopRecording": self.stopRecording(completion: completion)
@@ -825,21 +825,25 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         return summary
     }
 
-    private func startRecording(completion: @escaping Completion) {
+    private func startRecording(options: [String: Any], completion: @escaping Completion) {
         guard !recordingActive else {
             return completion(.failure(CraftHeartRateError(message: "A heart-rate recording is already active", code: "RECORDING_ALREADY_ACTIVE")))
         }
+        let id: String
         do {
+            id = try CraftRecordingArchive.startId(options, directory: directory, kind: "heart-rate", currentId: recordingId)
             try CraftRecordingArchive.save(directory, "heart-rate", recordingSummary(count: true), samples: try persistedSamples(since: nil), writer: archiveWriter)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try Data().write(to: samplesURL, options: .atomic)
             protect(samplesURL)
+        } catch let error as CraftNativeActionError {
+            return completion(.failure(CraftHeartRateError(message: error.message, code: error.code)))
         } catch {
             return completion(.failure(CraftHeartRateError(message: "Unable to create the heart-rate recording", code: "RECORDING_STORAGE_ERROR")))
         }
         let previous = (recordingActive, recordingId, recordingStartedAt, recordingPaused, recordedCount)
         recordingActive = true
-        recordingId = UUID().uuidString
+        recordingId = id
         recordingStartedAt = (clock().timeIntervalSince1970 * 1000).rounded()
         recordingPaused = false
         recordedCount = 0
