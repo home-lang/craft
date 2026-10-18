@@ -44,6 +44,7 @@ enum CraftNativeActions {
         var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation"]
         values.append("storageCompareAndSet")
         values.append("storageSetIfAbsent")
+        values.append("crypto")
         if config.enableBiometric { values.append("biometric") }
         if config.enableSecureStorage { values.append("secureStorage") }
         if config.enableLocalDatabase { values.append("database") }
@@ -67,6 +68,7 @@ enum CraftNativeActions {
         if config.enableGeolocation {
             values.append("geolocation")
             if CraftZigRuntime.supportsRecordingOwnership { values.append("locationRecordingOwnership") }
+            if CraftZigRuntime.supportsRecordingIntentIdentity { values.append("locationRecordingIntentIdentity") }
         }
         // The Music app's song and transport are the coordinator's too.
         if config.enableAppleMusic { values.append("music") }
@@ -75,7 +77,7 @@ enum CraftNativeActions {
         if config.backgroundRefresh?.enabled == true || config.enablePushNotifications { values.append("background") }
         // A heart-rate strap is the app's own service (CraftHeartRate.swift),
         // so it needs no web view.
-        if config.enableHeartRate { values.append(contentsOf: ["heartRate", "heartRateRecordingOwnership"]) }
+        if config.enableHeartRate { values.append(contentsOf: ["heartRate", "heartRateRecordingOwnership", "heartRateRecordingIntentIdentity"]) }
         if config.enableBluetooth { values.append("bluetooth") }
         // Workouts on the paired Apple Watch (CraftScheduledWorkouts.swift),
         // also the app's own service.
@@ -97,6 +99,8 @@ enum CraftNativeActions {
     /// Nil means this small shared router does not own the action.
     static func perform(action: String, body: [String: Any], config: CraftConfig) -> Result<Any, CraftNativeActionError>? {
         switch action {
+        case "cryptoRandomUUID":
+            return .success(UUID().uuidString.lowercased())
         case "getDeviceInfo":
             return .success(deviceInfo())
         case "haptic":
@@ -167,6 +171,8 @@ enum CraftNativeActions {
 
         let sync: Result<Any, CraftNativeActionError>?
         switch (module, method) {
+        case ("Crypto", "randomUUID"):
+            sync = .success(UUID().uuidString.lowercased())
         case ("Device", "getInfo"):
             sync = perform(action: "getDeviceInfo", body: [:], config: config)
         case ("CrashReporter", "capture"):
