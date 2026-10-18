@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
+import { requireAndroidEmulatorRoot } from './android-adb.js'
 
 export interface MobileMediaCacheTestOptions {
   platform: 'ios' | 'android'
@@ -165,9 +166,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
         if (!interrupted && (!result.includes('PASS:') || result.includes('FAIL:'))) throw new Error(result)
         print(result)
       }
-      await run([adb, '-s', serial, 'root'])
-      await run([adb, '-s', serial, 'wait-for-device'])
-      if ((await run([adb, '-s', serial, 'shell', 'id', '-u'])).trim() !== '0') throw new Error('Storage fault tests require a rootable disposable AOSP emulator')
+      await requireAndroidEmulatorRoot(adb, serial)
       await run([adb, '-s', serial, 'shell', 'run-as', packageName, 'mkdir', '-p', 'files/craft-media'])
       const cache = `/data/user/0/${packageName}/files/craft-media`
       const owner = (await run([adb, '-s', serial, 'shell', 'stat', '-c', '%u:%g', cache])).trim()
