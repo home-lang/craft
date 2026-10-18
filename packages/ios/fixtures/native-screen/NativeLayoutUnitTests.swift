@@ -136,6 +136,29 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertTrue(input.isUserInteractionEnabled)
     }
 
+    func testInputAlignmentSurvivesDefaultAttributesAndControlledValueUpdates() throws {
+        for (alignment, expected) in [("right", NSTextAlignment.right), ("center", .center), ("left", .left)] {
+            func document(_ value: String) -> [String: Any] {
+                box("root", style: ["flexDirection": "row", "alignItems": "center"], [
+                    text("label", "Weight (kg)", style: ["flex": 1]),
+                    ["id": "value", "type": "TextInput",
+                     "props": ["testID": "weight", "value": value, "placeholder": "—", "placeholderTextColor": "#8e8e93"],
+                     "style": ["width": 80, "minHeight": 44, "fontSize": 17, "textAlign": alignment]],
+                ])
+            }
+            let controller = screen(document("70.6"))
+            let input = try XCTUnwrap(find("weight", below: controller.view) as? UITextField)
+            XCTAssertEqual(input.textAlignment, expected, alignment)
+            controller.render(document("71.2"))
+            XCTAssertTrue(find("weight", below: controller.view) === input)
+            XCTAssertEqual(input.text, "71.2")
+            XCTAssertEqual(input.textAlignment, expected, alignment)
+            controller.render(document(""))
+            XCTAssertEqual(input.placeholder, "—")
+            XCTAssertEqual(input.textAlignment, expected, alignment)
+        }
+    }
+
     func testRawContainerTextRendersAndNamesNativeLinks() throws {
         func document(_ title: String) -> [String: Any] {
             ["type": "TouchableOpacity", "props": ["testID": "route-link", "href": "/details"],
