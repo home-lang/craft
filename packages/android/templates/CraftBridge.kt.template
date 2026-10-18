@@ -3475,7 +3475,8 @@ class CraftBridge(
             val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
             val builder = androidx.core.app.NotificationCompat.Builder(activity, notificationChannelId)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(R.drawable.craft_notification_icon)
+                .setColor(ContextCompat.getColor(activity, R.color.craft_notification_color))
                 .setContentTitle(title)
                 .setContentText(body)
                 .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT)

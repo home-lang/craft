@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import {{PACKAGE_NAME}}.R
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -287,7 +288,8 @@ class LocationRecordingService : Service() {
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "Activity recording", NotificationManager.IMPORTANCE_LOW))
         }
         val notification = NotificationCompat.Builder(this, CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(R.drawable.craft_notification_icon)
+            .setColor(ContextCompat.getColor(this, R.color.craft_notification_color))
             .setContentTitle("Recording your activity")
             .setContentText("${applicationInfo.loadLabel(packageManager)} is securely saving your route")
             .setOngoing(true)

@@ -158,6 +158,16 @@ export interface CraftAndroidConfig {
   appLinks?: Array<{ host: string, paths?: Array<{ pattern: string, exclude?: boolean }> }>
   trustedOrigins?: string[]
   appIconPath?: string
+  /**
+   * The small icon in the status bar and on every notification the app
+   * shows, push or local: an Android vector drawable (`.xml`) or a `.png`,
+   * white on transparent, since Android draws only its shape. Without one,
+   * a white Craft mark. Never the launcher icon, which shows as a white
+   * square.
+   */
+  notificationIconPath?: string
+  /** The `#RRGGBB` Android tints the notification icon and app name with. The system's own colour without it. */
+  notificationColor?: string
   googleServicesFile?: string
   /** Native map renderer. MapLibre needs no SDK key; Google remains the default for compatibility. */
   mapProvider?: AndroidMapProvider
@@ -596,6 +606,7 @@ function writeAndroidConfig(output: string, config: CraftAndroidConfig): void {
   // but never package them into the APK's assets.
   const runtimeConfig = { ...config }
   delete runtimeConfig.appIconPath
+  delete runtimeConfig.notificationIconPath
   delete runtimeConfig.googleServicesFile
   writeFileSync(
     join(output, 'app/src/main/assets/craft.config.json'),
@@ -716,11 +727,15 @@ function renderNativeShellManifest(config: CraftAndroidConfig): string {
         </provider>`,
   ]
   if (config.enablePushNotifications) {
+    // What Android shows for a push that arrives while the app is in the
+    // background, which Firebase draws without the service.
     parts.push(`        <service android:name=".CraftNativeMessagingService" android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
-        </service>`)
+        </service>
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/craft_notification_icon" />${config.notificationColor ? `
+        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/craft_notification_color" />` : ''}`)
   }
   if (config.enableHealthConnect) {
     // Android 14 and later open the app's privacy policy from Health
@@ -893,6 +908,17 @@ export async function init(options: InitOptions): Promise<void> {
   if (config.appIconPath && !['.gif', '.jpg', '.png', '.webp'].includes(appIconExtension ?? '')) {
     throw new Error(`Unsupported Android app icon format: ${appIconExtension || '(none)'}`)
   }
+  if (config.notificationIconPath) requireRegularFile(config.notificationIconPath, 'Notification icon')
+  const notificationIconExtension = config.notificationIconPath ? extname(config.notificationIconPath).toLowerCase() : undefined
+  if (config.notificationIconPath && !['.png', '.xml'].includes(notificationIconExtension ?? '')) {
+    throw new Error(`Unsupported Android notification icon format: ${notificationIconExtension || '(none)'} (use a vector drawable .xml or a white-on-transparent .png)`)
+  }
+  if (config.notificationIconPath && notificationIconExtension === '.xml' && !/<vector[\s>]/.test(readFileSync(config.notificationIconPath, 'utf8'))) {
+    throw new Error('Notification icon .xml must be an Android vector drawable (<vector>)')
+  }
+  if (config.notificationColor !== undefined && !/^#[0-9a-f]{6}$/i.test(config.notificationColor)) {
+    throw new Error(`notificationColor must be #RRGGBB, not ${String(config.notificationColor)}`)
+  }
 
   // Create directory structure
   const dirs = [
@@ -1030,7 +1056,7 @@ export async function init(options: InitOptions): Promise<void> {
   // support types in the same fixed package as CraftNative so every generated
   // app compiles regardless of its chosen package name or feature flags.
   const serviceTemplate = readFileSync(join(TEMPLATES_DIR, 'LocationRecordingService.kt.template'), 'utf-8')
-  writeFileSync(join(nativeDir, 'LocationRecordingService.kt'), serviceTemplate)
+  writeFileSync(join(nativeDir, 'LocationRecordingService.kt'), serviceTemplate.replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName))
   const healthTemplate = readFileSync(join(
     TEMPLATES_DIR,
     config.enableHealthConnect ? 'CraftHealthConnect.kt.template' : 'CraftHealthConnectStub.kt.template',
@@ -1161,6 +1187,8 @@ zipStorePath=wrapper/dists
     <color name="primary_dark">#16162b</color>
     <color name="accent">#4ade80</color>
     <color name="background">${config.backgroundColor}</color>
+    <!-- Transparent is NotificationCompat's COLOR_DEFAULT: the system picks. -->
+    <color name="craft_notification_color">${config.notificationColor ?? '#00000000'}</color>
 </resources>
 `
   writeFileSync(join(output, 'app/src/main/res/values/colors.xml'), colorsXml)
@@ -1194,6 +1222,23 @@ zipStorePath=wrapper/dists
   }
   else {
     writeFileSync(join(output, 'app/src/main/res/drawable/craft_app_icon.xml'), appIconXml)
+  }
+  // Android draws a notification icon's alpha only, so it has its own white
+  // glyph: the launcher icon there is a white square.
+  for (const extension of ['.png', '.xml']) rmSync(join(output, `app/src/main/res/drawable/craft_notification_icon${extension}`), { force: true })
+  if (config.notificationIconPath) {
+    cpSync(config.notificationIconPath, join(output, `app/src/main/res/drawable/craft_notification_icon${notificationIconExtension}`))
+  }
+  else {
+    writeFileSync(join(output, 'app/src/main/res/drawable/craft_notification_icon.xml'), `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M18,78L42,42l12,18l12,-12l24,30z" />
+</vector>
+`)
   }
 
   const themesXml = `<?xml version="1.0" encoding="utf-8"?>

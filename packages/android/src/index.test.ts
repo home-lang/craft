@@ -1438,6 +1438,62 @@ describe('Craft Android builder', () => {
     expect(manifest).toContain('android:foregroundServiceType="location"')
   })
 
+  it('gives every notification a white glyph instead of the launcher icon', async () => {
+    const root = createTempDir('craft-android-notification-icon-')
+    const googleServicesFile = join(root, 'google-services.json')
+    writeFileSync(googleServicesFile, JSON.stringify({
+      client: [{ client_info: { android_client_info: { package_name: 'dev.craft.glyph' } } }],
+      project_info: { project_number: '1' },
+    }))
+    const defaults = join(root, 'default')
+    await init({ name: 'Glyph', packageName: 'dev.craft.glyph', output: defaults, config: { renderer: 'native', nativeScreens: {}, enablePushNotifications: true, googleServicesFile } })
+    const drawable = join(defaults, 'app/src/main/res/drawable')
+    expect(readFileSync(join(drawable, 'craft_notification_icon.xml'), 'utf8')).toContain('android:fillColor="#FFFFFFFF"')
+    expect(readFileSync(join(defaults, 'app/src/main/res/values/colors.xml'), 'utf8')).toContain('<color name="craft_notification_color">#00000000</color>')
+    let manifest = readFileSync(join(defaults, 'app/src/main/AndroidManifest.xml'), 'utf8')
+    // A push that lands while the app is in the background is drawn by Firebase from these.
+    expect(manifest).toContain('<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/craft_notification_icon" />')
+    expect(manifest).not.toContain('default_notification_color')
+
+    const builders = [
+      'app/src/main/java/dev/craft/glyph/CraftNativeMessagingService.kt',
+      'app/src/main/java/dev/craft/glyph/CraftNativeNotificationReceiver.kt',
+      'app/src/main/java/dev/craft/glyph/CraftBridge.kt',
+      'app/src/main/java/com/craft/runtime/LocationRecordingService.kt',
+    ].map(path => readFileSync(join(defaults, path), 'utf8'))
+    for (const source of builders) {
+      expect(source).toContain('.setSmallIcon(R.drawable.craft_notification_icon)')
+      expect(source).toContain('R.color.craft_notification_color')
+      expect(source).not.toMatch(/setSmallIcon\((applicationInfo\.icon|android\.R\.drawable)/)
+    }
+    expect(builders[3]).toContain('import dev.craft.glyph.R')
+
+    const custom = join(root, 'custom')
+    const vector = join(root, 'hq-notification.xml')
+    writeFileSync(vector, '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFFFF" android:pathData="M4,4h16v16h-16z" /></vector>')
+    await init({ name: 'Glyph', packageName: 'dev.craft.glyph', output: custom, config: { renderer: 'native', nativeScreens: {}, enablePushNotifications: true, googleServicesFile, notificationIconPath: vector, notificationColor: '#2F63FF' } })
+    expect(readFileSync(join(custom, 'app/src/main/res/drawable/craft_notification_icon.xml'), 'utf8')).toContain('M4,4h16v16h-16z')
+    expect(readFileSync(join(custom, 'app/src/main/res/values/colors.xml'), 'utf8')).toContain('<color name="craft_notification_color">#2F63FF</color>')
+    manifest = readFileSync(join(custom, 'app/src/main/AndroidManifest.xml'), 'utf8')
+    expect(manifest).toContain('<meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/craft_notification_color" />')
+    expect(JSON.parse(readFileSync(join(custom, 'app/src/main/assets/craft.config.json'), 'utf8'))).not.toHaveProperty('notificationIconPath')
+
+    // A PNG replaces the vector rather than sitting beside it as a duplicate resource.
+    const png = join(root, 'glyph.png')
+    writeFileSync(png, 'fixture png bytes')
+    await init({ name: 'Glyph', packageName: 'dev.craft.glyph', output: custom, config: { notificationIconPath: png } })
+    expect(existsSync(join(custom, 'app/src/main/res/drawable/craft_notification_icon.png'))).toBe(true)
+    expect(existsSync(join(custom, 'app/src/main/res/drawable/craft_notification_icon.xml'))).toBe(false)
+
+    const svg = join(root, 'glyph.svg')
+    writeFileSync(svg, '<svg/>')
+    await expect(init({ name: 'Glyph', output: join(root, 'svg'), config: { notificationIconPath: svg } })).rejects.toThrow('Unsupported Android notification icon format: .svg')
+    const notVector = join(root, 'layout.xml')
+    writeFileSync(notVector, '<LinearLayout />')
+    await expect(init({ name: 'Glyph', output: join(root, 'layout'), config: { notificationIconPath: notVector } })).rejects.toThrow('must be an Android vector drawable')
+    await expect(init({ name: 'Glyph', output: join(root, 'colour'), config: { notificationColor: 'blue' } })).rejects.toThrow('notificationColor must be #RRGGBB')
+  })
+
   it('uses Firebase Cloud Messaging instead of placeholder push tokens', async () => {
     const root = createTempDir('craft-android-push-')
     const output = join(root, 'android')

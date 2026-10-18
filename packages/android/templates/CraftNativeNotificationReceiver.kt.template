@@ -32,7 +32,8 @@ internal class CraftNativeNotificationReceiver : BroadcastReceiver() {
             ))
         }
         val notification = NotificationCompat.Builder(context, "craft_notifications")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.craft_notification_icon)
+            .setColor(ContextCompat.getColor(context, R.color.craft_notification_color))
             .setContentTitle(value.optString("title"))
             .setContentText(value.optString("body"))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)

@@ -61,6 +61,9 @@ const fixtures: CompileFixture[] = [
       tabs: [{ id: '/', title: 'Home', symbol: 'house' }],
       nativeApp: '__app',
       backgroundRefresh: { enabled: true, minimumIntervalMinutes: 30 },
+      // The push service and the tinted notification glyph every builder uses.
+      enablePushNotifications: true,
+      notificationColor: '#2F63FF',
     },
   },
   {
