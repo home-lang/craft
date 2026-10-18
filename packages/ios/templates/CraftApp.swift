@@ -783,10 +783,6 @@ final class CraftChrome: ObservableObject {
         } else {
             next = nil
         }
-        #if DEBUG
-        NSLog("[craft chrome trace] accessory present=%d owner=%@", next != nil ? 1 : 0,
-              owner.map { String(describing: ObjectIdentifier($0)) } ?? "none")
-        #endif
         tabAccessoryOwner = owner
         guard tabAccessory != next else { return }
         tabAccessory = next
