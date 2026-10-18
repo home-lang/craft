@@ -118,14 +118,19 @@ function run(args: string[], cwd: string, label: string): void {
 }
 
 /** Keep XCTest's own failure details before the disposable project is removed. */
-function retainTimedInputEvidence(): void {
+function retainTimedInputEvidence(requirePassed = false): void {
   const results = join(workspace, 'TimedInputDriver.xcresult')
-  if (!existsSync(results)) return
+  if (!existsSync(results)) {
+    if (requirePassed) throw new Error('Timed input returned no XCTest result bundle')
+    return
+  }
   const evidence = process.env.CRAFT_IOS_TEMPLATE_EVIDENCE
   const output = evidence ? resolve(evidence) : undefined
   if (output) mkdirSync(output, { recursive: true })
+  let summary: { exitCode: number, output: string } | undefined
   for (const kind of ['summary', 'tests']) {
     const report = Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', kind, '--path', results], { stdout: 'pipe', stderr: 'pipe' })
+    if (kind === 'summary') summary = { exitCode: report.exitCode, output: report.stdout.toString() }
     console.log(`XCTest ${kind} (exit ${report.exitCode}):\n${report.stdout.toString()}`)
     if (report.stderr.length) console.error(report.stderr.toString())
     if (output) {
@@ -135,6 +140,12 @@ function retainTimedInputEvidence(): void {
     }
   }
   if (output) cpSync(results, join(output, 'TimedInputDriver.xcresult'), { recursive: true, force: false, errorOnExist: true })
+  if (requirePassed) {
+    if (!summary || summary.exitCode !== 0) throw new Error('Unable to verify the timed input XCTest summary')
+    const counts = JSON.parse(summary.output)
+    if (counts.result !== 'Passed' || !Number.isInteger(counts.totalTestCount) || counts.totalTestCount < 1 || counts.passedTests !== counts.totalTestCount || counts.failedTests !== 0 || counts.skippedTests !== 0)
+      throw new Error(`Expected actual passed timed input tests without skips: ${summary.output}`)
+  }
 }
 
 /**
@@ -307,7 +318,7 @@ try {
       throw new Error(`${configuration} signs aps-environment=${signed}, expected ${expected}`)
     console.log(`ok: ${configuration} signs aps-environment=${signed}`)
   }
-  retainTimedInputEvidence()
+  retainTimedInputEvidence(true)
 }
 catch (error) {
   try { retainTimedInputEvidence() }
