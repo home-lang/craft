@@ -349,7 +349,12 @@ final class PersistentRecordingCheckpointUnitTests: XCTestCase {
             }
         }
         XCTAssertTrue(CraftNativeActions.capabilities(config: CraftConfig()).contains("storageCompareAndSet"))
-        _ = try await call("set", [key, ["owner": "A"]])
+        XCTAssertTrue(CraftNativeActions.capabilities(config: CraftConfig()).contains("storageSetIfAbsent"))
+        async let first = call("setIfAbsent", [key, ["owner": "A"]])
+        async let second = call("setIfAbsent", [key, ["owner": "A"]])
+        let created = try await [first, second].compactMap { $0 as? Bool }
+        XCTAssertEqual(created.filter { $0 }.count, 1)
+        XCTAssertEqual(created.filter { !$0 }.count, 1)
         let saved = try await call("compareAndSet", [key, ["owner": "A"], ["owner": "A", "completed": true]])
         XCTAssertEqual(saved as? Bool, true)
         _ = try await call("remove", [key])
@@ -357,6 +362,9 @@ final class PersistentRecordingCheckpointUnitTests: XCTestCase {
         XCTAssertEqual(deleted as? Bool, false)
         let absent = try await call("get", [key])
         XCTAssertTrue(absent is NSNull)
+        _ = try await call("setIfAbsent", [key, NSNull()])
+        let existingNull = try await call("setIfAbsent", [key, ["owner": "B"]])
+        XCTAssertEqual(existingNull as? Bool, false)
     }
 
     func testConditionalCheckpointRespectsDeletionFeedbackTypesAndDiskFailure() throws {
@@ -374,6 +382,8 @@ final class PersistentRecordingCheckpointUnitTests: XCTestCase {
         XCTAssertTrue(try CraftPersistentStorage.compareAndSet("draft", expected: ["visits": 1, "feedback": "latest", "owner": "A"], value: next, prefix: prefix, storageDirectory: directory))
         try CraftPersistentStorage.set("draft", data: nil, prefix: prefix, storageDirectory: directory)
         XCTAssertFalse(try CraftPersistentStorage.compareAndSet("draft", expected: next, value: old, prefix: prefix, storageDirectory: directory))
+        XCTAssertNil(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory))
+        XCTAssertThrowsError(try CraftPersistentStorage.setIfAbsent("draft", value: old, prefix: prefix, storageDirectory: directory, writer: { _, _ in throw NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC)) }))
         XCTAssertNil(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory))
         XCTAssertFalse(CraftPersistentStorage.jsonEqual(true, 1))
         XCTAssertFalse(CraftPersistentStorage.jsonEqual([1, 2], [2, 1]))

@@ -71,6 +71,14 @@ enum CraftPersistentStorage {
         try set(key, data: next, prefix: prefix, storageDirectory: storageDirectory, writer: writer)
         return true
     }
+
+    static func setIfAbsent(_ key: String, value: Any, prefix: String, storageDirectory: URL? = nil, writer: CraftRecordingArchive.Writer = CraftRecordingArchive.writeAtomically) throws -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard try get(key, prefix: prefix, storageDirectory: storageDirectory) == nil else { return false }
+        let next = try JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed)
+        try set(key, data: next, prefix: prefix, storageDirectory: storageDirectory, writer: writer)
+        return true
+    }
     static func keys(prefix: String) throws -> [String] {
         lock.lock(); defer { lock.unlock() }
         var result = Set(UserDefaults.standard.dictionaryRepresentation().keys.filter { $0.hasPrefix(prefix) }.map { String($0.dropFirst(prefix.count)) })

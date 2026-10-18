@@ -43,6 +43,7 @@ enum CraftNativeActions {
         // as it arrives) need nothing the app has to declare.
         var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation"]
         values.append("storageCompareAndSet")
+        values.append("storageSetIfAbsent")
         if config.enableBiometric { values.append("biometric") }
         if config.enableSecureStorage { values.append("secureStorage") }
         if config.enableLocalDatabase { values.append("database") }
@@ -862,6 +863,9 @@ enum CraftNativeActions {
             case "compareAndSet":
                 guard args.count == 3 else { return failure("INVALID_ARGUMENT", "Storage.compareAndSet needs a key, expected value and next value") }
                 return .success(try CraftPersistentStorage.compareAndSet(key, expected: args[1], value: args[2], prefix: storagePrefix))
+            case "setIfAbsent":
+                guard args.count == 2 else { return failure("INVALID_ARGUMENT", "Storage.setIfAbsent needs a key and value") }
+                return .success(try CraftPersistentStorage.setIfAbsent(key, value: args[1], prefix: storagePrefix))
             case "remove":
                 try CraftPersistentStorage.set(key, data: nil, prefix: storagePrefix)
                 return .success(true)
