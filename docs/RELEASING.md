@@ -18,7 +18,7 @@ Do not run the hook again after it has written the section.
 The tag starts [Releaser](../.github/workflows/release.yml); pushing a tag is
 the publication trigger, not proof that the release finished.
 
-Both release and CI setup pin Pantry CLI 0.11.64 as well as the Pantry action
+Both release and CI setup pin Pantry CLI 0.11.93 as well as the Pantry action
 revision; leaving the CLI at `latest` would add a GitHub API lookup before the
 build can even start.
 
@@ -38,7 +38,9 @@ publishes the GitHub release. Only then does a separate job publish the Zig
 package to pantry and notify the registry to index the complete release.
 Discord is notified only after the complete release is public, never from an
 individual platform's staging job.
-The npm job separately scans and publishes the public JavaScript packages.
+The npm preparation job builds and scans the exact public JavaScript archives.
+The npm publication job waits for the verified GitHub release to become public
+and publishes those scanned archives without rebuilding them.
 
 Watch the entire Releaser run, not just the release page. Confirm its final
 status is green, the page contains all four `craft-*.zip` archives plus the
@@ -54,8 +56,8 @@ publishing the incomplete draft. Do not interpret a successful tag push or a
 partial set of staged archives as a completed release.
 
 The GitHub release is gated as a unit; the underlying package registries do not
-offer a cross-registry transaction. The Zig package waits for the completed
-GitHub release, but npm publication is deliberately independent and may become
-visible earlier. The final workflow status remains the release signal. If the
-post-release Zig publication fails, the GitHub release still contains the full
-verified archive set; rerun that failed job rather than republishing the draft.
+offer a cross-registry transaction. Both Zig and npm publication wait for the completed GitHub release. Either
+registry publication can still fail after the native archives become public, so
+the final workflow status remains the release signal. If a post-release registry
+publication fails, the GitHub release still contains the full verified archive
+set; inspect and rerun the failed job rather than republishing the draft.
