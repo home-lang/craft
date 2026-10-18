@@ -420,7 +420,7 @@ final class NativeNavigationUnitTests: XCTestCase {
     }
 
     func testNativePushKeepsItsAccessoryAfterTabPreparation() async throws {
-        await displayWait("the Details tab is prepared") { [self] in stack("/details") != nil }
+        await displayWait("the Third tab is prepared") { [self] in stack("/third") != nil }
         let home = try XCTUnwrap(stack("/"))
         let root = try XCTUnwrap(home.topViewController as? CraftNativeScreenController)
         func button(in view: UIView) -> UIButton? {
@@ -436,7 +436,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(CraftChrome.shared.selected, "/")
         XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
 
-        let background = try XCTUnwrap(stack("/details"))
+        let background = try XCTUnwrap(stack("/third"))
         XCTAssertTrue(background.view.isHidden)
         let prepared = try XCTUnwrap(background.topViewController as? CraftNativeScreenController)
         // UIKit can deliver the prepared tab's first appearance after the
