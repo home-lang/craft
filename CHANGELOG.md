@@ -1,5 +1,136 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.237...v0.0.238)
+
+## 🚀 Features
+
+- serve secure UUIDs through the canonical Zig bridges ([9671ffb](https://github.com/craft-native/craft/commit/9671ffb)) _(by Chris Breuer)_
+- expose secure planned recording starts through the SDK ([8ecdd0f](https://github.com/craft-native/craft/commit/8ecdd0f)) _(by Chris Breuer)_
+- bind the canonical recorder to persisted intent identities ([fcc9124](https://github.com/craft-native/craft/commit/fcc9124)) _(by Chris Breuer)_
+- provide native Android secure UUIDs and recovery checks ([4d33ae1](https://github.com/craft-native/craft/commit/4d33ae1)) _(by Chris Breuer)_
+- preserve planned Android recording identities ([39f881e](https://github.com/craft-native/craft/commit/39f881e)) _(by Chris Breuer)_
+- start iOS recordings with persisted caller identities ([4145180](https://github.com/craft-native/craft/commit/4145180)) _(by Chris Breuer)_
+- expose atomic storage registration in the SDK ([adadbc1](https://github.com/craft-native/craft/commit/adadbc1)) _(by Chris Breuer)_
+- atomically register Android storage values ([fd097cc](https://github.com/craft-native/craft/commit/fd097cc)) _(by Chris Breuer)_
+- atomically register iOS storage values ([435f064](https://github.com/craft-native/craft/commit/435f064)) _(by Chris Breuer)_
+- expose guarded atomic storage checkpoints in the SDK ([ed2b3f5](https://github.com/craft-native/craft/commit/ed2b3f5)) _(by Chris Breuer)_
+- share native recording replies without a webview ([18e9934](https://github.com/craft-native/craft/commit/18e9934)) _(by Chris Breuer)_
+- expose guarded recording recovery and acknowledgement ([b7e4d1a](https://github.com/craft-native/craft/commit/b7e4d1a)) _(by Chris Breuer)_
+- expose selected tab icon configuration and compatibility contract ([9bd4fe3](https://github.com/craft-native/craft/commit/9bd4fe3)) _(by Chris Breuer)_
+- style tab icons from native selection on iOS and Android ([a302119](https://github.com/craft-native/craft/commit/a302119)) _(by Chris Breuer)_
+- **android**: own disposable emulator sessions for CI ([95b047f](https://github.com/craft-native/craft/commit/95b047f)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- require Android event log readiness before native acceptance ([00da9de](https://github.com/craft-native/craft/commit/00da9de)) _(by Chris Breuer)_
+- probe optional iOS event forwarding before Objective-C dispatch ([02933dc](https://github.com/craft-native/craft/commit/02933dc)) _(by Chris Breuer)_
+- fence browser credential operations to their captured account ([00c3ab5](https://github.com/craft-native/craft/commit/00c3ab5)) _(by Chris Breuer)_
+- link Foundation for shared UUID tests on Darwin ([8a70f06](https://github.com/craft-native/craft/commit/8a70f06)) _(by Chris Breuer)_
+- append the UUID binding without moving existing JNI entries ([17b8dc7](https://github.com/craft-native/craft/commit/17b8dc7)) _(by Chris Breuer)_
+- import the canonical JNI runtime for platform UUIDs ([a17fe8d](https://github.com/craft-native/craft/commit/a17fe8d)) _(by Chris Breuer)_
+- bind Android UUID calls through the verified JNI route ([12c1590](https://github.com/craft-native/craft/commit/12c1590)) _(by Chris Breuer)_
+- retain legacy recording start arguments and isolated fixture state ([8c59830](https://github.com/craft-native/craft/commit/8c59830)) _(by Chris Breuer)_
+- serialize browser storage within its captured account ([e0e17a2](https://github.com/craft-native/craft/commit/e0e17a2)) _(by Chris Breuer)_
+- preserve typed JNI recording errors ([89572d2](https://github.com/craft-native/craft/commit/89572d2)) _(by Chris Breuer)_
+- construct storage fixture identifiers from the UUID property ([9ed8fd9](https://github.com/craft-native/craft/commit/9ed8fd9)) _(by Chris Breuer)_
+- advertise atomic checkpoint support alongside base storage capabilities ([1857b31](https://github.com/craft-native/craft/commit/1857b31)) _(by Chris Breuer)_
+- keep recorder event forwarding independent of screen lifetime ([b711a1b](https://github.com/craft-native/craft/commit/b711a1b)) _(by Chris Breuer)_
+- verify the direct recording JNI route without loosening conformance ([91343ff](https://github.com/craft-native/craft/commit/91343ff)) _(by Chris Breuer)_
+- forward shared recorder events to page and native screens ([562792a](https://github.com/craft-native/craft/commit/562792a)) _(by Chris Breuer)_
+- compare Android checkpoints inside the durable storage lock ([67d7cdf](https://github.com/craft-native/craft/commit/67d7cdf)) _(by Chris Breuer)_
+- make iOS checkpoints atomic and preserve deleted drafts ([f188584](https://github.com/craft-native/craft/commit/f188584)) _(by Chris Breuer)_
+- serialize checkpoint preload with durable storage writes ([a3ac048](https://github.com/craft-native/craft/commit/a3ac048)) _(by Chris Breuer)_
+- preserve legacy checkpoints when migration cannot write ([2e1bda9](https://github.com/craft-native/craft/commit/2e1bda9)) _(by Chris Breuer)_
+- roll back failed Android account checkpoints ([e675de5](https://github.com/craft-native/craft/commit/e675de5)) _(by Chris Breuer)_
+- import the Android recording capability runtime ([7bd6285](https://github.com/craft-native/craft/commit/7bd6285)) _(by Chris Breuer)_
+- validate recorder metadata without losing recovery state ([1d49ee4](https://github.com/craft-native/craft/commit/1d49ee4)) _(by Chris Breuer)_
+- align recorder protocol declarations and generation checks ([ec1a4c5](https://github.com/craft-native/craft/commit/ec1a4c5)) _(by Chris Breuer)_
+- fence late Android recorder listener attachment ([77bf1d5](https://github.com/craft-native/craft/commit/77bf1d5)) _(by Chris Breuer)_
+- serialize Android recorder ownership and service recovery ([a663d17](https://github.com/craft-native/craft/commit/a663d17)) _(by Chris Breuer)_
+- fence and archive the canonical iOS location recorder ([f4a78a1](https://github.com/craft-native/craft/commit/f4a78a1)) _(by Chris Breuer)_
+- route iOS recording recovery through its native owner ([ccab6d5](https://github.com/craft-native/craft/commit/ccab6d5)) _(by Chris Breuer)_
+- preserve completed recordings and durable account checkpoints ([2da7adb](https://github.com/craft-native/craft/commit/2da7adb)) _(by Chris Breuer)_
+- resolve native test tabs by stable identifiers ([6fff79a](https://github.com/craft-native/craft/commit/6fff79a)) _(by Chris Breuer)_
+- preserve recording ownership through the mobile SDK bridge ([cb067d4](https://github.com/craft-native/craft/commit/cb067d4)) _(by Chris Breuer)_
+- **ios**: fence heart-rate recording reads and mutations by owner ([d73ddd5](https://github.com/craft-native/craft/commit/d73ddd5)) _(by Chris Breuer)_
+- **ios**: retain input alignment without explicit line height ([883dfea](https://github.com/craft-native/craft/commit/883dfea)) _(by Chris Breuer)_
+- use the upstream Zig iOS descriptor fix ([3ae105c](https://github.com/craft-native/craft/commit/3ae105c)) _(by Chris Breuer)_
+- verify the emulator root identity after adbd restarts ([3fe8c5f](https://github.com/craft-native/craft/commit/3fe8c5f)) _(by Chris Breuer)_
+- apply sandboxed Apple process policy to threaded I/O ([38e3f8f](https://github.com/craft-native/craft/commit/38e3f8f)) _(by Chris Breuer)_
+- emit the complete Zig 0.17 Android libc configuration ([5fd67ed](https://github.com/craft-native/craft/commit/5fd67ed)) _(by Chris Breuer)_
+- validate selected tab configuration in the native Zig host ([3fb2c5d](https://github.com/craft-native/craft/commit/3fb2c5d)) _(by Chris Breuer)_
+- **ci**: require verified public Pantry 0.11.92 for native SDK checks ([88744fb](https://github.com/craft-native/craft/commit/88744fb)) _(by Chris Breuer)_
+- retain native Android toolbar views during live tab updates ([ab094bd](https://github.com/craft-native/craft/commit/ab094bd)) _(by Chris Breuer)_
+- normalize selected tab icon names consistently ([3d014b2](https://github.com/craft-native/craft/commit/3d014b2)) _(by Chris Breuer)_
+- isolate tab swipe indicator rendering from native chrome ([d8a93a8](https://github.com/craft-native/craft/commit/d8a93a8)) _(by Chris Breuer)_
+- publish live tab updates once per changed reading ([a67bdc2](https://github.com/craft-native/craft/commit/a67bdc2)) _(by Chris Breuer)_
+- **ci**: use the repaired Pantry runtime on every platform ([0b574bc](https://github.com/craft-native/craft/commit/0b574bc)) _(by Chris Breuer)_
+- **maps**: consume published source exports without a dependency patch ([5fbce54](https://github.com/craft-native/craft/commit/5fbce54)) _(by Chris Breuer)_
+- **ci**: use the permanent Zig 0.17 toolchain on every platform ([9fe6b53](https://github.com/craft-native/craft/commit/9fe6b53)) _(by Chris Breuer)_
+- **ios**: validate shortcut configuration consistently in Zig ([b4fbb2c](https://github.com/craft-native/craft/commit/b4fbb2c)) _(by Chris Breuer)_
+- **android**: use the supported emulator software renderer ([ab6b18a](https://github.com/craft-native/craft/commit/ab6b18a)) _(by Chris Breuer)_
+- retain emulator diagnostics in a single command trace ([e2ab9a2](https://github.com/craft-native/craft/commit/e2ab9a2)) _(by Chris Breuer)_
+
+## ♻️ Code Refactoring
+
+- share secure platform UUID primitives ([760a8cb](https://github.com/craft-native/craft/commit/760a8cb)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- replace obsolete quick start with current build and renderer guidance ([dfa014a](https://github.com/craft-native/craft/commit/dfa014a)) _(by Chris Breuer)_
+- distinguish native STX rendering from mobile web hosts ([fe96922](https://github.com/craft-native/craft/commit/fe96922)) _(by Chris Breuer)_
+- describe atomic account checkpoints before native acknowledgement ([5f4458a](https://github.com/craft-native/craft/commit/5f4458a)) _(by Chris Breuer)_
+
+## 💅 Styles
+
+- normalize recorder source formatting ([271e139](https://github.com/craft-native/craft/commit/271e139)) _(by Chris Breuer)_
+- format completed recording ownership checks ([281c179](https://github.com/craft-native/craft/commit/281c179)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- keep hardware provisioning capped at ten minutes ([d78fe10](https://github.com/craft-native/craft/commit/d78fe10)) _(by Chris Breuer)_
+- isolate bounded software cold provisioning diagnostics ([40b916a](https://github.com/craft-native/craft/commit/40b916a)) _(by Chris Breuer)_
+- await actual UIKit layout completion on the main actor ([31ad585](https://github.com/craft-native/craft/commit/31ad585)) _(by Chris Breuer)_
+- reject emulator handoff before event logging is ready ([a0a468c](https://github.com/craft-native/craft/commit/a0a468c)) _(by Chris Breuer)_
+- retain Android failure state before emulator disposal ([8738c3b](https://github.com/craft-native/craft/commit/8738c3b)) _(by Chris Breuer)_
+- settle native layout through synchronous UIKit passes ([1e93e84](https://github.com/craft-native/craft/commit/1e93e84)) _(by Chris Breuer)_
+- preserve and verify hybrid XCTest acceptance evidence ([6d2861a](https://github.com/craft-native/craft/commit/6d2861a)) _(by Chris Breuer)_
+- reject stale browser credentials across account changes ([21ec3d8](https://github.com/craft-native/craft/commit/21ec3d8)) _(by Chris Breuer)_
+- require a nonempty passing timed-input XCTest result ([b7c45bf](https://github.com/craft-native/craft/commit/b7c45bf)) _(by Chris Breuer)_
+- retain native template XCTest failure evidence ([f6398af](https://github.com/craft-native/craft/commit/f6398af)) _(by Chris Breuer)_
+- require native UUID responses in both mobile runtime suites ([051a8f1](https://github.com/craft-native/craft/commit/051a8f1)) _(by Chris Breuer)_
+- verify the selected native heart animation remains continuous ([ae53bd6](https://github.com/craft-native/craft/commit/ae53bd6)) _(by Chris Breuer)_
+- recover planned recordings after lost native responses ([1ec8fbd](https://github.com/craft-native/craft/commit/1ec8fbd)) _(by Chris Breuer)_
+- verify checkpoint preload uses the shared commit boundary ([2985c95](https://github.com/craft-native/craft/commit/2985c95)) _(by Chris Breuer)_
+- exercise native recording handoff and archive failures ([739fa2c](https://github.com/craft-native/craft/commit/739fa2c)) _(by Chris Breuer)_
+- reproduce dropped recording ownership guards in the SDK ([048e06c](https://github.com/craft-native/craft/commit/048e06c)) _(by Chris Breuer)_
+- **ios**: preserve input alignment through controlled updates ([a55b37b](https://github.com/craft-native/craft/commit/a55b37b)) _(by Chris Breuer)_
+- reproduce native heart-rate recording ownership races ([bfc5944](https://github.com/craft-native/craft/commit/bfc5944)) _(by Chris Breuer)_
+- preserve hex color strings in the Swift tab fixture ([4fff2b2](https://github.com/craft-native/craft/commit/4fff2b2)) _(by Chris Breuer)_
+- **ci**: require the published Pantry 0.11.91 cohort ([65bbab1](https://github.com/craft-native/craft/commit/65bbab1)) _(by Chris Breuer)_
+- verify managed stock Android software emulation in CI ([ebf9894](https://github.com/craft-native/craft/commit/ebf9894)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- use measured stock Play software cold provisioning profile ([554330d](https://github.com/craft-native/craft/commit/554330d)) _(by Chris Breuer)_
+- provision native Android acceptance through the Craft emulator lifecycle ([83d9552](https://github.com/craft-native/craft/commit/83d9552)) _(by Chris Breuer)_
+- align benchmark and size jobs with published Pantry source ([21ba63f](https://github.com/craft-native/craft/commit/21ba63f)) _(by Chris Breuer)_
+- consume the verified Pantry 0.11.93 native toolchain ([8e7f5f8](https://github.com/craft-native/craft/commit/8e7f5f8)) _(by Chris Breuer)_
+- require consistent published Pantry toolchains ([fb9e322](https://github.com/craft-native/craft/commit/fb9e322)) _(by Chris Breuer)_
+- pin published Pantry 0.11.88 in release workflows ([86a6d3d](https://github.com/craft-native/craft/commit/86a6d3d)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- integrate published native SDK validation ([775ef66](https://github.com/craft-native/craft/commit/775ef66)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/linux-device-runner ([595f8ae](https://github.com/craft-native/craft/commit/595f8ae)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.236...v0.0.237)
 
 ## 🚀 Features
