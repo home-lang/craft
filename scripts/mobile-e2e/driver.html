@@ -126,6 +126,23 @@
         }
       },
       {
+        name: 'crypto.nativeUuid',
+        platforms: ['ios', 'android'],
+        run: function () {
+          if (!window.craft.capabilities.crypto || !window.craft.crypto || typeof window.craft.crypto.randomUUID !== 'function')
+            return 'the host did not expose its native Crypto service'
+          return withTimeout(function () {
+            return Promise.all([window.craft.crypto.randomUUID(), window.craft.crypto.randomUUID()])
+          }).then(function (outcome) {
+            if (outcome.state !== 'resolved') return 'native UUID ' + outcome.state
+            var ids = outcome.value
+            var uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+            if (!ids || !uuid.test(ids[0]) || !uuid.test(ids[1])) return 'native service returned a malformed UUID'
+            if (ids[0] === ids[1]) return 'native service reused its UUID'
+          })
+        }
+      },
+      {
         // Ground truth the page cannot invent: `isSimulator` comes from Swift's
         // `#if targetEnvironment(simulator)`, decided by the compiler, and
         // `isEmulator` from the device's own Build properties. A stubbed bridge
