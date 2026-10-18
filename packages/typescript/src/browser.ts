@@ -118,6 +118,7 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
   }
   window.addEventListener('storage', storageEvent)
   const capabilityNames = ['storage', 'secureStorage', 'lifecycle', 'dialog', 'browser', 'linking', 'files', 'share', 'device']
+  if (persistence.atomicStorage) capabilityNames.push('storageCompareAndSet', 'storageSetIfAbsent')
   if (navigator.clipboard) capabilityNames.push('clipboard')
   if ('vibrate' in navigator) capabilityNames.push('haptics')
   if ('speechSynthesis' in window) capabilityNames.push('speech')
