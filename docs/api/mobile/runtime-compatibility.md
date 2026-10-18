@@ -99,3 +99,36 @@ dispatcher:
 Successful calls retain their documented public reply shapes. The differences
 described here concern invalid input, conflicting operations, and legacy paths
 that could resolve after doing incomplete or different work.
+
+## Selected Tab Icons
+
+The iOS and Android native shells accept optional `selectedSymbol`,
+`selectedIconTint` and `selectedIconPulse` on a configured tab or a
+`navigation.setOptions({ tabItem: { id, ... } })` update. These override the
+symbol, icon tint and pulse only while that tab owns the native selection,
+including when its retained stack shows a pushed screen. They do not change
+selection, captions, badges, profile images or tab order. For example:
+
+```ts
+navigation.setOptions({
+  tabItem: {
+    id: '/health',
+    selectedSymbol: 'heart.fill',
+    selectedIconTint: '#ff3b30',
+    selectedIconPulse: true,
+  },
+})
+```
+
+Omitted fields preserve their current policy. Explicit `false` disables the
+selected pulse even when legacy `iconPulse` is true. A dynamic `null` clears
+an override and restores the legacy icon policy; symbol names are trimmed,
+blank symbols and invalid tints also clear their respective overrides. Nonselected tabs retain legacy
+`iconTint` / `iconPulse` behavior, including live sensor styling. Native
+animation is suppressed by reduced-motion settings, inactive scenes or
+windows, and a hidden tab bar. Text icons and profile images keep their
+existing rendering behavior.
+
+Older shell binaries ignore these optional fields. Rebuild and distribute
+both platforms with the published Craft version containing this contract;
+a JavaScript-only update cannot add it to an older installed binary.

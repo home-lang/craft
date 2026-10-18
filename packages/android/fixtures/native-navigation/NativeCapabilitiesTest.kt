@@ -21,6 +21,134 @@ import org.junit.runner.RunWith
 class NativeCapabilitiesTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
+    @Test
+    fun conditionalCheckpointCannotResurrectDeletedDataOrOverwriteFeedback() {
+        val base = instrumentation.targetContext
+        val name = "cas-test-${UUID.randomUUID()}"
+        val values = base.getSharedPreferences(name, android.content.Context.MODE_PRIVATE)
+        val context = object : android.content.ContextWrapper(base) {
+            override fun getSharedPreferences(key: String, mode: Int) =
+                if (key == "craft-native-storage") values else super.getSharedPreferences(key, mode)
+        }
+        val capabilities = CraftNativeCapabilities(context, JSONObject())
+        val old = JSONObject().put("owner", "A").put("feedback", "latest").put("visits", 1)
+        val next = JSONObject(old.toString()).put("visits", 2)
+        fun cas(expected: Any, value: Any) = call(capabilities, "Storage", "compareAndSet", JSONArray().put("draft").put(expected).put(value))
+        try {
+            assertTrue(capabilities.names().toString().contains("storageCompareAndSet"))
+            assertEquals(false, cas(JSONObject.NULL, next).data)
+            assertEquals(true, call(capabilities, "Storage", "set", JSONArray().put("draft").put(old)).data)
+            assertEquals(false, cas(JSONObject(old.toString()).put("feedback", "stale"), next).data)
+            assertEquals(true, cas(JSONObject().put("visits", 1).put("feedback", "latest").put("owner", "A"), next).data)
+            assertEquals(true, call(capabilities, "Storage", "remove", JSONArray().put("draft")).data)
+            assertEquals(false, cas(next, old).data)
+            assertNull(values.getString("draft", null))
+            assertFalse(CraftNativeStorage.jsonEqual(true, 1))
+            assertFalse(CraftNativeStorage.jsonEqual(JSONArray().put(1).put(2), JSONArray().put(2).put(1)))
+        } finally { capabilities.close(); base.deleteSharedPreferences(name) }
+    }
+
+    @Test
+    fun aNewIsolateCannotPreloadAnUncommittedCheckpoint() {
+        val base = instrumentation.targetContext
+        val name = "checkpoint-preload-${UUID.randomUUID()}"
+        val root = java.io.File(base.cacheDir, name).apply { check(mkdirs()) }
+        val values = base.getSharedPreferences(name, android.content.Context.MODE_PRIVATE)
+        check(values.edit().putString("draft", "{\"owner\":\"A\"}").commit())
+        val changedMemory = CountDownLatch(1)
+        val releaseDisk = CountDownLatch(1)
+        val first = java.util.concurrent.atomic.AtomicBoolean(true)
+        val preloadReadWasLocked = java.util.concurrent.atomic.AtomicBoolean(false)
+        val failing = object : android.content.SharedPreferences by values {
+            override fun getAll(): MutableMap<String, *> {
+                if (Thread.currentThread().name == "recording-checkpoint-preload")
+                    preloadReadWasLocked.set(Thread.holdsLock(CraftNativeStorage.lock))
+                return values.all.toMutableMap()
+            }
+            override fun edit(): android.content.SharedPreferences.Editor {
+                val editor = values.edit()
+                return object : android.content.SharedPreferences.Editor by editor {
+                    override fun commit(): Boolean {
+                        editor.commit()
+                        if (first.getAndSet(false)) {
+                            changedMemory.countDown()
+                            check(releaseDisk.await(5, TimeUnit.SECONDS))
+                        }
+                        return false
+                    }
+                }
+            }
+        }
+        val context = object : android.content.ContextWrapper(base) {
+            override fun getApplicationContext(): android.content.Context = this
+            override fun getFilesDir() = root
+            override fun getSharedPreferences(key: String, mode: Int) =
+                if (key == "craft-native-storage") failing else super.getSharedPreferences(key, mode)
+        }
+        val constructor = CraftNativeStores::class.java.getDeclaredConstructor(android.content.Context::class.java, Boolean::class.javaPrimitiveType)
+        constructor.isAccessible = true
+        val stores = constructor.newInstance(context, false)
+        val capabilities = CraftNativeCapabilities(context, JSONObject())
+        val completed = CountDownLatch(1)
+        var answer: CraftNativeCapabilityResult? = null
+        val preloaded = CountDownLatch(1)
+        var snapshot: JSONObject? = null
+        try {
+            capabilities.perform(UUID.randomUUID().toString(), CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION, "Storage", "set", JSONArray().put("draft").put(JSONObject().put("owner", "B"))) {
+                answer = it; completed.countDown()
+            }
+            assertTrue(changedMemory.await(5, TimeUnit.SECONDS))
+            thread(name = "recording-checkpoint-preload") { snapshot = stores.preload(); preloaded.countDown() }
+            // A real preload races the production commit/rollback critical section.
+            assertFalse(preloaded.await(100, TimeUnit.MILLISECONDS))
+            releaseDisk.countDown()
+            assertTrue(completed.await(5, TimeUnit.SECONDS))
+            assertTrue(preloaded.await(5, TimeUnit.SECONDS))
+            assertTrue("Preload must read inside the same commit/rollback boundary", preloadReadWasLocked.get())
+            assertEquals("STORAGE_ERROR", answer?.code)
+            assertEquals("A", JSONObject(requireNotNull(snapshot).getJSONObject("storage").getString("draft")).getString("owner"))
+        } finally {
+            releaseDisk.countDown()
+            capabilities.close()
+            base.deleteSharedPreferences(name)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun failedStorageCheckpointRestoresMemoryBeforeRejecting() {
+        val base = instrumentation.targetContext
+        val name = "checkpoint-test-${UUID.randomUUID()}"
+        val values = base.getSharedPreferences(name, android.content.Context.MODE_PRIVATE)
+        check(values.edit().putString("draft", "{\"owner\":\"A\"}").commit())
+        val failing = object : android.content.SharedPreferences by values {
+            override fun edit(): android.content.SharedPreferences.Editor {
+                val editor = values.edit()
+                return object : android.content.SharedPreferences.Editor by editor {
+                    override fun commit(): Boolean { editor.commit(); return false }
+                }
+            }
+        }
+        val context = object : android.content.ContextWrapper(base) {
+            override fun getSharedPreferences(key: String, mode: Int) =
+                if (key == "craft-native-storage") failing else super.getSharedPreferences(key, mode)
+        }
+        val capabilities = CraftNativeCapabilities(context, JSONObject())
+        var notifications = 0
+        capabilities.storeObserver = { _, _, _ -> notifications += 1 }
+        try {
+            val result = call(capabilities, "Storage", "set", JSONArray().put("draft").put(JSONObject().put("owner", "B")))
+            assertEquals("STORAGE_ERROR", result.code)
+            assertEquals(0, notifications)
+            val conditional = call(capabilities, "Storage", "compareAndSet", JSONArray().put("draft").put(JSONObject().put("owner", "A")).put(JSONObject().put("owner", "B")))
+            assertEquals("STORAGE_ERROR", conditional.code)
+            assertEquals(0, notifications)
+            val stored = call(capabilities, "Storage", "get", JSONArray().put("draft")).data as JSONObject
+            assertEquals("A", stored.getString("owner"))
+            assertEquals("{\"owner\":\"A\"}", values.getString("draft", null))
+        } finally { capabilities.close(); base.deleteSharedPreferences(name) }
+    }
+
     private fun call(
         capabilities: CraftNativeCapabilities,
         module: String,

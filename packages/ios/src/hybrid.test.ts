@@ -460,13 +460,13 @@ describe('hybrid project generation', () => {
         devServerURL: 'http://localhost:3100/m',
         nativeScreens: { '/m': 'Today' },
         nativeBundle: bundle,
-        tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }, { id: '/m/calendar', title: 'Calendar', symbol: 'calendar' }],
+        tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }, { id: '/m/calendar', title: 'Calendar', symbol: 'calendar', selectedSymbol: 'calendar.circle.fill', selectedIconTint: '#ff3b30', selectedIconPulse: false }],
         shareStorage: { auth_token: 'auth.token' },
       },
     })
     const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
     expect(config.nativeScreens).toEqual({ '/m': 'Today' })
-    expect(config.tabs[1]).toEqual({ id: '/m/calendar', title: 'Calendar', symbol: 'calendar' })
+    expect(config.tabs[1]).toEqual({ id: '/m/calendar', title: 'Calendar', symbol: 'calendar', selectedSymbol: 'calendar.circle.fill', selectedIconTint: '#ff3b30', selectedIconPulse: false })
     expect(config.shareStorage).toEqual({ auth_token: 'auth.token' })
     expect(config.enableSecureStorage).toBe(true)
     expect(existsSync(join(output, 'Sources', 'CraftHybrid.swift'))).toBe(true)

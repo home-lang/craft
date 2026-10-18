@@ -18,6 +18,11 @@ pub const BridgeError = error{
     InvalidJSON,
     /// Invalid parameter value
     InvalidParameter,
+    InvalidArgument,
+    RecordingConflict,
+    RecordingAlreadyActive,
+    RecordingNotFound,
+    RecordingStorageError,
     /// Native work is temporarily at capacity or an exclusive resource is in use
     Busy,
     /// Platform not supported for this operation
@@ -154,6 +159,11 @@ pub fn errorCodeString(err: BridgeError) []const u8 {
         BridgeError.MissingData => "MISSING_DATA",
         BridgeError.InvalidJSON => "INVALID_JSON",
         BridgeError.InvalidParameter => "INVALID_PARAMETER",
+        BridgeError.InvalidArgument => "INVALID_ARGUMENT",
+        BridgeError.RecordingConflict => "RECORDING_CONFLICT",
+        BridgeError.RecordingAlreadyActive => "RECORDING_ALREADY_ACTIVE",
+        BridgeError.RecordingNotFound => "RECORDING_NOT_FOUND",
+        BridgeError.RecordingStorageError => "RECORDING_STORAGE_ERROR",
         BridgeError.Busy => "BUSY",
         BridgeError.PlatformNotSupported => "PLATFORM_NOT_SUPPORTED",
         BridgeError.NativeCallFailed => "NATIVE_CALL_FAILED",
@@ -177,6 +187,11 @@ pub fn errorMessage(err: BridgeError) []const u8 {
         BridgeError.MissingData => "Required data is missing",
         BridgeError.InvalidJSON => "Failed to parse JSON data",
         BridgeError.InvalidParameter => "Invalid parameter value",
+        BridgeError.InvalidArgument => "expectedId must be a nonempty recording ID",
+        BridgeError.RecordingConflict => "The active recording has changed",
+        BridgeError.RecordingAlreadyActive => "A recording is already active",
+        BridgeError.RecordingNotFound => "This recording has been acknowledged",
+        BridgeError.RecordingStorageError => "Unable to persist or recover recording data",
         BridgeError.Busy => "Native operation is temporarily busy",
         BridgeError.PlatformNotSupported => "This operation is not supported on the current platform",
         BridgeError.NativeCallFailed => "Native API call failed",
@@ -208,6 +223,15 @@ pub fn fromHandlerError(err: anyerror) BridgeError {
     };
 }
 
+/// A synchronous native caller receives the same serialized reply without a
+/// WebView or page callback ID. Only the bounded recorder ABI installs this
+/// scope; asynchronous device operations keep their existing reply ownership.
+pub const NativeReply = struct {
+    context: ?*anyopaque,
+    callback: *const fn (?*anyopaque, bool, [*]const u8, usize) callconv(.c) void,
+};
+pub threadlocal var native_reply: ?NativeReply = null;
+
 /// Send error to JavaScript via eval
 pub fn sendErrorToJS(allocator: std.mem.Allocator, action: []const u8, err: BridgeError) void {
     var ctx = ErrorContext.init(err, action, errorMessage(err));
@@ -218,6 +242,11 @@ pub fn sendErrorToJS(allocator: std.mem.Allocator, action: []const u8, err: Brid
         return;
     };
     defer allocator.free(json);
+    if (native_reply) |reply| {
+        native_reply = null;
+        reply.callback(reply.context, true, json.ptr, json.len);
+        return;
+    }
 
     const bridge = @import("bridge.zig");
 
@@ -274,6 +303,11 @@ pub fn formatResultJS(
 
 /// Send success result to JavaScript
 pub fn sendResultToJS(allocator: std.mem.Allocator, action: []const u8, result_json: []const u8) void {
+    if (native_reply) |reply| {
+        native_reply = null;
+        reply.callback(reply.context, false, result_json.ptr, result_json.len);
+        return;
+    }
     const bridge = @import("bridge.zig");
 
     // Which call this answers. Null when there is no call to name: a reply

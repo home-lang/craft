@@ -87,7 +87,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('internal fun consumeInitialDeepLink(): Uri?')
       expect(nativeActivity).toContain('outState.putBoolean("craft.initialDeepLinkClaimed", initialDeepLinkClaimed)')
       expect(nativeCapabilities).toContain('internal const val CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION = 1')
-      expect(nativeCapabilities).toContain('"Storage" -> complete(requestToken, storage(method, args), completion)')
+      expect(nativeCapabilities).toContain('"Storage" -> mainHandler.post {')
+      expect(nativeCapabilities).toContain('val answer = runCatching { storage(method, args) }')
       expect(nativeCapabilities).toContain('"Database" -> {')
       expect(nativeCapabilities).toContain('"Notifications" -> notifications(requestToken, method, args, completion)')
       expect(nativeCapabilities).toContain('listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files")')
@@ -1393,7 +1394,7 @@ describe('Craft Android builder', () => {
     expect(bridge).toContain('pending.groupIndex + 1')
     expect(bridge).toContain('nativePermissionStatus(pending.permission)')
     expect(bridge).toContain('CraftPermissionPolicy.foregroundLocationIsGranted(::isPermissionGranted)')
-    expect(bridge.match(/if \(!hasForegroundLocationPermission\(\)\)/g)?.length).toBe(4)
+    expect(bridge.match(/if \(!hasForegroundLocationPermission\(\)\)/g)?.length).toBe(3)
     expect(bridge).toContain('if (hasForegroundLocationPermission())')
     expect(bridge).not.toContain('grantResults.all { it == PackageManager.PERMISSION_GRANTED }')
     expect(bridge).toContain('fun onRequestPermissionsResult(requestCode: Int): Boolean')
@@ -1407,6 +1408,7 @@ describe('Craft Android builder', () => {
     expect(bridge).toContain('Settings.ACTION_APPLICATION_DETAILS_SETTINGS')
     expect(existsSync(service)).toBe(true)
     const serviceSource = readFileSync(service, 'utf8')
+    expect(serviceSource).toContain('ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)')
     expect(serviceSource).toContain('package com.craft.runtime')
     expect(serviceSource).toContain('Manifest.permission.ACCESS_COARSE_LOCATION')
     expect(activity).toContain('craftBridge.onRequestPermissionsResult(requestCode)')
@@ -1428,8 +1430,8 @@ describe('Craft Android builder', () => {
     expect(service).toContain('CraftLocationRecordingStore.append')
     expect(service).toContain('else -> if (!startUpdates())')
     expect(service).toContain('.addOnFailureListener')
-    expect(service).toContain('CraftLocationRecordingStore.stop(this)')
-    expect(service).toContain('stopSelf()')
+    expect(service).toContain('CraftLocationRecordingStore.finish(this, JSONObject().put("expectedId", id))')
+    expect(service).toContain('stopSelfResult(startId)')
     expect(bridge).toContain('startRecording: function(options)')
     expect(bridge).toContain('fun stopLocationRecording()')
     expect(manifest).toContain('android:name="com.craft.runtime.LocationRecordingService"')
@@ -1610,13 +1612,15 @@ describe('Craft Android builder', () => {
     expect(bridge).not.toContain('Promise.resolve(JSON.parse(CraftAndroid')
     for (const guardedCall of [
       'Promise.resolve().then(function() { return CraftAndroid.checkPermission(String(permission)); })',
-      'Promise.resolve().then(function() { return JSON.parse(CraftAndroid.startLocationRecording(JSON.stringify(options || {}))); })',
       'Promise.resolve().then(function() { return legacySecureStore.get(key); })',
       'Promise.resolve().then(function() { return window.craft.notifications.cancel(id); })',
     ]) {
       expect(bridge).toContain(guardedCall)
     }
     expect(bridge).toContain('return {reachable: CraftAndroid.isWatchReachable()};')
+    expect(bridge).toContain('function recordingCall(method, options)')
+    expect(bridge).toContain("return recordingCall('startRecording', options)")
+    expect(bridge).toContain('var result = JSON.parse(CraftAndroid.recordingAction(method, JSON.stringify(options || {})))')
   })
 
   it('rejects Bluetooth scans that never reach the platform scanner', async () => {

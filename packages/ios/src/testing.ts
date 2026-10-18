@@ -14,6 +14,8 @@ export interface SimulatorDriverOptions {
   deploymentTarget?: string
   controlUrl?: string
   tabs?: readonly string[]
+  /** Stable native accessibility identifiers for tabs whose labels can change. */
+  tabIdentifiers?: Readonly<Record<string, string>>
   /** Bundle a wire-protocol journey and save native XCTest attachments. No control server is needed on physical devices. */
   script?: string
 }
@@ -39,6 +41,10 @@ export function initSimulatorDriver(options: SimulatorDriverOptions): void {
   if (!/^[A-Za-z][A-Za-z0-9]*$/.test(name)) throw new Error('projectName must be an alphanumeric Xcode name starting with a letter')
   if (!/^\d+\.\d+$/.test(version) || Number(version) < 17) throw new Error('The simulator driver requires iOS 17.0 or newer')
   if (!['http:', 'https:'].includes(new URL(control).protocol)) throw new Error('controlUrl must use HTTP or HTTPS')
+  const tabIdentifiers = Object.entries(options.tabIdentifiers ?? {})
+  for (const [name, identifier] of tabIdentifiers) {
+    if (!name.trim() || !identifier.trim()) throw new Error('Tab names and native identifiers must be nonempty')
+  }
   const replacements: Record<string, string> = {
     PROJECT_NAME: name,
     BUNDLE_PREFIX: prefix,
@@ -46,6 +52,7 @@ export function initSimulatorDriver(options: SimulatorDriverOptions): void {
     BUNDLE_ID: swiftString(bundleId),
     CONTROL_URL: swiftString(control),
     TABS: `[${(options.tabs ?? []).map(swiftString).join(', ')}]`,
+    TAB_IDENTIFIERS: tabIdentifiers.length ? `[${tabIdentifiers.map(([name, identifier]) => `${swiftString(name)}: ${swiftString(identifier)}`).join(', ')}]` : '[:]',
   }
   for (const [source, destination] of [
     ['HostApp.swift', 'Host/HostApp.swift'],

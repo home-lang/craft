@@ -333,6 +333,11 @@ export interface CraftTab {
   title: string
   /** An SF Symbol name. */
   symbol?: string
+  /** Native selected-tab icon overrides; retained pushed screens keep their owning tab's policy. */
+  selectedSymbol?: string
+  selectedIconTint?: string
+  /** False suppresses the legacy pulse while selected; omission uses the legacy policy. */
+  selectedIconPulse?: boolean
 }
 
 /** `/a//b/?q#h` → `/a/b`, the way the shell and the page compare paths. Null for a relative path. */
@@ -1358,6 +1363,8 @@ function writeShell(output: string, config: CraftConfig): void {
   cpSync(join(TEMPLATES_DIR, 'CraftMusic.swift'), join(output, 'Sources', 'CraftMusic.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftBluetooth.swift'), join(output, 'Sources', 'CraftBluetooth.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftHeartRate.swift'), join(output, 'Sources', 'CraftHeartRate.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftRecordingArchive.swift'), join(output, 'Sources', 'CraftRecordingArchive.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftPersistentStorage.swift'), join(output, 'Sources', 'CraftPersistentStorage.swift'))
   // Always copied: without enableScheduledWorkouts it compiles to a stub
   // that answers unsupported, and WorkoutKit is not linked.
   cpSync(join(TEMPLATES_DIR, 'CraftScheduledWorkouts.swift'), join(output, 'Sources', 'CraftScheduledWorkouts.swift'))

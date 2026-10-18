@@ -57,6 +57,7 @@ final class DriverTests: XCTestCase {
     let control = ProcessInfo.processInfo.environment["CRAFT_TEST_CONTROL"] ?? {{CONTROL_URL}}
     let app = XCUIApplication(bundleIdentifier: {{BUNDLE_ID}})
     let tabs: [String] = {{TABS}}
+    let tabIdentifiers: [String: String] = {{TAB_IDENTIFIERS}}
     private var bundledJourney = false
 
     func get(_ path: String, timeout: Double = 15) -> Data? {
@@ -144,9 +145,15 @@ final class DriverTests: XCTestCase {
 
     /// The native tab bar's button: Craft's floating bar is not a UITabBar, and
     /// XCUITest calls its buttons not hittable, so it is the button with this
-    /// label in the bottom fifth of the window.
+    /// label in the bottom fifth of the window. A configured stable identifier
+    /// keeps dynamic captions from changing the tab's native identity.
     func tabButton(_ name: String) -> XCUIElement? {
         let height = app.windows.firstMatch.frame.height
+        if let identifier = tabIdentifiers[name] {
+            let candidate = app.buttons.matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
+            if candidate.exists && candidate.frame.minY > height * 0.8 && candidate.frame.maxY <= height + 1 && candidate.frame.width > 0 { return candidate }
+            return nil
+        }
         let matches = app.buttons.matching(NSPredicate(format: "label == %@", name))
         for index in 0..<min(matches.count, 10) {
             let candidate = matches.element(boundBy: index)

@@ -1,3 +1,4 @@
+import Combine
 import UIKit
 import MapKit
 import CoreLocation
@@ -100,6 +101,53 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(manager.fixRequests, 0)
     }
 
+    func testPanProgressDoesNotInvalidateTheWholeChrome() {
+        let chrome = CraftChrome.shared
+        let tabs = chrome.tabs
+        let selected = chrome.selected
+        defer {
+            chrome.cancelTabSwipe()
+            chrome.tabs = tabs
+            chrome.selected = selected
+        }
+        chrome.tabs = [CraftChrome.Tab(id: "/today", title: "Today", symbol: "house", badge: nil), CraftChrome.Tab(id: "/health", title: "Health", symbol: "heart", badge: nil)]
+        chrome.selected = "/today"
+        chrome.beginTabSwipe(to: "/health", from: "/today")
+        var chromeChanges = 0
+        var indicatorChanges = 0
+        let chromeSubscription = chrome.objectWillChange.sink { chromeChanges += 1 }
+        let indicatorSubscription = chrome.tabSwipeProgress.objectWillChange.sink { indicatorChanges += 1 }
+        defer { chromeSubscription.cancel(); indicatorSubscription.cancel() }
+        for frame in 1...120 { chrome.updateTabSwipe(progress: CGFloat(frame) / 120) }
+        XCTAssertEqual(chromeChanges, 0, "tracking must leave tab content, material and splash alone")
+        XCTAssertEqual(indicatorChanges, 120)
+        XCTAssertEqual(chrome.tabSwipePosition, 1)
+        chrome.updateTabSwipe(progress: 1)
+        XCTAssertEqual(indicatorChanges, 120, "equal pan positions do not redraw")
+        chrome.cancelTabSwipe()
+        XCTAssertNil(chrome.tabSwipePosition)
+        XCTAssertEqual(chrome.selected, "/today")
+    }
+
+    func testLiveTabReadingPublishesOnceAndEqualReadingsDoNotRedrawChrome() {
+        let chrome = CraftChrome.shared
+        let previous = chrome.tabs
+        defer { chrome.tabs = previous }
+        chrome.tabs = [CraftChrome.Tab(id: "/health", title: "Health", symbol: "heart", badge: nil)]
+        var publications = 0
+        let subscription = chrome.objectWillChange.sink { publications += 1 }
+        defer { subscription.cancel() }
+        let reading: [String: Any] = ["id": "/health", "title": "123 bpm", "iconText": NSNull(), "iconTint": "#ff3b30", "iconPulse": true, "accessibilityLabel": "Health, 123 bpm"]
+        chrome.updateTab(reading)
+        XCTAssertEqual(publications, 1, "all fields of one reading are committed together")
+        for _ in 0..<120 { chrome.updateTab(reading) }
+        XCTAssertEqual(publications, 1, "repeated readings must not invalidate SwiftUI during scrolling")
+        chrome.updateTab(["id": "/health", "title": NSNull(), "iconTint": NSNull(), "iconPulse": false, "accessibilityLabel": NSNull()])
+        XCTAssertEqual(publications, 2)
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "Health")
+        XCTAssertFalse(chrome.tabs[0].iconPulse)
+    }
+
     func testConfiguredHomeShortcutUsesTheNativeAppDestination() throws {
         let shortcut = try XCTUnwrap(UIApplication.shared.shortcutItems?.first { $0.type == "saved" })
         XCTAssertEqual(shortcut.localizedTitle, "Saved trails")
@@ -193,6 +241,48 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(celebration.isRunning)
         try await Task.sleep(nanoseconds: 3_200_000_000)
         XCTAssertFalse(celebration.isRunning, "all decoration is removed after the finite reveal")
+    }
+
+    func testSelectedTabIconPolicySurvivesLiveCaptionCleanupAndResetsExplicitly() throws {
+        let configured = try JSONDecoder().decode(CraftConfig.Tab.self, from: Data(##"{"id":"/health","title":"Health","symbol":"heart","selectedSymbol":"heart.fill","selectedIconTint":"#ff3b30","selectedIconPulse":false}"##.utf8))
+        XCTAssertEqual(configured.selectedSymbol, "heart.fill")
+        XCTAssertEqual(configured.selectedIconTint, "#ff3b30")
+        XCTAssertEqual(configured.selectedIconPulse, false)
+        let chrome = CraftChrome.shared
+        let previous = chrome.tabs
+        let selected = chrome.selected
+        defer { chrome.tabs = previous; chrome.selected = selected }
+        chrome.tabs = [CraftChrome.Tab(id: "/health", title: "Health", symbol: "heart", badge: "2")]
+        chrome.selected = "/health"
+        chrome.updateTab(["id": "/health", "selectedSymbol": "heart.fill", "selectedIconTint": "#ff3b30", "selectedIconPulse": true])
+        var active = chrome.tabs[0].iconAppearance(selected: chrome.selected == "/health", motionAllowed: true)
+        XCTAssertEqual(active.symbol, "heart.fill")
+        XCTAssertEqual(active.tint, "#ff3b30")
+        XCTAssertTrue(active.pulse, "selection must work without a heart-rate sensor")
+        let inactive = chrome.tabs[0].iconAppearance(selected: false, motionAllowed: true)
+        XCTAssertEqual(inactive.symbol, "heart")
+        XCTAssertNil(inactive.tint)
+        XCTAssertFalse(inactive.pulse)
+        XCTAssertFalse(chrome.tabs[0].iconAppearance(selected: true, motionAllowed: false).pulse, "Reduce Motion, hidden bars and inactive scenes stop animation")
+        chrome.updateTab(["id": "/health", "selectedSymbol": " \n "])
+        XCTAssertNil(chrome.tabs[0].selectedSymbol, "blank overrides restore the base symbol on both platforms")
+        chrome.updateTab(["id": "/health", "selectedSymbol": " heart.fill "])
+        XCTAssertEqual(chrome.tabs[0].selectedSymbol, "heart.fill")
+        chrome.updateTab(["id": "/health", "title": "145 bpm", "iconTint": "#ff3b30", "iconPulse": true])
+        chrome.updateTab(["id": "/health", "title": NSNull(), "iconTint": NSNull(), "iconPulse": false])
+        active = chrome.tabs[0].iconAppearance(selected: true, motionAllowed: true)
+        XCTAssertEqual(active.symbol, "heart.fill")
+        XCTAssertTrue(active.pulse, "stale live-reading cleanup must preserve selected styling")
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "Health")
+        XCTAssertEqual(chrome.tabs[0].badge, "2")
+        XCTAssertEqual(chrome.selected, "/health")
+        chrome.updateTab(["id": "/health", "iconPulse": true, "selectedIconPulse": false])
+        XCTAssertFalse(chrome.tabs[0].iconAppearance(selected: true, motionAllowed: true).pulse, "false overrides the legacy pulse")
+        chrome.updateTab(["id": "/health", "selectedSymbol": NSNull(), "selectedIconTint": "invalid", "selectedIconPulse": NSNull()])
+        active = chrome.tabs[0].iconAppearance(selected: true, motionAllowed: true)
+        XCTAssertEqual(active.symbol, "heart")
+        XCTAssertNil(active.tint)
+        XCTAssertTrue(active.pulse, "null restores the legacy pulse")
     }
 
     func testTabUpdatesKeepTheIconAndSelectionWhileChangingItsLiveCaption() {

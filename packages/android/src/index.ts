@@ -175,7 +175,15 @@ export interface CraftAndroidConfig {
    * script that runs beside the screens. The same keys as the iOS builder.
    */
   nativeScreens?: Record<string, string>
-  tabs?: Array<{ id: string, title: string, symbol?: string }>
+  tabs?: Array<{
+    id: string
+    title: string
+    symbol?: string
+    /** Native selected-tab icon overrides, also supported by navigation.setOptions({ tabItem }). */
+    selectedSymbol?: string
+    selectedIconTint?: string
+    selectedIconPulse?: boolean
+  }>
   nativeApp?: string
   /** Wake the app script every so often (`craftBackgroundRefresh`), through WorkManager. */
   backgroundRefresh?: { enabled?: boolean, minimumIntervalMinutes?: number }

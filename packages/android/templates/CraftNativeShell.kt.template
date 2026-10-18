@@ -78,7 +78,12 @@ internal object CraftNativeHub {
 /** A screen of the app found for a path. */
 internal data class CraftNativeRouteMatch(val screen: String, val params: JSONObject, val path: String)
 
-internal data class CraftNativeTab(val id: String, val title: String, val symbol: String)
+internal data class CraftNativeTab(
+    val id: String, val title: String, val symbol: String,
+    val selectedSymbol: String? = null, val selectedIconTint: String? = null, val selectedIconPulse: Boolean? = null,
+)
+
+internal data class CraftTabIconAppearance(val symbol: String, val tint: Int?, val pulse: Boolean)
 
 /** The app's paths (`nativeScreens`), its tabs and its site. */
 internal class CraftNativeRoutes(config: JSONObject) {
@@ -107,7 +112,10 @@ internal class CraftNativeRoutes(config: JSONObject) {
         for (index in 0 until list.length()) {
             val tab = list.optJSONObject(index) ?: continue
             val id = tab.optString("id").takeIf { it.isNotBlank() } ?: continue
-            add(CraftNativeTab(normalize(id), tab.optString("title", id), tab.optString("symbol")))
+            add(CraftNativeTab(normalize(id), tab.optString("title", id), tab.optString("symbol"),
+                tab.optString("selectedSymbol").trim().takeUnless { tab.isNull("selectedSymbol") || it.isBlank() },
+                tab.optString("selectedIconTint").takeUnless { tab.isNull("selectedIconTint") || it.isBlank() },
+                if (tab.opt("selectedIconPulse") is Boolean) tab.optBoolean("selectedIconPulse") else null))
         }
     }
 
@@ -226,6 +234,39 @@ internal class CraftNativeRoutes(config: JSONObject) {
  *
  * Writes happen on one background thread, in order.
  */
+/** One process-wide boundary for committed storage reads and mutations. */
+internal object CraftNativeStorage {
+    val lock = Any()
+    fun jsonEqual(left: Any?, right: Any?): Boolean {
+        if (left == null || left === JSONObject.NULL) return right == null || right === JSONObject.NULL
+        if (left is Boolean || right is Boolean) return left is Boolean && right is Boolean && left == right
+        if (left is Number && right is Number) return java.math.BigDecimal(left.toString()).compareTo(java.math.BigDecimal(right.toString())) == 0
+        if (left is JSONObject && right is JSONObject) return left.length() == right.length() && left.keys().asSequence().all { right.has(it) && jsonEqual(left.get(it), right.get(it)) }
+        if (left is JSONArray && right is JSONArray) return left.length() == right.length() && (0 until left.length()).all { jsonEqual(left.get(it), right.get(it)) }
+        return left is String && right is String && left == right
+    }
+    fun commit(storage: SharedPreferences, update: (android.content.SharedPreferences.Editor) -> Unit): Boolean {
+        val previous = storage.all
+        val editor = storage.edit()
+        update(editor)
+        if (editor.commit()) return true
+        // A failed commit has already changed SharedPreferences' memory map.
+        // Restore it before a later draft read can mistake it for a checkpoint.
+        val rollback = storage.edit().clear()
+        previous.forEach { (key, value) -> when (value) {
+            is String -> rollback.putString(key, value)
+            is Boolean -> rollback.putBoolean(key, value)
+            is Long -> rollback.putLong(key, value)
+            is Int -> rollback.putInt(key, value)
+            is Float -> rollback.putFloat(key, value)
+            else -> error("Invalid stored value")
+        } }
+        rollback.commit()
+        return false
+    }
+
+}
+
 internal class CraftNativeStores private constructor(context: Context, private val secureEnabled: Boolean) {
     private val appContext = context.applicationContext
     private val storage: SharedPreferences = appContext.getSharedPreferences("craft-native-storage", Context.MODE_PRIVATE)
@@ -281,7 +322,7 @@ internal class CraftNativeStores private constructor(context: Context, private v
             out.append('}')
         }
         out.append('{')
-        section("storage", storage.all.mapNotNull { (key, value) -> (value as? String)?.let { key to it } }.toMap())
+        section("storage", synchronized(CraftNativeStorage.lock) { storage.all.mapNotNull { (key, value) -> (value as? String)?.let { key to it } }.toMap() })
         out.append(',')
         section("secure", runCatching { secure?.all?.mapNotNull { (key, value) -> (value as? String)?.let { key to it } }?.toMap() }.getOrNull() ?: emptyMap())
         out.append(',')
@@ -297,8 +338,14 @@ internal class CraftNativeStores private constructor(context: Context, private v
 
     /** `craft.storage.setSync`: null removes the key. Tells every isolate. */
     fun setStorage(key: String, json: String?, from: String?) {
-        if (json == null) storage.edit().remove(key).apply() else storage.edit().putString(key, json).apply()
-        changed("storage", key, json, from)
+        synchronized(CraftNativeStorage.lock) {
+            val previous = storage.getString(key, null)
+            val kept = CraftNativeStorage.commit(storage) {
+                if (json == null) it.remove(key) else it.putString(key, json)
+            }
+            if (kept) changed("storage", key, json, from)
+            else changed("storage", key, previous, null)
+        }
     }
 
     /** `craft.snapshots.set`: null deletes it. `done` hears whether it was kept, on the main thread. */
@@ -647,9 +694,13 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     private val tabAccessibilityLabels = mutableMapOf<String, String>()
     private val tabIconTints = mutableMapOf<String, Int>()
     private val tabIconPulses = mutableSetOf<String>()
+    private val selectedSymbols = mutableMapOf<String, String>()
+    private val selectedIconTints = mutableMapOf<String, Int>()
+    private val selectedIconPulses = mutableMapOf<String, Boolean>()
     private val tabImageURLs = mutableMapOf<String, String>()
     private val tabImages = mutableMapOf<String, android.graphics.drawable.Drawable>()
     private val navButtonSpecs = mutableMapOf<TextView, JSONObject>()
+    private var renderedButtonSpecs: Pair<String, String>? = null
     private val density = resources.displayMetrics.density
     private var screenBackgroundColor: Int? = null
     private var selectedTab = 0
@@ -705,6 +756,9 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         tabBar.orientation = HORIZONTAL
         tabBar.gravity = Gravity.CENTER
         tabs.forEachIndexed { index, tab ->
+            tab.selectedSymbol?.trim()?.takeIf { it.isNotEmpty() }?.let { selectedSymbols[tab.id] = it }
+            tab.selectedIconTint?.let { runCatching { Color.parseColor(it) }.getOrNull() }?.let { selectedIconTints[tab.id] = it }
+            tab.selectedIconPulse?.let { selectedIconPulses[tab.id] = it }
             val cell = LinearLayout(context)
             cell.orientation = VERTICAL
             cell.gravity = Gravity.CENTER
@@ -812,18 +866,24 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         titleView.text = if (large) "" else title
         largeTitleView.text = title
         largeTitleView.visibility = if (!hidden && large && title.isNotBlank()) View.VISIBLE else View.GONE
-        buttons.removeAllViews()
-        leadingButtons.removeAllViews()
-        navButtonSpecs.clear()
         val leading = options.optJSONArray("leftButtons") ?: JSONArray()
-        for (index in 0 until leading.length()) {
-            val button = leading.optJSONObject(index) ?: continue
-            leadingButtons.addView(navButton(button))
-        }
         val list = options.optJSONArray("rightButtons") ?: JSONArray()
-        for (index in 0 until list.length()) {
-            val button = list.optJSONObject(index) ?: continue
-            buttons.addView(navButton(button))
+        // The activity passes cumulative screen options, even for a live BPM
+        // patch. Keep unchanged toolbar views, images and touch targets alive.
+        val buttonSpecs = leading.toString() to list.toString()
+        if (buttonSpecs != renderedButtonSpecs) {
+            buttons.removeAllViews()
+            leadingButtons.removeAllViews()
+            navButtonSpecs.clear()
+            for (index in 0 until leading.length()) {
+                val button = leading.optJSONObject(index) ?: continue
+                leadingButtons.addView(navButton(button))
+            }
+            for (index in 0 until list.length()) {
+                val button = list.optJSONObject(index) ?: continue
+                buttons.addView(navButton(button))
+            }
+            renderedButtonSpecs = buttonSpecs
         }
         val tabBarHidden = options.optBoolean("tabBarHidden", false) || depth > 0 && options.optBoolean("tabBarHiddenWhenPushed", false)
         tabRow.visibility = if (tabs.isEmpty() || tabBarHidden) View.GONE else View.VISIBLE
@@ -869,6 +929,18 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         if (item.has("iconPulse")) {
             if (item.optBoolean("iconPulse", false)) tabIconPulses.add(id) else tabIconPulses.remove(id)
         }
+        if (item.has("selectedSymbol")) {
+            selectedSymbols.remove(id)
+            item.optString("selectedSymbol").trim().takeUnless { item.isNull("selectedSymbol") || it.isBlank() }?.let { selectedSymbols[id] = it }
+        }
+        if (item.has("selectedIconTint")) {
+            selectedIconTints.remove(id)
+            if (!item.isNull("selectedIconTint")) runCatching { Color.parseColor(item.optString("selectedIconTint")) }.getOrNull()?.let { selectedIconTints[id] = it }
+        }
+        if (item.has("selectedIconPulse")) {
+            selectedIconPulses.remove(id)
+            if (item.opt("selectedIconPulse") is Boolean) selectedIconPulses[id] = item.optBoolean("selectedIconPulse")
+        }
         if (item.has("image")) {
             val address = item.optString("image").takeIf { !item.isNull("image") && it.startsWith("https://") }
             if (address != tabImageURLs[id]) {
@@ -892,7 +964,17 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
                 }
             }
         }
-        refreshColors()
+    }
+
+    /** Selection belongs to the native tab stack, including retained pushed screens. */
+    internal fun tabIconAppearance(index: Int, motionAllowed: Boolean): CraftTabIconAppearance {
+        val tab = tabs[index]
+        val selected = index == selectedTab
+        return CraftTabIconAppearance(
+            if (selected) selectedSymbols[tab.id] ?: tab.symbol else tab.symbol,
+            if (selected) selectedIconTints[tab.id] ?: tabIconTints[tab.id] else tabIconTints[tab.id],
+            (if (selected) selectedIconPulses[tab.id] ?: tabIconPulses.contains(tab.id) else tabIconPulses.contains(tab.id)) && motionAllowed,
+        )
     }
 
     /** Light or dark changed: the bars follow the screen's background. */
@@ -917,13 +999,14 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             val color = if (index == selectedTab) accent else muted
             val id = tabs[index].id
             val number = tabIconText[id]
-            val iconColor = tabIconTints[id] ?: if (number != null) Color.parseColor("#FF2D55") else color
+            val appearance = tabIconAppearance(index, hasWindowFocus() && tabRow.isShown && android.animation.ValueAnimator.areAnimatorsEnabled())
+            val iconColor = appearance.tint ?: if (number != null) Color.parseColor("#FF2D55") else color
             icon.setTextColor(iconColor)
             label.text = tabTitles[id] ?: tabs[index].title
             tabBar.getChildAt(index).contentDescription = tabAccessibilityLabels[id] ?: label.text
             label.setTextColor(color)
-            val vector = tabImages[id] ?: if (number == null) CraftNativeIcons.drawable(context, null, tabs[index].symbol, iconColor) else null
-            val pulse = tabIconPulses.contains(id) && number == null && tabImages[id] == null && hasWindowFocus() && android.animation.ValueAnimator.areAnimatorsEnabled()
+            val vector = tabImages[id] ?: if (number == null) CraftNativeIcons.drawable(context, null, appearance.symbol, iconColor) else null
+            val pulse = appearance.pulse && number == null && tabImages[id] == null
             if (pulse && icon.animation == null) {
                 icon.startAnimation(android.view.animation.AlphaAnimation(1f, 0.55f).apply {
                     duration = 700
@@ -935,7 +1018,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
                 icon.alpha = 1f
             }
             icon.foreground = vector
-            icon.text = if (vector != null) "" else number ?: CraftNativeSymbols.glyph(tabs[index].symbol)
+            icon.text = if (vector != null) "" else number ?: CraftNativeSymbols.glyph(appearance.symbol)
         }
         navButtonSpecs.forEach { (view, spec) -> applyNavButtonTint(view, spec, dark) }
     }

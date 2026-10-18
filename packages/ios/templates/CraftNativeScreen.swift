@@ -4834,7 +4834,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             CraftNativeConsole.write(level, category: category, message: message)
         }
         let storageGet: @convention(block) (String) -> String? = { key in
-            CraftNativeActions.storageJSON(forKey: key)
+            do { return try CraftNativeActions.storageJSON(forKey: key) }
+            catch {
+                if let context = JSContext.current() {
+                    context.exception = JSValue(newErrorFromMessage: "STORAGE_ERROR: Unable to read stored value", in: context)
+                }
+                return nil
+            }
         }
         let storageSet: @convention(block) (String, JSValue) -> Bool = { key, value in
             CraftNativeActions.setStorageJSON(value.isNull || value.isUndefined ? nil : value.toString(), forKey: key)
@@ -7539,13 +7545,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             .font: font,
         ]
         if let spacing = number(style["letterSpacing"]) { attributes[.kern] = spacing }
+        // UIKit otherwise resets the field's alignment to natural when these attributes are applied.
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = alignment
         if let lineHeight = number(style["lineHeight"]) {
-            let paragraph = NSMutableParagraphStyle()
             paragraph.minimumLineHeight = lineHeight
             paragraph.maximumLineHeight = lineHeight
-            paragraph.alignment = alignment
-            attributes[.paragraphStyle] = paragraph
         }
+        attributes[.paragraphStyle] = paragraph
         addTextDecorationAttributes(style, to: &attributes)
         if let shadow = textShadow(style) { attributes[.shadow] = shadow }
         return attributes

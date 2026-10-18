@@ -116,6 +116,7 @@ internal class CraftNativeCapabilities(
 
     fun names(): JSONArray = JSONArray().apply {
         listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files").forEach(::put)
+        put("storageCompareAndSet")
         if (config.optBoolean("enableBluetooth")) put("bluetooth")
         if (config.optBoolean("enableBiometric")) put("biometric")
         if (config.optBoolean("enableSecureStorage")) put("secureStorage")
@@ -142,7 +143,11 @@ internal class CraftNativeCapabilities(
                 if (!config.optBoolean("enableBluetooth")) complete(requestToken, failure("CAPABILITY_DISABLED", "Bluetooth is disabled"), completion)
                 else bluetooth.perform(method, args) { complete(requestToken, it, completion) }
             }
-            "Storage" -> complete(requestToken, storage(method, args), completion)
+            "Storage" -> mainHandler.post {
+                val answer = runCatching { storage(method, args) }
+                    .getOrElse { failure("STORAGE_ERROR", it.message ?: "Storage operation failed") }
+                complete(requestToken, answer, completion)
+            }
             "SecureStorage" -> {
                 if (!config.optBoolean("enableSecureStorage")) complete(requestToken, failure("CAPABILITY_DISABLED", "Secure storage is disabled"), completion)
                 else complete(requestToken, secureStorage(method, args), completion)
@@ -648,9 +653,9 @@ internal class CraftNativeCapabilities(
         }
     }
 
-    private fun storage(method: String, args: JSONArray): CraftNativeCapabilityResult {
+    private fun storage(method: String, args: JSONArray): CraftNativeCapabilityResult = synchronized(CraftNativeStorage.lock) {
         if (method == "clear") {
-            storage.edit().clear().commit()
+            if (!CraftNativeStorage.commit(storage) { it.clear() }) return failure("STORAGE_ERROR", "Storage could not be cleared")
             storeObserver?.invoke("storage", null, null)
             return success(true)
         }
@@ -666,13 +671,25 @@ internal class CraftNativeCapabilities(
                 if (args.length() != 2) return failure("INVALID_ARGUMENT", "Storage.set needs a key and value")
                 val value = jsonString(args.opt(1))
                     ?: return failure("INVALID_ARGUMENT", "Storage values must be JSON serializable")
-                if (storage.edit().putString(key, value).commit()) {
+                if (CraftNativeStorage.commit(storage) { it.putString(key, value) }) {
                     storeObserver?.invoke("storage", key, value)
                     success(true)
                 }
                 else failure("STORAGE_ERROR", "Storage could not persist the value")
             }
-            "remove" -> success(storage.edit().remove(key).commit().also { storeObserver?.invoke("storage", key, null) })
+            "compareAndSet" -> {
+                if (args.length() != 3) return failure("INVALID_ARGUMENT", "Storage.compareAndSet needs a key, expected value and next value")
+                val current = storage.getString(key, null) ?: return success(false)
+                if (!CraftNativeStorage.jsonEqual(JSONTokener(current).nextValue(), args.opt(1))) return success(false)
+                val next = jsonString(args.opt(2)) ?: return failure("INVALID_ARGUMENT", "Storage values must be JSON serializable")
+                if (!CraftNativeStorage.commit(storage) { it.putString(key, next) }) return failure("STORAGE_ERROR", "Storage could not persist the checkpoint")
+                storeObserver?.invoke("storage", key, next)
+                success(true)
+            }
+            "remove" -> if (CraftNativeStorage.commit(storage) { it.remove(key) }) {
+                storeObserver?.invoke("storage", key, null)
+                success(true)
+            } else failure("STORAGE_ERROR", "Storage could not remove the value")
             else -> failure("UNKNOWN_ACTION", "Unsupported Storage method")
         }
     }

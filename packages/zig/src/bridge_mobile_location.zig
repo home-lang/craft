@@ -286,6 +286,7 @@ pub const A = struct {
     pub const resume_location_recording = "resumeLocationRecording";
     pub const stop_location_recording = "stopLocationRecording";
     pub const get_location_recording_state = "getLocationRecordingState";
+    pub const acknowledge_location_recording = "acknowledgeLocationRecording";
 };
 
 /// `.result`: the Swift path terminates in exactly one `resolveCallback` (from
@@ -323,6 +324,7 @@ pub const capability_actions = [_]capabilities.ActionDecl{
     .{ .name = A.resume_location_recording, .reply = .result },
     .{ .name = A.stop_location_recording, .reply = .result },
     .{ .name = A.get_location_recording_state, .reply = .result },
+    .{ .name = A.acknowledge_location_recording, .reply = .result },
 };
 
 /// The reply `watchPosition` and `clearWatch` send.
@@ -345,6 +347,7 @@ const Route = enum {
     resume_recording,
     stop_recording,
     recording_state,
+    acknowledge_recording,
 };
 
 fn routeFor(action: []const u8) ?Route {
@@ -356,6 +359,7 @@ fn routeFor(action: []const u8) ?Route {
     if (std.mem.eql(u8, action, A.resume_location_recording)) return .resume_recording;
     if (std.mem.eql(u8, action, A.stop_location_recording)) return .stop_recording;
     if (std.mem.eql(u8, action, A.get_location_recording_state)) return .recording_state;
+    if (std.mem.eql(u8, action, A.acknowledge_location_recording)) return .acknowledge_recording;
     return null;
 }
 
@@ -435,6 +439,7 @@ pub const LocationBridge = struct {
             .resume_recording => self.resumeRecording(data),
             .stop_recording => self.stopRecording(data),
             .recording_state => self.recordingState(data),
+            .acknowledge_recording => self.acknowledgeRecording(data),
         };
     }
 
@@ -642,9 +647,8 @@ pub const LocationBridge = struct {
     // the recorder, and two managers feeding one event name is the duplication
     // this migration removes.
     //
-    // Swift keeps no guard against starting a recording while one is running —
-    // `startLocationRecording` overwrites the track and the id unconditionally
-    // — and neither does this. It is a restart, and the page asked for one.
+    // Start never replaces a live route. Guarded operations compare the ID on
+    // this same main-thread dispatch before changing memory or persisted data.
     // =========================================================================
 
     /// Begin a route, replacing whatever the last one left behind.
@@ -659,6 +663,11 @@ pub const LocationBridge = struct {
     fn startRecording(self: *Self, data: []const u8) !void {
         _ = data;
         if (!is_darwin) return error.UnsupportedPlatform;
+
+        var existing = try snapshotRecording(self.allocator);
+        defer existing.deinit(self.allocator);
+        if (existing.active) return bridge_error.BridgeError.RecordingAlreadyActive;
+        try locrec.archiveCompleted(self.allocator, existing);
 
         // Everything that can fail, resolved before the track is cleared. A
         // refusal after `resetTrack` would have destroyed the previous route to
@@ -701,11 +710,11 @@ pub const LocationBridge = struct {
     /// `pause` — Swift's guard is on `isRecordingLocation` alone, not on
     /// `!isLocationRecordingPaused`, and pausing twice is not an error.
     fn pauseRecording(self: *Self, data: []const u8) !void {
-        _ = data;
         if (!is_darwin) return error.UnsupportedPlatform;
 
         var snapshot = try snapshotRecording(self.allocator);
         defer snapshot.deinit(self.allocator);
+        try @import("recording_identity.zig").validate(self.allocator, data, snapshot.id);
 
         if (!snapshot.active) return noActiveRecording();
 
@@ -727,19 +736,19 @@ pub const LocationBridge = struct {
 
     /// Collect again on a route that was paused.
     fn resumeRecording(self: *Self, data: []const u8) !void {
-        _ = data;
         if (!is_darwin) return error.UnsupportedPlatform;
+
+        var snapshot = try snapshotRecording(self.allocator);
+        defer snapshot.deinit(self.allocator);
+        try @import("recording_identity.zig").validate(self.allocator, data, snapshot.id);
+
+        if (!snapshot.active) return noActiveRecording();
 
         const authorization = try resolveAuthorization();
         const sels = try Sels.resolve();
         const updates = try UpdateSelectors.resolve(authorization);
         const background = try backgroundLocationDeclared();
         const mgr = try ensureManager();
-
-        var snapshot = try snapshotRecording(self.allocator);
-        defer snapshot.deinit(self.allocator);
-
-        if (!snapshot.active) return noActiveRecording();
 
         const next: locrec.State = .{
             .active = true,
@@ -766,11 +775,16 @@ pub const LocationBridge = struct {
     /// which is why a stop-then-read in one launch still reports them, and a
     /// relaunch does not.
     fn stopRecording(self: *Self, data: []const u8) !void {
-        _ = data;
         if (!is_darwin) return error.UnsupportedPlatform;
 
+        if (try locrec.completedReply(self.allocator, data, .stopped)) |saved| {
+            defer self.allocator.free(saved);
+            bridge_error.sendResultToJS(self.allocator, A.stop_location_recording, saved);
+            return;
+        }
         var snapshot = try snapshotRecording(self.allocator);
         defer snapshot.deinit(self.allocator);
+        try @import("recording_identity.zig").validate(self.allocator, data, snapshot.id);
 
         const next: locrec.State = .{
             .active = false,
@@ -788,8 +802,39 @@ pub const LocationBridge = struct {
 
     /// The summary, plus how many samples are on disk.
     fn recordingState(self: *Self, data: []const u8) !void {
-        _ = data;
+        if (try locrec.completedReply(self.allocator, data, .state)) |saved| {
+            defer self.allocator.free(saved);
+            bridge_error.sendResultToJS(self.allocator, A.get_location_recording_state, saved);
+            return;
+        }
+        var snapshot = try snapshotRecording(self.allocator);
+        defer snapshot.deinit(self.allocator);
+        try @import("recording_identity.zig").validate(self.allocator, data, snapshot.id);
         try self.replySummary(A.get_location_recording_state, .with_sample_count);
+    }
+
+    fn acknowledgeRecording(self: *Self, data: []const u8) !void {
+        const id = try @import("recording_identity.zig").expectedId(self.allocator, data) orelse return error.InvalidArgument;
+        defer self.allocator.free(id);
+        var current = try snapshotRecording(self.allocator);
+        defer current.deinit(self.allocator);
+        const is_current = current.id != null and std.mem.eql(u8, current.id.?, id);
+        if (is_current and current.active) return error.RecordingAlreadyActive;
+        var known = is_current or try locrec.acknowledged(self.allocator, id);
+        if (!known) {
+            if (try locrec.readCompleted(self.allocator, id)) |saved| {
+                self.allocator.free(saved);
+                known = true;
+            }
+        }
+        if (!known) return error.RecordingConflict;
+        try locrec.acknowledgeCompleted(self.allocator, id);
+        if (is_current) {
+            try locrec.removeTrack(self.allocator);
+            try locrec.writeState(self.allocator, .{});
+            try commitRecording(.{}, null);
+        }
+        bridge_error.sendResultToJS(self.allocator, A.acknowledge_location_recording, true_fragment);
     }
 
     /// What the four summary actions reply, in Swift's key order.
@@ -861,6 +906,7 @@ pub fn adoptRecording() bool {
     const allocator = recording_allocator;
 
     var state = locrec.readState(allocator) catch |err| {
+        failRecordingRestore();
         // The state file is the only record of a recording in progress, and
         // Swift would be reading the same bytes. Reporting ownership anyway is
         // the honest answer: falling back would not recover the route, it would
@@ -873,16 +919,48 @@ pub fn adoptRecording() bool {
     };
     defer state.deinit(allocator);
 
-    // `guard … state["active"] as? Bool == true else { return }` already
-    // applied by `readState`, so this is Swift's early return.
-    if (!state.active) return true;
+    if (state.id) |id| {
+        if (locrec.acknowledged(allocator, id) catch {
+            failRecordingRestore();
+            return true;
+        }) {
+            locrec.acknowledgeCompleted(allocator, id) catch {
+                failRecordingRestore();
+                return true;
+            };
+            locrec.removeTrack(allocator) catch {
+                failRecordingRestore();
+                return true;
+            };
+            locrec.writeState(allocator, .{}) catch {
+                failRecordingRestore();
+                return true;
+            };
+            commitRecording(.{}, null) catch {
+                failRecordingRestore();
+                return true;
+            };
+            return true;
+        }
+    }
+
+    // A completed owner remains available for guarded recovery after relaunch.
+    if (!state.active) {
+        commitRecording(state, null) catch |err| {
+            failRecordingRestore();
+            std.log.err("location recording: cannot restore the completed identity ({})", .{err});
+        };
+        return true;
+    }
 
     const sels = Sels.resolve() catch |err| {
+        failRecordingRestore();
         std.log.err("location recording: cannot adopt the recording at launch ({}); its samples will not resume", .{err});
         return true;
     };
 
     commitRecording(state, sels) catch |err| {
+        failRecordingRestore();
         std.log.err("location recording: cannot take the recording into memory at launch ({})", .{err});
         return true;
     };
@@ -1082,9 +1160,10 @@ fn commitRecording(next: locrec.State, sels: ?Sels) !void {
 }
 
 /// A copy of the recorder's state that outlives the lock.
-fn snapshotRecording(allocator: std.mem.Allocator) !locrec.State {
+pub fn snapshotRecording(allocator: std.mem.Allocator) !locrec.State {
     state_mutex.lock();
     defer state_mutex.unlock();
+    if (recording_restore_failed) return error.RecordingStorageError;
 
     return .{
         .active = recording.active,
@@ -1744,6 +1823,13 @@ var state_mutex: compat_mutex.Mutex = .{};
 /// `id` is owned, allocated from `std.heap.c_allocator`, and freed whenever it
 /// is replaced.
 var recording: locrec.State = .{};
+var recording_restore_failed = false;
+
+fn failRecordingRestore() void {
+    state_mutex.lock();
+    defer state_mutex.unlock();
+    recording_restore_failed = true;
+}
 
 /// Non-null exactly while fixes belong in the track: active, and not paused.
 ///
@@ -1972,8 +2058,16 @@ fn didUpdateLocations(_: Id, _: Id, _: Id, locations: Id) callconv(.c) void {
     // A failed append is logged inside and dropped here, which is
     // `appendRecordedLocation`'s own `catch { print(…) }`. One lost sample must
     // not cost the watch its event or the caller its reply.
+    var recorded_json: ?[]u8 = null;
+    defer if (recorded_json) |bytes| allocator.free(bytes);
     if (work.recording != null) {
-        locrec.appendSample(allocator, json) catch {};
+        var owner = snapshotRecording(allocator) catch return;
+        defer owner.deinit(allocator);
+        const id = owner.id orelse return;
+        const encoded_id = std.json.Stringify.valueAlloc(allocator, id, .{}) catch return;
+        defer allocator.free(encoded_id);
+        recorded_json = std.fmt.allocPrint(allocator, "{s},\"recordingId\":{s}}}", .{ json[0 .. json.len - 1], encoded_id }) catch return;
+        locrec.appendSample(allocator, recorded_json.?) catch {};
     }
 
     // `if isWatchingLocation || isRecordingLocation`, exactly. This is the
@@ -1981,7 +2075,7 @@ fn didUpdateLocations(_: Id, _: Id, _: Id, locations: Id) callconv(.c) void {
     // running — and, while the recorder lived in Swift and the watch lived
     // here, the guard that fired *twice* for a page doing both. One manager
     // again, one event per fix.
-    if (work.watch != null or work.recording != null) ios_events.emit(.location_update, json);
+    if (work.watch != null or work.recording != null) ios_events.emit(.location_update, recorded_json orelse json);
 }
 
 fn didFailWithError(_: Id, _: Id, _: Id, err_object: Id) callconv(.c) void {
@@ -2225,7 +2319,7 @@ fn readNSInteger(object: Id, comptime name: [*:0]const u8) c_long {
 const testing = std.testing;
 
 test "the declared actions are the ones the handler serves" {
-    try testing.expectEqual(@as(usize, 8), capability_actions.len);
+    try testing.expectEqual(@as(usize, 9), capability_actions.len);
     try testing.expectEqualStrings(A.get_current_position, capability_actions[0].name);
     try testing.expectEqualStrings(A.watch_position, capability_actions[1].name);
     try testing.expectEqualStrings(A.clear_watch, capability_actions[2].name);
@@ -2234,6 +2328,7 @@ test "the declared actions are the ones the handler serves" {
     try testing.expectEqualStrings(A.resume_location_recording, capability_actions[5].name);
     try testing.expectEqualStrings(A.stop_location_recording, capability_actions[6].name);
     try testing.expectEqualStrings(A.get_location_recording_state, capability_actions[7].name);
+    try testing.expectEqualStrings(A.acknowledge_location_recording, capability_actions[8].name);
 
     for (capability_actions) |decl| {
         // A `.result` whose handler never replies parks the caller until its

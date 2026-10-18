@@ -1,5 +1,7 @@
 package {{PACKAGE_NAME}}
 
+import com.craft.runtime.CraftNative
+
 import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
@@ -28,6 +30,15 @@ import java.io.File
 import java.util.Locale
 import java.util.UUID
 {{NATIVE_PUSH_IMPORTS}}
+
+private fun craftLocationFix(location: android.location.Location): JSONObject = JSONObject()
+    .put("latitude", location.latitude)
+    .put("longitude", location.longitude)
+    .put("altitude", location.altitude)
+    .put("accuracy", location.accuracy.toDouble())
+    .put("speed", location.speed.toDouble())
+    .put("heading", location.bearing.toDouble())
+    .put("timestamp", location.time.toDouble())
 
 /**
  * The capabilities a native screen asks for beyond Craft's core set
@@ -59,6 +70,16 @@ internal class CraftNativeServices(
     private val speechQueue = mutableListOf<() -> Unit>()
     private val speeches = mutableMapOf<String, (CraftNativeCapabilityResult) -> Unit>()
 
+    init {
+        if (config.optBoolean("enableGeolocation") || config.optBoolean("enableBackgroundLocation")) {
+            // Native screens must also hear a recording started by the page.
+            // Keep this process sink independent from the page's listener.
+            com.craft.runtime.CraftLocationRecordingStore.nativeListener = { location, id ->
+                CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", craftLocationFix(location).put("recordingId", id)))
+            }
+        }
+    }
+
     /** `background.complete(ok, id)`: who is waiting for a background refresh's answer. */
     var onBackgroundComplete: ((Boolean, String?) -> Unit)? = null
 
@@ -84,7 +105,10 @@ internal class CraftNativeServices(
             add("healthAvailability")
         }
         if (config.optBoolean("enableKeepAwake")) add("keepAwake")
-        if (config.optBoolean("enableGeolocation") || config.optBoolean("enableBackgroundLocation")) add("geolocation")
+        if (config.optBoolean("enableGeolocation") || config.optBoolean("enableBackgroundLocation")) {
+            add("geolocation")
+            if (CraftNative.supportsRecordingOwnership()) add("locationRecordingOwnership")
+        }
         if (config.optJSONObject("backgroundRefresh")?.optBoolean("enabled") == true || config.optBoolean("enablePushNotifications")) add("background")
         // craft.crashReporter: the app's crash and error reporter (bughq).
         if (CraftCrashReporter.enabled) add("crashReporter")
@@ -130,6 +154,8 @@ internal class CraftNativeServices(
                 "CrashReporter" -> crashReporter(method, args, done)
                 else -> done(failure("UNKNOWN_ACTION", "Unsupported native API"))
             }
+        } catch (error: com.craft.runtime.CraftRecordingException) {
+            done(failure(error.code, error.message ?: "Recording failed"))
         } catch (error: Exception) {
             Log.e("CraftNativeAndroid", "$module.$method failed", error)
             done(failure("CRAFT_ERROR", error.message ?: "$module.$method failed"))
@@ -359,14 +385,6 @@ internal class CraftNativeServices(
     private var watchCallback: com.google.android.gms.location.LocationCallback? = null
     private var pendingLocationPermission: ((Boolean) -> Unit)? = null
 
-    private fun fix(location: android.location.Location): JSONObject = JSONObject()
-        .put("latitude", location.latitude)
-        .put("longitude", location.longitude)
-        .put("altitude", location.altitude)
-        .put("accuracy", location.accuracy.toDouble())
-        .put("speed", location.speed.toDouble())
-        .put("heading", location.bearing.toDouble())
-        .put("timestamp", location.time.toDouble())
 
     private fun hasLocation(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -374,10 +392,15 @@ internal class CraftNativeServices(
 
     /** Location, asked for once a person starts something that needs it. */
     private fun withLocation(done: (CraftNativeCapabilityResult) -> Unit, then: () -> Unit) {
-        if (hasLocation()) return then()
+        val authorized = {
+            try { then() }
+            catch (error: com.craft.runtime.CraftRecordingException) { done(failure(error.code, error.message ?: "Recording failed")) }
+            catch (error: Exception) { done(failure("CRAFT_ERROR", error.message ?: "Location failed")) }
+        }
+        if (hasLocation()) return authorized()
         val host = activity() ?: return done(failure("PERMISSION_DENIED", "Location is not allowed"))
         pendingLocationPermission?.invoke(false)
-        pendingLocationPermission = { granted -> if (granted) then() else done(failure("PERMISSION_DENIED", "Location is not allowed")) }
+        pendingLocationPermission = { granted -> if (granted) authorized() else done(failure("PERMISSION_DENIED", "Location is not allowed")) }
         ActivityCompat.requestPermissions(host, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), LOCATION_PERMISSION_REQUEST)
     }
 
@@ -396,7 +419,7 @@ internal class CraftNativeServices(
                 val priority = if (options.optBoolean("enableHighAccuracy", true)) com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY
                 else com.google.android.gms.location.Priority.PRIORITY_BALANCED_POWER_ACCURACY
                 locationClient.getCurrentLocation(priority, null)
-                    .addOnSuccessListener { location -> done(if (location != null) success(fix(location)) else failure("POSITION_UNAVAILABLE", "No location fix")) }
+                    .addOnSuccessListener { location -> done(if (location != null) success(craftLocationFix(location)) else failure("POSITION_UNAVAILABLE", "No location fix")) }
                     .addOnFailureListener { error -> done(failure("POSITION_UNAVAILABLE", error.message ?: "No location fix")) }
             }
             "watchPosition" -> withLocation(done) {
@@ -404,7 +427,7 @@ internal class CraftNativeServices(
                 val callback = object : com.google.android.gms.location.LocationCallback() {
                     override fun onLocationResult(result: com.google.android.gms.location.LocationResult) {
                         for (location in result.locations) {
-                            CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", fix(location)))
+                            CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", craftLocationFix(location)))
                         }
                     }
                 }
@@ -418,29 +441,15 @@ internal class CraftNativeServices(
                 watchCallback = null
                 done(success(true))
             }
-            "startRecording" -> withLocation(done) {
-                val options = args.optJSONObject(0) ?: JSONObject()
-                val id = options.optString("id").ifBlank { UUID.randomUUID().toString() }
-                store.start(context, id, System.currentTimeMillis())
-                store.listener = { location -> CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", fix(location))) }
-                val intent = Intent(context, com.craft.runtime.LocationRecordingService::class.java).setAction(com.craft.runtime.LocationRecordingService.ACTION_START)
-                runCatching { ContextCompat.startForegroundService(context, intent) }
-                    .onFailure { store.stop(context) }
-                done(success(store.state(context)))
+            "startRecording", "pauseRecording", "resumeRecording", "stopRecording", "getRecordingState", "readRecording", "acknowledgeRecording" -> {
+                val invoke = {
+                    val answer = JSONObject(store.perform(context, method, (args.optJSONObject(0) ?: JSONObject()).toString()))
+                    if (answer.optBoolean("ok")) {
+                        done(success(answer.opt("data")))
+                    } else done(failure(answer.optString("code"), answer.optString("message")))
+                }
+                if (method == "startRecording") withLocation(done, invoke) else invoke()
             }
-            "pauseRecording", "resumeRecording" -> {
-                store.setPaused(context, method == "pauseRecording")
-                done(success(store.state(context)))
-            }
-            "stopRecording" -> {
-                val state = store.state(context, includeLocations = true)
-                store.stop(context)
-                store.listener = null
-                runCatching { context.startService(Intent(context, com.craft.runtime.LocationRecordingService::class.java).setAction(com.craft.runtime.LocationRecordingService.ACTION_STOP)) }
-                done(success(state.put("active", false).put("paused", false)))
-            }
-            "getRecordingState" -> done(success(store.state(context)))
-            "readRecording" -> done(success(store.locations(context)))
             else -> done(failure("UNKNOWN_ACTION", "Unsupported Location method"))
         }
     }

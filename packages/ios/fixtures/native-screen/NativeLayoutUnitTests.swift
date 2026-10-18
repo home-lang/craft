@@ -136,6 +136,29 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertTrue(input.isUserInteractionEnabled)
     }
 
+    func testInputAlignmentSurvivesDefaultAttributesAndControlledValueUpdates() throws {
+        for (alignment, expected) in [("right", NSTextAlignment.right), ("center", .center), ("left", .left)] {
+            func document(_ value: String) -> [String: Any] {
+                box("root", style: ["flexDirection": "row", "alignItems": "center"], [
+                    text("label", "Weight (kg)", style: ["flex": 1]),
+                    ["id": "value", "type": "TextInput",
+                     "props": ["testID": "weight", "value": value, "placeholder": "—", "placeholderTextColor": "#8e8e93"],
+                     "style": ["width": 80, "minHeight": 44, "fontSize": 17, "textAlign": alignment]],
+                ])
+            }
+            let controller = screen(document("70.6"))
+            let input = try XCTUnwrap(find("weight", below: controller.view) as? UITextField)
+            XCTAssertEqual(input.textAlignment, expected, alignment)
+            controller.render(document("71.2"))
+            XCTAssertTrue(find("weight", below: controller.view) === input)
+            XCTAssertEqual(input.text, "71.2")
+            XCTAssertEqual(input.textAlignment, expected, alignment)
+            controller.render(document(""))
+            XCTAssertEqual(input.placeholder, "—")
+            XCTAssertEqual(input.textAlignment, expected, alignment)
+        }
+    }
+
     func testRawContainerTextRendersAndNamesNativeLinks() throws {
         func document(_ title: String) -> [String: Any] {
             ["type": "TouchableOpacity", "props": ["testID": "route-link", "href": "/details"],
@@ -664,7 +687,11 @@ final class NativeLayoutUnitTests: XCTestCase {
 
         controller.evaluateScript("craft.storage.setSync('layout.test', { visits: 2 })")
         XCTAssertEqual(controller.evaluateScript("craft.storage.getSync('layout.test').visits")?.toInt32(), 2)
-        XCTAssertEqual(CraftNativeActions.storageJSON(forKey: "layout.test"), "{\"visits\":2}")
+        XCTAssertEqual(try CraftNativeActions.storageJSON(forKey: "layout.test"), "{\"visits\":2}")
+        let corruptKey = "corrupt-checkpoint-" + UUID().uuidString
+        UserDefaults.standard.set(Data("not JSON".utf8), forKey: "craft.native.storage." + corruptKey)
+        defer { UserDefaults.standard.removeObject(forKey: "craft.native.storage." + corruptKey) }
+        XCTAssertTrue(controller.evaluateScript("(function() { try { craft.storage.getSync('\(corruptKey)'); return false; } catch (error) { return error.message.indexOf('STORAGE_ERROR') !== -1; } })()")?.toBool() == true)
         controller.evaluateScript("craft.storage.setSync('layout.test', null)")
         XCTAssertTrue(controller.evaluateScript("craft.storage.getSync('layout.test') === null")?.toBool() == true)
 

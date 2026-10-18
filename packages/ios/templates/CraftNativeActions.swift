@@ -42,6 +42,7 @@ enum CraftNativeActions {
         // `speech`, `audio` (background sound) and `eventStream` (a fetch read
         // as it arrives) need nothing the app has to declare.
         var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation"]
+        values.append("storageCompareAndSet")
         if config.enableBiometric { values.append("biometric") }
         if config.enableSecureStorage { values.append("secureStorage") }
         if config.enableLocalDatabase { values.append("database") }
@@ -62,7 +63,10 @@ enum CraftNativeActions {
         // GPS and the route recording are the web view's coordinator's
         // (CraftWebServices); an app with no web view has the coordinator
         // all the same (CraftHybrid.configure).
-        if config.enableGeolocation { values.append("geolocation") }
+        if config.enableGeolocation {
+            values.append("geolocation")
+            if CraftZigRuntime.supportsRecordingOwnership { values.append("locationRecordingOwnership") }
+        }
         // The Music app's song and transport are the coordinator's too.
         if config.enableAppleMusic { values.append("music") }
         // `craft.background.complete(ok, id)`: the answer to a silent push or
@@ -70,7 +74,7 @@ enum CraftNativeActions {
         if config.backgroundRefresh?.enabled == true || config.enablePushNotifications { values.append("background") }
         // A heart-rate strap is the app's own service (CraftHeartRate.swift),
         // so it needs no web view.
-        if config.enableHeartRate { values.append("heartRate") }
+        if config.enableHeartRate { values.append(contentsOf: ["heartRate", "heartRateRecordingOwnership"]) }
         if config.enableBluetooth { values.append("bluetooth") }
         // Workouts on the paired Apple Watch (CraftScheduledWorkouts.swift),
         // also the app's own service.
@@ -187,7 +191,8 @@ enum CraftNativeActions {
         case ("Clipboard", "read"):
             sync = perform(action: "clipboardRead", body: [:], config: config)
         case ("Storage", _):
-            sync = storage(method: method, args: args)
+            DispatchQueue.main.async { complete(requestToken, storage(method: method, args: args), completion) }
+            return
         case ("SecureStorage", _):
             guard config.enableSecureStorage else {
                 complete(requestToken, failure("CAPABILITY_DISABLED", "Secure storage is disabled"), completion)
@@ -398,6 +403,7 @@ enum CraftNativeActions {
                 "startRecording": "startLocationRecording", "pauseRecording": "pauseLocationRecording",
                 "resumeRecording": "resumeLocationRecording", "stopRecording": "stopLocationRecording",
                 "getRecordingState": "getLocationRecordingState", "readRecording": "readLocationRecording",
+                "acknowledgeRecording": "acknowledgeLocationRecording",
             ]
             guard let action = actions[method] else {
                 complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Location method"), completion)
@@ -840,44 +846,29 @@ enum CraftNativeActions {
     }
 
     private static func storage(method: String, args: [Any]) -> Result<Any, CraftNativeActionError> {
-        if method == "clear" {
-            for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix(storagePrefix) {
-                UserDefaults.standard.removeObject(forKey: key)
-            }
-            return .success(true)
-        }
-        if method == "keys" {
-            let keys = UserDefaults.standard.dictionaryRepresentation().keys
-                .filter { $0.hasPrefix(storagePrefix) }
-                .map { String($0.dropFirst(storagePrefix.count)) }
-                .sorted()
-            return .success(keys)
-        }
-        guard let key = validKey(args.first) else { return failure("INVALID_ARGUMENT", "Storage needs a non-empty key") }
-        let defaultsKey = storagePrefix + key
-        switch method {
-        case "get":
-            guard let data = UserDefaults.standard.data(forKey: defaultsKey) else { return .success(NSNull()) }
-            do {
-                return .success(try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]))
-            } catch {
-                return failure("STORAGE_CORRUPT", "Stored value is not valid JSON")
-            }
-        case "set":
-            guard args.count == 2 else { return failure("INVALID_ARGUMENT", "Storage.set needs a key and value") }
-            do {
-                let data = try JSONSerialization.data(withJSONObject: args[1], options: [.fragmentsAllowed])
-                UserDefaults.standard.set(data, forKey: defaultsKey)
+        do {
+            if method == "clear" { try CraftPersistentStorage.clear(prefix: storagePrefix); return .success(true) }
+            if method == "keys" { return .success(try CraftPersistentStorage.keys(prefix: storagePrefix)) }
+            guard let key = validKey(args.first) else { return failure("INVALID_ARGUMENT", "Storage needs a non-empty key") }
+            switch method {
+            case "get":
+                guard let data = try CraftPersistentStorage.get(key, prefix: storagePrefix) else { return .success(NSNull()) }
+                return .success(try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed))
+            case "set":
+                guard args.count == 2 else { return failure("INVALID_ARGUMENT", "Storage.set needs a key and value") }
+                let data = try JSONSerialization.data(withJSONObject: args[1], options: .fragmentsAllowed)
+                try CraftPersistentStorage.set(key, data: data, prefix: storagePrefix)
                 return .success(true)
-            } catch {
-                return failure("INVALID_ARGUMENT", "Storage values must be JSON serializable")
+            case "compareAndSet":
+                guard args.count == 3 else { return failure("INVALID_ARGUMENT", "Storage.compareAndSet needs a key, expected value and next value") }
+                return .success(try CraftPersistentStorage.compareAndSet(key, expected: args[1], value: args[2], prefix: storagePrefix))
+            case "remove":
+                try CraftPersistentStorage.set(key, data: nil, prefix: storagePrefix)
+                return .success(true)
+            default: return failure("UNKNOWN_ACTION", "Unsupported Storage method")
             }
-        case "remove":
-            UserDefaults.standard.removeObject(forKey: defaultsKey)
-            return .success(true)
-        default:
-            return failure("UNKNOWN_ACTION", "Unsupported Storage method")
-        }
+        } catch let error as CraftNativeActionError { return .failure(error) }
+        catch { return failure("STORAGE_ERROR", "Storage could not persist or read its value") }
     }
 
     private static func secureStorage(method: String, args: [Any]) -> Result<Any, CraftNativeActionError> {
@@ -1389,8 +1380,9 @@ final class CraftNativePasskeys: NSObject, ASAuthorizationControllerDelegate, AS
 extension CraftNativeActions {
     /// The JSON text `craft.storage` keeps under `key`, or nil. The same store
     /// as the asynchronous Storage module, read without a bridge round trip.
-    static func storageJSON(forKey key: String) -> String? {
-        guard let key = validKey(key), let data = UserDefaults.standard.data(forKey: storagePrefix + key) else { return nil }
+    static func storageJSON(forKey key: String) throws -> String? {
+        guard let key = validKey(key) else { return nil }
+        guard let data = try CraftPersistentStorage.get(key, prefix: storagePrefix) else { return nil }
         return String(decoding: data, as: UTF8.self)
     }
 
@@ -1399,14 +1391,10 @@ extension CraftNativeActions {
     @discardableResult
     static func setStorageJSON(_ json: String?, forKey key: String) -> Bool {
         guard let key = validKey(key) else { return false }
-        guard let json else {
-            UserDefaults.standard.removeObject(forKey: storagePrefix + key)
+        do {
+            try CraftPersistentStorage.set(key, data: json.map { Data($0.utf8) }, prefix: storagePrefix)
             return true
-        }
-        let data = Data(json.utf8)
-        guard (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) != nil else { return false }
-        UserDefaults.standard.set(data, forKey: storagePrefix + key)
-        return true
+        } catch { return false }
     }
 
     /// The Keychain item the web page's `craft.secureStorage` wrote under
