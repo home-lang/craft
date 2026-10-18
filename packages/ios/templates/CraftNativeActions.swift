@@ -1376,8 +1376,9 @@ final class CraftNativePasskeys: NSObject, ASAuthorizationControllerDelegate, AS
 extension CraftNativeActions {
     /// The JSON text `craft.storage` keeps under `key`, or nil. The same store
     /// as the asynchronous Storage module, read without a bridge round trip.
-    static func storageJSON(forKey key: String) -> String? {
-        guard let key = validKey(key), let data = try? CraftPersistentStorage.get(key, prefix: storagePrefix) else { return nil }
+    static func storageJSON(forKey key: String) throws -> String? {
+        guard let key = validKey(key) else { return nil }
+        guard let data = try CraftPersistentStorage.get(key, prefix: storagePrefix) else { return nil }
         return String(decoding: data, as: UTF8.self)
     }
 

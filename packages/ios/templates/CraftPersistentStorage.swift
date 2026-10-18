@@ -24,8 +24,11 @@ enum CraftPersistentStorage {
             return try JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed)
         }
         guard let legacy = UserDefaults.standard.data(forKey: prefix + key) else { return nil }
-        // Migrate the actual value through the same durable writer before use.
-        try set(key, data: legacy, prefix: prefix, storageDirectory: storageDirectory)
+        // Reading a valid legacy checkpoint must survive a full disk. Migration
+        // can be retried on a later read; only a successful set promises a new
+        // durable checkpoint and permits the application to acknowledge it.
+        do { try set(key, data: legacy, prefix: prefix, storageDirectory: storageDirectory) }
+        catch { print("Unable to migrate an existing storage value: \(error)") }
         return legacy
     }
     static func set(_ key: String, data: Data?, prefix: String, storageDirectory: URL? = nil, writer: CraftRecordingArchive.Writer = CraftRecordingArchive.writeAtomically) throws {

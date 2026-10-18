@@ -4797,7 +4797,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             CraftNativeConsole.write(level, category: category, message: message)
         }
         let storageGet: @convention(block) (String) -> String? = { key in
-            CraftNativeActions.storageJSON(forKey: key)
+            do { return try CraftNativeActions.storageJSON(forKey: key) }
+            catch {
+                if let context = JSContext.current() {
+                    context.exception = JSValue(newErrorFromMessage: "STORAGE_ERROR: Unable to read stored value", in: context)
+                }
+                return nil
+            }
         }
         let storageSet: @convention(block) (String, JSValue) -> Bool = { key, value in
             CraftNativeActions.setStorageJSON(value.isNull || value.isUndefined ? nil : value.toString(), forKey: key)

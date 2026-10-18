@@ -335,6 +335,22 @@ final class CompletedRecordingRecoveryUnitTests: XCTestCase {
 
 @MainActor
 final class PersistentRecordingCheckpointUnitTests: XCTestCase {
+    func testFailedLegacyMigrationKeepsTheReadableCheckpointAndRejectsNewWrites() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let prefix = "craft-checkpoint-test-" + UUID().uuidString()
+        defer { try? FileManager.default.removeItem(at: directory); UserDefaults.standard.removeObject(forKey: prefix + "draft") }
+        // A real filesystem refusal: the destination directory is a file.
+        try Data("occupied".utf8).write(to: directory)
+        let old = Data("{\"owner\":\"A\"}".utf8)
+        UserDefaults.standard.set(old, forKey: prefix + "draft")
+        XCTAssertEqual(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory), old)
+        XCTAssertThrowsError(try CraftPersistentStorage.set("draft", data: Data("{\"owner\":\"B\"}".utf8), prefix: prefix, storageDirectory: directory))
+        XCTAssertEqual(UserDefaults.standard.data(forKey: prefix + "draft"), old)
+        try FileManager.default.removeItem(at: directory)
+        XCTAssertEqual(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory), old)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil).count, 1)
+    }
+
     func testFailedDurableCheckpointLeavesPreviousValueAndLegacyCacheIntact() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let prefix = "craft-checkpoint-test-" + UUID().uuidString()
