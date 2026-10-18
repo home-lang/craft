@@ -866,6 +866,29 @@ export interface LocationOptions {
   maximumAge?: number
 }
 
+/** Fence a recording operation to the ID returned by start or explicit recovery. */
+export interface RecordingOwnershipOptions {
+  expectedId: string
+}
+
+function recordingOwnershipSupported(namespace: 'location' | 'heartRate'): boolean {
+  const root = getCraftRoot()
+  const flag = namespace === 'location' ? 'locationRecordingOwnership' : 'heartRateRecordingOwnership'
+  const caps = root?.capabilities
+  const advertised = Array.isArray(caps) ? caps.includes(flag) : caps?.[flag] === true
+  return advertised && ['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording'].every(method => typeof root?.[namespace]?.[method] === 'function')
+}
+
+function validateRecordingOwnership(namespace: 'location' | 'heartRate', options?: Partial<RecordingOwnershipOptions>): void {
+  if (!options || !Object.prototype.hasOwnProperty.call(options, 'expectedId')) return
+  if (typeof options.expectedId !== 'string' || !options.expectedId.trim())
+    throw Object.assign(new Error('expectedId must be a nonempty recording ID'), { code: 'INVALID_ARGUMENT' })
+  if ((getCraftRoot() || namespace === 'heartRate') && !recordingOwnershipSupported(namespace))
+    throw Object.assign(new Error('This app build cannot enforce recording ownership'), { code: 'RECORDING_OWNERSHIP_UNSUPPORTED' })
+  if (namespace === 'location' && !getCraftRoot() && options.expectedId !== webLocationRecording.id)
+    throw Object.assign(new Error('The active location recording has changed'), { code: 'RECORDING_CONFLICT' })
+}
+
 export interface LocationRecordingState {
   id: string | null
   active: boolean
@@ -906,6 +929,7 @@ let webLocationRecordingWatchId: number | null = null
  * ```
  */
 export const location = {
+  supportsRecordingOwnership: (): boolean => recordingOwnershipSupported('location'),
   /**
    * Get current position.
    *
@@ -987,6 +1011,8 @@ export const location = {
     if (typeof window !== 'undefined' && craft?.location?.startRecording)
       return craft.location.startRecording(options)
 
+    if (webLocationRecording.active)
+      throw Object.assign(new Error('A location recording is already active'), { code: 'RECORDING_ALREADY_ACTIVE' })
     if (webLocationRecordingWatchId !== null)
       navigator.geolocation.clearWatch(webLocationRecordingWatchId)
     webLocationRecording = {
@@ -1002,26 +1028,29 @@ export const location = {
     return { ...webLocationRecording, sampleCount: 0 }
   },
 
-  async pauseRecording(): Promise<LocationRecordingState> {
+  async pauseRecording(options?: RecordingOwnershipOptions): Promise<LocationRecordingState> {
+    validateRecordingOwnership('location', options)
     const craft = getCraftMobile()
     if (typeof window !== 'undefined' && craft?.location?.pauseRecording)
-      return craft.location.pauseRecording()
+      return craft.location.pauseRecording(options)
     webLocationRecording.paused = true
     return { ...webLocationRecording, sampleCount: webLocationRecording.locations.length }
   },
 
-  async resumeRecording(): Promise<LocationRecordingState> {
+  async resumeRecording(options?: RecordingOwnershipOptions): Promise<LocationRecordingState> {
+    validateRecordingOwnership('location', options)
     const craft = getCraftMobile()
     if (typeof window !== 'undefined' && craft?.location?.resumeRecording)
-      return craft.location.resumeRecording()
+      return craft.location.resumeRecording(options)
     webLocationRecording.paused = false
     return { ...webLocationRecording, sampleCount: webLocationRecording.locations.length }
   },
 
-  async stopRecording(): Promise<LocationRecordingResult> {
+  async stopRecording(options?: RecordingOwnershipOptions): Promise<LocationRecordingResult> {
+    validateRecordingOwnership('location', options)
     const craft = getCraftMobile()
     if (typeof window !== 'undefined' && craft?.location?.stopRecording)
-      return craft.location.stopRecording()
+      return craft.location.stopRecording(options)
     if (webLocationRecordingWatchId !== null) {
       location.clearWatch(webLocationRecordingWatchId)
       webLocationRecordingWatchId = null
@@ -1038,10 +1067,11 @@ export const location = {
     return { ...webLocationRecording, sampleCount: webLocationRecording.locations.length }
   },
 
-  async readRecording(): Promise<Location[]> {
+  async readRecording(options?: RecordingOwnershipOptions): Promise<Location[]> {
+    validateRecordingOwnership('location', options)
     const craft = getCraftMobile()
     if (typeof window !== 'undefined' && craft?.location?.readRecording)
-      return craft.location.readRecording()
+      return craft.location.readRecording(options)
     return [...webLocationRecording.locations]
   }
 }
@@ -2097,6 +2127,7 @@ async function heartRateCall<T>(method: HeartRateMethod, fallback: () => T, norm
 const noRecording = (): HeartRateRecordingState => normalizeHeartRateRecording({})
 
 export const heartRate = {
+  supportsRecordingOwnership: (): boolean => recordingOwnershipSupported('heartRate'),
   /** Whether this app can read a heart-rate strap. */
   isAvailable(): boolean {
     return typeof nativeHeartRate()?.getState === 'function'
@@ -2142,18 +2173,29 @@ export const heartRate = {
 
   /** Keep every reading natively from now on: screen locked, page suspended or app closed. */
   startRecording: (): Promise<HeartRateRecordingState> => heartRateCall('startRecording', noRecording, normalizeHeartRateRecording),
-  pauseRecording: (): Promise<HeartRateRecordingState> => heartRateCall('pauseRecording', noRecording, normalizeHeartRateRecording),
-  resumeRecording: (): Promise<HeartRateRecordingState> => heartRateCall('resumeRecording', noRecording, normalizeHeartRateRecording),
+  async pauseRecording(options?: RecordingOwnershipOptions): Promise<HeartRateRecordingState> {
+    validateRecordingOwnership('heartRate', options)
+    return heartRateCall('pauseRecording', noRecording, normalizeHeartRateRecording, ...(options === undefined ? [] : [options]))
+  },
+  async resumeRecording(options?: RecordingOwnershipOptions): Promise<HeartRateRecordingState> {
+    validateRecordingOwnership('heartRate', options)
+    return heartRateCall('resumeRecording', noRecording, normalizeHeartRateRecording, ...(options === undefined ? [] : [options]))
+  },
 
   /** Ends the recording and hands back every reading it kept. */
-  stopRecording: (): Promise<HeartRateRecordingState & { samples: HeartRateSample[] }> => heartRateCall('stopRecording',
-    () => ({ ...noRecording(), samples: [] }),
-    value => ({ ...normalizeHeartRateRecording(value), samples: normalizeHeartRateSamples(hrRecord(value).samples) })),
+  async stopRecording(options?: RecordingOwnershipOptions): Promise<HeartRateRecordingState & { samples: HeartRateSample[] }> {
+    validateRecordingOwnership('heartRate', options)
+    return heartRateCall('stopRecording', () => ({ ...noRecording(), samples: [] }),
+      value => ({ ...normalizeHeartRateRecording(value), samples: normalizeHeartRateSamples(hrRecord(value).samples) }), ...(options === undefined ? [] : [options]))
+  },
 
   getRecordingState: (): Promise<HeartRateRecordingState> => heartRateCall('getRecordingState', noRecording, normalizeHeartRateRecording),
 
   /** The recording so far; only what came after `since` (ms) when given. */
-  readRecording: (options: { since?: number } = {}): Promise<HeartRateSample[]> => heartRateCall('readRecording', () => [], normalizeHeartRateSamples, options),
+  async readRecording(options: { since?: number, expectedId?: string } = {}): Promise<HeartRateSample[]> {
+    validateRecordingOwnership('heartRate', options)
+    return heartRateCall('readRecording', () => [], normalizeHeartRateSamples, options)
+  },
 
   /** Every reading from the connected strap, about once a second. */
   onReading: (callback: (reading: HeartRateReading) => void): (() => void) => hrSubscribe(heartRateWatch.readings, callback),
@@ -3449,11 +3491,11 @@ interface CraftMobileBridge {
     watchPosition(callback: (location: Location) => void, options: LocationOptions): number
     clearWatch(watchId: number): void
     startRecording?(options: LocationOptions): Promise<LocationRecordingState>
-    pauseRecording?(): Promise<LocationRecordingState>
-    resumeRecording?(): Promise<LocationRecordingState>
-    stopRecording?(): Promise<LocationRecordingResult>
+    pauseRecording?(options?: RecordingOwnershipOptions): Promise<LocationRecordingState>
+    resumeRecording?(options?: RecordingOwnershipOptions): Promise<LocationRecordingState>
+    stopRecording?(options?: RecordingOwnershipOptions): Promise<LocationRecordingResult>
     getRecordingState?(): Promise<LocationRecordingState>
-    readRecording?(): Promise<Location[]>
+    readRecording?(options?: RecordingOwnershipOptions): Promise<Location[]>
   }
   share?: {
     share(options: ShareOptions): Promise<boolean>

@@ -3755,6 +3755,7 @@ struct CraftWebView: UIViewRepresentable {
                     brightness: true,
                     music: \(config.enableAppleMusic),
                     heartRate: \(config.enableHeartRate),
+                    heartRateRecordingOwnership: \(config.enableHeartRate),
                     scheduledWorkouts: \(config.enableScheduledWorkouts),
                     speech: true,
                     crashReporter: \(CraftCrashReporter.shared.enabled),
@@ -5588,11 +5589,11 @@ struct CraftWebView: UIViewRepresentable {
                         reconnect: function() { return heartRate('reconnect'); },
                         disconnect: function(options) { return heartRate('disconnect', {forget: !!(options && options.forget)}); },
                         startRecording: function() { return heartRate('startRecording'); },
-                        pauseRecording: function() { return heartRate('pauseRecording'); },
-                        resumeRecording: function() { return heartRate('resumeRecording'); },
-                        stopRecording: function() { return heartRate('stopRecording'); },
+                        pauseRecording: function(options) { return heartRate('pauseRecording', options || {}); },
+                        resumeRecording: function(options) { return heartRate('resumeRecording', options || {}); },
+                        stopRecording: function(options) { return heartRate('stopRecording', options || {}); },
                         getRecordingState: function() { return heartRate('getRecordingState'); },
-                        readRecording: function(options) { return heartRate('readRecording', {since: options && typeof options.since === 'number' ? options.since : null}); }
+                        readRecording: function(options) { return heartRate('readRecording', options || {}); }
                     };
                 })();
                 // Structured workouts on the paired Apple Watch (WorkoutKit,
