@@ -138,9 +138,10 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     private let clock: () -> Date
     private let recordingDirectory: URL?
 
-    init(now: @escaping () -> Date = Date.init, recordingDirectory: URL? = nil) {
+    init(now: @escaping () -> Date = Date.init, recordingDirectory: URL? = nil, archiveWriter: @escaping CraftRecordingArchive.Writer = CraftRecordingArchive.writeAtomically) {
         self.clock = now
         self.recordingDirectory = recordingDirectory
+        self.archiveWriter = archiveWriter
         super.init()
     }
 
@@ -171,6 +172,8 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     private var recoveryTimer: Timer?
     private var hasSubscribed = false
 
+    private var archiveWriter: CraftRecordingArchive.Writer = CraftRecordingArchive.writeAtomically
+    private var recordingActive = false
     private var recordingId: String?
     private var recordingStartedAt: Double?
     private var recordingPaused = false
@@ -201,8 +204,49 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     /// One call from a page or a native screen, by method name.
     func perform(method: String, args: [Any], completion: @escaping Completion) {
         let options = args.first as? [String: Any] ?? [:]
+        if method == "acknowledgeRecording" && !options.keys.contains("expectedId") {
+            return completion(.failure(CraftHeartRateError(message: "Acknowledgement needs expectedId", code: "INVALID_ARGUMENT")))
+        }
         DispatchQueue.main.async {
-            self.restoreRecording()
+            do { try self.restoreRecording() }
+            catch { return completion(.failure(CraftHeartRateError(message: error.localizedDescription, code: "RECORDING_STORAGE_ERROR"))) }
+            if ["getRecordingState", "readRecording", "stopRecording", "acknowledgeRecording"].contains(method),
+               options.keys.contains("expectedId") {
+                guard let id = options["expectedId"] as? String, !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    return completion(.failure(CraftHeartRateError(message: "expectedId must be a nonempty recording ID", code: "INVALID_ARGUMENT")))
+                }
+                do {
+                    if method == "acknowledgeRecording" {
+                        guard self.recordingId != id || !self.recordingActive else {
+                            return completion(.failure(CraftHeartRateError(message: "The recording is still active", code: "RECORDING_ALREADY_ACTIVE")))
+                        }
+                        var known = try self.recordingId == id || CraftRecordingArchive.isAcknowledged(self.directory, "heart-rate", id)
+                        if !known { known = try CraftRecordingArchive.read(self.directory, "heart-rate", id) != nil }
+                        guard known else { return completion(.failure(CraftHeartRateError(message: "Unknown recording ID", code: "RECORDING_CONFLICT"))) }
+                        try CraftRecordingArchive.acknowledge(self.directory, "heart-rate", id)
+                        if self.recordingId == id {
+                            if FileManager.default.fileExists(atPath: self.samplesURL.path) { try FileManager.default.removeItem(at: self.samplesURL) }
+                            self.recordingId = nil
+                            self.recordingStartedAt = nil
+                            self.recordedCount = 0
+                            try self.persistRecording()
+                        }
+                        return completion(.success(true))
+                    }
+                    if var archived = try CraftRecordingArchive.read(self.directory, "heart-rate", id) {
+                        if method == "readRecording" {
+                            let since = (options["since"] as? NSNumber)?.doubleValue
+                            let samples = archived["samples"] as? [[String: Any]] ?? []
+                            return completion(.success(samples.filter { since == nil || (($0["timestamp"] as? NSNumber)?.doubleValue ?? 0) > since! }))
+                        }
+                        if method == "getRecordingState" { archived.removeValue(forKey: "samples") }
+                        return completion(.success(archived))
+                    }
+                    if let error = self.recordingIdentityError(options) { return completion(.failure(error)) }
+                } catch let error as CraftNativeActionError {
+                    return completion(.failure(CraftHeartRateError(message: error.message, code: error.code)))
+                } catch { return completion(.failure(CraftHeartRateError(message: "Unable to persist the recording", code: "RECORDING_STORAGE_ERROR"))) }
+            }
             if ["pauseRecording", "resumeRecording", "stopRecording", "readRecording"].contains(method),
                let error = self.recordingIdentityError(options) {
                 return completion(.failure(error))
@@ -225,7 +269,9 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
             case "resumeRecording": self.setRecordingPaused(false, completion: completion)
             case "stopRecording": self.stopRecording(completion: completion)
             case "getRecordingState": completion(.success(self.recordingSummary(count: true)))
-            case "readRecording": completion(.success(self.loadSamples(since: (options["since"] as? NSNumber)?.doubleValue)))
+            case "readRecording":
+                do { completion(.success(try self.persistedSamples(since: (options["since"] as? NSNumber)?.doubleValue))) }
+                catch { completion(.failure(CraftHeartRateError(message: "Unable to read the recording", code: "RECORDING_STORAGE_ERROR"))) }
             default: completion(.failure(CraftHeartRateError(message: "Unsupported HeartRate method", code: "UNKNOWN_ACTION")))
             }
         }
@@ -724,32 +770,40 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     private var samplesURL: URL { directory.appendingPathComponent("craft-heart-rate-recording.jsonl") }
 
     /// A recording that was running when the app last closed carries on.
-    private func restoreRecording() {
+    private func restoreRecording() throws {
         guard !restored else { return }
-        restored = true
-        guard let data = try? Data(contentsOf: stateURL),
-              let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              saved["active"] as? Bool == true else { return }
+        guard FileManager.default.fileExists(atPath: stateURL.path) else {
+            if FileManager.default.fileExists(atPath: samplesURL.path), !(try Data(contentsOf: samplesURL)).isEmpty {
+                throw CraftNativeActionError(code: "RECORDING_STORAGE_ERROR", message: "Recording metadata is missing")
+            }
+            restored = true
+            return
+        }
+        let data = try Data(contentsOf: stateURL)
+        guard let saved = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let active = saved["active"] as? Bool else {
+            throw CraftNativeActionError(code: "RECORDING_STORAGE_ERROR", message: "Invalid recording metadata")
+        }
+        recordingActive = active
         recordingId = saved["id"] as? String
         recordingStartedAt = saved["startedAt"] as? Double
         recordingPaused = saved["paused"] as? Bool ?? false
-        recordedCount = loadSamples(since: nil).count
+        if let id = recordingId, try CraftRecordingArchive.isAcknowledged(directory, "heart-rate", id) {
+            try CraftRecordingArchive.acknowledge(directory, "heart-rate", id)
+            if FileManager.default.fileExists(atPath: samplesURL.path) { try FileManager.default.removeItem(at: samplesURL) }
+            recordingId = nil
+            recordingStartedAt = nil
+            recordingActive = false
+            recordingPaused = false
+            try persistRecording()
+        }
+        recordedCount = try persistedSamples(since: nil).count
+        restored = true
     }
 
-    private func persistRecording() {
-        let saved: [String: Any] = [
-            "active": recordingId != nil,
-            "paused": recordingPaused,
-            "id": recordingId ?? NSNull(),
-            "startedAt": recordingStartedAt ?? NSNull(),
-        ]
-        do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try JSONSerialization.data(withJSONObject: saved).write(to: stateURL, options: .atomic)
-            protect(stateURL)
-        } catch {
-            print("Unable to persist the heart-rate recording state: \(error)")
-        }
+    private func persistRecording() throws {
+        let saved: [String: Any] = ["active": recordingActive, "paused": recordingPaused, "id": recordingId ?? NSNull(), "startedAt": recordingStartedAt ?? NSNull()]
+        try CraftRecordingArchive.writeAtomically(JSONSerialization.data(withJSONObject: saved), stateURL)
     }
 
     private func protect(_ url: URL) {
@@ -763,7 +817,7 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     private func recordingSummary(count: Bool) -> [String: Any] {
         var summary: [String: Any] = [
             "id": recordingId ?? NSNull(),
-            "active": recordingId != nil,
+            "active": recordingActive,
             "paused": recordingPaused,
             "startedAt": recordingStartedAt ?? NSNull(),
         ]
@@ -772,21 +826,28 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
 
     private func startRecording(completion: @escaping Completion) {
-        guard recordingId == nil else {
+        guard !recordingActive else {
             return completion(.failure(CraftHeartRateError(message: "A heart-rate recording is already active", code: "RECORDING_ALREADY_ACTIVE")))
         }
         do {
+            try CraftRecordingArchive.save(directory, "heart-rate", recordingSummary(count: true), samples: try persistedSamples(since: nil), writer: archiveWriter)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try Data().write(to: samplesURL, options: .atomic)
             protect(samplesURL)
         } catch {
             return completion(.failure(CraftHeartRateError(message: "Unable to create the heart-rate recording", code: "RECORDING_STORAGE_ERROR")))
         }
+        let previous = (recordingActive, recordingId, recordingStartedAt, recordingPaused, recordedCount)
+        recordingActive = true
         recordingId = UUID().uuidString
         recordingStartedAt = (clock().timeIntervalSince1970 * 1000).rounded()
         recordingPaused = false
         recordedCount = 0
-        persistRecording()
+        do { try persistRecording() }
+        catch {
+            (recordingActive, recordingId, recordingStartedAt, recordingPaused, recordedCount) = previous
+            return completion(.failure(CraftHeartRateError(message: "Unable to persist the recording", code: "RECORDING_STORAGE_ERROR")))
+        }
         completion(.success(recordingSummary(count: true)))
     }
 
@@ -804,29 +865,36 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
 
     private func setRecordingPaused(_ paused: Bool, completion: @escaping Completion) {
-        guard recordingId != nil else {
+        guard recordingActive else {
             return completion(.failure(CraftHeartRateError(message: "No active heart-rate recording", code: "NO_ACTIVE_RECORDING")))
         }
+        let previous = recordingPaused
         recordingPaused = paused
-        persistRecording()
+        do { try persistRecording() }
+        catch {
+            recordingPaused = previous
+            return completion(.failure(CraftHeartRateError(message: "Unable to persist the recording", code: "RECORDING_STORAGE_ERROR")))
+        }
         completion(.success(recordingSummary(count: true)))
     }
 
     private func stopRecording(completion: @escaping Completion) {
-        var summary = recordingSummary(count: true)
-        summary["active"] = false
-        summary["samples"] = loadSamples(since: nil)
-        recordingId = nil
-        recordingStartedAt = nil
-        recordingPaused = false
-        recordedCount = 0
-        persistRecording()
-        try? FileManager.default.removeItem(at: samplesURL)
-        completion(.success(summary))
+        do {
+            let samples = try persistedSamples(since: nil)
+            let wasActive = recordingActive
+            let wasPaused = recordingPaused
+            recordingActive = false
+            recordingPaused = false
+            do { try persistRecording() }
+            catch { recordingActive = wasActive; recordingPaused = wasPaused; throw error }
+            var summary = recordingSummary(count: true)
+            summary["samples"] = samples
+            completion(.success(summary))
+        } catch { completion(.failure(CraftHeartRateError(message: "Unable to persist the recording", code: "RECORDING_STORAGE_ERROR"))) }
     }
 
     private func appendSample(_ sample: [String: Any]) {
-        guard recordingId != nil, !recordingPaused, recordedCount < Self.maxRecordedSamples,
+        guard recordingActive, !recordingPaused, recordedCount < Self.maxRecordedSamples,
               let json = try? JSONSerialization.data(withJSONObject: sample) else { return }
         var line = json
         line.append(0x0A)
@@ -842,8 +910,11 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
 
     /// The recording's samples, oldest first; only those after `since` (ms) when given.
-    private func loadSamples(since: Double?) -> [[String: Any]] {
-        guard let text = try? String(contentsOf: samplesURL, encoding: .utf8) else { return [] }
+    private func loadSamples(since: Double?) -> [[String: Any]] { (try? persistedSamples(since: since)) ?? [] }
+
+    private func persistedSamples(since: Double?) throws -> [[String: Any]] {
+        if recordingId == nil { return [] }
+        let text = try String(contentsOf: samplesURL, encoding: .utf8)
         return text.split(separator: "\n").compactMap { line in
             guard let data = line.data(using: .utf8),
                   let sample = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
