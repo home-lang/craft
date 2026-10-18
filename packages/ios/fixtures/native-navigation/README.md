@@ -51,7 +51,7 @@ without relying on a screenshot.
 
 From the Craft repository, with `@stacksjs/stx` available as `stx` (the
 maintained CI checkout is pinned to
-`413b21432886fda5c610e7eaaaa2ad95dce2f04f` / STX authored-key qualification candidate):
+`0d85afbab4b569ac2f09113a6c9a5d11d926145f` / stx `0.2.573`):
 
 ```bash
 bun packages/ios/scripts/test-native-navigation.ts
