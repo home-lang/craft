@@ -2684,15 +2684,21 @@ private class CraftNativeFlowView: UIStackView {
                 var fixedHeight = style.top != nil && style.bottom != nil
                     ? max(0, content.height - (style.top ?? 0) - (style.bottom ?? 0))
                     : style.height?.resolve(content.height)
+                let authoredWidth = fixedWidth != nil
+                let authoredHeight = fixedHeight != nil
                 (fixedWidth, fixedHeight) = aspectDimensions(style, width: fixedWidth, height: fixedHeight)
                 var measured = CraftNativeFlexLayout.measure(child, width: fixedWidth, height: fixedHeight, maxWidth: content.width, maxHeight: content.height)
-                let boundedWidth = clamp(measured.width, style.minWidth?.resolve(content.width), style.maxWidth?.resolve(content.width))
-                if abs(boundedWidth - measured.width) > 0.0001 {
+                var boundedWidth = clamp(measured.width, style.minWidth?.resolve(content.width), style.maxWidth?.resolve(content.width))
+                let proposedHeight = !authoredHeight && style.aspectRatio != nil ? boundedWidth / style.aspectRatio! : fixedHeight
+                if abs(boundedWidth - measured.width) > 0.0001 || proposedHeight != fixedHeight {
                     // A narrower label or container must wrap before its
                     // height and bottom anchor are resolved.
-                    measured = CraftNativeFlexLayout.measure(child, width: boundedWidth, height: fixedHeight, maxWidth: content.width, maxHeight: content.height)
+                    measured = CraftNativeFlexLayout.measure(child, width: boundedWidth, height: proposedHeight, maxWidth: content.width, maxHeight: content.height)
                 }
                 let boundedHeight = clamp(measured.height, style.minHeight?.resolve(content.height), style.maxHeight?.resolve(content.height))
+                if !authoredWidth, authoredHeight, let ratio = style.aspectRatio {
+                    boundedWidth = clamp(boundedHeight * ratio, style.minWidth?.resolve(content.width), style.maxWidth?.resolve(content.width))
+                }
                 let x = style.left ?? (style.right.map { content.width - $0 - boundedWidth } ?? 0)
                 let y = style.top ?? (style.bottom.map { content.height - $0 - boundedHeight } ?? 0)
                 frames.append((child, CGRect(x: content.minX + x, y: content.minY + y, width: boundedWidth, height: boundedHeight)))
