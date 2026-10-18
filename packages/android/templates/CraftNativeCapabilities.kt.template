@@ -117,6 +117,7 @@ internal class CraftNativeCapabilities(
     fun names(): JSONArray = JSONArray().apply {
         listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files").forEach(::put)
         put("storageCompareAndSet")
+        put("storageSetIfAbsent")
         if (config.optBoolean("enableBluetooth")) put("bluetooth")
         if (config.optBoolean("enableBiometric")) put("biometric")
         if (config.optBoolean("enableSecureStorage")) put("secureStorage")
@@ -684,6 +685,14 @@ internal class CraftNativeCapabilities(
                 val next = jsonString(args.opt(2)) ?: return failure("INVALID_ARGUMENT", "Storage values must be JSON serializable")
                 if (!CraftNativeStorage.commit(storage) { it.putString(key, next) }) return failure("STORAGE_ERROR", "Storage could not persist the checkpoint")
                 storeObserver?.invoke("storage", key, next)
+                success(true)
+            }
+            "setIfAbsent" -> {
+                if (args.length() != 2) return failure("INVALID_ARGUMENT", "Storage.setIfAbsent needs a key and value")
+                if (storage.contains(key)) return success(false)
+                val value = jsonString(args.opt(1)) ?: return failure("INVALID_ARGUMENT", "Storage values must be JSON serializable")
+                if (!CraftNativeStorage.commit(storage) { it.putString(key, value) }) return failure("STORAGE_ERROR", "Storage could not persist the new intent")
+                storeObserver?.invoke("storage", key, value)
                 success(true)
             }
             "remove" -> if (CraftNativeStorage.commit(storage) { it.remove(key) }) {

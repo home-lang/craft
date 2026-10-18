@@ -36,13 +36,17 @@ class NativeCapabilitiesTest {
         fun cas(expected: Any, value: Any) = call(capabilities, "Storage", "compareAndSet", JSONArray().put("draft").put(expected).put(value))
         try {
             assertTrue(capabilities.names().toString().contains("storageCompareAndSet"))
+            assertTrue(capabilities.names().toString().contains("storageSetIfAbsent"))
             assertEquals(false, cas(JSONObject.NULL, next).data)
-            assertEquals(true, call(capabilities, "Storage", "set", JSONArray().put("draft").put(old)).data)
+            assertEquals(true, call(capabilities, "Storage", "setIfAbsent", JSONArray().put("draft").put(old)).data)
+            assertEquals(false, call(capabilities, "Storage", "setIfAbsent", JSONArray().put("draft").put(JSONObject().put("owner", "B"))).data)
             assertEquals(false, cas(JSONObject(old.toString()).put("feedback", "stale"), next).data)
             assertEquals(true, cas(JSONObject().put("visits", 1).put("feedback", "latest").put("owner", "A"), next).data)
             assertEquals(true, call(capabilities, "Storage", "remove", JSONArray().put("draft")).data)
             assertEquals(false, cas(next, old).data)
             assertNull(values.getString("draft", null))
+            assertEquals(true, call(capabilities, "Storage", "setIfAbsent", JSONArray().put("draft").put(JSONObject.NULL)).data)
+            assertEquals(false, call(capabilities, "Storage", "setIfAbsent", JSONArray().put("draft").put(old)).data)
             assertFalse(CraftNativeStorage.jsonEqual(true, 1))
             assertFalse(CraftNativeStorage.jsonEqual(JSONArray().put(1).put(2), JSONArray().put(2).put(1)))
         } finally { capabilities.close(); base.deleteSharedPreferences(name) }
