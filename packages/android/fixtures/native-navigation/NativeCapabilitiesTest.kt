@@ -21,6 +21,37 @@ import org.junit.runner.RunWith
 class NativeCapabilitiesTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
+    @Test
+    fun failedStorageCheckpointRestoresMemoryBeforeRejecting() {
+        val base = instrumentation.targetContext
+        val name = "checkpoint-test-${UUID.randomUUID()}"
+        val values = base.getSharedPreferences(name, android.content.Context.MODE_PRIVATE)
+        check(values.edit().putString("draft", "{\"owner\":\"A\"}").commit())
+        val failing = object : android.content.SharedPreferences by values {
+            override fun edit(): android.content.SharedPreferences.Editor {
+                val editor = values.edit()
+                return object : android.content.SharedPreferences.Editor by editor {
+                    override fun commit(): Boolean { editor.commit(); return false }
+                }
+            }
+        }
+        val context = object : android.content.ContextWrapper(base) {
+            override fun getSharedPreferences(key: String, mode: Int) =
+                if (key == "craft-native-storage") failing else super.getSharedPreferences(key, mode)
+        }
+        val capabilities = CraftNativeCapabilities(context, JSONObject())
+        var notifications = 0
+        capabilities.storeObserver = { _, _, _ -> notifications += 1 }
+        try {
+            val result = call(capabilities, "Storage", "set", JSONArray().put("draft").put(JSONObject().put("owner", "B")))
+            assertEquals("STORAGE_ERROR", result.code)
+            assertEquals(0, notifications)
+            val stored = call(capabilities, "Storage", "get", JSONArray().put("draft")).data as JSONObject
+            assertEquals("A", stored.getString("owner"))
+            assertEquals("{\"owner\":\"A\"}", values.getString("draft", null))
+        } finally { capabilities.close(); base.deleteSharedPreferences(name) }
+    }
+
     private fun call(
         capabilities: CraftNativeCapabilities,
         module: String,
