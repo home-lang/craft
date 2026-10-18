@@ -203,6 +203,10 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         let options = args.first as? [String: Any] ?? [:]
         DispatchQueue.main.async {
             self.restoreRecording()
+            if ["pauseRecording", "resumeRecording", "stopRecording", "readRecording"].contains(method),
+               let error = self.recordingIdentityError(options) {
+                return completion(.failure(error))
+            }
             switch method {
             case "getState":
                 self.recoverQuietBroadcast()
@@ -768,6 +772,9 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
 
     private func startRecording(completion: @escaping Completion) {
+        guard recordingId == nil else {
+            return completion(.failure(CraftHeartRateError(message: "A heart-rate recording is already active", code: "RECORDING_ALREADY_ACTIVE")))
+        }
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try Data().write(to: samplesURL, options: .atomic)
@@ -781,6 +788,19 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         recordedCount = 0
         persistRecording()
         completion(.success(recordingSummary(count: true)))
+    }
+
+    /// Runs on the same main-queue turn as the read or mutation it guards.
+    private func recordingIdentityError(_ options: [String: Any]) -> CraftHeartRateError? {
+        guard options.keys.contains("expectedId") else { return nil }
+        guard let expected = options["expectedId"] as? String,
+              !expected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return CraftHeartRateError(message: "expectedId must be a nonempty recording ID", code: "INVALID_ARGUMENT")
+        }
+        guard recordingId == expected else {
+            return CraftHeartRateError(message: "The active heart-rate recording has changed", code: "RECORDING_CONFLICT")
+        }
+        return nil
     }
 
     private func setRecordingPaused(_ paused: Bool, completion: @escaping Completion) {

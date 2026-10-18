@@ -70,7 +70,7 @@ enum CraftNativeActions {
         if config.backgroundRefresh?.enabled == true || config.enablePushNotifications { values.append("background") }
         // A heart-rate strap is the app's own service (CraftHeartRate.swift),
         // so it needs no web view.
-        if config.enableHeartRate { values.append("heartRate") }
+        if config.enableHeartRate { values.append(contentsOf: ["heartRate", "heartRateRecordingOwnership"]) }
         if config.enableBluetooth { values.append("bluetooth") }
         // Workouts on the paired Apple Watch (CraftScheduledWorkouts.swift),
         // also the app's own service.
