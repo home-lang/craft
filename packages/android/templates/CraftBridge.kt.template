@@ -410,7 +410,9 @@ class CraftBridge(
                     pushNotifications: {{ENABLE_PUSH}},
                     secureStorage: {{ENABLE_SECURE_STORAGE}},
                     geolocation: {{ENABLE_GEOLOCATION}},
+                    crypto: true,
                     locationRecordingOwnership: {{ENABLE_GEOLOCATION}} && ${CraftNative.supportsRecordingOwnership()},
+                    locationRecordingIntentIdentity: {{ENABLE_GEOLOCATION}} && ${CraftNative.supportsRecordingIntentIdentity()},
                     backgroundLocation: {{ENABLE_BACKGROUND_LOCATION}},
                     clipboard: false,
                     deviceInfo: true,
@@ -1778,6 +1780,12 @@ class CraftBridge(
                             invalid.code = 'INVALID_ARGUMENT';
                             throw invalid;
                         }
+                        if (options && Object.prototype.hasOwnProperty.call(options, 'recordingId') &&
+                            (typeof options.recordingId !== 'string' || !options.recordingId.trim())) {
+                            var invalidStart = new Error('recordingId must be a nonempty recording ID');
+                            invalidStart.code = 'INVALID_ARGUMENT';
+                            throw invalidStart;
+                        }
                         var result = JSON.parse(CraftAndroid.recordingAction(method, JSON.stringify(options || {})));
                         if (!result.ok) {
                             var error = new Error(result.message || 'Recording failed');
@@ -1787,6 +1795,7 @@ class CraftBridge(
                         return result.data;
                     });
                 }
+                craft.crypto = { randomUUID: function() { return Promise.resolve().then(function() { return CraftAndroid.randomUUID(); }); } };
                 craft.location = {
                     getCurrentPosition: craft.getCurrentPosition,
                     watchPosition: craft.watchPosition,
@@ -1858,6 +1867,9 @@ class CraftBridge(
         // for a page that no longer exists.
         navigationGeneration += 1
     }
+
+    @JavascriptInterface
+    fun randomUUID(): String = java.util.UUID.randomUUID().toString()
 
     // ==================== Haptics ====================
 

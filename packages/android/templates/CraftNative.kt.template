@@ -1925,7 +1925,12 @@ object CraftNative {
      */
     fun supportsRecordingOwnership(): Boolean {
         if (!isAvailable) return true
-        return try { nativeRecordingOwnershipVersion() == 1 } catch (_: UnsatisfiedLinkError) { false }
+        return try { nativeRecordingOwnershipVersion() >= 1 } catch (_: UnsatisfiedLinkError) { false }
+    }
+
+    fun supportsRecordingIntentIdentity(): Boolean {
+        if (!isAvailable) return true
+        return try { nativeRecordingOwnershipVersion() >= 2 } catch (_: UnsatisfiedLinkError) { false }
     }
 
     fun recordingAction(activity: Activity, method: String, options: String): String? {

@@ -169,7 +169,11 @@ object CraftLocationRecordingStore {
                 "startRecording" -> {
                     val permitted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
                     if (!permitted) throw CraftRecordingException("PERMISSION_DENIED", "Location is not allowed")
-                    val id = java.util.UUID.randomUUID().toString()
+                    val id = if (options.has("recordingId")) {
+                        val requested = options.opt("recordingId")
+                        if (requested !is String || requested.isBlank()) throw CraftRecordingException("INVALID_ARGUMENT", "recordingId must be a nonempty recording ID")
+                        requested
+                    } else java.util.UUID.randomUUID().toString()
                     start(context, id, System.currentTimeMillis())
                     try { ContextCompat.startForegroundService(context, Intent(context, LocationRecordingService::class.java).setAction(LocationRecordingService.ACTION_START).putExtra("recordingId", id)) }
                     catch (error: Exception) { finish(context, JSONObject().put("expectedId", id)); throw error }
