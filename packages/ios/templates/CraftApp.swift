@@ -1991,6 +1991,9 @@ struct CraftWebView: UIViewRepresentable {
         private var locationManager: CLLocationManager?
         private var singleLocationCallbackId: String?
         private var singleLocationTimeoutWorkItem: DispatchWorkItem?
+        private var singleLocationTimeoutMilliseconds: Double = 30_000
+        private var singleLocationAcquisitionStarted = false
+        private var singleLocationAuthorizationRequested = false
         private var locationPermissionCallbackId: String?
         private var locationPermissionRequiresAlways = false
         private var isWatchingLocation = false
@@ -2065,7 +2068,7 @@ struct CraftWebView: UIViewRepresentable {
         // SQLite database
         private var db: OpaquePointer?
 
-        init(config: CraftConfig, recordingDirectory: URL? = nil) {
+        init(config: CraftConfig, locationManager suppliedLocationManager: CLLocationManager? = nil, recordingDirectory: URL? = nil) {
             self.recordingDirectory = recordingDirectory
             self.config = config
             super.init()
@@ -2073,7 +2076,7 @@ struct CraftWebView: UIViewRepresentable {
                 speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
             }
             if config.enableGeolocation {
-                locationManager = CLLocationManager()
+                locationManager = suppliedLocationManager ?? CLLocationManager()
                 locationManager?.desiredAccuracy = kCLLocationAccuracyBest
                 locationManager?.activityType = .fitness
                 locationManager?.pausesLocationUpdatesAutomatically = false
@@ -6400,7 +6403,7 @@ struct CraftWebView: UIViewRepresentable {
             }
             singleLocationCallbackId = callbackId
             let maximumAge = max(0, (body["maximumAge"] as? NSNumber)?.doubleValue ?? 0)
-            if maximumAge > 0,
+            if (manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse), maximumAge > 0,
                let cachedLocation = manager.location,
                max(0, Date().timeIntervalSince(cachedLocation.timestamp) * 1000) <= maximumAge {
                 finishSingleLocationRequest()
@@ -6408,7 +6411,35 @@ struct CraftWebView: UIViewRepresentable {
                 return
             }
 
-            let timeoutMs = max(0, (body["timeout"] as? NSNumber)?.doubleValue ?? 30_000)
+            singleLocationTimeoutMilliseconds = max(0, (body["timeout"] as? NSNumber)?.doubleValue ?? 30_000)
+            continueSingleLocationRequest(manager)
+        }
+
+        private func continueSingleLocationRequest(_ manager: CLLocationManager) {
+            guard let callbackId = singleLocationCallbackId else { return }
+            switch manager.authorizationStatus {
+            case .notDetermined:
+                if !singleLocationAuthorizationRequested {
+                    singleLocationAuthorizationRequested = true
+                    manager.requestWhenInUseAuthorization()
+                }
+                return
+            case .denied, .restricted:
+                finishSingleLocationRequest()
+                rejectCallback(callbackId, error: "Location permission was denied.", code: "PERMISSION_DENIED")
+                return
+            case .authorizedAlways, .authorizedWhenInUse:
+                break
+            @unknown default:
+                finishSingleLocationRequest()
+                rejectCallback(callbackId, error: "Location authorization is unavailable.", code: "PERMISSION_DENIED")
+                return
+            }
+            guard !singleLocationAcquisitionStarted else { return }
+            singleLocationAcquisitionStarted = true
+            // The acquisition timeout starts after the person decides. A
+            // permission sheet is not a failed or timed-out GPS fix.
+            let timeoutMs = singleLocationTimeoutMilliseconds
             let timeoutWorkItem = DispatchWorkItem { [weak self] in
                 guard let self, self.singleLocationCallbackId == callbackId else { return }
                 self.finishSingleLocationRequest()
@@ -6416,7 +6447,6 @@ struct CraftWebView: UIViewRepresentable {
             }
             singleLocationTimeoutWorkItem = timeoutWorkItem
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(min(timeoutMs + 100, Double(Int.max)))), execute: timeoutWorkItem)
-            requestLocationAuthorization()
             manager.requestLocation()
         }
 
@@ -6424,6 +6454,8 @@ struct CraftWebView: UIViewRepresentable {
             singleLocationTimeoutWorkItem?.cancel()
             singleLocationTimeoutWorkItem = nil
             singleLocationCallbackId = nil
+            singleLocationAcquisitionStarted = false
+            singleLocationAuthorizationRequested = false
             locationManager?.desiredAccuracy = kCLLocationAccuracyBest
         }
 
@@ -6753,6 +6785,10 @@ struct CraftWebView: UIViewRepresentable {
 
         func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
             let nativeError = error as NSError
+            if nativeError.domain == kCLErrorDomain, nativeError.code == CLError.Code.denied.rawValue,
+               manager.authorizationStatus == .notDetermined, singleLocationCallbackId != nil, !singleLocationAcquisitionStarted {
+                return
+            }
             // kCLErrorLocationUnknown is Core Location saying it has no fix
             // *yet*, not that it failed. requestLocation gives up on it, so a
             // one-shot asks again shortly instead of failing a caller whose
@@ -6761,7 +6797,7 @@ struct CraftWebView: UIViewRepresentable {
             if nativeError.domain == kCLErrorDomain && nativeError.code == CLError.Code.locationUnknown.rawValue {
                 if let waiting = singleLocationCallbackId {
                     DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) { [weak self] in
-                        guard let self, self.singleLocationCallbackId == waiting else { return }
+                        guard let self, self.singleLocationCallbackId == waiting, self.singleLocationAcquisitionStarted else { return }
                         self.locationManager?.requestLocation()
                     }
                 }
@@ -6777,6 +6813,7 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+            if singleLocationCallbackId != nil { continueSingleLocationRequest(manager) }
             guard let callbackId = locationPermissionCallbackId else { return }
             let status = manager.authorizationStatus
             if status == .notDetermined { return }

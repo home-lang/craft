@@ -2250,7 +2250,7 @@ describe('Craft iOS builder', () => {
     expect(noFixYet).toBeLessThan(body.indexOf('rejectCallback('))
     expect(noFixYet).toBeLessThan(body.indexOf('sendToWeb("craftLocationError"'))
     // Asks again only for the caller that was told to wait.
-    expect(body).toContain('guard let self, self.singleLocationCallbackId == waiting else { return }')
+    expect(body).toContain('guard let self, self.singleLocationCallbackId == waiting, self.singleLocationAcquisitionStarted else { return }')
     expect(body).toContain('self.locationManager?.requestLocation()')
   })
 

@@ -1171,8 +1171,10 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var authoredHeading: Double?
     private var edgePadding = UIEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
     private var markerBearings: [String: Double] = [:]
+    private var markerPinColors: [String: UIColor] = [:]
     private var tileOverlay: MKTileOverlay?
     private var tileTemplate: String?
+    private var tileAttributionBottom: NSLayoutConstraint?
     private lazy var tileAttribution: UILabel = {
         let label = UILabel()
         label.font = .systemFont(ofSize: 9)
@@ -1181,7 +1183,9 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         label.translatesAutoresizingMaskIntoConstraints = false
         label.numberOfLines = 2
         addSubview(label)
-        NSLayoutConstraint.activate([label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8), label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8), label.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 48)])
+        let bottom = label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8)
+        tileAttributionBottom = bottom
+        NSLayoutConstraint.activate([label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8), bottom, label.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 48)])
         return label
     }()
 
@@ -1206,6 +1210,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         isScrollEnabled = props["scrollEnabled"] as? Bool ?? true
         isZoomEnabled = props["zoomEnabled"] as? Bool ?? true
         isRotateEnabled = props["rotateEnabled"] as? Bool ?? false
+        isPitchEnabled = props["pitchEnabled"] as? Bool ?? true
         mapType = Self.mapType(props["mapType"] as? String)
         configureTiles(props["tileOverlay"] as? [String: Any])
         showsCompass = props["showsCompass"] as? Bool ?? false
@@ -1219,6 +1224,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         }
         edgePadding = UIEdgeInsets(top: inset("top"), left: inset("left"), bottom: inset("bottom"), right: inset("right"))
         var nextBearings: [String: Double] = [:]
+        var nextPinColors: [String: UIColor] = [:]
         // Showing the user dot must not trigger a permission prompt from a
         // renderer pass. The app's existing location capability owns that
         // prompt; a map only opts in after authorization is already granted.
@@ -1227,6 +1233,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         var nextMarkers: [String: (coordinate: CLLocationCoordinate2D, title: String?)] = [:]
         var nextHandlers: [String: String] = [:]
         var nextPolylines: [String: (coordinates: [CLLocationCoordinate2D], color: UIColor, width: CGFloat)] = [:]
+        var nextPolylineIDs: [String] = []
         for (index, child) in children.enumerated() {
             guard let node = child as? [String: Any], let rawType = node["type"] as? String else { continue }
             let type = rawType.lowercased()
@@ -1239,6 +1246,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             if type == "mapmarker" || type == "marker" {
                 guard let point = points.first else { continue }
                 nextMarkers[id] = (point, childProps["title"] as? String)
+                if let color = childProps["pinColor"] as? String { nextPinColors[id] = Self.color(color) }
                 if let bearing = Self.numeric(childProps["bearing"]), bearing.isFinite {
                     nextBearings[id] = bearing.truncatingRemainder(dividingBy: 360)
                 }
@@ -1251,11 +1259,13 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
                 let authoredWidth = Self.numeric(childProps["strokeWidth"]) ?? 3
                 let width = CGFloat(authoredWidth)
                 guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }
+                if nextPolylines[id] == nil { nextPolylineIDs.append(id) }
                 nextPolylines[id] = (points, Self.color(childProps["strokeColor"] as? String), width)
             }
         }
 
         markerBearings = nextBearings
+        markerPinColors = nextPinColors
         let staleMarkers = annotationsByID.keys.filter { nextMarkers[$0] == nil }
         removeAnnotations(staleMarkers.compactMap { annotationsByID.removeValue(forKey: $0) })
         for (id, value) in nextMarkers {
@@ -1282,7 +1292,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             }
             overlayCoordinatesByID.removeValue(forKey: id)
         }
-        for (id, value) in nextPolylines {
+        for id in nextPolylineIDs {
+            guard let value = nextPolylines[id] else { continue }
             if let overlay = overlaysByID[id],
                let coordinates = overlayCoordinatesByID[id],
                Self.coordinatesEqual(coordinates, value.coordinates),
@@ -1301,6 +1312,19 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             overlayColors[ObjectIdentifier(overlay)] = value.color
             overlayWidths[ObjectIdentifier(overlay)] = value.width
             addOverlay(overlay)
+        }
+        // Keep authored casing/foreground order when an earlier line changes
+        // or retained children move. Exchanging native overlays preserves the
+        // unchanged objects, tile levels and current camera.
+        let ownedOverlayIDs = Set(overlaysByID.values.map { ObjectIdentifier($0) })
+        var orderedOverlays = overlays.compactMap { $0 as? MKPolyline }
+            .filter { ownedOverlayIDs.contains(ObjectIdentifier($0)) }
+        for (index, id) in nextPolylineIDs.enumerated() {
+            guard let overlay = overlaysByID[id], index < orderedOverlays.count,
+                  orderedOverlays[index] !== overlay,
+                  let previousIndex = orderedOverlays.firstIndex(where: { $0 === overlay }) else { continue }
+            exchangeOverlay(orderedOverlays[index], with: orderedOverlays[previousIndex])
+            orderedOverlays.swapAt(index, previousIndex)
         }
 
         if let region = Self.region(props["region"]) {
@@ -1411,20 +1435,27 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     private func configureMarkerView(_ view: MKAnnotationView, id: String) {
         if let bearing = markerBearings[id] {
-            let configuration = UIImage.SymbolConfiguration(pointSize: 24, weight: .semibold)
+            let configuration = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
                 .applying(UIImage.SymbolConfiguration(paletteColors: [.white, .systemGreen]))
-            view.image = UIImage(systemName: "arrow.up.circle.fill", withConfiguration: configuration)
+            // MapKit otherwise tints this as a monochrome template and loses
+            // the contrasting route arrow when displayed over map content.
+            view.image = UIImage(systemName: "arrow.up.circle.fill", withConfiguration: configuration)?
+                .withRenderingMode(.alwaysOriginal)
             view.transform = CGAffineTransform(rotationAngle: CGFloat((bearing - camera.heading) * .pi / 180))
         } else {
+            view.tintColor = markerPinColors[id] ?? .systemRed
             view.image = UIImage(systemName: "mappin.circle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 28))?
-                .withTintColor(.systemRed, renderingMode: .alwaysOriginal)
+                .withTintColor(view.tintColor, renderingMode: .alwaysOriginal)
             view.transform = .identity
         }
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if tileTemplate != nil { bringSubviewToFront(tileAttribution) }
+        if tileTemplate != nil {
+            tileAttributionBottom?.constant = -min(edgePadding.bottom, max(0, bounds.height - 40)) - 8
+            bringSubviewToFront(tileAttribution)
+        }
         if let region = pendingRegion, bounds.width > 0, bounds.height > 0 {
             pendingRegion = nil
             setRegion(region, animated: false)
@@ -2681,11 +2712,24 @@ private class CraftNativeFlowView: UIStackView {
                 var fixedHeight = style.top != nil && style.bottom != nil
                     ? max(0, content.height - (style.top ?? 0) - (style.bottom ?? 0))
                     : style.height?.resolve(content.height)
+                let authoredWidth = fixedWidth != nil
+                let authoredHeight = fixedHeight != nil
                 (fixedWidth, fixedHeight) = aspectDimensions(style, width: fixedWidth, height: fixedHeight)
-                let measured = CraftNativeFlexLayout.measure(child, width: fixedWidth, height: fixedHeight, maxWidth: content.width, maxHeight: content.height)
-                let x = style.left ?? (style.right.map { content.width - $0 - measured.width } ?? 0)
-                let y = style.top ?? (style.bottom.map { content.height - $0 - measured.height } ?? 0)
-                frames.append((child, CGRect(x: content.minX + x, y: content.minY + y, width: measured.width, height: measured.height)))
+                var measured = CraftNativeFlexLayout.measure(child, width: fixedWidth, height: fixedHeight, maxWidth: content.width, maxHeight: content.height)
+                var boundedWidth = clamp(measured.width, style.minWidth?.resolve(content.width), style.maxWidth?.resolve(content.width))
+                let proposedHeight = !authoredHeight && style.aspectRatio != nil ? boundedWidth / style.aspectRatio! : fixedHeight
+                if abs(boundedWidth - measured.width) > 0.0001 || proposedHeight != fixedHeight {
+                    // A narrower label or container must wrap before its
+                    // height and bottom anchor are resolved.
+                    measured = CraftNativeFlexLayout.measure(child, width: boundedWidth, height: proposedHeight, maxWidth: content.width, maxHeight: content.height)
+                }
+                let boundedHeight = clamp(measured.height, style.minHeight?.resolve(content.height), style.maxHeight?.resolve(content.height))
+                if !authoredWidth, authoredHeight, let ratio = style.aspectRatio {
+                    boundedWidth = clamp(boundedHeight * ratio, style.minWidth?.resolve(content.width), style.maxWidth?.resolve(content.width))
+                }
+                let x = style.left ?? (style.right.map { content.width - $0 - boundedWidth } ?? 0)
+                let y = style.top ?? (style.bottom.map { content.height - $0 - boundedHeight } ?? 0)
+                frames.append((child, CGRect(x: content.minX + x, y: content.minY + y, width: boundedWidth, height: boundedHeight)))
             }
         }
         return (size, frames)
@@ -3370,6 +3414,8 @@ private final class CraftNativeModalView: UIView {
         let generation = animationGeneration
         layer.removeAllAnimations()
         guard visible else {
+            craftScreenController?.forgetFocusedInput(in: self)
+            endEditing(true)
             if animationType == "slide" && wasVisible {
                 let distance = max(bounds.height, superview?.bounds.height ?? UIScreen.main.bounds.height)
                 UIView.animate(withDuration: 0.24, animations: {
@@ -3409,6 +3455,8 @@ private final class CraftNativeModalView: UIView {
     }
 
     func resetForTeardown() {
+        craftScreenController?.forgetFocusedInput(in: self)
+        endEditing(true)
         animationGeneration += 1
         layer.removeAllAnimations()
         isHidden = true
@@ -4325,6 +4373,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// button press focused it again and the keyboard came straight back.
     func forgetFocusedInput(_ input: UIView? = nil) {
         if input == nil || lastFocusedInput === input { lastFocusedInput = nil }
+    }
+    func forgetFocusedInput(in container: UIView) {
+        if let input = lastFocusedInput, input === container || input.isDescendant(of: container) {
+            lastFocusedInput = nil
+        }
     }
     private var flatListRows: [ObjectIdentifier: [String: RenderedNode]] = [:]
     private var flatListOwners: [String: String] = [:]
@@ -6054,6 +6107,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func restoreFocus(_ focused: UIView?) {
         guard let focused, focused.window != nil, !focused.isFirstResponder,
               lastFocusedInput === focused, firstResponder(in: rootStack) == nil else { return }
+        var ancestor: UIView? = focused
+        while let view = ancestor {
+            if view.isHidden { return }
+            ancestor = view.superview
+        }
         // A delayed acknowledgement belongs to the input that scheduled it.
         // A newer field or an explicit dismissal owns focus now.
         _ = focused.becomeFirstResponder()

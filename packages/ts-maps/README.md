@@ -2,7 +2,14 @@
 
 Craft SDK bindings for the [ts-maps](https://github.com/stacksjs/ts-maps) interactive map runtime.
 
-This package is the TypeScript side of `MapProvider.ts_maps` in Craft's Zig core. It ships a `MapView` component you can drop into any Craft app (desktop, mobile, WebView) to get a cross-platform interactive map with zero API keys.
+This package is the TypeScript side of `MapProvider.ts_maps` in Craft's Zig core.
+Its `MapView` owns a DOM container and renders ts-maps inside a browser or
+WebView, with zero API keys. It is not the STX native `Map` component.
+
+For a fully native STX screen, use `Map`, `MapMarker`, and `MapPolyline`.
+Craft renders them with MapKit on iOS and the configured native Android map
+provider. Android's `mapProvider: 'maplibre'` selects a key-free native GL view;
+it does not mount this package's DOM adapter.
 
 ## Install
 

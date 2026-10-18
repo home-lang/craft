@@ -1,6 +1,6 @@
 /**
- * `MapView` — Craft-native interactive map component backed by the
- * ts-maps runtime. Instances are WebView-hosted; in native Craft apps
+ * `MapView` — Craft WebView map component backed by the
+ * ts-maps runtime. Instances own a DOM container; in Craft apps
  * the Zig core drives them via the `ts_maps` bridge namespace.
  *
  * @module @craft-native/ts-maps/MapView

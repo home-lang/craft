@@ -21,6 +21,7 @@ import Darwin
 ///   tap <text>            first hittable element whose label contains text
 ///   tapif <text>          tap it when it is on screen, else carry on (the big timer's "Show the controls")
 ///   tapid <identifier>
+///   longpressid <identifier> holds a hittable native element to open its edit menu
 ///   touches <JSON>       timed normalized touch paths in one native dispatch
 ///   tapxy <x> <y>         normalised 0…1 of the screen
 ///   tapexact <label>      a button whose label is exactly this
@@ -29,11 +30,14 @@ import Darwin
 ///   return                the keyboard's return key (Go on a sign-in form)
 ///   field <n> <text>      tap the n-th text field (0-based, secure fields after plain) and type
 ///   typeid <identifier> <text>  tap the element with this identifier and type
+///   sliderid <identifier> <0…1> adjusts a hittable native slider
+///   expectapp <bundle-id> [| secs] asserts a native app handoff reached the foreground
 ///   expect <text> [| secs]  waits for an element containing text; logs PASS/FAIL
 ///   expectexact <label> [| secs]  a button or text whose label is exactly this
 ///   absent <text>         logs PASS when no element contains text
 ///   expectid <id> [| secs] / absentid <id>   the same by accessibility identifier (testID)
 ///   labelid <id> <text>   that element's label is exactly text (a count, a status)
+///   valueid <id> <text>   that element's actual string value is exactly text
 ///   tabbar shown|hidden   the native tab bar (Today, Calendar, …) can be tapped, or not
 ///   selected <tab>        the tab bar's selected button is this one
 ///   tab <name>            tap a tab bar button
@@ -297,6 +301,14 @@ final class DriverTests: XCTestCase {
             let target = identified(arg)
             if target.waitForExistence(timeout: 10) { press(target); note("tapid \(arg): ok") }
             else { XCTFail("Element not found"); note("FAIL tapid \(arg): NOT FOUND") }
+        case "longpressid":
+            let target = identified(arg)
+            guard target.waitForExistence(timeout: 10), target.isHittable else {
+                check(false, "longpressid \(arg) is hittable")
+                return
+            }
+            target.press(forDuration: 1.2)
+            note("longpressid \(arg): ok")
         case "touches":
             do {
                 guard let data = arg.data(using: .utf8),
@@ -367,6 +379,23 @@ final class DriverTests: XCTestCase {
                 app.typeText(idParts.count > 1 ? idParts[1] : "")
                 note("typeid \(idParts[0]): ok")
             } else { XCTFail("Element not found"); note("FAIL typeid \(idParts[0]): NOT FOUND") }
+        case "sliderid":
+            let parts = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let position = Double(parts[1]), position.isFinite, (0...1).contains(position) else {
+                check(false, "sliderid requires an identifier and normalized position")
+                return
+            }
+            let slider = app.sliders.matching(NSPredicate(format: "identifier == %@", parts[0])).firstMatch
+            guard slider.waitForExistence(timeout: 10), slider.isHittable else {
+                check(false, "sliderid \(parts[0]) is hittable")
+                return
+            }
+            slider.adjust(toNormalizedSliderPosition: CGFloat(position))
+            note("sliderid \(parts[0]): \(position)")
+        case "expectapp":
+            let (bundle, seconds) = split(arg)
+            let target = XCUIApplication(bundleIdentifier: bundle)
+            check(target.wait(for: .runningForeground, timeout: seconds), "expectapp \(bundle)")
         case "field":
             let fieldParts = arg.split(separator: " ", maxSplits: 1).map(String.init)
             let index = Int(fieldParts[0]) ?? 0
@@ -392,6 +421,14 @@ final class DriverTests: XCTestCase {
             let want = idParts.count > 1 ? idParts[1] : ""
             let seen = target.waitForExistence(timeout: 5) ? target.label : "(missing)"
             check(seen == want, "labelid \(idParts[0]) \(want) (saw \(seen))")
+        case "valueid":
+            let idParts = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            let target = identified(idParts[0])
+            let want = idParts.count > 1 ? idParts[1] : ""
+            let matched = poll(5) {
+                target.exists && (target.value as? String) == want ? target : nil
+            }
+            check(matched != nil, "valueid \(idParts[0]) \(want)")
         case "absentid":
             check(!identified(arg).exists, "absentid \(arg)")
         case "absent":

@@ -31,6 +31,7 @@ try {
     name: 'NativeNavigation', packageName, output,
     config: {
       renderer: 'native',
+      mapProvider: 'maplibre',
       nativeScreens: {
         '/': 'home',
         '/details': 'details',
@@ -63,6 +64,7 @@ try {
   copyFileSync(join(import.meta.dir, '../fixtures/native-navigation/NativeCapabilitiesTest.kt'), join(testDirectory, 'NativeCapabilitiesTest.kt'))
   copyFileSync(join(import.meta.dir, '../fixtures/native-navigation/NativeRecordingTest.kt'), join(testDirectory, 'NativeRecordingTest.kt'))
   copyFileSync(join(import.meta.dir, '../fixtures/native-navigation/NativeCapabilityUiTest.kt'), join(testDirectory, 'NativeCapabilityUiTest.kt'))
+  copyFileSync(join(import.meta.dir, '../fixtures/native-navigation/NativeMapTest.kt'), join(testDirectory, 'NativeMapTest.kt'))
   const debugDirectory = join(output, 'app/src/debug/java', ...packageName.split('.'))
   mkdirSync(debugDirectory, { recursive: true })
   copyFileSync(join(import.meta.dir, '../fixtures/native-navigation/NativeSystemBarsReferenceActivity.kt'), join(debugDirectory, 'NativeSystemBarsReferenceActivity.kt'))

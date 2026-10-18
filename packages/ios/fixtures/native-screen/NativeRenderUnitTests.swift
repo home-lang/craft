@@ -1,11 +1,106 @@
 import Combine
 import UIKit
 import MapKit
+import CoreLocation
 import XCTest
 @testable import NativeRender
 
+private final class UnitLocationManager: CLLocationManager {
+    var state: CLAuthorizationStatus = .notDetermined
+    var whenInUseRequests = 0
+    var alwaysRequests = 0
+    var fixRequests = 0
+    var onAuthorizationRequest: (() -> Void)?
+    override var authorizationStatus: CLAuthorizationStatus { state }
+    override func requestWhenInUseAuthorization() { whenInUseRequests += 1; onAuthorizationRequest?() }
+    override func requestAlwaysAuthorization() { alwaysRequests += 1; onAuthorizationRequest?() }
+    override func requestLocation() { fixRequests += 1 }
+}
+
 @MainActor
 final class NativeRenderUnitTests: XCTestCase {
+    func testOneShotLocationWaitsForPermissionBeforeStartingItsFixAndTimeout() throws {
+        var config = CraftConfig()
+        config.enableGeolocation = true
+        config.enableBackgroundLocation = true
+        let manager = UnitLocationManager()
+        let coordinator = CraftWebView.Coordinator(config: config, locationManager: manager)
+        let previous = CraftSwiftShim.coordinator
+        CraftSwiftShim.coordinator = coordinator
+        defer { CraftSwiftShim.coordinator = previous }
+        let permission = expectation(description: "foreground location permission requested")
+        manager.onAuthorizationRequest = { permission.fulfill() }
+        let completed = expectation(description: "authorized native fix delivered")
+        var answer: Result<Any, CraftNativeActionError>?
+        CraftWebServices.perform(action: "getCurrentPosition", body: ["timeout": 20]) { result in
+            answer = result
+            completed.fulfill()
+        }
+        wait(for: [permission], timeout: 2)
+        XCTAssertEqual(manager.whenInUseRequests, 1)
+        XCTAssertEqual(manager.alwaysRequests, 0, "One foreground fix does not ask for background access")
+        XCTAssertEqual(manager.fixRequests, 0)
+        coordinator.locationManager(manager, didFailWithError: NSError(domain: kCLErrorDomain, code: CLError.Code.denied.rawValue))
+        let deciding = expectation(description: "person is still reading the permission sheet")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { deciding.fulfill() }
+        wait(for: [deciding], timeout: 2)
+        XCTAssertNil(answer, "The acquisition timeout excludes time spent deciding permission")
+        manager.state = .authorizedWhenInUse
+        coordinator.locationManagerDidChangeAuthorization(manager)
+        XCTAssertEqual(manager.fixRequests, 1)
+        coordinator.locationManagerDidChangeAuthorization(manager)
+        XCTAssertEqual(manager.fixRequests, 1, "Repeated authorization notifications do not restart acquisition")
+        coordinator.locationManager(manager, didUpdateLocations: [CLLocation(latitude: 34, longitude: -118)])
+        wait(for: [completed], timeout: 2)
+        guard case .success(let value)? = answer else { return XCTFail("Expected an authorized native fix") }
+        XCTAssertEqual((value as? [String: Any])?["latitude"] as? Double, 34)
+    }
+
+    func testOneShotLocationRejectsDeniedPermissionWithoutRequestingAFix() {
+        for status in [CLAuthorizationStatus.denied, .restricted] {
+            var config = CraftConfig()
+            config.enableGeolocation = true
+            let manager = UnitLocationManager()
+            manager.state = status
+            let coordinator = CraftWebView.Coordinator(config: config, locationManager: manager)
+            let previous = CraftSwiftShim.coordinator
+            CraftSwiftShim.coordinator = coordinator
+            let completed = expectation(description: "denied native request settled")
+            CraftWebServices.perform(action: "getCurrentPosition", body: [:]) { result in
+                guard case .failure(let error) = result else { completed.fulfill(); return XCTFail("Denied permission returned a fix") }
+                XCTAssertEqual(error.code, "PERMISSION_DENIED")
+                completed.fulfill()
+            }
+            wait(for: [completed], timeout: 2)
+            XCTAssertEqual(manager.fixRequests, 0)
+            XCTAssertEqual(manager.whenInUseRequests, 0)
+            CraftSwiftShim.coordinator = previous
+        }
+    }
+
+    func testOneShotLocationRejectsWhenPermissionPromptIsDeclined() {
+        var config = CraftConfig()
+        config.enableGeolocation = true
+        let manager = UnitLocationManager()
+        let coordinator = CraftWebView.Coordinator(config: config, locationManager: manager)
+        let previous = CraftSwiftShim.coordinator
+        CraftSwiftShim.coordinator = coordinator
+        defer { CraftSwiftShim.coordinator = previous }
+        let permission = expectation(description: "foreground permission requested")
+        manager.onAuthorizationRequest = { permission.fulfill() }
+        let completed = expectation(description: "declined native request settled")
+        CraftWebServices.perform(action: "getCurrentPosition", body: [:]) { result in
+            guard case .failure(let error) = result else { completed.fulfill(); return XCTFail("Declined permission returned a fix") }
+            XCTAssertEqual(error.code, "PERMISSION_DENIED")
+            completed.fulfill()
+        }
+        wait(for: [permission], timeout: 2)
+        manager.state = .denied
+        coordinator.locationManagerDidChangeAuthorization(manager)
+        wait(for: [completed], timeout: 2)
+        XCTAssertEqual(manager.fixRequests, 0)
+    }
+
     func testPanProgressDoesNotInvalidateTheWholeChrome() {
         let chrome = CraftChrome.shared
         let tabs = chrome.tabs
@@ -799,16 +894,88 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(map.camera.pitch, 30, accuracy: 1)
         let annotation = try XCTUnwrap(map.annotations.first)
         let marker = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
-        XCTAssertNotNil(marker.image)
+        let image = try XCTUnwrap(marker.image)
+        XCTAssertEqual(image.renderingMode, .alwaysOriginal, "MapKit must preserve the arrow's contrasting palette")
+        XCTAssertLessThanOrEqual(image.size.width, 24, "Direction signs must leave the route visible in compact maps")
         XCTAssertEqual(marker.accessibilityIdentifier, "direction")
         XCTAssertEqual(marker.transform.b, 1, accuracy: 0.02)
+    }
+
+    func testMapPreservesAuthoredPolylineOrderAcrossUpdatesAndMoves() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        func document(_ casingWidth: Double, reversed: Bool = false) -> [String: Any] {
+            let casing: [String: Any] = ["type": "MapPolyline", "props": ["id": "casing", "geometry": [37.7, -119.5, 37.71, -119.51], "strokeColor": "#365b2d", "strokeWidth": casingWidth]]
+            let route: [String: Any] = ["type": "MapPolyline", "props": ["id": "route", "geometry": [37.7, -119.5, 37.71, -119.51], "strokeColor": "#91e86b", "strokeWidth": 5]]
+            return ["type": "Map", "props": ["key": "ordered-map"],
+                    "style": ["width": 320, "height": 320],
+                    "children": reversed ? [route, casing] : [casing, route]]
+        }
+        controller.render(document(9))
+        controller.view.layoutIfNeeded()
+        let map = try XCTUnwrap(find(MKMapView.self, key: "ordered-map", below: controller.view))
+        func widths() throws -> [CGFloat] {
+            try map.overlays.compactMap { $0 as? MKPolyline }.map { line in
+                let renderer = try XCTUnwrap(map.delegate?.mapView?(map, rendererFor: line) as? MKPolylineRenderer)
+                return renderer.lineWidth
+            }
+        }
+        XCTAssertEqual(try widths(), [9, 5], "the bright route draws above its wider casing")
+        let foreground = try XCTUnwrap(map.overlays.compactMap { $0 as? MKPolyline }.last)
+
+        // Replacing a lower overlay must not move it above an unchanged line.
+        controller.render(document(11))
+        controller.view.layoutIfNeeded()
+        XCTAssertTrue(map === find(MKMapView.self, key: "ordered-map", below: controller.view))
+        XCTAssertEqual(try widths(), [11, 5])
+        XCTAssertTrue(map.overlays.compactMap { $0 as? MKPolyline }.last === foreground)
+
+        // Child moves are draw-order changes even when geometry is unchanged.
+        controller.render(document(11, reversed: true))
+        controller.view.layoutIfNeeded()
+        XCTAssertEqual(try widths(), [5, 11])
+        controller.render(document(11))
+        controller.view.layoutIfNeeded()
+        XCTAssertEqual(try widths(), [11, 5])
+    }
+
+    func testMapUpdatesNativePinColorAndTiltGestureWithoutReplacingTheMarker() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        func document(_ color: String, _ pitch: Bool) -> [String: Any] {
+            ["type": "Map", "props": ["key": "colored-map", "pitchEnabled": pitch],
+             "style": ["width": 320, "height": 320],
+             "children": [["type": "MapMarker", "props": ["id": "start", "geometry": [37.7, -119.5], "pinColor": color]]]]
+        }
+        controller.render(document("#24724b", false))
+        controller.view.layoutIfNeeded()
+        let map = try XCTUnwrap(find(MKMapView.self, key: "colored-map", below: controller.view))
+        let annotation = try XCTUnwrap(map.annotations.first)
+        let marker = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+        XCTAssertFalse(map.isPitchEnabled)
+        XCTAssertEqual(marker.tintColor, UIColor(red: 36 / 255, green: 114 / 255, blue: 75 / 255, alpha: 1))
+        XCTAssertEqual(marker.image?.renderingMode, .alwaysOriginal)
+        controller.render(document("#2878c8", true))
+        controller.view.layoutIfNeeded()
+        XCTAssertTrue(map.isPitchEnabled)
+        XCTAssertTrue(map.annotations.first === annotation)
+        let updated = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+        XCTAssertEqual(updated.tintColor, UIColor(red: 40 / 255, green: 120 / 255, blue: 200 / 255, alpha: 1))
     }
 
     func testMapUsesNativeTopographicTilesWithAttribution() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
         controller.render([
-            "type": "Map", "props": ["key": "topo-map", "tileOverlay": ["urlTemplate": "https://example.org/tiles/{z}/{y}/{x}.png", "attribution": "Test map data"]],
+            "type": "Map", "props": ["key": "topo-map", "edgePadding": ["bottom": 160], "tileOverlay": ["urlTemplate": "https://example.org/tiles/{z}/{y}/{x}.png", "attribution": "Test map data"]],
             "style": ["width": 320, "height": 480],
             "children": [["type": "MapPolyline", "props": ["geometry": [37.7, -119.5, 37.72, -119.49]]]],
         ])
@@ -817,7 +984,10 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(tiles.canReplaceMapContent)
         XCTAssertTrue(map.delegate?.mapView?(map, rendererFor: tiles) is MKTileOverlayRenderer)
         XCTAssertTrue(map.overlays.last is MKPolyline, "The route must remain above the basemap")
-        XCTAssertTrue(map.subviews.compactMap { $0 as? UILabel }.contains { $0.text == "Test map data" && !$0.isHidden })
+        controller.view.layoutIfNeeded()
+        map.layoutIfNeeded()
+        let credit = try XCTUnwrap(map.subviews.compactMap { $0 as? UILabel }.first { $0.text == "Test map data" && !$0.isHidden })
+        XCTAssertLessThanOrEqual(credit.frame.maxY, map.bounds.height - 160, "The floating profile must not cover map attribution")
     }
 
     func testMapReservesRoomForFloatingControls() throws {
@@ -1699,6 +1869,43 @@ final class NativeRenderUnitTests: XCTestCase {
         let disabled = try XCTUnwrap(find(UIView.self, key: "disabled", below: controller.view))
         XCTAssertFalse(disabled.isUserInteractionEnabled)
         XCTAssertTrue(disabled.accessibilityTraits.contains(.notEnabled))
+    }
+
+    func testHidingAModalDismissesItsKeyboardWithoutRestoringHiddenInputFocus() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["type": "TextInput", "props": ["key": "outside"]],
+            ["id": "review-modal", "type": "Modal", "props": ["key": "modal", "visible": true, "animationType": "none"],
+                "children": [["type": "TextInput", "props": ["key": "review", "multiline": true], "events": ["onChangeText": "reviewChanged"]]]],
+        ]))
+        controller.view.layoutIfNeeded()
+        let input = try XCTUnwrap(find(UITextView.self, key: "review", below: controller.view))
+        XCTAssertTrue(input.becomeFirstResponder())
+        input.text = "A trail review"
+        controller.textViewDidChange(input)
+        _ = try controller.applyMutation(batch(1, [
+            ["op": "updateNode", "id": "review-modal", "patch": ["props": ["visible": false]]],
+        ]))
+        XCTAssertFalse(input.isFirstResponder, "Saving or cancelling a modal must dismiss its keyboard")
+        let settled = expectation(description: "hidden modal input acknowledgement settled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
+        wait(for: [settled], timeout: 2)
+        XCTAssertFalse(input.isFirstResponder, "A delayed input acknowledgement cannot reopen the keyboard")
+        _ = try controller.applyMutation(batch(2, [
+            ["op": "updateNode", "id": "review-modal", "patch": ["props": ["visible": true]]],
+        ]))
+        XCTAssertFalse(input.isFirstResponder, "Reopening the modal waits for an explicit focus")
+        XCTAssertTrue(input.becomeFirstResponder())
+        let outside = try XCTUnwrap(find(UITextField.self, key: "outside", below: controller.view))
+        XCTAssertTrue(outside.becomeFirstResponder())
+        _ = try controller.applyMutation(batch(3, [
+            ["op": "updateNode", "id": "review-modal", "patch": ["props": ["visible": false]]],
+        ]))
+        XCTAssertTrue(outside.isFirstResponder, "Hiding a modal must not dismiss another field's keyboard")
     }
 
     func testAShownModalInAScrollViewCoversTheScreenAndTakesItsTouches() throws {

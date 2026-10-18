@@ -794,6 +794,7 @@ describe('Craft Android builder', () => {
     const templates = readdirSync(join(import.meta.dir, '../templates'))
       .filter(name => name.endsWith('.kt.template'))
     const generator = readFileSync(join(import.meta.dir, 'index.ts'), 'utf8')
+      + readFileSync(join(import.meta.dir, 'native-map.ts'), 'utf8')
 
     for (const template of templates) expect(generator).toContain(`'${template}'`)
   })

@@ -97,9 +97,13 @@ export type SimulatorStep =
   /** One native event record, without quiescence between paths. Times are seconds. */
   | { command: 'touches', paths: TimedTouchPoint[][] }
   | { command: 'field', index: number, text: string }
-  | { command: 'typeid' | 'labelid', id: string, text: string }
+  | { command: 'typeid' | 'labelid' | 'valueid', id: string, text: string }
+  /** Adjust an actual native UISlider by identifier, using its normalized range. */
+  | { command: 'sliderid', id: string, position: number }
+  /** Assert a handoff reached the foreground application without launching it. */
+  | { command: 'expectapp', text: string, seconds?: number }
   | { command: 'expect' | 'expectexact' | 'expectid' | 'systemexpect', text: string, seconds?: number }
-  | { command: 'tap' | 'tapif' | 'tapid' | 'tapexact' | 'type' | 'absent' | 'absentid' | 'selected' | 'tab' | 'scrollto' | 'dismiss' | 'log' | 'systemtap' | 'systemabsent', text: string }
+  | { command: 'tap' | 'tapif' | 'tapid' | 'longpressid' | 'tapexact' | 'type' | 'absent' | 'absentid' | 'selected' | 'tab' | 'scrollto' | 'dismiss' | 'log' | 'systemtap' | 'systemabsent', text: string }
   | { command: 'shot' | 'tree' | 'audit' | 'exec' | 'systemtree', name: string }
   | { command: 'openurl', url: string }
   /** Use Apple's universalLinksOnly API, allowing association downloads up to 60 seconds. */
@@ -152,9 +156,16 @@ export function serializeSimulatorSteps(steps: readonly SimulatorStep[]): string
       if (!Number.isInteger(number(step.index))) throw new Error('field index must be an integer')
       arg = `${step.index} ${step.text}`
     }
+    else if ('position' in step) {
+      if (number(step.position) > 1) throw new Error('Slider position must be between 0 and 1')
+      arg = `${token(step.id)} ${step.position}`
+    }
     else if ('id' in step) arg = `${token(step.id)} ${step.text}`
     else if ('text' in step) {
       arg = step.text
+      if (step.command === 'longpressid') token(arg)
+      if (step.command === 'expectapp' && !/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(arg))
+        throw new Error('Expected an application bundle identifier')
       if ('seconds' in step && step.seconds !== undefined) {
         if (arg.includes('|')) throw new Error('A timed expectation cannot contain |')
         arg += ` | ${number(step.seconds)}`

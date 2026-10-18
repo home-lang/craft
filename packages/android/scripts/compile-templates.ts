@@ -28,6 +28,14 @@ const workspace = createTempDir('craft-android-templates-')
 
 const fixtures: CompileFixture[] = [
   {
+    // Compile the key-free engine in both Debug and minified Release, with
+    // real MapLibre and location APIs resolved from the published SDK.
+    directoryName: 'native-maplibre',
+    name: 'CraftNativeMapLibre',
+    packageName: 'dev.craft.fixture.maplibre',
+    config: { renderer: 'native', mapProvider: 'maplibre', enableGeolocation: true },
+  },
+  {
     directoryName: 'native',
     name: 'CraftNativeTemplate',
     packageName: 'dev.craft.fixture.nativeapp',
