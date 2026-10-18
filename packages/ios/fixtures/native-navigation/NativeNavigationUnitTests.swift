@@ -194,6 +194,44 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(link.gestureRecognizers?.filter { $0 is UITapGestureRecognizer }.count, 1)
     }
 
+    func testRepeatedSelectorsRetainDistinctProtocolViewsAcrossReorders() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        window.rootViewController = controller
+        controller.loadViewIfNeeded()
+        window.makeKeyAndVisible()
+        controller.view.layoutIfNeeded()
+        func document(_ ids: [String]) -> [String: Any] {
+            ["id": "identity-root", "type": "View", "children": ids.map { id in
+                ["id": "row-\(id)", "type": "View", "props": ["testID": "repeated-row"],
+                 "children": [["id": "input-\(id)", "type": "TextInput", "props": ["testID": "repeated-input", "accessibilityLabel": "\(id) draft"]]]]
+            }]
+        }
+        func matching(_ view: UIView, _ id: String) -> [UIView] {
+            (view.accessibilityIdentifier == id ? [view] : []) + view.subviews.flatMap { matching($0, id) }
+        }
+        controller.render(document(["alpha", "beta"]))
+        controller.view.layoutIfNeeded()
+        let original = matching(controller.view, "repeated-row")
+        XCTAssertEqual(original.count, 2)
+        guard original.count == 2 else { return }
+        let alpha = original[0]
+        let beta = original[1]
+        let betaInput = try XCTUnwrap(matching(beta, "repeated-input").first as? UITextField)
+        XCTAssertTrue(betaInput.becomeFirstResponder())
+        betaInput.text = "Beta private draft"
+        betaInput.sendActions(for: .editingChanged)
+        controller.render(document(["beta", "alpha"]))
+        controller.view.layoutIfNeeded()
+        let reordered = matching(controller.view, "repeated-row")
+        XCTAssertEqual(reordered.count, 2)
+        guard reordered.count == 2 else { return }
+        XCTAssertTrue(reordered[0] === beta, "the repeated selector overrode Beta's protocol identity")
+        XCTAssertTrue(reordered[1] === alpha, "the repeated selector overrode Alpha's protocol identity")
+        XCTAssertTrue(matching(reordered[0], "repeated-input").first === betaInput)
+        XCTAssertEqual(betaInput.text, "Beta private draft")
+        XCTAssertTrue(betaInput.isFirstResponder, "reordering replaced the focused native input")
+    }
+
     func testIdlePreparationKeepsSelectionAndCurrentStackIntact() async throws {
         let home = try XCTUnwrap(stack("/"))
         let root = home.topViewController
