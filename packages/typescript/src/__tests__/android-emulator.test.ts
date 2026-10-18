@@ -65,10 +65,14 @@ test('hardware emulation refuses unavailable acceleration before creating a devi
 test('invalid boot budgets fail before starting tools or creating owned device data', async () => {
   const { root, options } = fixture(true)
   try {
-    for (const budget of [NaN, Infinity, -Infinity, -1, 0, 999, 1000.5, 1_200_001, Number.MAX_SAFE_INTEGER + 1]) {
-      await expect(createAndroidEmulator({ ...options, bootTimeoutMs: budget })).rejects.toThrow('bootTimeoutMs')
-      expect(existsSync(join(options.sdkRoot, 'calls'))).toBe(false)
-      expect(existsSync(options.temporaryDirectory!)).toBe(false)
+    const modes: AndroidEmulatorOptions['acceleration'][] = process.arch === 'x64' ? ['hardware', 'software'] : ['hardware']
+    for (const acceleration of modes) {
+      const maximum = acceleration === 'software' ? 1_200_000 : 600_000
+      for (const budget of [NaN, Infinity, -Infinity, -1, 0, 999, 1000.5, maximum + 1, Number.MAX_SAFE_INTEGER + 1]) {
+        await expect(createAndroidEmulator({ ...options, acceleration, bootTimeoutMs: budget })).rejects.toThrow('bootTimeoutMs')
+        expect(existsSync(join(options.sdkRoot, 'calls'))).toBe(false)
+        expect(existsSync(options.temporaryDirectory!)).toBe(false)
+      }
     }
   }
   finally { rmSync(root, { recursive: true, force: true }) }

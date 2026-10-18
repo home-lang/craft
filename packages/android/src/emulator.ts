@@ -12,7 +12,7 @@ export interface AndroidEmulatorOptions {
   temporaryDirectory?: string
   port?: number
   acceptLicenses?: boolean
-  /** Explicit cold-provisioning budget, 1 second to 20 minutes; defaults to 10 minutes. */
+  /** Defaults to 10 minutes; hardware is capped there, software cold provisioning at 20 minutes. */
   bootTimeoutMs?: number
   env?: Record<string, string | undefined>
 }
@@ -36,8 +36,9 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
   if (options.acceleration === 'software' && process.arch !== 'x64')
     throw new Error('Android software emulation requires an x86_64 host and system image')
   const bootTimeoutMs = options.bootTimeoutMs ?? 600_000
-  if (!Number.isSafeInteger(bootTimeoutMs) || bootTimeoutMs < 1000 || bootTimeoutMs > 1_200_000)
-    throw new Error('Android bootTimeoutMs must be an integer between 1000 and 1200000 milliseconds')
+  const maximumBootTimeoutMs = options.acceleration === 'software' ? 1_200_000 : 600_000
+  if (!Number.isSafeInteger(bootTimeoutMs) || bootTimeoutMs < 1000 || bootTimeoutMs > maximumBootTimeoutMs)
+    throw new Error(`Android bootTimeoutMs must be an integer between 1000 and ${maximumBootTimeoutMs} milliseconds`)
   const port = options.port ?? 5558
   if (!Number.isInteger(port) || port < 5554 || port > 5682 || port % 2 !== 0) throw new Error('Android console ports must be even and between 5554 and 5682')
   const sdk = resolve(options.sdkRoot)
