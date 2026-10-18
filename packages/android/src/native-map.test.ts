@@ -9,7 +9,7 @@ afterAll(removeAllTempDirs)
 describe('native Android map provider generation', () => {
   it('builds a MapLibre host without a Google map SDK dependency or key', async () => {
     const output = createTempDir('craft-native-maplibre-')
-    await init({ name: 'Native maps', output, runtimeDir: null, config: { renderer: 'native', mapProvider: 'maplibre', enableGeolocation: true } })
+    await init({ name: 'Native maps', packageName: 'com.craft.native', output, runtimeDir: null, config: { renderer: 'native', mapProvider: 'maplibre', enableGeolocation: true } })
     const source = readFileSync(join(output, 'app/src/main/java/com/craft/native/MainActivity.kt'), 'utf8')
     const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
     const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
@@ -33,7 +33,7 @@ describe('native Android map provider generation', () => {
 
   it('keeps the existing Google host when explicitly selected', async () => {
     const output = createTempDir('craft-native-google-map-')
-    await init({ name: 'Google maps', output, runtimeDir: null, config: { renderer: 'native', mapProvider: 'google', mapsApiKey: 'restricted-fixture-key' } })
+    await init({ name: 'Google maps', packageName: 'com.craft.native', output, runtimeDir: null, config: { renderer: 'native', mapProvider: 'google', mapsApiKey: 'restricted-fixture-key' } })
     const source = readFileSync(join(output, 'app/src/main/java/com/craft/native/MainActivity.kt'), 'utf8')
     const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
     const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
