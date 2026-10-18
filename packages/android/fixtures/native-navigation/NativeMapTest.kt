@@ -73,6 +73,31 @@ class NativeMapTest {
         image.recycle()
     }
 
+    private fun awaitBasemapPixels(host: CraftNativeMapView, label: String) {
+        val deadline = SystemClock.uptimeMillis() + 45_000
+        do {
+            val bounds = main {
+                val origin = IntArray(2).also { host.getLocationOnScreen(it) }
+                intArrayOf(origin[0], origin[1], host.width, host.height)
+            }
+            val image = instrumentation.uiAutomation.takeScreenshot() ?: throw AssertionError("Native screenshot unavailable")
+            val visible = try {
+                // Sample across the map, away from controls/credits and the thin
+                // route. A rendered overlay over an empty black surface fails.
+                var painted = 0
+                for (row in 1..8) for (column in 1..8) {
+                    val pixel = image.getPixel(bounds[0] + bounds[2] * column / 9, bounds[1] + bounds[3] * row / 9)
+                    if (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel) > 60) painted++
+                }
+                painted >= 58
+            } finally { image.recycle() }
+            if (visible) return
+            SystemClock.sleep(100)
+        } while (SystemClock.uptimeMillis() < deadline)
+        evidence("$label-basemap-not-visible")
+        fail("$label did not paint native basemap tiles across the viewport")
+    }
+
     private fun withMap(block: (MainActivity, CraftNativeMapView, MapView, MapLibreMap, AtomicInteger) -> Unit) {
         val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
@@ -104,10 +129,13 @@ class NativeMapTest {
     }
 
     @Test
-    fun keyFreeBasemapsKeepTheRecordedRouteAndDirectionSignsVisible() = withMap { _, host, _, map, loaded ->
+    fun keyFreeBasemapsKeepTheRecordedRouteAndDirectionSignsVisible() = withMap { _, host, widget, map, loaded ->
         for (type in listOf("outdoors", "standard", "satellite", "hybrid")) {
             val before = loaded.get()
+            val rendered = AtomicInteger()
+            val listener = MapView.OnDidFinishRenderingFrameListener { fully, _, _ -> if (fully) rendered.incrementAndGet() }
             main {
+                widget.addOnDidFinishRenderingFrameListener(listener)
                 val options = props().put("mapType", if (type == "outdoors") "standard" else type)
                 if (type == "outdoors") options.put("tileOverlay", JSONObject()
                     .put("urlTemplate", "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}")
@@ -115,9 +143,11 @@ class NativeMapTest {
                 host.configure(options, overlays()) {}
             }
             awaitState("$type did not finish loading its real native basemap") {
-                loaded.get() > before && features(map).size == 3 &&
+                loaded.get() > before && rendered.get() > 0 && features(map).size == 3 &&
                     map.queryRenderedFeatures(map.projection.toScreenLocation(LatLng(47.005, 11.005)), "craft-map-directions").isNotEmpty()
             }
+            awaitBasemapPixels(host, type)
+            main { widget.removeOnDidFinishRenderingFrameListener(listener) }
             main {
                 val start = features(map).first { it.getStringProperty("craftOverlayId") == "start" }.geometry() as Point
                 assertEquals(47.0, start.latitude(), 0.000001)
@@ -145,6 +175,7 @@ class NativeMapTest {
                 kotlin.math.abs(map.cameraPosition.bearing - 90) < 1 && kotlin.math.abs(map.cameraPosition.tilt - 30) < 1 &&
                 map.queryRenderedFeatures(map.projection.toScreenLocation(LatLng(47.0, 11.0)), "craft-map-markers").any { it.getStringProperty("color") == "rgba(40,120,200,1.0)" }
         }
+        awaitBasemapPixels(host, "mutated-map")
         main {
             assertSame("Overlay updates must not reload the native basemap", style, map.style)
             assertTrue(map.uiSettings.isTiltGesturesEnabled)
