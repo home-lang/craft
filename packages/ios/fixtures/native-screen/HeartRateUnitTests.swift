@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import NativeRender
 
@@ -202,5 +203,74 @@ final class HeartRateUnitTests: XCTestCase {
         }
         guard case .success(let value) = on, let state = value as? [String: Any] else { return XCTFail("getRecordingState failed") }
         XCTAssertNotNil(state["active"] as? Bool)
+    }
+}
+
+@MainActor
+final class CompletedRecordingRecoveryUnitTests: XCTestCase {
+    private func call(_ monitor: CraftHeartRate, _ method: String, _ options: [String: Any] = [:]) async throws -> Any {
+        try await withCheckedThrowingContinuation { continuation in
+            monitor.perform(method: method, args: [options]) { continuation.resume(with: $0) }
+        }
+    }
+
+    func testCompletedOwnerSurvivesAnotherStartAndRelaunchUntilAcknowledged() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let first = CraftHeartRate(recordingDirectory: directory)
+        let started = try await call(first, "startRecording") as? [String: Any]
+        let a = try XCTUnwrap(started?["id"] as? String)
+        let file = directory.appendingPathComponent("craft-heart-rate-recording.jsonl")
+        try Data("{\"timestamp\":1000,\"bpm\":140}\n".utf8).write(to: file)
+        _ = try await call(first, "stopRecording", ["expectedId": a])
+        // The app dies before it durably checkpoints A's stop response.
+        let second = CraftHeartRate(recordingDirectory: directory)
+        let next = try await call(second, "startRecording") as? [String: Any]
+        let b = try XCTUnwrap(next?["id"] as? String)
+        XCTAssertNotEqual(a, b)
+        let dataB = Data("{\"timestamp\":2000,\"bpm\":170}\n".utf8)
+        try dataB.write(to: file)
+        let restored = CraftHeartRate(recordingDirectory: directory)
+        let stateA = try await call(restored, "getRecordingState", ["expectedId": a]) as? [String: Any]
+        XCTAssertEqual(stateA?["id"] as? String, a)
+        XCTAssertEqual(stateA?["active"] as? Bool, false)
+        let readA = try await call(restored, "readRecording", ["expectedId": a]) as? [[String: Any]]
+        XCTAssertEqual(readA?.first?["bpm"] as? Int, 140)
+        let stoppedA = try await call(restored, "stopRecording", ["expectedId": a]) as? [String: Any]
+        XCTAssertEqual(stoppedA?["id"] as? String, a)
+        XCTAssertEqual(try Data(contentsOf: file), dataB)
+        for method in ["pauseRecording", "resumeRecording"] {
+            do { _ = try await call(restored, method, ["expectedId": a]); XCTFail("stale owner changed B") }
+            catch let error as CraftHeartRateError { XCTAssertEqual(error.code, "RECORDING_CONFLICT") }
+        }
+        XCTAssertEqual(try await call(restored, "acknowledgeRecording", ["expectedId": a]) as? Bool, true)
+        XCTAssertEqual(try await call(restored, "acknowledgeRecording", ["expectedId": a]) as? Bool, true)
+        do { _ = try await call(restored, "readRecording", ["expectedId": a]); XCTFail("acknowledged data reappeared") }
+        catch let error as CraftHeartRateError { XCTAssertEqual(error.code, "RECORDING_NOT_FOUND") }
+        let stateB = try await call(restored, "getRecordingState", ["expectedId": b]) as? [String: Any]
+        XCTAssertEqual(stateB?["active"] as? Bool, true)
+        XCTAssertEqual(try Data(contentsOf: file), dataB)
+    }
+
+    func testArchiveFailureRefusesReplacementAndPreservesTheOldSamples() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let id = UUID().uuidString
+        let state: [String: Any] = ["id": id, "active": false, "paused": false, "startedAt": 1000]
+        try JSONSerialization.data(withJSONObject: state).write(to: directory.appendingPathComponent("craft-heart-rate-recording-state.json"))
+        let samples = Data("{\"timestamp\":1000,\"bpm\":140}\n".utf8)
+        let file = directory.appendingPathComponent("craft-heart-rate-recording.jsonl")
+        try samples.write(to: file)
+        let hash = SHA256.hash(data: Data(id.utf8)).map { String(format: "%02x", $0) }.joined()
+        // A real failed archive-file read/write, rather than a successful empty backup.
+        try FileManager.default.createDirectory(at: directory.appendingPathComponent("craft-heart-rate-completed-\(hash).json"), withIntermediateDirectories: true)
+        let monitor = CraftHeartRate(recordingDirectory: directory)
+        do { _ = try await call(monitor, "startRecording"); XCTFail("replacement ignored archive failure") }
+        catch let error as CraftHeartRateError { XCTAssertEqual(error.code, "RECORDING_STORAGE_ERROR") }
+        XCTAssertEqual(try Data(contentsOf: file), samples)
+        let restored = try await call(monitor, "getRecordingState") as? [String: Any]
+        XCTAssertEqual(restored?["id"] as? String, id)
+        XCTAssertEqual(restored?["active"] as? Bool, false)
     }
 }
