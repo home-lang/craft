@@ -54,6 +54,30 @@ class NativeMutationTest {
     }
 
     @Test
+    fun preservesAuthoredKeysAcrossImportCreationUpdatesAndMoves() {
+        val document = CraftNativeMutationDocument()
+        document.replace(JSONObject("""
+            {"id":"root","type":"View","key":"root-key","children":[
+              {"id":"existing","type":"TextInput","key":"draft-key","props":{"value":"draft"}}
+            ]}
+        """.trimIndent()))
+        assertEquals("draft-key", document.node("existing")?.getString("key"))
+        val result = document.apply(batch(1, """
+            [
+              {"op":"createNode","id":"created","node":{"type":"View","key":"created-key"}},
+              {"op":"insertChild","parentId":"root","childId":"created","index":1},
+              {"op":"updateNode","id":"existing","patch":{"props":{"value":"edited"}}},
+              {"op":"moveChild","parentId":"root","childId":"created","index":0}
+            ]
+        """.trimIndent()))
+        val rendered = requireNotNull(result.document)
+        assertEquals("root-key", rendered.getString("key"))
+        assertEquals("created-key", rendered.getJSONArray("children").getJSONObject(0).getString("key"))
+        assertEquals("draft-key", rendered.getJSONArray("children").getJSONObject(1).getString("key"))
+        assertEquals("edited", document.node("existing")?.getJSONObject("props")?.getString("value"))
+    }
+
+    @Test
     fun rejectsWholeBatchWithDeterministicFailure() {
         val document = CraftNativeMutationDocument()
         try {

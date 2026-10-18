@@ -822,6 +822,28 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(scroll === find(UIScrollView.self, key: "scroll", below: controller.view))
     }
 
+    func testMutationPreservesAuthoredKeysAcrossImportCreationUpdatesAndMoves() throws {
+        let document = CraftNativeMutationDocument()
+        document.replace(with: [
+            "id": "root", "type": "View", "key": "root-key", "children": [
+                ["id": "existing", "type": "TextInput", "key": "draft-key", "props": ["value": "draft"]],
+            ],
+        ])
+        XCTAssertEqual(document.node("existing")?["key"] as? String, "draft-key")
+        let result = try document.apply(batch(1, [
+            ["op": "createNode", "id": "created", "node": ["type": "View", "key": "created-key"]],
+            ["op": "insertChild", "parentId": "root", "childId": "created", "index": 1],
+            ["op": "updateNode", "id": "existing", "patch": ["props": ["value": "edited"]]],
+            ["op": "moveChild", "parentId": "root", "childId": "created", "index": 0],
+        ]))
+        let rendered = try XCTUnwrap(result.document)
+        let children = try XCTUnwrap(rendered["children"] as? [[String: Any]])
+        XCTAssertEqual(rendered["key"] as? String, "root-key")
+        XCTAssertEqual(children[0]["key"] as? String, "created-key")
+        XCTAssertEqual(children[1]["key"] as? String, "draft-key")
+        XCTAssertEqual((document.node("existing")?["props"] as? [String: Any])?["value"] as? String, "edited")
+    }
+
     func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot() throws {
         for type in CraftNativeMutationDocument.containerTypes.sorted() + ["svg", "pressable"] {
             let document = CraftNativeMutationDocument()
