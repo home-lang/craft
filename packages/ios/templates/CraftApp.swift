@@ -421,6 +421,12 @@ class CraftEventManager {
         }
     }
 
+    /// Zig already delivers to the page; native-only delivery must not repeat it.
+    func sendToAppScript(_ event: String, data: [String: Any]) {
+        guard listener == .appScript else { return }
+        sendToWeb(event, data: data)
+    }
+
     /// An event no one will hear: logged, and background work it holds is
     /// answered at once.
     private func drop(_ event: String, data: [String: Any]) {
@@ -1992,6 +1998,8 @@ struct CraftWebView: UIViewRepresentable {
         private var isLocationRecordingPaused = false
         private var locationRecordingId: String?
         private var locationRecordingStartedAt: TimeInterval?
+        private let recordingDirectory: URL?
+        private var locationRecordingRestoreError: Error?
 
         // Network monitoring
         private var networkMonitor: NWPathMonitor?
@@ -2057,7 +2065,8 @@ struct CraftWebView: UIViewRepresentable {
         // SQLite database
         private var db: OpaquePointer?
 
-        init(config: CraftConfig) {
+        init(config: CraftConfig, recordingDirectory: URL? = nil) {
+            self.recordingDirectory = recordingDirectory
             self.config = config
             super.init()
             if config.enableSpeechRecognition {
@@ -2072,7 +2081,8 @@ struct CraftWebView: UIViewRepresentable {
                 // relaunch restore — see `CraftZigRuntime.adoptLocationRecording`.
                 // Running both would leave two managers appending to one track.
                 if !CraftZigRuntime.adoptLocationRecording() {
-                    restoreLocationRecordingState()
+                    do { try restoreLocationRecordingState() }
+                    catch { locationRecordingRestoreError = error }
                 }
             }
             if config.enableContacts {
@@ -2222,6 +2232,13 @@ struct CraftWebView: UIViewRepresentable {
         /// `craft_ios_deliver_result` instead of evaluating JavaScript here —
         /// one reply path, owned by whichever side received the page's message.
         func dispatch(action: String, body: [String: Any], callbackId: String?) {
+            if ["startLocationRecording", "pauseLocationRecording", "resumeLocationRecording", "stopLocationRecording", "getLocationRecordingState", "readLocationRecording", "acknowledgeLocationRecording"].contains(action),
+               locationRecordingRestoreError != nil {
+                rejectCallback(callbackId, error: "Unable to restore recording data", code: "RECORDING_STORAGE_ERROR")
+                return
+            }
+            if ["getLocationRecordingState", "readLocationRecording", "stopLocationRecording", "acknowledgeLocationRecording"].contains(action),
+               archivedLocationAction(action, body: body, callbackId: callbackId) { return }
             if let answer = CraftNativeActions.perform(action: action, body: body, config: config) {
                 switch answer {
                 case .success(let value): resolveCallback(callbackId, result: value)
@@ -2423,15 +2440,15 @@ struct CraftWebView: UIViewRepresentable {
                     rejectCallback(callbackId, error: "Geolocation is disabled", code: "CAPABILITY_DISABLED")
                 }
             case "pauseLocationRecording":
-                pauseLocationRecording(callbackId: callbackId)
+                if requireLocationRecordingOwner(body, callbackId: callbackId) { pauseLocationRecording(callbackId: callbackId) }
             case "resumeLocationRecording":
-                resumeLocationRecording(callbackId: callbackId)
+                if requireLocationRecordingOwner(body, callbackId: callbackId) { resumeLocationRecording(callbackId: callbackId) }
             case "stopLocationRecording":
-                stopLocationRecording(callbackId: callbackId)
+                if requireLocationRecordingOwner(body, callbackId: callbackId) { stopLocationRecording(callbackId: callbackId) }
             case "getLocationRecordingState":
                 getLocationRecordingState(callbackId: callbackId)
             case "readLocationRecording":
-                readLocationRecording(callbackId: callbackId)
+                if requireLocationRecordingOwner(body, callbackId: callbackId) { readLocationRecording(callbackId: callbackId) }
             // App Badge
             case "setBadge":
                 if let count = body["count"] as? Int {
@@ -3739,6 +3756,7 @@ struct CraftWebView: UIViewRepresentable {
                     pushNotifications: \(config.enablePushNotifications),
                     secureStorage: \(config.enableSecureStorage),
                     geolocation: \(config.enableGeolocation),
+                    locationRecordingOwnership: \(config.enableGeolocation && CraftZigRuntime.supportsRecordingOwnership),
                     backgroundLocation: \(config.enableBackgroundLocation),
                     healthKit: \(config.enableHealthKit),
                     liveActivities: \(config.enableLiveActivities),
@@ -5340,6 +5358,14 @@ struct CraftWebView: UIViewRepresentable {
                     browserOpen: true
                 };
                 craft._invoke = function(action, payload) {
+                    var recordingOptions = action === 'heartRate' && payload && ['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'].indexOf(payload.method) !== -1
+                        ? payload.options : ['pauseLocationRecording', 'resumeLocationRecording', 'stopLocationRecording', 'readLocationRecording', 'getLocationRecordingState', 'acknowledgeLocationRecording'].indexOf(action) !== -1 ? payload : null;
+                    if (recordingOptions && Object.prototype.hasOwnProperty.call(recordingOptions, 'expectedId') &&
+                        (typeof recordingOptions.expectedId !== 'string' || !recordingOptions.expectedId.trim())) {
+                        var invalid = new Error('expectedId must be a nonempty recording ID');
+                        invalid.code = 'INVALID_ARGUMENT';
+                        return Promise.reject(invalid);
+                    }
                     var self = craft;
                     var id = 'cb_' + (++self._callbackId);
                     var message = Object.assign({}, payload || {}, {action: action, callbackId: id});
@@ -5496,11 +5522,12 @@ struct CraftWebView: UIViewRepresentable {
                         void stopLocationWatchIfUnused().catch(function() {});
                     },
                     startRecording: function() { return craft._invoke('startLocationRecording'); },
-                    pauseRecording: function() { return craft._invoke('pauseLocationRecording'); },
-                    resumeRecording: function() { return craft._invoke('resumeLocationRecording'); },
-                    stopRecording: function() { return craft._invoke('stopLocationRecording'); },
-                    getRecordingState: function() { return craft._invoke('getLocationRecordingState'); },
-                    readRecording: function() { return craft._invoke('readLocationRecording'); }
+                    pauseRecording: function(options) { return craft._invoke('pauseLocationRecording', options || {}); },
+                    resumeRecording: function(options) { return craft._invoke('resumeLocationRecording', options || {}); },
+                    stopRecording: function(options) { return craft._invoke('stopLocationRecording', options || {}); },
+                    getRecordingState: function(options) { return craft._invoke('getLocationRecordingState', options || {}); },
+                    acknowledgeRecording: function(options) { return craft._invoke('acknowledgeLocationRecording', options || {}); },
+                    readRecording: function(options) { return craft._invoke('readLocationRecording', options || {}); }
                 };
                 craft.health = {
                     requestAuthorization: function(types, options) {
@@ -5592,7 +5619,8 @@ struct CraftWebView: UIViewRepresentable {
                         pauseRecording: function(options) { return heartRate('pauseRecording', options || {}); },
                         resumeRecording: function(options) { return heartRate('resumeRecording', options || {}); },
                         stopRecording: function(options) { return heartRate('stopRecording', options || {}); },
-                        getRecordingState: function() { return heartRate('getRecordingState'); },
+                        getRecordingState: function(options) { return heartRate('getRecordingState', options || {}); },
+                        acknowledgeRecording: function(options) { return heartRate('acknowledgeRecording', options || {}); },
                         readRecording: function(options) { return heartRate('readRecording', options || {}); }
                     };
                 })();
@@ -6418,12 +6446,12 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         private var locationRecordingStateURL: URL {
-            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            (recordingDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0])
                 .appendingPathComponent("craft-location-recording-state.json")
         }
 
         private var locationRecordingTrackURL: URL {
-            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            (recordingDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0])
                 .appendingPathComponent("craft-location-recording.jsonl")
         }
 
@@ -6440,42 +6468,119 @@ struct CraftWebView: UIViewRepresentable {
             locationManager?.showsBackgroundLocationIndicator = config.enableBackgroundLocation
         }
 
-        private func persistLocationRecordingState() {
-            let state: [String: Any] = [
-                "active": isRecordingLocation,
-                "paused": isLocationRecordingPaused,
-                "id": locationRecordingId ?? NSNull(),
-                "startedAt": locationRecordingStartedAt ?? NSNull(),
-            ]
-            do {
-                let directory = locationRecordingStateURL.deletingLastPathComponent()
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                let data = try JSONSerialization.data(withJSONObject: state)
-                try data.write(to: locationRecordingStateURL, options: .atomic)
-                protectLocationFile(locationRecordingStateURL)
-            } catch {
-                print("Unable to persist location recording state: \(error)")
-            }
+        private func persistLocationRecordingState() throws {
+            let state: [String: Any] = ["active": isRecordingLocation, "paused": isLocationRecordingPaused, "id": locationRecordingId ?? NSNull(), "startedAt": locationRecordingStartedAt ?? NSNull()]
+            try CraftRecordingArchive.writeAtomically(JSONSerialization.data(withJSONObject: state), locationRecordingStateURL)
         }
 
-        private func restoreLocationRecordingState() {
-            guard let data = try? Data(contentsOf: locationRecordingStateURL),
-                  let state = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  state["active"] as? Bool == true else { return }
-            isRecordingLocation = true
+        private func restoreLocationRecordingState() throws {
+            guard FileManager.default.fileExists(atPath: locationRecordingStateURL.path) else {
+                if FileManager.default.fileExists(atPath: locationRecordingTrackURL.path), !(try Data(contentsOf: locationRecordingTrackURL)).isEmpty {
+                    throw CraftNativeActionError(code: "RECORDING_STORAGE_ERROR", message: "Recording metadata is missing")
+                }
+                return
+            }
+            let data = try Data(contentsOf: locationRecordingStateURL)
+            guard let state = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let active = state["active"] as? Bool else {
+                throw CraftNativeActionError(code: "RECORDING_STORAGE_ERROR", message: "Invalid recording metadata")
+            }
+            isRecordingLocation = active
             isLocationRecordingPaused = state["paused"] as? Bool ?? false
             locationRecordingId = state["id"] as? String
             locationRecordingStartedAt = state["startedAt"] as? TimeInterval
-            if !isLocationRecordingPaused {
+            if let id = locationRecordingId, try CraftRecordingArchive.isAcknowledged(recordingBaseDirectory, "location", id) {
+                try CraftRecordingArchive.acknowledge(recordingBaseDirectory, "location", id)
+                if FileManager.default.fileExists(atPath: locationRecordingTrackURL.path) { try FileManager.default.removeItem(at: locationRecordingTrackURL) }
+                locationRecordingId = nil
+                locationRecordingStartedAt = nil
+                isRecordingLocation = false
+                isLocationRecordingPaused = false
+                try persistLocationRecordingState()
+            }
+            if isRecordingLocation && !isLocationRecordingPaused {
                 locationManager?.delegate = self
                 configureBackgroundLocationIfNeeded()
                 locationManager?.startUpdatingLocation()
             }
         }
 
+        /// Same serial main-queue dispatch as the operation it protects.
+        private func requireLocationRecordingOwner(_ body: [String: Any], callbackId: String?) -> Bool {
+            guard body.keys.contains("expectedId") else { return true }
+            guard let expected = body["expectedId"] as? String,
+                  !expected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                rejectCallback(callbackId, error: "expectedId must be a nonempty recording ID", code: "INVALID_ARGUMENT")
+                return false
+            }
+            guard locationRecordingId == expected else {
+                rejectCallback(callbackId, error: "The active location recording has changed", code: "RECORDING_CONFLICT")
+                return false
+            }
+            return true
+        }
+
+        private var recordingBaseDirectory: URL {
+            recordingDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        }
+
+        private func archivedLocationAction(_ action: String, body: [String: Any], callbackId: String?) -> Bool {
+            guard body.keys.contains("expectedId") else {
+                if action == "acknowledgeLocationRecording" {
+                    rejectCallback(callbackId, error: "Acknowledgement needs expectedId", code: "INVALID_ARGUMENT")
+                    return true
+                }
+                return false
+            }
+            guard let id = body["expectedId"] as? String, !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                rejectCallback(callbackId, error: "expectedId must be a nonempty recording ID", code: "INVALID_ARGUMENT")
+                return true
+            }
+            do {
+                if action == "acknowledgeLocationRecording" {
+                    if locationRecordingId == id && isRecordingLocation {
+                        rejectCallback(callbackId, error: "The recording is still active", code: "RECORDING_ALREADY_ACTIVE")
+                        return true
+                    }
+                    var known = try locationRecordingId == id || CraftRecordingArchive.isAcknowledged(recordingBaseDirectory, "location", id)
+                    if !known { known = try CraftRecordingArchive.read(recordingBaseDirectory, "location", id) != nil }
+                    guard known else {
+                        rejectCallback(callbackId, error: "Unknown recording ID", code: "RECORDING_CONFLICT")
+                        return true
+                    }
+                    try CraftRecordingArchive.acknowledge(recordingBaseDirectory, "location", id)
+                    if locationRecordingId == id {
+                        if FileManager.default.fileExists(atPath: locationRecordingTrackURL.path) { try FileManager.default.removeItem(at: locationRecordingTrackURL) }
+                        locationRecordingId = nil
+                        locationRecordingStartedAt = nil
+                        try persistLocationRecordingState()
+                    }
+                    resolveCallback(callbackId, result: true)
+                    return true
+                }
+                if var saved = try CraftRecordingArchive.read(recordingBaseDirectory, "location", id) {
+                    if action == "readLocationRecording" { resolveCallback(callbackId, result: saved["locations"] ?? []) }
+                    else {
+                        if action == "getLocationRecordingState" { saved.removeValue(forKey: "locations") }
+                        resolveCallback(callbackId, result: saved)
+                    }
+                    return true
+                }
+                return !requireLocationRecordingOwner(body, callbackId: callbackId)
+            } catch let error as CraftNativeActionError {
+                rejectCallback(callbackId, error: error.message, code: error.code)
+            } catch { rejectCallback(callbackId, error: "Unable to persist the recording", code: "RECORDING_STORAGE_ERROR") }
+            return true
+        }
+
         private func startLocationRecording(callbackId: String?) {
+            guard !isRecordingLocation else {
+                rejectCallback(callbackId, error: "A location recording is already active", code: "RECORDING_ALREADY_ACTIVE")
+                return
+            }
             let directory = locationRecordingTrackURL.deletingLastPathComponent()
             do {
+                try CraftRecordingArchive.save(recordingBaseDirectory, "location", locationRecordingSummary(), samples: try loadRecordedLocationsStrict())
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 try Data().write(to: locationRecordingTrackURL, options: .atomic)
                 protectLocationFile(locationRecordingTrackURL)
@@ -6483,11 +6588,17 @@ struct CraftWebView: UIViewRepresentable {
                 rejectCallback(callbackId, error: "Unable to create the location recording", code: "RECORDING_STORAGE_ERROR")
                 return
             }
+            let previous = (locationRecordingId, locationRecordingStartedAt, isRecordingLocation, isLocationRecordingPaused)
             locationRecordingId = UUID().uuidString
             locationRecordingStartedAt = Date().timeIntervalSince1970 * 1000
             isRecordingLocation = true
             isLocationRecordingPaused = false
-            persistLocationRecordingState()
+            do { try persistLocationRecordingState() }
+            catch {
+                (locationRecordingId, locationRecordingStartedAt, isRecordingLocation, isLocationRecordingPaused) = previous
+                rejectCallback(callbackId, error: "Unable to persist the location recording", code: "RECORDING_STORAGE_ERROR")
+                return
+            }
             locationManager?.delegate = self
             requestLocationAuthorization()
             configureBackgroundLocationIfNeeded()
@@ -6500,8 +6611,14 @@ struct CraftWebView: UIViewRepresentable {
                 rejectCallback(callbackId, error: "No active location recording", code: "NO_ACTIVE_RECORDING")
                 return
             }
+            let previous = isLocationRecordingPaused
             isLocationRecordingPaused = true
-            persistLocationRecordingState()
+            do { try persistLocationRecordingState() }
+            catch {
+                isLocationRecordingPaused = previous
+                rejectCallback(callbackId, error: "Unable to persist the location recording", code: "RECORDING_STORAGE_ERROR")
+                return
+            }
             if !isWatchingLocation { locationManager?.stopUpdatingLocation() }
             resolveCallback(callbackId, result: locationRecordingSummary())
         }
@@ -6511,8 +6628,14 @@ struct CraftWebView: UIViewRepresentable {
                 rejectCallback(callbackId, error: "No active location recording", code: "NO_ACTIVE_RECORDING")
                 return
             }
+            let previous = isLocationRecordingPaused
             isLocationRecordingPaused = false
-            persistLocationRecordingState()
+            do { try persistLocationRecordingState() }
+            catch {
+                isLocationRecordingPaused = previous
+                rejectCallback(callbackId, error: "Unable to persist the location recording", code: "RECORDING_STORAGE_ERROR")
+                return
+            }
             // Set here too: a recording restored at launch while paused never
             // got a delegate, so resuming it started updates nobody received
             // and the route stopped at the pause.
@@ -6524,17 +6647,21 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         private func stopLocationRecording(callbackId: String?) {
-            isRecordingLocation = false
-            isLocationRecordingPaused = false
-            persistLocationRecordingState()
-            if !isWatchingLocation {
-                locationManager?.stopUpdatingLocation()
-                locationManager?.allowsBackgroundLocationUpdates = false
-            }
-            let locations = loadRecordedLocations()
-            var summary = locationRecordingSummary()
-            summary["locations"] = locations
-            resolveCallback(callbackId, result: summary)
+            do {
+                let locations = try loadRecordedLocationsStrict()
+                let previous = (isRecordingLocation, isLocationRecordingPaused)
+                isRecordingLocation = false
+                isLocationRecordingPaused = false
+                do { try persistLocationRecordingState() }
+                catch { (isRecordingLocation, isLocationRecordingPaused) = previous; throw error }
+                if !isWatchingLocation {
+                    locationManager?.stopUpdatingLocation()
+                    locationManager?.allowsBackgroundLocationUpdates = false
+                }
+                var summary = locationRecordingSummary()
+                summary["locations"] = locations
+                resolveCallback(callbackId, result: summary)
+            } catch { rejectCallback(callbackId, error: "Unable to persist the location recording", code: "RECORDING_STORAGE_ERROR") }
         }
 
         private func getLocationRecordingState(callbackId: String?) {
@@ -6544,7 +6671,8 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         private func readLocationRecording(callbackId: String?) {
-            resolveCallback(callbackId, result: loadRecordedLocations())
+            do { resolveCallback(callbackId, result: try loadRecordedLocationsStrict()) }
+            catch { rejectCallback(callbackId, error: "Unable to read the location recording", code: "RECORDING_STORAGE_ERROR") }
         }
 
         private func locationRecordingSummary() -> [String: Any] {
@@ -6579,8 +6707,11 @@ struct CraftWebView: UIViewRepresentable {
             try? protectedURL.setResourceValues(values)
         }
 
-        private func loadRecordedLocations() -> [[String: Any]] {
-            guard let text = try? String(contentsOf: locationRecordingTrackURL, encoding: .utf8) else { return [] }
+        private func loadRecordedLocations() -> [[String: Any]] { (try? loadRecordedLocationsStrict()) ?? [] }
+
+        private func loadRecordedLocationsStrict() throws -> [[String: Any]] {
+            if locationRecordingId == nil { return [] }
+            let text = try String(contentsOf: locationRecordingTrackURL, encoding: .utf8)
             return text.split(separator: "\n").compactMap { line in
                 guard let data = line.data(using: .utf8) else { return nil }
                 return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -6589,13 +6720,14 @@ struct CraftWebView: UIViewRepresentable {
 
         func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
             guard let location = locations.last else { return }
-            let data = locationData(location)
+            var data = locationData(location)
 
             if let callbackId = singleLocationCallbackId {
                 finishSingleLocationRequest()
                 resolveCallback(callbackId, result: data)
             }
 
+            if isRecordingLocation, let id = locationRecordingId { data["recordingId"] = id }
             appendRecordedLocation(data)
             if isWatchingLocation || isRecordingLocation {
                 sendToWeb("craftLocationUpdate", data: data)
@@ -8890,6 +9022,60 @@ final class CraftZigRuntime: NSObject {
         UnsafePointer<CChar>, UInt, UnsafePointer<CChar>, UInt, Int64
     ) -> Bool
     private typealias AdoptLocationRecordingFn = @convention(c) () -> Bool
+    private typealias RecordingOwnershipVersionFn = @convention(c) () -> Int32
+    private typealias RecordingReplyFn = @convention(c) (UnsafeMutableRawPointer?, Bool, UnsafePointer<CChar>, UInt) -> Void
+    private typealias PerformRecordingFn = @convention(c) (UnsafePointer<CChar>, UInt, UnsafePointer<CChar>, UInt, UnsafeMutableRawPointer?, RecordingReplyFn) -> Bool
+    private final class RecordingReply {
+        var answered = false
+        var result: Result<Any, CraftNativeActionError>?
+
+    }
+    private static let performRecordingFn: PerformRecordingFn? = {
+        guard let sym = dlsym(image, "craft_ios_perform_recording_action") else { return nil }
+        return unsafeBitCast(sym, to: PerformRecordingFn.self)
+    }()
+
+    /// Synchronous native recorder requests use the exact page owner and reply
+    /// envelope, without loading a page or creating a second location manager.
+    static func performRecording(action: String, body: [String: Any], completion: @escaping (Result<Any, CraftNativeActionError>) -> Void) -> Bool {
+        guard supportsRecordingOwnership, let performRecordingFn else {
+            if !isLinked { return false }
+            completion(.failure(CraftNativeActionError(code: "RECORDING_OWNERSHIP_UNSUPPORTED", message: "The linked runtime lacks the shared recorder API")))
+            return true
+        }
+        guard let payload = try? JSONSerialization.data(withJSONObject: body),
+              let json = String(data: payload, encoding: .utf8) else {
+            completion(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "Recording options must be JSON")))
+            return true
+        }
+        let reply = RecordingReply()
+        let served = withExtendedLifetime(reply) {
+            action.withCString { a in json.withCString { p in
+                performRecordingFn(a, UInt(strlen(a)), p, UInt(strlen(p)), Unmanaged.passUnretained(reply).toOpaque()) { context, failed, bytes, count in
+                    guard let context else { return }
+                    let reply = Unmanaged<RecordingReply>.fromOpaque(context).takeUnretainedValue()
+                    guard !reply.answered else { return }
+                    reply.answered = true
+                    let data = Data(bytes: bytes, count: Int(count))
+                    guard let result = try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) else {
+                        reply.result = .failure(CraftNativeActionError(code: "INVALID_RESPONSE", message: "Invalid recorder response"))
+                        return
+                    }
+                    if failed {
+                        let error = result as? [String: Any] ?? [:]
+                        reply.result = .failure(CraftNativeActionError(code: error["code"] as? String ?? "CRAFT_ERROR", message: error["message"] as? String ?? "Recording failed"))
+                    } else { reply.result = .success(result) }
+                }
+            } }
+        }
+        // The C scope has ended before application code can reenter a bridge.
+        if served, let result = reply.result { completion(result) }
+        else {
+            completion(.failure(CraftNativeActionError(code: "RECORDING_OWNERSHIP_UNSUPPORTED", message: "The linked recorder did not serve its synchronous request")))
+        }
+        return true
+    }
+
 
     private static let image: UnsafeMutableRawPointer? = dlopen(nil, RTLD_NOW)
 
@@ -8917,6 +9103,12 @@ final class CraftZigRuntime: NSObject {
     /// because "is Zig linked" is the first question to ask when an action
     /// behaves like the Swift one after a migration was supposed to move it.
     @objc static var isLinked: Bool { handleActionFn != nil }
+    static var supportsRecordingOwnership: Bool {
+        if !isLinked { return true }
+        guard performRecordingFn != nil,
+              let symbol = dlsym(image, "craft_ios_recording_ownership_version") else { return false }
+        return unsafeBitCast(symbol, to: RecordingOwnershipVersionFn.self)() == 1
+    }
 
     /// Give Zig the webview its replies are evaluated against.
     ///
@@ -9037,6 +9229,9 @@ enum CraftWebServices {
                 completion(.failure(CraftNativeActionError(code: "CAPABILITY_DISABLED", message: "\(action) needs the app's web view, which this app does not have")))
                 return
             }
+            if action.hasSuffix("LocationRecording") || action == "getLocationRecordingState" {
+                if CraftZigRuntime.performRecording(action: action, body: body, completion: completion) { return }
+            }
             let id = "native:\(UUID().uuidString)"
             waiting[id] = completion
             coordinator.dispatch(action: action, body: body, callbackId: id)
@@ -9079,6 +9274,17 @@ enum CraftWebServices {
 /// how this codebase accumulated five envelopes.
 @objc(CraftSwiftShim)
 final class CraftSwiftShim: NSObject {
+    /// Called on main by Zig after serializing its native event once. The
+    /// existing page delivery remains in Zig; these are the native listeners.
+    @objc(forwardNativeEvent:payload:)
+    static func forwardNativeEvent(_ event: String, payload: String) {
+        guard CraftWebServices.forwardedEvents.contains(event),
+              let bytes = payload.data(using: .utf8),
+              let detail = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any] else { return }
+        CraftWebServices.forward(event, data: detail)
+        CraftEventManager.shared.sendToAppScript(event, data: detail)
+    }
+
     /// The coordinator serving hand-offs. Set by `makeCoordinator`, or in an
     /// app with no web view by `CraftHybrid.configure`, which holds it.
     static weak var coordinator: CraftWebView.Coordinator?

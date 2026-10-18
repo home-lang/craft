@@ -1945,7 +1945,7 @@ describe('Craft iOS builder', () => {
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
     expect(existsSync(join(output, 'Sources', 'CraftHeartRate.swift'))).toBe(true)
     // The app's own service: a native-only app has it too.
-    expect(actions).toContain('if config.enableHeartRate { values.append("heartRate") }')
+    expect(actions).toContain('if config.enableHeartRate { values.append(contentsOf: ["heartRate", "heartRateRecordingOwnership"]) }')
     expect(actions).toContain('case ("HeartRate", _):')
     expect(actions).toContain('CraftHeartRate.shared.perform(method: method, args: args)')
     expect(app).toContain('case "heartRate", "heartRateRequestAuthorization":')

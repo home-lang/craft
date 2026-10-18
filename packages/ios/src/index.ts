@@ -1363,6 +1363,8 @@ function writeShell(output: string, config: CraftConfig): void {
   cpSync(join(TEMPLATES_DIR, 'CraftMusic.swift'), join(output, 'Sources', 'CraftMusic.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftBluetooth.swift'), join(output, 'Sources', 'CraftBluetooth.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftHeartRate.swift'), join(output, 'Sources', 'CraftHeartRate.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftRecordingArchive.swift'), join(output, 'Sources', 'CraftRecordingArchive.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftPersistentStorage.swift'), join(output, 'Sources', 'CraftPersistentStorage.swift'))
   // Always copied: without enableScheduledWorkouts it compiles to a stub
   // that answers unsupported, and WorkoutKit is not linked.
   cpSync(join(TEMPLATES_DIR, 'CraftScheduledWorkouts.swift'), join(output, 'Sources', 'CraftScheduledWorkouts.swift'))

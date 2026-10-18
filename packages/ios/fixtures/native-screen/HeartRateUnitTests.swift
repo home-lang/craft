@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import NativeRender
 
@@ -54,7 +55,7 @@ final class HeartRateUnitTests: XCTestCase {
         let file = directory.appendingPathComponent("craft-heart-rate-recording.jsonl")
         try samples.write(to: file)
         let restored = CraftHeartRate(recordingDirectory: directory)
-        for method in ["pauseRecording", "resumeRecording", "stopRecording", "readRecording"] {
+        for method in ["pauseRecording", "resumeRecording"] {
             do {
                 _ = try await recordingCall(restored, method, ["expectedId": oldId])
                 XCTFail("\(method) accepted a stale owner")
@@ -75,7 +76,14 @@ final class HeartRateUnitTests: XCTestCase {
         XCTAssertEqual(stopped?["id"] as? String, newId)
         XCTAssertEqual(stopped?["active"] as? Bool, false)
         XCTAssertEqual((stopped?["samples"] as? [[String: Any]])?.count, 1)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertEqual(try Data(contentsOf: file), samples)
+        let completed = CraftHeartRate(recordingDirectory: directory)
+        let recovered = try await recordingCall(completed, "getRecordingState") as? [String: Any]
+        XCTAssertEqual(recovered?["id"] as? String, newId)
+        XCTAssertEqual(recovered?["active"] as? Bool, false)
+        let retry = try await recordingCall(completed, "stopRecording", ["expectedId": newId]) as? [String: Any]
+        XCTAssertEqual((retry?["samples"] as? [[String: Any]])?.count, 1)
+        _ = try await recordingCall(completed, "startRecording")
     }
 
     func testAUint8RateWithNothingElse() {
@@ -202,5 +210,161 @@ final class HeartRateUnitTests: XCTestCase {
         }
         guard case .success(let value) = on, let state = value as? [String: Any] else { return XCTFail("getRecordingState failed") }
         XCTAssertNotNil(state["active"] as? Bool)
+    }
+}
+
+/// The actual native Location capability, backed by the coordinator's disk
+/// store in a private disposable directory. No account/container is touched.
+@MainActor
+final class LocationRecordingOwnershipUnitTests: XCTestCase {
+    private func call(_ method: String, _ options: [String: Any] = [:]) async throws -> Any {
+        var config = CraftConfig()
+        config.enableGeolocation = true
+        return try await withCheckedThrowingContinuation { continuation in
+            CraftNativeActions.perform(requestToken: UUID().uuidString, version: craftNativeCapabilityProtocolVersion,
+                module: "Location", method: method, args: [options], config: config) { result in
+                continuation.resume(with: result)
+            }
+        }
+    }
+
+    func testStaleNativeLocationCallsPreserveTheRestoredOwnerAndTrack() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let stateURL = directory.appendingPathComponent("craft-location-recording-state.json")
+        let trackURL = directory.appendingPathComponent("craft-location-recording.jsonl")
+        let state: [String: Any] = ["id": "recording-B", "active": true, "paused": true, "startedAt": 1000]
+        try JSONSerialization.data(withJSONObject: state).write(to: stateURL)
+        let track = Data("{\"latitude\":1,\"longitude\":2,\"timestamp\":2000}\n".utf8)
+        try track.write(to: trackURL)
+        var config = CraftConfig()
+        config.enableGeolocation = true
+        let coordinator = CraftWebView.Coordinator(config: config, recordingDirectory: directory)
+        let previous = CraftSwiftShim.coordinator
+        CraftSwiftShim.coordinator = coordinator
+        defer { CraftSwiftShim.coordinator = previous }
+        for method in ["pauseRecording", "resumeRecording", "stopRecording", "readRecording"] {
+            do {
+                _ = try await call(method, ["expectedId": "recording-A"])
+                XCTFail("\(method) accepted a stale owner")
+            } catch let error as CraftNativeActionError { XCTAssertEqual(error.code, "RECORDING_CONFLICT", method) }
+            XCTAssertEqual(try Data(contentsOf: trackURL), track, method)
+        }
+        do { _ = try await call("startRecording"); XCTFail("start replaced a restored recording") }
+        catch let error as CraftNativeActionError { XCTAssertEqual(error.code, "RECORDING_ALREADY_ACTIVE") }
+        XCTAssertEqual(try Data(contentsOf: trackURL), track)
+        let read = try await call("readRecording", ["expectedId": "recording-B"]) as? [[String: Any]]
+        XCTAssertEqual(read?.count, 1)
+        let stopped = try await call("stopRecording", ["expectedId": "recording-B"]) as? [String: Any]
+        XCTAssertEqual(stopped?["id"] as? String, "recording-B")
+        XCTAssertEqual(stopped?["active"] as? Bool, false)
+    }
+}
+
+@MainActor
+final class CompletedRecordingRecoveryUnitTests: XCTestCase {
+    private func call(_ monitor: CraftHeartRate, _ method: String, _ options: [String: Any] = [:]) async throws -> Any {
+        try await withCheckedThrowingContinuation { continuation in
+            monitor.perform(method: method, args: [options]) { continuation.resume(with: $0) }
+        }
+    }
+
+    func testCompletedOwnerSurvivesAnotherStartAndRelaunchUntilAcknowledged() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let first = CraftHeartRate(recordingDirectory: directory)
+        let started = try await call(first, "startRecording") as? [String: Any]
+        let a = try XCTUnwrap(started?["id"] as? String)
+        let file = directory.appendingPathComponent("craft-heart-rate-recording.jsonl")
+        try Data("{\"timestamp\":1000,\"bpm\":140}\n".utf8).write(to: file)
+        _ = try await call(first, "stopRecording", ["expectedId": a])
+        // The app dies before it durably checkpoints A's stop response.
+        let second = CraftHeartRate(recordingDirectory: directory)
+        let next = try await call(second, "startRecording") as? [String: Any]
+        let b = try XCTUnwrap(next?["id"] as? String)
+        XCTAssertNotEqual(a, b)
+        let dataB = Data("{\"timestamp\":2000,\"bpm\":170}\n".utf8)
+        try dataB.write(to: file)
+        let restored = CraftHeartRate(recordingDirectory: directory)
+        let stateA = try await call(restored, "getRecordingState", ["expectedId": a]) as? [String: Any]
+        XCTAssertEqual(stateA?["id"] as? String, a)
+        XCTAssertEqual(stateA?["active"] as? Bool, false)
+        let readA = try await call(restored, "readRecording", ["expectedId": a]) as? [[String: Any]]
+        XCTAssertEqual(readA?.first?["bpm"] as? Int, 140)
+        let stoppedA = try await call(restored, "stopRecording", ["expectedId": a]) as? [String: Any]
+        XCTAssertEqual(stoppedA?["id"] as? String, a)
+        XCTAssertEqual(try Data(contentsOf: file), dataB)
+        for method in ["pauseRecording", "resumeRecording"] {
+            do { _ = try await call(restored, method, ["expectedId": a]); XCTFail("stale owner changed B") }
+            catch let error as CraftHeartRateError { XCTAssertEqual(error.code, "RECORDING_CONFLICT") }
+        }
+        let firstAcknowledgement = try await call(restored, "acknowledgeRecording", ["expectedId": a]) as? Bool
+        let repeatedAcknowledgement = try await call(restored, "acknowledgeRecording", ["expectedId": a]) as? Bool
+        XCTAssertEqual(firstAcknowledgement, true)
+        XCTAssertEqual(repeatedAcknowledgement, true)
+        do { _ = try await call(restored, "readRecording", ["expectedId": a]); XCTFail("acknowledged data reappeared") }
+        catch let error as CraftHeartRateError { XCTAssertEqual(error.code, "RECORDING_NOT_FOUND") }
+        let stateB = try await call(restored, "getRecordingState", ["expectedId": b]) as? [String: Any]
+        XCTAssertEqual(stateB?["active"] as? Bool, true)
+        XCTAssertEqual(try Data(contentsOf: file), dataB)
+    }
+
+    func testArchiveFailureRefusesReplacementAndPreservesTheOldSamples() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let id = UUID().uuidString
+        let state: [String: Any] = ["id": id, "active": false, "paused": false, "startedAt": 1000]
+        try JSONSerialization.data(withJSONObject: state).write(to: directory.appendingPathComponent("craft-heart-rate-recording-state.json"))
+        let samples = Data("{\"timestamp\":1000,\"bpm\":140}\n".utf8)
+        let file = directory.appendingPathComponent("craft-heart-rate-recording.jsonl")
+        try samples.write(to: file)
+        let hash = SHA256.hash(data: Data(id.utf8)).map { String(format: "%02x", $0) }.joined()
+        // A real failed archive-file read/write, rather than a successful empty backup.
+        try FileManager.default.createDirectory(at: directory.appendingPathComponent("craft-heart-rate-completed-\(hash).json"), withIntermediateDirectories: true)
+        let monitor = CraftHeartRate(recordingDirectory: directory)
+        do { _ = try await call(monitor, "startRecording"); XCTFail("replacement ignored archive failure") }
+        catch let error as CraftHeartRateError { XCTAssertEqual(error.code, "RECORDING_STORAGE_ERROR") }
+        XCTAssertEqual(try Data(contentsOf: file), samples)
+        let restored = try await call(monitor, "getRecordingState") as? [String: Any]
+        XCTAssertEqual(restored?["id"] as? String, id)
+        XCTAssertEqual(restored?["active"] as? Bool, false)
+    }
+}
+
+@MainActor
+final class PersistentRecordingCheckpointUnitTests: XCTestCase {
+    func testFailedDurableCheckpointLeavesPreviousValueAndLegacyCacheIntact() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let prefix = "craft-checkpoint-test-" + UUID().uuidString()
+        defer { try? FileManager.default.removeItem(at: directory); UserDefaults.standard.removeObject(forKey: prefix + "draft") }
+        let old = Data("{\"owner\":\"A\"}".utf8)
+        let next = Data("{\"owner\":\"A-complete\"}".utf8)
+        try CraftPersistentStorage.set("draft", data: old, prefix: prefix, storageDirectory: directory)
+        XCTAssertThrowsError(try CraftPersistentStorage.set("draft", data: next, prefix: prefix, storageDirectory: directory, writer: { _, _ in
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC))
+        }))
+        XCTAssertEqual(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory), old)
+        XCTAssertEqual(UserDefaults.standard.data(forKey: prefix + "draft"), old)
+        // A successful return has already persisted the authoritative bytes.
+        try CraftPersistentStorage.set("draft", data: next, prefix: prefix, storageDirectory: directory)
+        UserDefaults.standard.removeObject(forKey: prefix + "draft")
+        XCTAssertEqual(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory), next)
+    }
+
+    func testMigrationIsDurableAndRemovalTombstonePreventsLegacyResurrection() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let prefix = "craft-checkpoint-test-" + UUID().uuidString()
+        defer { try? FileManager.default.removeItem(at: directory); UserDefaults.standard.removeObject(forKey: prefix + "draft") }
+        let old = Data("{\"owner\":\"A\"}".utf8)
+        UserDefaults.standard.set(old, forKey: prefix + "draft")
+        XCTAssertEqual(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory), old)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil).count, 1)
+        UserDefaults.standard.removeObject(forKey: prefix + "draft")
+        XCTAssertEqual(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory), old)
+        try CraftPersistentStorage.set("draft", data: nil, prefix: prefix, storageDirectory: directory)
+        UserDefaults.standard.set(old, forKey: prefix + "draft")
+        XCTAssertNil(try CraftPersistentStorage.get("draft", prefix: prefix, storageDirectory: directory))
     }
 }
