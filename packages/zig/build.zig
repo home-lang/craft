@@ -603,6 +603,14 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    // Host tests reach the shared UUID provider through Android dispatch.
+    // Its Darwin implementation uses NSUUID and the Objective-C runtime.
+    if (target.result.os.tag.isDarwin()) {
+        android_bridge_tests.root_module.link_libc = true;
+        android_bridge_tests.root_module.linkSystemLibrary("objc", .{});
+        android_bridge_tests.root_module.linkFramework("Foundation", .{});
+        applySdkPaths(b, android_bridge_tests.root_module, macos_sdk);
+    }
     const run_android_bridge_tests = b.addRunArtifact(android_bridge_tests);
 
     // The reply channel's escaping, across every Kotlin template.
