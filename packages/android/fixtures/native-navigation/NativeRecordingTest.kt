@@ -28,8 +28,8 @@ class NativeRecordingTest {
             override fun getFilesDir() = root
             override fun getSharedPreferences(key: String, mode: Int) = base.getSharedPreferences("$name-$key", mode)
         }
-        try { Store.listener = null; test(context, root) }
-        finally { Store.listener = null; root.deleteRecursively(); base.deleteSharedPreferences("$name-craft_location_recording") }
+        try { Store.listener = null; Store.nativeListener = null; test(context, root) }
+        finally { Store.listener = null; Store.nativeListener = null; root.deleteRecursively(); base.deleteSharedPreferences("$name-craft_location_recording") }
     }
     private fun owner(id: String) = JSONObject().put("expectedId", id)
     private fun archive(root: File, id: String, kind: String = "completed"): File {
@@ -39,6 +39,29 @@ class NativeRecordingTest {
     private fun rejects(code: String, operation: () -> Unit) {
         try { operation(); fail("Expected $code") }
         catch (error: CraftRecordingException) { assertEquals(code, error.code) }
+    }
+
+    @Test fun aPageStartedRecordingAlsoReachesTheNativeScreenHub() = fixture { context, _ ->
+        val token = "recording-hub-${UUID.randomUUID()}"
+        val received = CountDownLatch(1)
+        val nativeCount = AtomicInteger()
+        var pageCount = 0
+        val services = CraftNativeServices(context, JSONObject().put("enableGeolocation", true)) { null }
+        CraftNativeHub.register(token) { type, payload ->
+            if (type == "CRAFT_EVENT" && payload.optString("event") == "craftLocationUpdate") {
+                assertEquals("page-A", payload.getJSONObject("detail").getString("recordingId"))
+                nativeCount.incrementAndGet()
+                received.countDown()
+            }
+        }
+        try {
+            Store.start(context, "page-A", 1)
+            Store.listen(context, "page-A") { _, id -> assertEquals("page-A", id); pageCount += 1 }
+            Store.append(context, Location("fixture").apply { latitude = 1.0; longitude = 2.0; time = 3 }, "page-A")
+            assertTrue(received.await(5, TimeUnit.SECONDS))
+            assertEquals(1, pageCount)
+            assertEquals(1, nativeCount.get())
+        } finally { CraftNativeHub.unregister(token); services.close() }
     }
 
     @Test fun completedOwnerCanRecoverAndAcknowledgeWithoutChangingNewOwner() = fixture { context, root ->
@@ -86,6 +109,8 @@ class NativeRecordingTest {
     @Test fun recordingEventsKeepTheOwnerCapturedBeforeAccountHandoff() = fixture { context, _ ->
         Store.start(context, "A", 1)
         val owners = mutableListOf<String>()
+        val nativeOwners = mutableListOf<String>()
+        Store.nativeListener = { _, id -> nativeOwners += id }
         Store.listener = { _, id -> owners += id }
         val point = Location("fixture").apply { latitude = 1.0; longitude = 2.0; time = 3 }
         Store.append(context, point, "A")
@@ -96,6 +121,7 @@ class NativeRecordingTest {
         Store.append(context, point, "A")
         Store.append(context, point, "B")
         assertEquals(listOf("A", "B"), owners)
+        assertEquals(listOf("A", "B"), nativeOwners)
         assertEquals("B", Store.read(context, owner("B")).getJSONObject(0).getString("recordingId"))
     }
 

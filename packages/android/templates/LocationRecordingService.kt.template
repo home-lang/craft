@@ -206,6 +206,7 @@ object CraftLocationRecordingStore {
     @Synchronized fun isPaused(context: Context) = prefs(context).getBoolean("paused", false)
     @Synchronized fun recordingId(context: Context): String? = prefs(context).getString("id", null)
     @Volatile var listener: ((android.location.Location, String) -> Unit)? = null
+    @Volatile var nativeListener: ((android.location.Location, String) -> Unit)? = null
 
     @Synchronized
     fun listen(context: Context, id: String, callback: (android.location.Location, String) -> Unit) {
@@ -224,10 +225,11 @@ object CraftLocationRecordingStore {
                 put("timestamp", location.time); put("recordingId", recordingId(context))
             }
             file(context).appendText("$json\n")
-            Pair(listener, id)
+            Triple(listener, nativeListener, id)
         }
         // The event keeps the owner captured before releasing the store lock.
-        notify.first?.invoke(location, notify.second)
+        notify.first?.invoke(location, notify.third)
+        notify.second?.invoke(location, notify.third)
     }
 
     @Synchronized

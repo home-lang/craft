@@ -2767,7 +2767,6 @@ class CraftBridge(
                     "accuracy" to location.accuracy, "altitude" to location.altitude, "speed" to location.speed,
                     "heading" to location.bearing, "timestamp" to location.time, "recordingId" to id)
                 sendEvent("craftLocationUpdate", detail)
-                CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", JSONObject(detail)))
             }
         }
         return result
