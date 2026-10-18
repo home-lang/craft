@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { createAndroidEmulator } from '../../../android/src/emulator'
 import type { AndroidEmulatorOptions } from '../../../android/src/emulator'
 
-function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false): { root: string, options: AndroidEmulatorOptions } {
+function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false, delayedHome = false): { root: string, options: AndroidEmulatorOptions } {
   const root = mkdtempSync(join(tmpdir(), 'craft emulator fixture '))
   const sdk = join(root, 'managed sdk')
   for (const directory of ['bin', 'platform-tools', 'emulator']) mkdirSync(join(sdk, directory), { recursive: true })
@@ -30,6 +30,13 @@ else
       printf '1\\n' ;;
     *'pm path android') printf 'package:/system/framework/framework-res.apk\\n' ;;
     *'pidof com.android.systemui') printf '1234\\n' ;;
+    *'cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME')
+      if [ '${delayedHome ? 'yes' : 'no'}' = yes ] && [ ! -f "$ANDROID_HOME/home-ready" ]; then
+        touch "$ANDROID_HOME/home-ready"
+        printf 'com.android.sdksetup/.DefaultActivity\\n'
+      else
+        printf 'com.android.launcher3/.Launcher\\n'
+      fi ;;
     *'logcat -b events -d -t 1')
       if [ '${delayedEvents ? 'yes' : 'no'}' = yes ] && [ ! -f "$ANDROID_HOME/events-ready" ]; then
         touch "$ANDROID_HOME/events-ready"
@@ -109,6 +116,21 @@ test('boot and System UI do not admit a device before its event log is readable'
     expect(events.every(entry => entry.args.includes('-d') && entry.args.includes('events'))).toBe(true)
     const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
     expect(Date.parse(events[1].finishedAt)).toBeLessThanOrEqual(Date.parse(identity.bootedAt))
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
+test('boot completion waits for the automatic SDK setup activity to release HOME', async () => {
+  const { root, options } = fixture(true, false, false, true)
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator(options)
+    const trace = readFileSync(join(options.artifactsDirectory, 'device-commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    const home = trace.filter(entry => entry.args.includes('resolve-activity'))
+    expect(home.map(entry => entry.stdout.trim())).toEqual(['com.android.sdksetup/.DefaultActivity', 'com.android.launcher3/.Launcher'])
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(Date.parse(home[1].finishedAt)).toBeLessThanOrEqual(Date.parse(identity.bootedAt))
+    expect(identity.bootTimeoutMs).toBe(600_000)
   }
   finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
 }, 10_000)
