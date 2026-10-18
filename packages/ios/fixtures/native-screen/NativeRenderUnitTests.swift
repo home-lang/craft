@@ -6,6 +6,34 @@ import XCTest
 
 @MainActor
 final class NativeRenderUnitTests: XCTestCase {
+    func testPanProgressDoesNotInvalidateTheWholeChrome() {
+        let chrome = CraftChrome.shared
+        let tabs = chrome.tabs
+        let selected = chrome.selected
+        defer {
+            chrome.cancelTabSwipe()
+            chrome.tabs = tabs
+            chrome.selected = selected
+        }
+        chrome.tabs = [CraftChrome.Tab(id: "/today", title: "Today", symbol: "house", badge: nil), CraftChrome.Tab(id: "/health", title: "Health", symbol: "heart", badge: nil)]
+        chrome.selected = "/today"
+        chrome.beginTabSwipe(to: "/health", from: "/today")
+        var chromeChanges = 0
+        var indicatorChanges = 0
+        let chromeSubscription = chrome.objectWillChange.sink { chromeChanges += 1 }
+        let indicatorSubscription = chrome.tabSwipeProgress.objectWillChange.sink { indicatorChanges += 1 }
+        defer { chromeSubscription.cancel(); indicatorSubscription.cancel() }
+        for frame in 1...120 { chrome.updateTabSwipe(progress: CGFloat(frame) / 120) }
+        XCTAssertEqual(chromeChanges, 0, "tracking must leave tab content, material and splash alone")
+        XCTAssertEqual(indicatorChanges, 120)
+        XCTAssertEqual(chrome.tabSwipePosition, 1)
+        chrome.updateTabSwipe(progress: 1)
+        XCTAssertEqual(indicatorChanges, 120, "equal pan positions do not redraw")
+        chrome.cancelTabSwipe()
+        XCTAssertNil(chrome.tabSwipePosition)
+        XCTAssertEqual(chrome.selected, "/today")
+    }
+
     func testLiveTabReadingPublishesOnceAndEqualReadingsDoNotRedrawChrome() {
         let chrome = CraftChrome.shared
         let previous = chrome.tabs

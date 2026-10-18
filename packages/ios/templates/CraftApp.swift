@@ -613,6 +613,12 @@ struct CraftApp: App {
 // images and all, and a tab bar or a splash that waited for it would be late
 // on every launch.
 
+/// Finger tracking changes only the indicator. Publishing it on CraftChrome
+/// invalidated the glass surface, every tab and the splash for every pan event.
+final class CraftTabSwipeProgress: ObservableObject {
+    @Published var position: CGFloat?
+}
+
 final class CraftChrome: ObservableObject {
     static let shared = CraftChrome()
 
@@ -633,7 +639,11 @@ final class CraftChrome: ObservableObject {
     @Published var tabs: [Tab] = []
     @Published var tabAccessory: Tab?
     @Published var selected: String?
-    @Published private(set) var tabSwipePosition: CGFloat?
+    let tabSwipeProgress = CraftTabSwipeProgress()
+    private(set) var tabSwipePosition: CGFloat? {
+        get { tabSwipeProgress.position }
+        set { tabSwipeProgress.position = newValue }
+    }
     @Published var tabBarVisible = false
     @Published var splashVisible = true
     @Published var tint: UIColor?
@@ -1114,18 +1124,7 @@ struct CraftTabBarView: View {
             }
         }
         .background {
-            GeometryReader { geometry in
-                if let position = chrome.tabSwipePosition
-                    ?? chrome.tabs.firstIndex(where: { $0.id == chrome.selected }).map({ CGFloat($0) }) {
-                    let width = geometry.size.width / CGFloat(max(1, chrome.tabs.count))
-                    Capsule()
-                        .fill(Color.primary.opacity(0.09))
-                        .frame(width: width, height: geometry.size.height)
-                        .offset(x: position * width)
-                }
-            }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+            CraftTabSelectionIndicator(selected: chrome.tabs.firstIndex(where: { $0.id == chrome.selected }), count: chrome.tabs.count)
         }
     }
 
@@ -1151,6 +1150,26 @@ struct CraftTabBarView: View {
     private func symbol(_ name: String, selected: Bool) -> String {
         guard selected, !name.hasSuffix(".fill"), UIImage(systemName: "\(name).fill") != nil else { return name }
         return "\(name).fill"
+    }
+}
+
+private struct CraftTabSelectionIndicator: View {
+    @ObservedObject private var progress = CraftChrome.shared.tabSwipeProgress
+    let selected: Int?
+    let count: Int
+
+    var body: some View {
+        GeometryReader { geometry in
+            if let position = progress.position ?? selected.map({ CGFloat($0) }) {
+                let width = geometry.size.width / CGFloat(max(1, count))
+                Capsule()
+                    .fill(Color.primary.opacity(0.09))
+                    .frame(width: width, height: geometry.size.height)
+                    .offset(x: position * width)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
