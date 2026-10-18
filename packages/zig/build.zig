@@ -2930,6 +2930,7 @@ fn linkAndroidLibc(b: *std.Build, compile: *std.Build.Step.Compile, ndk: []const
         \\crt_dir={s}
         \\msvc_lib_dir=
         \\kernel32_lib_dir=
+        \\darwin_sdk_dir=
         \\gcc_dir={s}
         \\
     , .{
