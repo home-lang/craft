@@ -896,12 +896,9 @@ final class CraftChrome: ObservableObject {
         // stack. Cancellation belongs to the stack the finger left.
         tabSwipePrevious = previous
         tabSwipeTarget = id
-        // Only the indicator moves now. The highlight follows it across the
-        // midpoint (updateTabSwipe), as iOS's own tab bar lens does; turning
-        // it at once rebuilt every tab in the swipe's first frame, which is
-        // also when UIKit puts the incoming screen on screen.
         withAnimation(nil) {
             tabSwipePosition = tabs.firstIndex(where: { $0.id == previous }).map { CGFloat($0) }
+            selected = id
         }
     }
 
@@ -913,14 +910,11 @@ final class CraftChrome: ObservableObject {
               let to = tabs.firstIndex(where: { $0.id == target }) else { return }
         let position = CGFloat(from) + CGFloat(to - from) * min(1, max(0, progress))
         if tabSwipePosition != position { withAnimation(nil) { tabSwipePosition = position } }
-        let lit = progress >= 0.5 ? target : previous
-        if selected != lit { withAnimation(nil) { selected = lit } }
     }
 
     func settleTabSwipe(completed: Bool, duration: TimeInterval) {
         guard let id = completed ? tabSwipeTarget : tabSwipePrevious,
               let index = tabs.firstIndex(where: { $0.id == id }) else { return }
-        if selected != id { withAnimation(nil) { selected = id } }
         withAnimation(Self.motion(.easeOut(duration: duration))) { tabSwipePosition = CGFloat(index) }
     }
 
