@@ -4675,6 +4675,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func restoreShellChrome() {
         guard !isAppScript else { return }
+        #if DEBUG
+        NSLog("[craft chrome trace] restore route=%@ controller=%@ top=%d hidden=%d accessory=%d",
+              routeName ?? "none", String(describing: ObjectIdentifier(self)),
+              navigationController?.topViewController === self ? 1 : 0,
+              navigationController?.view.isHidden == true ? 1 : 0, tabAccessory != nil ? 1 : 0)
+        #endif
         CraftChrome.shared.setHiddenByScreen(tabBarHidden)
         CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self)
     }
@@ -5346,6 +5352,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard !isAppScript else { return }
         if options.keys.contains("tabAccessory") {
             tabAccessory = options["tabAccessory"] as? [String: Any]
+            #if DEBUG
+            NSLog("[craft chrome trace] options route=%@ controller=%@ accessory=%d top=%d window=%d",
+                  routeName ?? "none", String(describing: ObjectIdentifier(self)), tabAccessory != nil ? 1 : 0,
+                  navigationController?.topViewController === self ? 1 : 0, view.window != nil ? 1 : 0)
+            #endif
             if navigationController?.topViewController === self, view.window != nil {
                 CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self)
             }

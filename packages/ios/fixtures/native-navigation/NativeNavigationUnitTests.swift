@@ -419,6 +419,24 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertNil(CraftChrome.shared.tabAccessory)
     }
 
+    func testNativePushKeepsItsAccessoryAfterTabPreparation() async throws {
+        await displayWait("the Details tab is prepared") { [self] in stack("/details") != nil }
+        let home = try XCTUnwrap(stack("/"))
+        let root = try XCTUnwrap(home.topViewController as? CraftNativeScreenController)
+        func button(in view: UIView) -> UIButton? {
+            if view.accessibilityIdentifier == "navigation-open-details" { return view as? UIButton }
+            return view.subviews.lazy.compactMap { button(in: $0) }.first
+        }
+        let open = try XCTUnwrap(button(in: root.view))
+        open.sendActions(for: .touchUpInside)
+        await displayWait("the compiled button pushes Details") {
+            home.topViewController !== root && home.transitionCoordinator == nil
+        }
+        await renderFrames()
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
+        XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
+    }
+
     func testDisappearingHiddenNativeTabCannotClearTheVisibleAccessory() async throws {
         shell.open("/linked-details")
         let home = try XCTUnwrap(stack("/"))
