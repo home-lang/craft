@@ -10,6 +10,8 @@ const workspace = createTempDir('craft-hybrid-navigation-')
 const output = join(workspace, 'HybridNavigation')
 const bundle = join(workspace, 'native-screen.js')
 const resultBundle = join(workspace, 'HybridNavigation.xcresult')
+const summaryFile = join(workspace, 'HybridNavigation.summary.json')
+const testsFile = join(workspace, 'HybridNavigation.tests.json')
 const prepareOnly = process.argv.includes('--prepare-only')
 const testIterations = Number(process.env.CRAFT_HYBRID_NAVIGATION_ITERATIONS ?? 1)
 if (!Number.isSafeInteger(testIterations) || testIterations < 1)
@@ -52,7 +54,16 @@ async function runXcodeTests(args: string[], cwd: string, resultBundle: string):
   // Keep Bun's HTTP server responsive while the simulator requests pages.
   const result = Bun.spawn(args, { cwd, stdout: 'inherit', stderr: 'inherit' })
   const code = await result.exited
-  if (code === 0) return
+  if (code === 0) {
+    const summary = Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', resultBundle], { stdout: 'pipe', stderr: 'pipe' })
+    if (summary.exitCode !== 0) throw new Error(`Could not read hybrid XCTest results: ${summary.stderr.toString()}`)
+    writeFileSync(summaryFile, summary.stdout)
+    const counts = JSON.parse(summary.stdout.toString())
+    if (counts.result !== 'Passed' || !Number.isInteger(counts.totalTestCount) || counts.totalTestCount < 1 || counts.passedTests !== counts.totalTestCount || counts.failedTests !== 0 || counts.skippedTests !== 0)
+      throw new Error(`Expected passed hybrid navigation tests with no empty selection or skips: ${JSON.stringify(counts)}`)
+    console.log(`Hybrid XCTest verified ${counts.passedTests} passed tests, zero failures and skips`)
+    return
+  }
 
   if (existsSync(resultBundle)) {
     console.log('xcodebuild failed; extracting test failure details from the result bundle')
@@ -170,17 +181,28 @@ try {
 }
 finally {
   console.log(`Hybrid HTTP fixture served ${servedRequests} requests`)
-  if (process.env.CI && existsSync(resultBundle)) {
-    const evidence = resolve('artifacts/mobile-e2e/ios-simulator/HybridNavigation.xcresult')
-    cpSync(resultBundle, evidence, { recursive: true })
-    console.log(`Saved hybrid Xcode result: ${evidence}`)
+  try {
+    if (process.env.CI && existsSync(resultBundle)) {
+      const evidence = resolve('artifacts/mobile-e2e/ios-hybrid')
+      mkdirSync(evidence, { recursive: true })
+      cpSync(resultBundle, join(evidence, 'HybridNavigation.xcresult'), { recursive: true, force: false, errorOnExist: true })
+      if (existsSync(summaryFile)) copyFileSync(summaryFile, join(evidence, 'HybridNavigation.summary.json'))
+      const tests = Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', 'tests', '--path', resultBundle], { stdout: 'pipe', stderr: 'pipe' })
+      if (tests.exitCode === 0) {
+        writeFileSync(testsFile, tests.stdout)
+        copyFileSync(testsFile, join(evidence, 'HybridNavigation.tests.json'))
+      }
+      console.log(`Saved hybrid Xcode result: ${evidence}`)
+    }
   }
-  server?.stop()
-  if (process.env.CRAFT_KEEP_HYBRID_NAVIGATION_PROJECT === '1') {
-    keepTempDir(workspace)
-    console.log(`Kept generated test project: ${workspace}`)
-  }
-  else {
-    removeTempDir(workspace)
+  finally {
+    server?.stop()
+    if (process.env.CRAFT_KEEP_HYBRID_NAVIGATION_PROJECT === '1') {
+      keepTempDir(workspace)
+      console.log(`Kept generated test project: ${workspace}`)
+    }
+    else {
+      removeTempDir(workspace)
+    }
   }
 }

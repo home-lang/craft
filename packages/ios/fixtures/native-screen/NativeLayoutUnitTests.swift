@@ -204,12 +204,21 @@ final class NativeLayoutUnitTests: XCTestCase {
     }
 
     private func settle(_ controller: CraftNativeScreenController) {
-        for _ in 0..<4 {
-            let settled = expectation(description: "layout settled")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { settled.fulfill() }
-            wait(for: [settled], timeout: 1)
-            controller.view.setNeedsLayout()
-            controller.view.layoutIfNeeded()
+        // These fixtures measure committed geometry, not main-queue timer
+        // latency. Lay out the containing window/navigation bar before the
+        // screen so safe-area and large-title changes reach its scroll views.
+        // Keep the existing four invalidation passes, without a timed callback
+        // that can fail while XCTest is waiting on the same main actor.
+        UIView.performWithoutAnimation {
+            for _ in 0..<4 {
+                controller.view.window?.setNeedsLayout()
+                controller.view.window?.layoutIfNeeded()
+                controller.navigationController?.view.setNeedsLayout()
+                controller.navigationController?.view.layoutIfNeeded()
+                controller.view.setNeedsLayout()
+                controller.view.layoutIfNeeded()
+                CATransaction.flush()
+            }
         }
     }
 
