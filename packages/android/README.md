@@ -103,10 +103,16 @@ finally {
 
 `hardware` requires a successful emulator acceleration probe. `software` uses
 the Android emulator's explicit `-accel off` mode on x86_64 hosts; it provides
-functional test evidence, with no claim about hardware performance. Both modes
-use the same ten-minute boot budget and require a readable event-log stream,
-SettingsProvider, the package
-manager and System UI to be ready. Logs record the selected image, acceleration
+functional test evidence, with no claim about hardware performance. The public
+helper defaults to a ten-minute boot budget, and hardware mode cannot exceed
+it. Software callers may explicitly set `bootTimeoutMs` up to twenty minutes.
+The stock Play software CI verifier uses that cold-provisioning profile: the
+API 35 image took 943,520 ms in the retained diagnostic run
+[39113277828](https://github.com/craft-native/craft/actions/runs/39113277828).
+This is OS provisioning before app installation; app and performance budgets
+are unchanged. Both modes require a readable event-log stream, SettingsProvider,
+the package manager and System UI to be ready. Logs record the budget, actual
+boot duration, host CPU interval, selected image, acceleration
 probe, process identity and boot result. Disposal reaps only the owned process
 and deletes only its disposable AVD; the managed SDK and other devices remain
 available.

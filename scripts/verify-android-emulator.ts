@@ -9,6 +9,10 @@ const args = process.argv.slice(2)
 if (args.length > 1 || (args.length === 1 && args[0] !== '--cold-provisioning-diagnostic'))
   throw new Error('Only --cold-provisioning-diagnostic is supported')
 const diagnostic = args.length === 1
+// Stock Play's first boot performs OS/package provisioning under TCG. The
+// measured API 35 image took 943520 ms; this explicit software-only profile
+// leaves the public helper default and hardware acceptance at 600000 ms.
+const bootTimeoutMs = 1_200_000
 const expectedFingerprint = diagnostic ? process.env.CRAFT_ANDROID_DIAGNOSTIC_FINGERPRINT : undefined
 if (diagnostic && !expectedFingerprint)
   throw new Error('The cold-provisioning diagnostic requires the failed stock image fingerprint')
@@ -30,7 +34,7 @@ let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
 const proof: Record<string, unknown> = {
   purpose: diagnostic ? 'software-cold-provisioning-diagnostic-not-release-acceptance' : 'software-emulator-acceptance',
   platform: process.platform, architecture: process.arch, acceleration: 'software', sdkmanager, avdmanager, javaHome,
-  bootTimeoutMs: diagnostic ? 1_200_000 : 600_000,
+  provisioningProfile: 'stock-play-software-cold', bootTimeoutMs,
   expectedFingerprint, runnerImage: process.env.ImageOS, runnerImageVersion: process.env.ImageVersion,
 }
 
@@ -39,7 +43,7 @@ try {
     sdkRoot: join(owned, 'sdk'), sdkmanager, avdmanager,
     image: 'system-images;android-35;google_apis_playstore;x86_64',
     acceleration: 'software', artifactsDirectory: artifacts,
-    bootTimeoutMs: diagnostic ? 1_200_000 : undefined,
+    bootTimeoutMs,
     temporaryDirectory: owned, acceptLicenses: true,
     env: { JAVA_HOME: javaHome },
   })
