@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from 'bun:test'
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { dedupeChangelogReferences, previewChangelog } from './changelog-preview'
 import { generateReleaseChangelog } from './generate-release-changelog'
@@ -9,6 +9,7 @@ import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/tem
 afterAll(removeAllTempDirs)
 
 const cli = join(import.meta.dir, 'changelog-preview.ts')
+const shellQuote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 function fixture(run: (directory: string, git: (...args: string[]) => string) => void) {
   const directory = createTempDir('craft-changelog-fixture-')
   const git = (...args: string[]) => {
@@ -109,29 +110,72 @@ test('failed release generation leaves the changelog unchanged', () => {
   })
 })
 
+test('release notes can include changes since the last published release after an abandoned tag', () => {
+  fixture((directory, git) => {
+    git('commit', '--allow-empty', '-qm', 'feat: native trail maps')
+    git('tag', 'v1.0.1')
+    writeFileSync(join(directory, 'package.json'), '{"name":"fixture","version":"1.0.2"}')
+    const content = generateReleaseChangelog(directory, 'v1.0.0')
+    expect(content).toContain('native trail maps')
+    expect(content).toContain('/compare/v1.0.0...v1.0.2)')
+    expect(git('tag', '--list', 'v1.0.1')).toBe('v1.0.1\n')
+  })
+})
+
 test('patch release uses the guarded changelog generator before committing', () => {
   const project = JSON.parse(readFileSync(join(import.meta.dir, '..', 'package.json'), 'utf8'))
   const command = project.scripts['release:patch'] as string
   expect(project.scripts['changelog:generate']).toBe('bun scripts/generate-release-changelog.ts')
   expect(command).toContain('--no-changelog')
   expect(command).toContain('bun scripts/generate-release-changelog.ts')
-  expect(command).toContain('git add packages/zig/build.zig.zon packages/zig/pantry.json CHANGELOG.md')
+  expect(command).toContain('--files package.json,packages/zig/build.zig.zon,packages/zig/pantry.json')
 })
 
-test('bumpx commits and tags the guarded changelog without its duplicate generator', () => {
+test('an explicit version commits and tags the guarded changelog without its duplicate generator', () => {
   fixture((directory, git) => {
+    mkdirSync(join(directory, 'packages/zig'), { recursive: true })
+    writeFileSync(join(directory, 'packages/zig/build.zig.zon'), '.{ .version = "1.0.1", }')
+    writeFileSync(join(directory, 'packages/zig/pantry.json'), '{"version":"1.0.1"}')
+    git('add', 'packages')
+    git('commit', '-qm', 'chore: register native release metadata')
     git('commit', '--allow-empty', '-qm', 'Merge pull request #326 from example/feature')
     const bumpx = Bun.resolveSync('@stacksjs/bumpx/bin/cli.js', import.meta.dir)
     const generator = join(import.meta.dir, 'generate-release-changelog.ts')
     const result = Bun.spawnSync([
-      process.execPath, bumpx, 'patch', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
-      '--execute', `bun ${JSON.stringify(generator)} && git add CHANGELOG.md`,
+      process.execPath, bumpx, '--recursive', '--files', 'package.json,packages/zig/build.zig.zon,packages/zig/pantry.json', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
+      '--execute', `${shellQuote(process.execPath)} ${shellQuote(generator)} && git add CHANGELOG.md`,
+      '1.0.2',
     ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
     expect(result.exitCode, result.stderr.toString()).toBe(0)
     expect(git('tag', '--list', 'v1.0.2')).toBe('v1.0.2\n')
     const notes = git('show', 'HEAD:CHANGELOG.md')
     expect(notes).toContain('[Compare changes](https://github.com/example/fixture/compare/v1.0.0...v1.0.2)')
     expect(notes.match(/\[#326\]\(https:\/\/github\.com\/example\/fixture\/issues\/326\)/g)).toHaveLength(1)
+    expect(JSON.parse(git('show', 'HEAD:packages/zig/pantry.json')).version).toBe('1.0.2')
+    expect(git('show', 'HEAD:packages/zig/build.zig.zon')).toContain('"1.0.2"')
+    expect(git('status', '--porcelain')).toBe('')
+  })
+})
+
+test('the published release tool restores workspace and native versions when a required command fails', () => {
+  fixture((directory, git) => {
+    mkdirSync(join(directory, 'packages/zig'), { recursive: true })
+    writeFileSync(join(directory, 'packages/zig/build.zig.zon'), '.{ .version = "1.0.1", }')
+    writeFileSync(join(directory, 'packages/zig/pantry.json'), '{"version":"1.0.1"}')
+    git('add', 'packages')
+    git('commit', '-qm', 'chore: register native release metadata')
+    const head = git('rev-parse', 'HEAD')
+    const paths = ['package.json', 'packages/zig/build.zig.zon', 'packages/zig/pantry.json']
+    const before = paths.map(path => readFileSync(join(directory, path), 'utf8'))
+    const bumpx = Bun.resolveSync('@stacksjs/bumpx/bin/cli.js', import.meta.dir)
+    const result = Bun.spawnSync([
+      process.execPath, bumpx, 'patch', '--recursive', '--files', paths.join(','), '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
+      '--execute', 'bun -e "process.exit(23)"',
+    ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
+    expect(result.exitCode).not.toBe(0)
+    expect(paths.map(path => readFileSync(join(directory, path), 'utf8'))).toEqual(before)
+    expect(git('rev-parse', 'HEAD')).toBe(head)
+    expect(git('tag', '--list', 'v1.0.2')).toBe('')
     expect(git('status', '--porcelain')).toBe('')
   })
 })
