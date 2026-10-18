@@ -139,7 +139,7 @@ private enum CraftNativeTreeLayoutBridge {
         var alignItems: UInt32 = 3
         var alignSelf: UInt32 = 0
         var flexWrap: UInt32 = 0
-        var alignContent: UInt32 = 6
+        var alignContent: UInt32 = 5
         var marginTop: Float = 0
         var marginRight: Float = 0
         var marginBottom: Float = 0
@@ -180,7 +180,7 @@ private enum CraftNativeTreeLayoutBridge {
         var alignItems: UInt32 = 3
         var alignSelf: UInt32 = 0
         var flexWrap: UInt32 = 0
-        var alignContent: UInt32 = 6
+        var alignContent: UInt32 = 5
         var marginTop: Float = 0
         var marginRight: Float = 0
         var marginBottom: Float = 0
@@ -222,7 +222,7 @@ private enum CraftNativeTreeLayoutBridge {
         var alignItems: UInt32 = 3
         var alignSelf: UInt32 = 0
         var flexWrap: UInt32 = 0
-        var alignContent: UInt32 = 6
+        var alignContent: UInt32 = 5
         var marginTop: Float = 0
         var marginRight: Float = 0
         var marginBottom: Float = 0

@@ -1457,7 +1457,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             putEnum(base, 16, if (root) sharedAlignItemsCode(alignItems) else 3)
             putEnum(base, 17, if (root) 0 else sharedAlignSelfCode(style.alignSelf))
             putEnum(base, 18, if (root && wrap) 1 else 0)
-            putEnum(base, 19, if (root) alignContentCode() else 6)
+            putEnum(base, 19, if (root) alignContentCode() else 5)
             put(base, 20, margins[2].toFloat())
             put(base, 21, margins[1].toFloat())
             put(base, 22, margins[3].toFloat())

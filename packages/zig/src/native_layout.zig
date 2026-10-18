@@ -32,15 +32,18 @@ pub const AlignItems = enum {
     baseline,
 };
 
-/// Cross-axis distribution between wrapped flex lines.
+/// Cross-axis distribution between wrapped flex lines. The order is the
+/// hosts' wire code (5 stretch, 6 space-evenly), which the layout-tree ABI
+/// decodes by position, as craft_native_flex_line_distribution and the grid
+/// read it by number.
 pub const AlignContent = enum {
     flex_start,
     center,
     flex_end,
     space_between,
     space_around,
-    space_evenly,
     stretch,
+    space_evenly,
 };
 
 pub const Size = struct {
@@ -1610,7 +1613,7 @@ fn emptyLayoutStyleInput() LayoutStyleInput {
         .align_items = 3,
         .align_self = 0,
         .flex_wrap = 0,
-        .align_content = 6,
+        .align_content = 5,
         .margin_top = 0,
         .margin_right = 0,
         .margin_bottom = 0,
@@ -1648,7 +1651,7 @@ fn emptyLayoutStyleInputV2() LayoutStyleInputV2 {
         .align_items = 3,
         .align_self = 0,
         .flex_wrap = 0,
-        .align_content = 6,
+        .align_content = 5,
         .margin_top = 0,
         .margin_right = 0,
         .margin_bottom = 0,
@@ -1687,7 +1690,7 @@ fn emptyLayoutStyleInputV4() LayoutStyleInputV4 {
         .align_items = 3,
         .align_self = 0,
         .flex_wrap = 0,
-        .align_content = 6,
+        .align_content = 5,
         .margin_top = 0,
         .margin_right = 0,
         .margin_bottom = 0,
@@ -1913,6 +1916,39 @@ test "v3 tree layout mirrors wrapped cross-axis lines" {
     try std.testing.expectEqual(@as(c_int, 0), craft_native_layout_tree_v3(60, 50, &nodes, nodes.len, &frames, frames.len));
     try std.testing.expectEqual(@as(f32, 40), frames[1].y);
     try std.testing.expectEqual(@as(f32, 30), frames[2].y);
+}
+
+test "v3 tree layout reads the hosts' align-content codes" {
+    // Two 40-wide items wrap into two 10-tall lines in a 60x70 box: 50 free.
+    var first_style = emptyLayoutStyleInputV2();
+    first_style.intrinsic_width = 40;
+    first_style.intrinsic_height = 10;
+    var second_style = first_style;
+    second_style.intrinsic_width = 40;
+    var root_style = emptyLayoutStyleInputV2();
+    root_style.width = 60;
+    root_style.height = 70;
+    root_style.flex_wrap = 1;
+    root_style.align_items = 0;
+
+    // 6, space-evenly: 50 / 3 before, between and after the lines.
+    root_style.align_content = 6;
+    var nodes = [_]LayoutNodeInputV2{
+        .{ .style = root_style, .first_child = 1, .child_count = 2 },
+        .{ .style = first_style, .first_child = 0, .child_count = 0 },
+        .{ .style = second_style, .first_child = 0, .child_count = 0 },
+    };
+    var frames: [3]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_layout_tree_v3(60, 70, &nodes, nodes.len, &frames, frames.len));
+    try std.testing.expectApproxEqAbs(@as(f32, 16.666), frames[1].y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 43.333), frames[2].y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 10), frames[1].height, 0.001);
+
+    // 5, stretch: each line grows by half the free space, from the top.
+    nodes[0].style.align_content = 5;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_layout_tree_v3(60, 70, &nodes, nodes.len, &frames, frames.len));
+    try std.testing.expectApproxEqAbs(@as(f32, 0), frames[1].y, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 35), frames[2].y, 0.001);
 }
 
 test "rejects malformed host-neutral layout trees without writing frames" {
