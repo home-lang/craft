@@ -26,10 +26,7 @@ try {
   session = await createAndroidEmulator({
     sdkRoot: join(owned, 'sdk'), sdkmanager, avdmanager,
     image: 'system-images;android-35;google_apis_playstore;x86_64',
-    // The stock Play image performs real first-boot dex optimization under TCG.
-    // Keep every readiness and package assertion; give this software run an explicit bound.
     acceleration: 'software', artifactsDirectory: artifacts,
-    bootTimeoutMs: 20 * 60_000,
     temporaryDirectory: owned, acceptLicenses: true,
     env: { JAVA_HOME: javaHome },
   })
