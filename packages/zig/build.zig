@@ -1960,6 +1960,15 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all unit tests");
+    const io_backend_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/io_backend.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(io_backend_tests).step);
     test_step.dependOn(&run_lib_unit_tests.step);
     if (js_test_run) |run| test_step.dependOn(&run.step);
     test_step.dependOn(&run_api_tests.step);

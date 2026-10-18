@@ -200,7 +200,7 @@ pub const GlobalState = struct {
 
         // Lazy init for test mode or when not explicitly initialized
         self.default_threaded = std.Io.Threaded.init(std.heap.c_allocator, .{ .environ = .empty });
-        self.io = self.default_threaded.?.io();
+        self.io = @import("io_backend.zig").threadedIo(&self.default_threaded.?);
         return self.io.?;
     }
 
