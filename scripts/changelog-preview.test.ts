@@ -150,28 +150,32 @@ function nativeWorkspace(directory: string, git: (...args: string[]) => string):
   return ['package.json', 'packages/sdk/package.json', 'packages/zig/build.zig.zon', 'packages/zig/pantry.json']
 }
 
-test('the real release configuration versions every workspace and native manifest before tagging', () => {
-  for (const release of ['1.0.2', 'patch']) fixture((directory, git) => {
-    const paths = nativeWorkspace(directory, git)
-    const bumpx = Bun.resolveSync('@stacksjs/bumpx/bin/cli.js', import.meta.dir)
-    const generator = join(import.meta.dir, 'generate-release-changelog.ts')
-    const validator = join(import.meta.dir, 'release-version.ts')
-    // The validator must read the fixture checkout rather than its own source root.
-    mkdirSync(join(directory, 'scripts'))
-    writeFileSync(join(directory, 'scripts/release-version.ts'), readFileSync(validator))
-    git('add', 'scripts')
-    git('commit', '-qm', 'chore: install actual release validator')
-    const result = Bun.spawnSync([
-      process.execPath, bumpx, '--recursive', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
-      '--execute', `${shellQuote(process.execPath)} scripts/release-version.ts --pending && ${shellQuote(process.execPath)} ${shellQuote(generator)} && git add CHANGELOG.md`, release,
-    ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
-    expect(result.exitCode, result.stderr.toString()).toBe(0)
-    expect(git('tag', '--list', 'v1.0.2')).toBe('v1.0.2\n')
-    for (const path of paths) expect(git('show', `HEAD:${path}`)).toContain('1.0.2')
-    expect(git('show', 'HEAD:CHANGELOG.md')).toContain('/compare/v1.0.0...v1.0.2)')
-    expect(git('status', '--porcelain')).toBe('')
-  })
-})
+// Each real CLI rehearsal needs its own bounded subprocess budget; Bun's
+// five-second default can kill a successful Git/Bumpx/changelog run early.
+for (const release of ['1.0.2', 'patch']) {
+  test(`the real ${release} release versions every workspace and native manifest before tagging`, () => {
+    fixture((directory, git) => {
+      const paths = nativeWorkspace(directory, git)
+      const bumpx = Bun.resolveSync('@stacksjs/bumpx/bin/cli.js', import.meta.dir)
+      const generator = join(import.meta.dir, 'generate-release-changelog.ts')
+      const validator = join(import.meta.dir, 'release-version.ts')
+      // The validator must read the fixture checkout rather than its own source root.
+      mkdirSync(join(directory, 'scripts'))
+      writeFileSync(join(directory, 'scripts/release-version.ts'), readFileSync(validator))
+      git('add', 'scripts')
+      git('commit', '-qm', 'chore: install actual release validator')
+      const result = Bun.spawnSync([
+        process.execPath, bumpx, '--recursive', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
+        '--execute', `${shellQuote(process.execPath)} scripts/release-version.ts --pending && ${shellQuote(process.execPath)} ${shellQuote(generator)} && git add CHANGELOG.md`, release,
+      ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
+      expect(result.exitCode, result.stderr.toString()).toBe(0)
+      expect(git('tag', '--list', 'v1.0.2')).toBe('v1.0.2\n')
+      for (const path of paths) expect(git('show', `HEAD:${path}`)).toContain('1.0.2')
+      expect(git('show', 'HEAD:CHANGELOG.md')).toContain('/compare/v1.0.0...v1.0.2)')
+      expect(git('status', '--porcelain')).toBe('')
+    })
+  }, 30_000)
+}
 
 test('the published release tool restores all workspace and native versions on a failed command', () => {
   fixture((directory, git) => {
@@ -189,7 +193,7 @@ test('the published release tool restores all workspace and native versions on a
     expect(git('tag', '--list', 'v1.0.2')).toBe('')
     expect(git('status', '--porcelain')).toBe('')
   })
-})
+}, 30_000)
 
 test('pending validation rejects an incomplete workspace before a tag or commit exists', () => {
   fixture((directory, git) => {
@@ -212,4 +216,4 @@ test('pending validation rejects an incomplete workspace before a tag or commit 
     expect(git('tag', '--list', 'v1.0.2')).toBe('')
     expect(git('status', '--porcelain')).toBe('')
   })
-})
+}, 30_000)
