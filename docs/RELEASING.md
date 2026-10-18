@@ -11,7 +11,9 @@ They also read addressed native state from the main, child, and adopted windows.
 Each installed-app smoke also checks creator teardown and adoption of a
 surviving, unparented grandchild. The PKG case explicitly destroys the retained
 macOS creator after close; DEB and MSI close already releases it.
-The release hook generates the next changelog section before that commit,
+The release command registers the workspace and Zig release manifests with
+Bumpx so their versions update and roll back together. The release hook
+generates the next changelog section before that commit,
 deduplicates repeated issue references, and links the previous and new tags.
 Do not run the hook again after it has written the section.
 
