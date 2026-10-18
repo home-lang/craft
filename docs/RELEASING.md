@@ -61,3 +61,18 @@ registry publication can still fail after the native archives become public, so
 the final workflow status remains the release signal. If a post-release registry
 publication fails, the GitHub release still contains the full verified archive
 set; inspect and rerun the failed job rather than republishing the draft.
+
+## Release prerequisites and failed tags
+
+Install the locked release tools with `bun install --frozen-lockfile` first.
+Preflight now checks the Bumpx and Logsmith CLIs, a clean `main`, and the current
+`origin/main` before changing versions. Use a separate release clone if `main`
+is in use by another worktree. Required release commands fail before committing,
+tagging or pushing; Bumpx restores the version files when they fail.
+
+Retain a tag that failed publication. Choose a new unused version with
+`bun run release:version <version>` and set `CRAFT_CHANGELOG_FROM` to the last
+successfully published tag. The standard version and patch commands run the
+same manifest synchronization, changelog generator and publication gates.
+Confirm the final Releaser result and actual registry artifacts before apps
+adopt the new version.

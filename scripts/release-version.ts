@@ -20,6 +20,19 @@ export function validateReleaseDependencies(root: string): void {
   }
 }
 
+/** Releases originate from a clean main that matches the current remote. */
+export function validateReleaseGit(root: string): void {
+  const git = (...args: string[]): string => {
+    const result = Bun.spawnSync(['git', ...args], { cwd: root, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
+    if (result.exitCode !== 0) throw new Error(`Release Git preflight failed: ${result.stderr.toString().trim()}`)
+    return result.stdout.toString().trim()
+  }
+  if (git('branch', '--show-current') !== 'main') throw new Error('Release from main, using an isolated checkout when main is already in use.')
+  if (git('status', '--porcelain')) throw new Error('Release requires a clean main checkout.')
+  git('fetch', 'origin', 'main')
+  if (git('rev-parse', 'HEAD') !== git('rev-parse', 'origin/main')) throw new Error('Release main must match origin/main. Synchronize and verify its checks before releasing.')
+}
+
 export function validateReleaseVersion(ref: string, version: string, manifests: Record<string, unknown>): void {
   const errors: string[] = []
   const identifier = '(?:0|[1-9]\\d*|[\\da-z-]*[a-z-][\\da-z-]*)'
@@ -58,6 +71,7 @@ if (import.meta.main) {
   if (process.argv.includes('--preflight')) {
     validateReleaseCheckout(root)
     validateReleaseDependencies(root)
+    validateReleaseGit(root)
     console.log('Release checkout contains every tracked package manifest')
     process.exit(0)
   }

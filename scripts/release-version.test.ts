@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from 'bun:test'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { validateReleaseCheckout, checkReleaseVersion, validateReleaseVersion } from './release-version'
+import { validateReleaseCheckout, validateReleaseGit, checkReleaseVersion, validateReleaseVersion } from './release-version'
 import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
 
 // Every scratch directory this file made goes when the file is done (#357).
@@ -73,4 +73,37 @@ test('release preflight rejects missing tools before changing package versions o
   expect(result.stderr.toString()).toContain('bun install --frozen-lockfile')
   expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe(manifest)
   expect(Bun.spawnSync(['git', 'tag', '--list'], { cwd: root, stdout: 'pipe' }).stdout.toString()).toBe('')
+})
+
+test('release Git preflight requires clean main and checks the current remote', () => {
+  const root = createTempDir('craft-release-main-')
+  const remote = join(root, 'remote.git')
+  const work = join(root, 'work')
+  mkdirSync(work)
+  const git = (cwd: string, ...args: string[]) => {
+    const result = Bun.spawnSync(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
+    expect(result.exitCode, result.stderr.toString()).toBe(0)
+    return result.stdout.toString()
+  }
+  git(root, 'init', '--bare', remote)
+  git(work, 'init', '-b', 'main')
+  git(work, 'config', 'user.email', 'release@example.com')
+  git(work, 'config', 'user.name', 'Release fixture')
+  git(work, 'commit', '--allow-empty', '-m', 'chore: initial release')
+  git(work, 'remote', 'add', 'origin', remote)
+  git(work, 'push', '-u', 'origin', 'main')
+  expect(() => validateReleaseGit(work)).not.toThrow()
+  writeFileSync(join(work, 'unfinished.txt'), 'unfinished')
+  expect(() => validateReleaseGit(work)).toThrow('clean main')
+  rmSync(join(work, 'unfinished.txt'))
+  git(work, 'switch', '-c', 'feature')
+  expect(() => validateReleaseGit(work)).toThrow('Release from main')
+  git(work, 'switch', 'main')
+  const peer = join(root, 'peer')
+  git(root, 'clone', '--branch', 'main', remote, peer)
+  git(peer, 'config', 'user.email', 'peer@example.com')
+  git(peer, 'config', 'user.name', 'Release peer')
+  git(peer, 'commit', '--allow-empty', '-m', 'chore: another source change')
+  git(peer, 'push', 'origin', 'main')
+  expect(() => validateReleaseGit(work)).toThrow('must match origin/main')
 })
