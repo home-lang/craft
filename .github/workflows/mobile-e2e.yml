@@ -657,16 +657,11 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - uses: reactivecircus/android-emulator-runner@v2
+      - name: Run native acceptance on the SDK-owned emulator
         env:
           CRAFT_NATIVE_TEST_PROJECT: ${{ steps.native-project.outputs.project }}
-        with:
-          api-level: ${{ matrix.api-level }}
-          arch: x86_64
-          profile: pixel_6
-          emulator-options: -no-window -no-snapshot-save -gpu swiftshader_indirect -noaudio -no-boot-anim
-          disable-animations: false
-          script: bash packages/android/scripts/run-native-navigation-device.sh
+          CRAFT_ANDROID_NATIVE_API: ${{ matrix.api-level }}
+        run: bun scripts/run-native-android-acceptance.ts
       - name: Require the selected Android suite to pass without skips
         run: |
           python3 - <<'PY'
@@ -688,6 +683,7 @@ jobs:
           name: android-navigation-recovery-api${{ matrix.api-level }}
           path: |
             artifacts/android-navigation/**/app/build/outputs/androidTest-results/**
+            artifacts/android-navigation/emulator/**
             artifacts/android-navigation/**/app/build/reports/androidTests/**
             artifacts/android-navigation/**/app/build/outputs/connected_android_test_additional_output/**
             artifacts/android-navigation/launcher-*.txt
