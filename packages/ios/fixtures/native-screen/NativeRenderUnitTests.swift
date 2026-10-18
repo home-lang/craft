@@ -901,6 +901,48 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(marker.transform.b, 1, accuracy: 0.02)
     }
 
+    func testMapPreservesAuthoredPolylineOrderAcrossUpdatesAndMoves() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        func document(_ casingWidth: Double, reversed: Bool = false) -> [String: Any] {
+            let casing: [String: Any] = ["type": "MapPolyline", "props": ["id": "casing", "geometry": [37.7, -119.5, 37.71, -119.51], "strokeColor": "#365b2d", "strokeWidth": casingWidth]]
+            let route: [String: Any] = ["type": "MapPolyline", "props": ["id": "route", "geometry": [37.7, -119.5, 37.71, -119.51], "strokeColor": "#91e86b", "strokeWidth": 5]]
+            return ["type": "Map", "props": ["key": "ordered-map"],
+                    "style": ["width": 320, "height": 320],
+                    "children": reversed ? [route, casing] : [casing, route]]
+        }
+        controller.render(document(9))
+        controller.view.layoutIfNeeded()
+        let map = try XCTUnwrap(find(MKMapView.self, key: "ordered-map", below: controller.view))
+        func widths() throws -> [CGFloat] {
+            try map.overlays.compactMap { $0 as? MKPolyline }.map { line in
+                let renderer = try XCTUnwrap(map.delegate?.mapView?(map, rendererFor: line) as? MKPolylineRenderer)
+                return renderer.lineWidth
+            }
+        }
+        XCTAssertEqual(try widths(), [9, 5], "the bright route draws above its wider casing")
+        let foreground = try XCTUnwrap(map.overlays.compactMap { $0 as? MKPolyline }.last)
+
+        // Replacing a lower overlay must not move it above an unchanged line.
+        controller.render(document(11))
+        controller.view.layoutIfNeeded()
+        XCTAssertTrue(map === find(MKMapView.self, key: "ordered-map", below: controller.view))
+        XCTAssertEqual(try widths(), [11, 5])
+        XCTAssertTrue(map.overlays.compactMap { $0 as? MKPolyline }.last === foreground)
+
+        // Child moves are draw-order changes even when geometry is unchanged.
+        controller.render(document(11, reversed: true))
+        controller.view.layoutIfNeeded()
+        XCTAssertEqual(try widths(), [5, 11])
+        controller.render(document(11))
+        controller.view.layoutIfNeeded()
+        XCTAssertEqual(try widths(), [11, 5])
+    }
+
     func testMapUpdatesNativePinColorAndTiltGestureWithoutReplacingTheMarker() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
