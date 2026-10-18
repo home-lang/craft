@@ -750,7 +750,6 @@ pub const LocationBridge = struct {
         const background = try backgroundLocationDeclared();
         const mgr = try ensureManager();
 
-
         const next: locrec.State = .{
             .active = true,
             .paused = false,
