@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { createAndroidEmulator } from '../../../android/src/emulator'
 import type { AndroidEmulatorOptions } from '../../../android/src/emulator'
 
-function fixture(hardware: boolean, delayedSettings = false): { root: string, options: AndroidEmulatorOptions } {
+function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false): { root: string, options: AndroidEmulatorOptions } {
   const root = mkdtempSync(join(tmpdir(), 'craft emulator fixture '))
   const sdk = join(root, 'managed sdk')
   for (const directory of ['bin', 'platform-tools', 'emulator']) mkdirSync(join(sdk, directory), { recursive: true })
@@ -30,6 +30,12 @@ else
       printf '1\\n' ;;
     *'pm path android') printf 'package:/system/framework/framework-res.apk\\n' ;;
     *'pidof com.android.systemui') printf '1234\\n' ;;
+    *'logcat -b events -d -t 1')
+      if [ '${delayedEvents ? 'yes' : 'no'}' = yes ] && [ ! -f "$ANDROID_HOME/events-ready" ]; then
+        touch "$ANDROID_HOME/events-ready"
+        exit 255
+      fi
+      printf 'event stream ready\\n' ;;
     *) printf '1\\n' ;;
   esac
 fi`)
@@ -70,6 +76,22 @@ test('boot completion alone does not admit a device before SettingsProvider is u
     expect(trace.every(entry => Number.isFinite(Date.parse(entry.startedAt)) && Number.isFinite(Date.parse(entry.finishedAt)))).toBe(true)
     expect(trace.map(entry => entry.sequence)).toEqual(trace.map((_, index) => index + 1))
     expect(readdirSync(options.artifactsDirectory).sort()).toEqual(['android-emulator.json', 'device-commands.jsonl', 'emulator.log'])
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
+test('boot and System UI do not admit a device before its event log is readable', async () => {
+  const { root, options } = fixture(true, false, true)
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator(options)
+    expect(existsSync(join(options.sdkRoot, 'events-ready'))).toBe(true)
+    const trace = readFileSync(join(options.artifactsDirectory, 'device-commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    const events = trace.filter(entry => entry.args.includes('logcat'))
+    expect(events.map(entry => entry.code)).toEqual([255, 0])
+    expect(events.every(entry => entry.args.includes('-d') && entry.args.includes('events'))).toBe(true)
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(Date.parse(events[1].finishedAt)).toBeLessThanOrEqual(Date.parse(identity.bootedAt))
   }
   finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
 }, 10_000)

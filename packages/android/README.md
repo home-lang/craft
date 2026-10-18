@@ -104,7 +104,8 @@ finally {
 `hardware` requires a successful emulator acceleration probe. `software` uses
 the Android emulator's explicit `-accel off` mode on x86_64 hosts; it provides
 functional test evidence, with no claim about hardware performance. Both modes
-use the same ten-minute boot budget and require SettingsProvider, the package
+use the same ten-minute boot budget and require a readable event-log stream,
+SettingsProvider, the package
 manager and System UI to be ready. Logs record the selected image, acceleration
 probe, process identity and boot result. Disposal reaps only the owned process
 and deletes only its disposable AVD; the managed SDK and other devices remain
