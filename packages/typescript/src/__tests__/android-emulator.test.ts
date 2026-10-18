@@ -62,6 +62,22 @@ test('hardware emulation refuses unavailable acceleration before creating a devi
   finally { rmSync(root, { recursive: true, force: true }) }
 })
 
+test('invalid boot budgets fail before starting tools or creating owned device data', async () => {
+  const { root, options } = fixture(true)
+  try {
+    const modes: AndroidEmulatorOptions['acceleration'][] = process.arch === 'x64' ? ['hardware', 'software'] : ['hardware']
+    for (const acceleration of modes) {
+      const maximum = acceleration === 'software' ? 1_200_000 : 600_000
+      for (const budget of [NaN, Infinity, -Infinity, -1, 0, 999, 1000.5, maximum + 1, Number.MAX_SAFE_INTEGER + 1]) {
+        await expect(createAndroidEmulator({ ...options, acceleration, bootTimeoutMs: budget })).rejects.toThrow('bootTimeoutMs')
+        expect(existsSync(join(options.sdkRoot, 'calls'))).toBe(false)
+        expect(existsSync(options.temporaryDirectory!)).toBe(false)
+      }
+    }
+  }
+  finally { rmSync(root, { recursive: true, force: true }) }
+})
+
 test('boot completion alone does not admit a device before SettingsProvider is usable', async () => {
   const { root, options } = fixture(true, true)
   let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
@@ -70,6 +86,7 @@ test('boot completion alone does not admit a device before SettingsProvider is u
     expect(existsSync(join(options.sdkRoot, 'settings-ready'))).toBe(true)
     const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
     expect(identity.bootedAt).toBeString()
+    expect(identity.bootTimeoutMs).toBe(600_000)
     const trace = readFileSync(join(options.artifactsDirectory, 'device-commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
     const readiness = trace.filter(entry => entry.args.includes('animator_duration_scale'))
     expect(readiness.map(entry => entry.code)).toEqual([255, 0])
@@ -98,12 +115,18 @@ test('boot and System UI do not admit a device before its event log is readable'
 
 test('the SDK process fixture records hardware mode and reaps only its owned process', async () => {
   const { root, options } = fixture(true)
+  options.bootTimeoutMs = 42_000
   let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
   try {
     session = await createAndroidEmulator(options)
     const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
     expect(identity.acceleration).toBe('hardware')
     expect(identity.bootedAt).toBeString()
+    expect(identity.bootTimeoutMs).toBe(42_000)
+    expect(identity.bootElapsedMs).toBeGreaterThanOrEqual(0)
+    expect(identity.bootElapsedMs).toBeLessThanOrEqual(identity.bootTimeoutMs)
+    expect(identity.host.logicalCpus).toBeGreaterThan(0)
+    expect(identity.hostCpuInterval.totalDeltaMs).toBeGreaterThanOrEqual(0)
     expect(session.serial).toBe('emulator-5558')
     expect(readFileSync(join(options.sdkRoot, 'calls'), 'utf8')).toContain('-gpu software')
     expect(readFileSync(join(options.sdkRoot, 'calls'), 'utf8')).not.toContain('swiftshader_indirect')
@@ -123,6 +146,7 @@ test('software execution is explicit and cannot be mistaken for hardware acceler
   let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
   try {
     options.acceleration = 'software'
+    options.bootTimeoutMs = 1_200_000
     if (process.arch !== 'x64') {
       await expect(createAndroidEmulator(options)).rejects.toThrow('requires an x86_64 host')
       return
@@ -130,6 +154,7 @@ test('software execution is explicit and cannot be mistaken for hardware acceler
     session = await createAndroidEmulator(options)
     const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
     expect(identity.acceleration).toBe('software')
+    expect(identity.bootTimeoutMs).toBe(1_200_000)
     expect(identity.accelerationProbeExitCode).toBe(1)
     expect(readFileSync(join(options.sdkRoot, 'calls'), 'utf8')).toContain('-accel off')
   }

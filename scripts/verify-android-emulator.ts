@@ -5,6 +5,13 @@ import { createAndroidEmulator } from '../packages/android/src/emulator'
 
 if (process.platform !== 'linux' || process.arch !== 'x64')
   throw new Error('The software emulator verification requires a Linux x86_64 host')
+const args = process.argv.slice(2)
+if (args.length > 1 || (args.length === 1 && args[0] !== '--cold-provisioning-diagnostic'))
+  throw new Error('Only --cold-provisioning-diagnostic is supported')
+const diagnostic = args.length === 1
+const expectedFingerprint = diagnostic ? process.env.CRAFT_ANDROID_DIAGNOSTIC_FINGERPRINT : undefined
+if (diagnostic && !expectedFingerprint)
+  throw new Error('The cold-provisioning diagnostic requires the failed stock image fingerprint')
 
 const managed = realpathSync(resolve('pantry'))
 function tool(name: string): string {
@@ -16,17 +23,23 @@ function tool(name: string): string {
 const sdkmanager = tool('sdkmanager')
 const avdmanager = tool('avdmanager')
 const javaHome = dirname(dirname(tool('javac')))
-const artifacts = resolve('artifacts/android-software-emulator')
+const artifacts = resolve(diagnostic ? 'artifacts/android-software-cold-provisioning' : 'artifacts/android-software-emulator')
 const owned = mkdtempSync(join(tmpdir(), 'craft-emulator-source-'))
 mkdirSync(artifacts, { recursive: true })
 let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
-const proof: Record<string, unknown> = { platform: process.platform, architecture: process.arch, acceleration: 'software', sdkmanager, avdmanager, javaHome }
+const proof: Record<string, unknown> = {
+  purpose: diagnostic ? 'software-cold-provisioning-diagnostic-not-release-acceptance' : 'software-emulator-acceptance',
+  platform: process.platform, architecture: process.arch, acceleration: 'software', sdkmanager, avdmanager, javaHome,
+  bootTimeoutMs: diagnostic ? 1_200_000 : 600_000,
+  expectedFingerprint, runnerImage: process.env.ImageOS, runnerImageVersion: process.env.ImageVersion,
+}
 
 try {
   session = await createAndroidEmulator({
     sdkRoot: join(owned, 'sdk'), sdkmanager, avdmanager,
     image: 'system-images;android-35;google_apis_playstore;x86_64',
     acceleration: 'software', artifactsDirectory: artifacts,
+    bootTimeoutMs: diagnostic ? 1_200_000 : undefined,
     temporaryDirectory: owned, acceptLicenses: true,
     env: { JAVA_HOME: javaHome },
   })
@@ -41,9 +54,12 @@ try {
   const api = await adb(['shell', 'getprop', 'ro.build.version.sdk'])
   const abi = await adb(['shell', 'getprop', 'ro.product.cpu.abi'])
   const playStore = await adb(['shell', 'pm', 'path', 'com.android.vending'])
-  if (api !== '35' || abi !== 'x86_64' || !/^package:\/\S+/.test(playStore))
+  const fingerprint = await adb(['shell', 'getprop', 'ro.build.fingerprint'])
+  if (api !== '35' || abi !== 'x86_64' || !/^package:\/\S+/.test(playStore) || !fingerprint)
     throw new Error('The owned emulator must run the requested stock Play image')
-  Object.assign(proof, { serial: session.serial, api, abi, playStore, verifiedAt: new Date().toISOString() })
+  if (diagnostic && fingerprint !== expectedFingerprint)
+    throw new Error('The stock Play image changed; this diagnostic cannot explain the retained cold-boot failures')
+  Object.assign(proof, { serial: session.serial, api, abi, playStore, fingerprint, verifiedAt: new Date().toISOString() })
 }
 finally {
   try {
