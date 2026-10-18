@@ -253,11 +253,6 @@ pub export fn JNI_OnLoad(vm_handle: jni.JavaVM, _: ?*anyopaque) callconv(.c) jni
 /// the method, rather than corrupting a stack on first use.
 const natives = [_]jni.JNINativeMethod{
     .{
-        .name = "nativeRandomUUID",
-        .signature = "()Ljava/lang/String;",
-        .fnPtr = @ptrCast(&nativeRandomUUID),
-    },
-    .{
         .name = "nativeGetDeviceInfo",
         .signature = "(Landroid/app/Activity;)Ljava/lang/String;",
         .fnPtr = @ptrCast(&nativeGetDeviceInfo),
@@ -790,6 +785,11 @@ const natives = [_]jni.JNINativeMethod{
         .name = "nativeGetCurrentPosition",
         .signature = "(Landroid/app/Activity;)Z",
         .fnPtr = @ptrCast(&nativeGetCurrentPosition),
+    },
+    .{
+        .name = "nativeRandomUUID",
+        .signature = "()Ljava/lang/String;",
+        .fnPtr = @ptrCast(&nativeRandomUUID),
     },
 };
 
