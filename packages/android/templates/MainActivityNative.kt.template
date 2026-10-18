@@ -4935,8 +4935,11 @@ class MainActivity : AppCompatActivity() {
         val explicitKey = authoredKey(node, props)
         // Descendants are scoped to this retained identity, not its sibling
         // position. Moving a keyed parent must retain its nested inputs too.
+        // A test selector may intentionally identify several list rows. The
+        // compiler's unique protocol ID must win over that legacy fallback.
         val identity = explicitKey?.let { "${path.substringBeforeLast('.', "")}/$it" }
             ?: protocolId?.let { "id:$it" }
+            ?: props.optString("testID").takeIf { it.isNotBlank() }?.let { "${path.substringBeforeLast('.', "")}/$it" }
             ?: path
         val previous = previousControls[identity]
         val reusableInput = previous as? EditText
@@ -5822,7 +5825,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun authoredKey(node: JSONObject, props: JSONObject): String? {
-        val direct = listOf(node.optString("key"), props.optString("key"), props.optString("testID"))
+        val direct = listOf(node.optString("key"), props.optString("key"))
             .firstOrNull { it.isNotBlank() }
         if (direct != null) return direct
         return null
