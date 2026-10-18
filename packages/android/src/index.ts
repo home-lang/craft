@@ -7,10 +7,10 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { $ } from 'bun'
-import { androidMapHost, type AndroidMapProvider } from './native-map'
+import { androidMapHost, type AndroidMapProvider } from './native-map.js'
 import { renderAndroidPromiseRuntime } from './promise-runtime'
 
-export type { AndroidMapProvider } from './native-map'
+export type { AndroidMapProvider } from './native-map.js'
 /** Providers this published builder can generate as real Android map views. */
 export const nativeMapProviders = ['google', 'maplibre'] as const
 export { runKotlinFixture } from './testing.js'
