@@ -217,13 +217,10 @@ fn deliverOnMain(context: ?*anyopaque) callconv(.c) void {
     // when no WebView exists. The shim never repeats the page delivery below.
     const objc = @import("objc_runtime.zig").objc;
     if (objc.objc_getClass("CraftSwiftShim")) |shim| {
-        if (objc.sel_registerName("forwardNativeEvent:payload:")) |selector| {
-            const name = objc.createNSString(event.eventName(), allocator) catch return;
-            const detail_json = objc.createNSString(payload, allocator) catch return;
-            const Fn = *const fn (objc.id, objc.SEL, objc.id, objc.id) callconv(.c) void;
-            const send: Fn = @ptrCast(&objc.objc_msgSend);
-            send(shim, selector, name, detail_json);
-        }
+        _ = forwardNativeEventToShim(shim, allocator, event, payload) catch |err| blk: {
+            std.log.warn("ios events: could not forward native {s}: {}", .{ event.eventName(), err });
+            break :blk false;
+        };
     }
 
     const js = formatEvent(allocator, event, payload) catch return;
@@ -233,6 +230,23 @@ fn deliverOnMain(context: ?*anyopaque) callconv(.c) void {
     ios_dispatch.evalJS(js) catch |err| {
         std.log.warn("ios events: could not emit {s}: {}", .{ event.eventName(), err });
     };
+}
+
+/// Optional host integration must not prevent the independent page delivery.
+fn forwardNativeEventToShim(shim: @import("objc_runtime.zig").objc.id, allocator: std.mem.Allocator, event: Event, payload: []const u8) !bool {
+    const objc = @import("objc_runtime.zig").objc;
+    const selector = objc.sel_registerName("forwardNativeEvent:payload:") orelse return error.SelectorNotFound;
+    const responds = objc.sel_registerName("respondsToSelector:") orelse return error.SelectorNotFound;
+    const RespondsFn = *const fn (objc.id, objc.SEL, objc.SEL) callconv(.c) bool;
+    const responds_fn: RespondsFn = @ptrCast(&objc.objc_msgSend);
+    // Registering a selector does not establish that this host implements it.
+    if (!responds_fn(shim, responds, selector)) return false;
+    const name = try objc.createNSString(event.eventName(), allocator);
+    const detail_json = try objc.createNSString(payload, allocator);
+    const Fn = *const fn (objc.id, objc.SEL, objc.id, objc.id) callconv(.c) void;
+    const send: Fn = @ptrCast(&objc.objc_msgSend);
+    send(shim, selector, name, detail_json);
+    return true;
 }
 
 /// The `dispatchEvent` call for one event.
@@ -257,6 +271,30 @@ fn formatEvent(
 }
 
 const testing = std.testing;
+
+test "optional native event forwarding probes and invokes the actual class method" {
+    if (!builtin.target.os.tag.isDarwin()) return error.SkipZigTest;
+    const objc = @import("objc_runtime.zig").objc;
+    const root = objc.objc_getClass("NSObject") orelse return error.ClassNotFound;
+    try testing.expect(!try forwardNativeEventToShim(root, testing.allocator, .location_update, "{}"));
+
+    const Probe = struct {
+        var received_name = false;
+        var received_payload = false;
+        fn receive(_: objc.id, _: objc.SEL, name: objc.id, payload: objc.id) callconv(.c) void {
+            received_name = if (objc.getNSStringUTF8(name)) |value| std.mem.eql(u8, std.mem.span(value), "craftLocationUpdate") else false;
+            received_payload = if (objc.getNSStringUTF8(payload)) |value| std.mem.eql(u8, std.mem.span(value), "{\"value\":\"native\"}") else false;
+        }
+    };
+    const host = objc.objc_allocateClassPair(root, "CraftOptionalEventForwardingTest", 0) orelse return error.ClassNotFound;
+    const meta = objc.object_getClass(host) orelse return error.ClassNotFound;
+    const selector = objc.sel_registerName("forwardNativeEvent:payload:") orelse return error.SelectorNotFound;
+    try testing.expect(objc.class_addMethod(meta, selector, @ptrCast(&Probe.receive), "v@:@@"));
+    objc.objc_registerClassPair(host);
+    try testing.expect(try forwardNativeEventToShim(host, testing.allocator, .location_update, "{\"value\":\"native\"}"));
+    try testing.expect(Probe.received_name);
+    try testing.expect(Probe.received_payload);
+}
 
 test "an event inlines its detail as JSON, not as a quoted string" {
     // Quoting it would hand the page a string that happens to contain an
