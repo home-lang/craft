@@ -449,6 +449,7 @@ export interface CraftBridge {
     remove(key: string): Promise<boolean>;
     clear(): Promise<boolean>;
     keys(): Promise<string[]>;
+    compareAndSet(key: string, expectedValue: CraftStorageValue, nextValue: CraftStorageValue): Promise<boolean>;
   };
 
   // ==================== Clipboard ====================
@@ -1243,6 +1244,8 @@ export type NativeBridgeErrorCode =
 /** Native wire codes plus existing mobile/shim names retained for compatibility. */
 export type CraftErrorCode = NativeBridgeErrorCode
   | 'RECORDING_OWNERSHIP_UNSUPPORTED'
+  | 'STORAGE_COMPARE_AND_SET_UNSUPPORTED'
+  | 'STORAGE_UNSUPPORTED'
   | 'CRAFT_ERROR'           // Generic error
   | 'PERMISSION_DENIED'     // Permission not granted
   | 'NOT_AVAILABLE'         // Feature not available on device
@@ -1409,12 +1412,13 @@ export interface CraftHeartRate {
   disconnect(options?: { forget?: boolean }): Promise<CraftHeartRateState>;
   /** Keep every reading natively from now on, screen locked or app closed. */
   startRecording(): Promise<CraftHeartRateRecordingState>;
-  pauseRecording(): Promise<CraftHeartRateRecordingState>;
-  resumeRecording(): Promise<CraftHeartRateRecordingState>;
-  stopRecording(): Promise<CraftHeartRateRecordingState & { samples: CraftHeartRateSample[] }>;
-  getRecordingState(): Promise<CraftHeartRateRecordingState>;
+  pauseRecording(options?: { expectedId: string }): Promise<CraftHeartRateRecordingState>;
+  resumeRecording(options?: { expectedId: string }): Promise<CraftHeartRateRecordingState>;
+  stopRecording(options?: { expectedId: string }): Promise<CraftHeartRateRecordingState & { samples: CraftHeartRateSample[] }>;
+  getRecordingState(options?: { expectedId: string }): Promise<CraftHeartRateRecordingState>;
+  acknowledgeRecording(options: { expectedId: string }): Promise<boolean>;
   /** The recording so far; only samples after `since` (ms) when given. */
-  readRecording(options?: { since?: number }): Promise<CraftHeartRateSample[]>;
+  readRecording(options?: { since?: number; expectedId?: string }): Promise<CraftHeartRateSample[]>;
 }
 
 export type CraftScheduledWorkoutsAuthorization = 'authorized' | 'denied' | 'notDetermined' | 'restricted' | 'unsupported';
@@ -1553,6 +1557,7 @@ export interface CraftCapabilities {
   secureStorage: boolean;
   /** JSON key-value persistence in WebView-free STX screens. */
   storage?: boolean;
+  storageCompareAndSet?: boolean;
   /** SQLite persistence in WebView-free STX screens. */
   localDatabase?: boolean;
   /** Synchronous app state plus change events. */

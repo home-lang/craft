@@ -873,6 +873,35 @@ export interface RecordingOwnershipOptions {
   expectedId: string
 }
 
+function storageHost(method: string): any {
+  const host = getCraftRoot()?.storage
+  if (typeof host?.[method] !== 'function')
+    throw Object.assign(new Error('This host does not provide native storage'), { code: 'STORAGE_UNSUPPORTED' })
+  return host
+}
+
+/** Native storage, including an existing-key atomic checkpoint. */
+export const storage = {
+  supportsCompareAndSet(): boolean {
+    const root = getCraftRoot()
+    const caps = root?.capabilities
+    const supported = Array.isArray(caps) ? caps.includes('storageCompareAndSet') : caps?.storageCompareAndSet === true
+    return supported && typeof root?.storage?.compareAndSet === 'function'
+  },
+  async get<T = unknown>(key: string): Promise<T | null> { return storageHost('get').get(key) },
+  async set(key: string, value: unknown): Promise<boolean> { return storageHost('set').set(key, value) },
+  async remove(key: string): Promise<boolean> { return storageHost('remove').remove(key) },
+  async clear(): Promise<boolean> { return storageHost('clear').clear() },
+  async keys(): Promise<string[]> { return storageHost('keys').keys() },
+  async compareAndSet(key: string, expectedValue: unknown, nextValue: unknown): Promise<boolean> {
+    if (!storage.supportsCompareAndSet())
+      throw Object.assign(new Error('This app build cannot atomically checkpoint existing storage'), { code: 'STORAGE_COMPARE_AND_SET_UNSUPPORTED' })
+    if (typeof key !== 'string' || !key.trim() || JSON.stringify(expectedValue) === undefined || JSON.stringify(nextValue) === undefined)
+      throw Object.assign(new Error('compareAndSet needs a key and JSON values'), { code: 'INVALID_ARGUMENT' })
+    return storageHost('compareAndSet').compareAndSet(key, expectedValue, nextValue)
+  },
+}
+
 function recordingOwnershipSupported(namespace: 'location' | 'heartRate'): boolean {
   const root = getCraftRoot()
   const flag = namespace === 'location' ? 'locationRecordingOwnership' : 'heartRateRecordingOwnership'

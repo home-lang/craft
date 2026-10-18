@@ -129,6 +129,7 @@ export {
   camera,
   biometrics,
   secureStorage,
+  storage,
   location,
   share,
   lifecycle,
