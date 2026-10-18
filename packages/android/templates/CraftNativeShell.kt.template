@@ -237,6 +237,14 @@ internal class CraftNativeRoutes(config: JSONObject) {
 /** One process-wide boundary for committed storage reads and mutations. */
 internal object CraftNativeStorage {
     val lock = Any()
+    fun jsonEqual(left: Any?, right: Any?): Boolean {
+        if (left == null || left === JSONObject.NULL) return right == null || right === JSONObject.NULL
+        if (left is Boolean || right is Boolean) return left is Boolean && right is Boolean && left == right
+        if (left is Number && right is Number) return java.math.BigDecimal(left.toString()).compareTo(java.math.BigDecimal(right.toString())) == 0
+        if (left is JSONObject && right is JSONObject) return left.length() == right.length() && left.keys().asSequence().all { right.has(it) && jsonEqual(left.get(it), right.get(it)) }
+        if (left is JSONArray && right is JSONArray) return left.length() == right.length() && (0 until left.length()).all { jsonEqual(left.get(it), right.get(it)) }
+        return left is String && right is String && left == right
+    }
     fun commit(storage: SharedPreferences, update: (android.content.SharedPreferences.Editor) -> Unit): Boolean {
         val previous = storage.all
         val editor = storage.edit()

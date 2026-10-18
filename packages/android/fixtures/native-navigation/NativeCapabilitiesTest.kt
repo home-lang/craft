@@ -22,6 +22,33 @@ class NativeCapabilitiesTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
     @Test
+    fun conditionalCheckpointCannotResurrectDeletedDataOrOverwriteFeedback() {
+        val base = instrumentation.targetContext
+        val name = "cas-test-${UUID.randomUUID()}"
+        val values = base.getSharedPreferences(name, android.content.Context.MODE_PRIVATE)
+        val context = object : android.content.ContextWrapper(base) {
+            override fun getSharedPreferences(key: String, mode: Int) =
+                if (key == "craft-native-storage") values else super.getSharedPreferences(key, mode)
+        }
+        val capabilities = CraftNativeCapabilities(context, JSONObject())
+        val old = JSONObject().put("owner", "A").put("feedback", "latest").put("visits", 1)
+        val next = JSONObject(old.toString()).put("visits", 2)
+        fun cas(expected: Any, value: Any) = call(capabilities, "Storage", "compareAndSet", JSONArray().put("draft").put(expected).put(value))
+        try {
+            assertTrue(capabilities.names().toString().contains("storageCompareAndSet"))
+            assertEquals(false, cas(JSONObject.NULL, next).data)
+            assertEquals(true, call(capabilities, "Storage", "set", JSONArray().put("draft").put(old)).data)
+            assertEquals(false, cas(JSONObject(old.toString()).put("feedback", "stale"), next).data)
+            assertEquals(true, cas(JSONObject().put("visits", 1).put("feedback", "latest").put("owner", "A"), next).data)
+            assertEquals(true, call(capabilities, "Storage", "remove", JSONArray().put("draft")).data)
+            assertEquals(false, cas(next, old).data)
+            assertNull(values.getString("draft", null))
+            assertFalse(CraftNativeStorage.jsonEqual(true, 1))
+            assertFalse(CraftNativeStorage.jsonEqual(JSONArray().put(1).put(2), JSONArray().put(2).put(1)))
+        } finally { capabilities.close(); base.deleteSharedPreferences(name) }
+    }
+
+    @Test
     fun aNewIsolateCannotPreloadAnUncommittedCheckpoint() {
         val base = instrumentation.targetContext
         val name = "checkpoint-preload-${UUID.randomUUID()}"
@@ -105,6 +132,9 @@ class NativeCapabilitiesTest {
         try {
             val result = call(capabilities, "Storage", "set", JSONArray().put("draft").put(JSONObject().put("owner", "B")))
             assertEquals("STORAGE_ERROR", result.code)
+            assertEquals(0, notifications)
+            val conditional = call(capabilities, "Storage", "compareAndSet", JSONArray().put("draft").put(JSONObject().put("owner", "A")).put(JSONObject().put("owner", "B")))
+            assertEquals("STORAGE_ERROR", conditional.code)
             assertEquals(0, notifications)
             val stored = call(capabilities, "Storage", "get", JSONArray().put("draft")).data as JSONObject
             assertEquals("A", stored.getString("owner"))
