@@ -4633,10 +4633,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         super.viewWillDisappear(animated)
         screenVisibilityChanged(false)
         stopCelebrations(in: view)
-        // The accessory belongs to the visible native screen. Clear the
-        // shared shell state before a hybrid/web route appears, otherwise a
-        // destination from the outgoing screen remains tappable on top of it.
-        CraftChrome.shared.updateTabAccessory(nil)
+        // Release only this screen's accessory. A retained or prepared screen
+        // can disappear after the destination has already published its own.
+        CraftChrome.shared.clearTabAccessory(ownedBy: self)
         // Popped (or its stack dismissed) while the bar was away: it comes
         // back for whatever shows next, a web page included.
         if tabBarHidden, isMovingFromParent || isBeingDismissed || navigationController?.isBeingDismissed == true {
@@ -4677,7 +4676,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func restoreShellChrome() {
         guard !isAppScript else { return }
         CraftChrome.shared.setHiddenByScreen(tabBarHidden)
-        CraftChrome.shared.updateTabAccessory(tabAccessory)
+        CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self)
     }
 
     /// The screen came on screen or went off it: a screen pushed over it was
@@ -5348,7 +5347,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if options.keys.contains("tabAccessory") {
             tabAccessory = options["tabAccessory"] as? [String: Any]
             if navigationController?.topViewController === self, view.window != nil {
-                CraftChrome.shared.updateTabAccessory(tabAccessory)
+                CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self)
             }
         }
         if options.keys.contains("title") {

@@ -670,6 +670,7 @@ final class CraftChrome: ObservableObject {
 
     @Published var tabs: [Tab] = []
     @Published var tabAccessory: Tab?
+    private weak var tabAccessoryOwner: AnyObject?
     @Published var selected: String?
     let tabSwipeProgress = CraftTabSwipeProgress()
     private(set) var tabSwipePosition: CGFloat? {
@@ -771,7 +772,7 @@ final class CraftChrome: ObservableObject {
         tabs[index] = next
     }
     /// A destination beside the tab pill, outside the tab stacks and swipe order.
-    func updateTabAccessory(_ item: [String: Any]?) {
+    func updateTabAccessory(_ item: [String: Any]?, owner: AnyObject? = nil) {
         let next: Tab?
         if let item, let path = item["path"] as? String,
            path.hasPrefix("/"), !path.hasPrefix("//"),
@@ -782,8 +783,15 @@ final class CraftChrome: ObservableObject {
         } else {
             next = nil
         }
+        tabAccessoryOwner = owner
         guard tabAccessory != next else { return }
         tabAccessory = next
+    }
+
+    /// A retained or prepared screen cannot clear another screen's chrome.
+    func clearTabAccessory(ownedBy owner: AnyObject) {
+        guard tabAccessoryOwner === owner else { return }
+        updateTabAccessory(nil)
     }
 
     func setHiddenByScreen(_ hidden: Bool) {

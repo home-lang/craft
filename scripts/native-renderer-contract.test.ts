@@ -2924,7 +2924,7 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('craft-tab-accessory')
     expect(androidNavigationTest).toContain('pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack')
     expect(androidNavigationTest).toContain('Open capabilities')
-    expect(ios).toContain('CraftChrome.shared.updateTabAccessory(nil)')
+    expect(ios).toContain('CraftChrome.shared.clearTabAccessory(ownedBy: self)')
     expect(androidShell).toContain('accessorySpec?.optString("path")?.let { onAccessory?.invoke(it) }')
     expect(guide).toContain('`tabAccessory` adds one destination button beside the tab pill')
     expect(iosReadme).toContain('`tabAccessory` destination beside the tab pill')
