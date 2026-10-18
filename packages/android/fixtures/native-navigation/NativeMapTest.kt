@@ -253,6 +253,9 @@ class NativeMapTest {
         awaitBasemapPixels(host, "before-background")
         val camera = main { map.cameraPosition }
         assertTrue("The system Home action must succeed", instrumentation.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME))
+        awaitState("Home must stop the native map activity before testing its restoration") {
+            activity.lifecycle.currentState == androidx.lifecycle.Lifecycle.State.CREATED && !activity.hasWindowFocus()
+        }
         instrumentation.uiAutomation.waitForIdle(500, 5_000)
         assertNotEquals("The Home action must actually background the app", activity.packageName, instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString())
         // startActivitySync waits for a new Activity creation; this Intent
