@@ -6574,11 +6574,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyAccessibility(view: View, props: JSONObject, type: String, fallbackLabel: String) {
-        view.tag = fallbackLabel
+        val testId = craftNativeOptionalString(props.opt("testID"))
+        view.tag = testId?.takeIf { it.isNotBlank() } ?: fallbackLabel
         val label = craftNativeOptionalString(props.opt("accessibilityLabel"))
             ?: craftNativeOptionalString(props.opt("alt"))?.takeIf { type == "Image" || type == "ImageBackground" }
         val value = craftNativeOptionalString(props.opt("accessibilityValue"))
-        val testId = craftNativeOptionalString(props.opt("testID"))
         view.contentDescription = when {
             label != null && value != null -> "$label, $value"
             label != null -> label
