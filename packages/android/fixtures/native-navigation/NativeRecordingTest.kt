@@ -92,6 +92,7 @@ class NativeRecordingTest {
         Store.finish(context, owner("A"))
         Store.start(context, "B", 2)
         Store.listener = { _, id -> owners += id }
+        Store.listen(context, "A") { _, _ -> fail("Late A callback replaced B's listener") }
         Store.append(context, point, "A")
         Store.append(context, point, "B")
         assertEquals(listOf("A", "B"), owners)

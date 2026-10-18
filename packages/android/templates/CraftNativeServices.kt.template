@@ -432,7 +432,7 @@ internal class CraftNativeServices(
                 val invoke = {
                     val answer = JSONObject(store.perform(context, method, (args.optJSONObject(0) ?: JSONObject()).toString()))
                     if (answer.optBoolean("ok")) {
-                        if (method == "startRecording") store.listener = { location, id -> CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", fix(location).put("recordingId", id))) }
+                        if (method == "startRecording") store.listen(context, answer.getJSONObject("data").getString("id")) { location, id -> CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", fix(location).put("recordingId", id))) }
                         done(success(answer.opt("data")))
                     } else done(failure(answer.optString("code"), answer.optString("message")))
                 }

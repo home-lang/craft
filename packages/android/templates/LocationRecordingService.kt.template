@@ -207,6 +207,11 @@ object CraftLocationRecordingStore {
     @Synchronized fun recordingId(context: Context): String? = prefs(context).getString("id", null)
     @Volatile var listener: ((android.location.Location, String) -> Unit)? = null
 
+    @Synchronized
+    fun listen(context: Context, id: String, callback: (android.location.Location, String) -> Unit) {
+        if (recordingId(context) == id && isActive(context)) listener = callback
+    }
+
     @JvmOverloads
     fun append(context: Context, location: android.location.Location, expectedId: String? = null) {
         val notify = synchronized(this) {

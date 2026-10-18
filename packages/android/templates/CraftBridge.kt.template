@@ -2762,7 +2762,7 @@ class CraftBridge(
         val result = CraftNative.recordingAction(activity, method, optionsJson)
             ?: CraftLocationRecordingStore.perform(activity, method, optionsJson)
         if (method == "startRecording" && JSONObject(result).optBoolean("ok")) {
-            CraftLocationRecordingStore.listener = { location, id ->
+            CraftLocationRecordingStore.listen(activity, JSONObject(result).getJSONObject("data").getString("id")) { location, id ->
                 val detail = mapOf<String, Any>("latitude" to location.latitude, "longitude" to location.longitude,
                     "accuracy" to location.accuracy, "altitude" to location.altitude, "speed" to location.speed,
                     "heading" to location.bearing, "timestamp" to location.time, "recordingId" to id)
