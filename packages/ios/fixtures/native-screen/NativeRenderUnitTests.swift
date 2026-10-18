@@ -1,10 +1,105 @@
 import UIKit
 import MapKit
+import CoreLocation
 import XCTest
 @testable import NativeRender
 
+private final class UnitLocationManager: CLLocationManager {
+    var state: CLAuthorizationStatus = .notDetermined
+    var whenInUseRequests = 0
+    var alwaysRequests = 0
+    var fixRequests = 0
+    var onAuthorizationRequest: (() -> Void)?
+    override var authorizationStatus: CLAuthorizationStatus { state }
+    override func requestWhenInUseAuthorization() { whenInUseRequests += 1; onAuthorizationRequest?() }
+    override func requestAlwaysAuthorization() { alwaysRequests += 1; onAuthorizationRequest?() }
+    override func requestLocation() { fixRequests += 1 }
+}
+
 @MainActor
 final class NativeRenderUnitTests: XCTestCase {
+    func testOneShotLocationWaitsForPermissionBeforeStartingItsFixAndTimeout() throws {
+        var config = CraftConfig()
+        config.enableGeolocation = true
+        config.enableBackgroundLocation = true
+        let manager = UnitLocationManager()
+        let coordinator = CraftWebView.Coordinator(config: config, locationManager: manager)
+        let previous = CraftSwiftShim.coordinator
+        CraftSwiftShim.coordinator = coordinator
+        defer { CraftSwiftShim.coordinator = previous }
+        let permission = expectation(description: "foreground location permission requested")
+        manager.onAuthorizationRequest = { permission.fulfill() }
+        let completed = expectation(description: "authorized native fix delivered")
+        var answer: Result<Any, CraftNativeActionError>?
+        CraftWebServices.perform(action: "getCurrentPosition", body: ["timeout": 20]) { result in
+            answer = result
+            completed.fulfill()
+        }
+        wait(for: [permission], timeout: 2)
+        XCTAssertEqual(manager.whenInUseRequests, 1)
+        XCTAssertEqual(manager.alwaysRequests, 0, "One foreground fix does not ask for background access")
+        XCTAssertEqual(manager.fixRequests, 0)
+        coordinator.locationManager(manager, didFailWithError: NSError(domain: kCLErrorDomain, code: CLError.Code.denied.rawValue))
+        let deciding = expectation(description: "person is still reading the permission sheet")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { deciding.fulfill() }
+        wait(for: [deciding], timeout: 2)
+        XCTAssertNil(answer, "The acquisition timeout excludes time spent deciding permission")
+        manager.state = .authorizedWhenInUse
+        coordinator.locationManagerDidChangeAuthorization(manager)
+        XCTAssertEqual(manager.fixRequests, 1)
+        coordinator.locationManagerDidChangeAuthorization(manager)
+        XCTAssertEqual(manager.fixRequests, 1, "Repeated authorization notifications do not restart acquisition")
+        coordinator.locationManager(manager, didUpdateLocations: [CLLocation(latitude: 34, longitude: -118)])
+        wait(for: [completed], timeout: 2)
+        guard case .success(let value)? = answer else { return XCTFail("Expected an authorized native fix") }
+        XCTAssertEqual((value as? [String: Any])?["latitude"] as? Double, 34)
+    }
+
+    func testOneShotLocationRejectsDeniedPermissionWithoutRequestingAFix() {
+        for status in [CLAuthorizationStatus.denied, .restricted] {
+            var config = CraftConfig()
+            config.enableGeolocation = true
+            let manager = UnitLocationManager()
+            manager.state = status
+            let coordinator = CraftWebView.Coordinator(config: config, locationManager: manager)
+            let previous = CraftSwiftShim.coordinator
+            CraftSwiftShim.coordinator = coordinator
+            let completed = expectation(description: "denied native request settled")
+            CraftWebServices.perform(action: "getCurrentPosition", body: [:]) { result in
+                guard case .failure(let error) = result else { completed.fulfill(); return XCTFail("Denied permission returned a fix") }
+                XCTAssertEqual(error.code, "PERMISSION_DENIED")
+                completed.fulfill()
+            }
+            wait(for: [completed], timeout: 2)
+            XCTAssertEqual(manager.fixRequests, 0)
+            XCTAssertEqual(manager.whenInUseRequests, 0)
+            CraftSwiftShim.coordinator = previous
+        }
+    }
+
+    func testOneShotLocationRejectsWhenPermissionPromptIsDeclined() {
+        var config = CraftConfig()
+        config.enableGeolocation = true
+        let manager = UnitLocationManager()
+        let coordinator = CraftWebView.Coordinator(config: config, locationManager: manager)
+        let previous = CraftSwiftShim.coordinator
+        CraftSwiftShim.coordinator = coordinator
+        defer { CraftSwiftShim.coordinator = previous }
+        let permission = expectation(description: "foreground permission requested")
+        manager.onAuthorizationRequest = { permission.fulfill() }
+        let completed = expectation(description: "declined native request settled")
+        CraftWebServices.perform(action: "getCurrentPosition", body: [:]) { result in
+            guard case .failure(let error) = result else { completed.fulfill(); return XCTFail("Declined permission returned a fix") }
+            XCTAssertEqual(error.code, "PERMISSION_DENIED")
+            completed.fulfill()
+        }
+        wait(for: [permission], timeout: 2)
+        manager.state = .denied
+        coordinator.locationManagerDidChangeAuthorization(manager)
+        wait(for: [completed], timeout: 2)
+        XCTAssertEqual(manager.fixRequests, 0)
+    }
+
     func testConfiguredHomeShortcutUsesTheNativeAppDestination() throws {
         let shortcut = try XCTUnwrap(UIApplication.shared.shortcutItems?.first { $0.type == "saved" })
         XCTAssertEqual(shortcut.localizedTitle, "Saved trails")
