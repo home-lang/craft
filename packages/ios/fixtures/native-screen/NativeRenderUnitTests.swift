@@ -149,7 +149,7 @@ final class NativeRenderUnitTests: XCTestCase {
     }
 
     func testSelectedTabIconPolicySurvivesLiveCaptionCleanupAndResetsExplicitly() throws {
-        let configured = try JSONDecoder().decode(CraftConfig.Tab.self, from: Data(#"{"id":"/health","title":"Health","symbol":"heart","selectedSymbol":"heart.fill","selectedIconTint":"#ff3b30","selectedIconPulse":false}"#.utf8))
+        let configured = try JSONDecoder().decode(CraftConfig.Tab.self, from: Data(##"{"id":"/health","title":"Health","symbol":"heart","selectedSymbol":"heart.fill","selectedIconTint":"#ff3b30","selectedIconPulse":false}"##.utf8))
         XCTAssertEqual(configured.selectedSymbol, "heart.fill")
         XCTAssertEqual(configured.selectedIconTint, "#ff3b30")
         XCTAssertEqual(configured.selectedIconPulse, false)
