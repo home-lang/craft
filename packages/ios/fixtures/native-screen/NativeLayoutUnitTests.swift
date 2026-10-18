@@ -203,22 +203,29 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(indicator.transform.tx, 0, accuracy: 0.001)
     }
 
-    private func settle(_ controller: CraftNativeScreenController) {
+    private func settle(_ controller: CraftNativeScreenController) async {
         // These fixtures measure committed geometry, not main-queue timer
         // latency. Lay out the containing window/navigation bar before the
         // screen so safe-area and large-title changes reach its scroll views.
-        // Keep the existing four invalidation passes, without a timed callback
-        // that can fail while XCTest is waiting on the same main actor.
-        UIView.performWithoutAnimation {
-            for _ in 0..<4 {
-                controller.view.window?.setNeedsLayout()
-                controller.view.window?.layoutIfNeeded()
-                controller.navigationController?.view.setNeedsLayout()
-                controller.navigationController?.view.layoutIfNeeded()
-                controller.view.setNeedsLayout()
-                controller.view.layoutIfNeeded()
-                CATransaction.flush()
+        // Diffable snapshots finish on the main queue and may coalesce another
+        // render. Release the main actor between the existing four passes,
+        // then fulfill only after actual ancestor/screen layout completes.
+        // Retain the original one-second bound, without an artificial delay.
+        for _ in 0..<4 {
+            let completed = expectation(description: "layout completed")
+            DispatchQueue.main.async {
+                UIView.performWithoutAnimation {
+                    controller.view.window?.setNeedsLayout()
+                    controller.view.window?.layoutIfNeeded()
+                    controller.navigationController?.view.setNeedsLayout()
+                    controller.navigationController?.view.layoutIfNeeded()
+                    controller.view.setNeedsLayout()
+                    controller.view.layoutIfNeeded()
+                    CATransaction.flush()
+                }
+                completed.fulfill()
             }
+            await fulfillment(of: [completed], timeout: 1)
         }
     }
 
@@ -502,7 +509,7 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(third.minY - first.minY, 21, accuracy: 1)
     }
 
-    func testANonScrollingFlatListTakesItsRowsHeightInsideAMarginedParent() throws {
+    func testANonScrollingFlatListTakesItsRowsHeightInsideAMarginedParent() async throws {
         func row(_ index: Int) -> [String: Any] {
             box("row-\(index)", style: ["flexDirection": "row", "gap": 12, "padding": 12], props: ["listRole": "item", "key": "row-\(index)"], [
                 box("icon-\(index)", style: ["width": 32, "height": 32]),
@@ -526,7 +533,7 @@ final class NativeLayoutUnitTests: XCTestCase {
             ]])
         }
         let controller = screen(document(rows: 3))
-        settle(controller)
+        await settle(controller)
         let list = try XCTUnwrap(find("list", below: controller.view) as? CraftNativeFlatList)
         XCTAssertFalse(list.isScrollEnabled)
         let listFrame = try frame("list", in: controller)
@@ -549,7 +556,7 @@ final class NativeLayoutUnitTests: XCTestCase {
 
         // More rows: the header is redrawn and the list grows.
         controller.render(document(rows: 5))
-        settle(controller)
+        await settle(controller)
         let header = try XCTUnwrap(find("header-text", below: controller.view) as? UILabel)
         XCTAssertEqual(header.text, "5 sessions")
         XCTAssertEqual(try frame("header", in: controller).width, listFrame.width, accuracy: 0.5)
@@ -559,7 +566,7 @@ final class NativeLayoutUnitTests: XCTestCase {
         // while UIKit is invalidating layout before the next layoutSubviews.
         controller.view.frame.size.width = 320
         controller.view.setNeedsLayout()
-        settle(controller)
+        await settle(controller)
         let narrower = try frame("list", in: controller)
         XCTAssertEqual(narrower.width, 320 - 32 - 8, accuracy: 0.5)
         for cell in list.visibleCells {
@@ -567,7 +574,7 @@ final class NativeLayoutUnitTests: XCTestCase {
         }
     }
 
-    func testAPlainRootKeepsAnAbsoluteSiblingPinnedBesideItsScrollView() throws {
+    func testAPlainRootKeepsAnAbsoluteSiblingPinnedBesideItsScrollView() async throws {
         let scroll: [String: Any] = [
             "id": "scroll", "type": "ScrollView", "props": ["testID": "scroll"],
             "style": ["flex": 1],
@@ -579,7 +586,7 @@ final class NativeLayoutUnitTests: XCTestCase {
                 "position": "absolute", "top": 12, "right": 12, "width": 32, "height": 32,
             ]),
         ]))
-        settle(controller)
+        await settle(controller)
 
         let nativeScroll = try XCTUnwrap(find("scroll", below: controller.view) as? UIScrollView)
         let before = try frame("overlay", in: controller)
@@ -588,7 +595,7 @@ final class NativeLayoutUnitTests: XCTestCase {
             CGPoint(x: 0, y: nativeScroll.contentSize.height - nativeScroll.bounds.height),
             animated: false
         )
-        settle(controller)
+        await settle(controller)
         let after = try frame("overlay", in: controller)
         XCTAssertEqual(after.minY, before.minY, accuracy: 1, "absolute sibling followed scroll content")
         XCTAssertEqual(after.maxX, before.maxX, accuracy: 1, "absolute sibling changed horizontal position")
@@ -767,7 +774,7 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertTrue(items.allSatisfy { $0.customView is UIButton })
     }
 
-    func testJSONNumbersZeroAndOneKeepTheConversationComposerAtTheBottom() throws {
+    func testJSONNumbersZeroAndOneKeepTheConversationComposerAtTheBottom() async throws {
         // The bridge parses JSON, which boxes 0 and 1 as NSNumber. Swift's
         // `is Bool` also matches those numeric boxes; authored Swift Ints do
         // not reproduce the installed app's lost flex factors.
@@ -784,7 +791,7 @@ final class NativeLayoutUnitTests: XCTestCase {
         """#.utf8)
         let document = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let controller = screen(document)
-        settle(controller)
+        await settle(controller)
         let root = try frame("root", in: controller)
         let composer = try frame("composer", in: controller)
         let thread = try frame("thread", in: controller)
@@ -934,7 +941,7 @@ final class NativeLayoutUnitTests: XCTestCase {
         }
     }
 
-    func testAProgressFillTakesItsShareOnceItsGrowArrives() throws {
+    func testAProgressFillTakesItsShareOnceItsGrowArrives() async throws {
         // HQ's week bar: the shares arrive as a style binding after the first
         // render, 78 to the fill and 22 to the rest of the track.
         let controller = screen(box("root", style: ["flex": 1], [[
@@ -957,7 +964,7 @@ final class NativeLayoutUnitTests: XCTestCase {
                 ["op": "updateNode", "id": "rest", "patch": ["style": ["flexGrow": 22, "flexShrink": 1, "flexBasis": 0]]],
             ],
         ])
-        settle(controller)
+        await settle(controller)
         let track = try frame("track", in: controller)
         XCTAssertEqual(track.width, 390 - 32 - 32, accuracy: 0.5)
         XCTAssertEqual(try frame("fill", in: controller).width, track.width * 0.78, accuracy: 1)
@@ -980,7 +987,7 @@ final class NativeLayoutUnitTests: XCTestCase {
     /// As Craft's hybrid shell shows a tab: the bar hidden until the screen
     /// asks for one, in a window, with the screen's first render before or
     /// after it appears.
-    private func largeTitleScreen(renderFirst: Bool) throws -> (CraftNativeScreenController, UINavigationController, UIWindow) {
+    private func largeTitleScreen(renderFirst: Bool) async throws -> (CraftNativeScreenController, UINavigationController, UIWindow) {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let navigation = UINavigationController(rootViewController: controller)
         navigation.setNavigationBarHidden(true, animated: false)
@@ -992,13 +999,13 @@ final class NativeLayoutUnitTests: XCTestCase {
         if renderFirst { controller.render(stickyHeaderScreen()) }
         window.rootViewController = navigation
         window.makeKeyAndVisible()
-        settle(controller)
+        await settle(controller)
         if !renderFirst { controller.render(stickyHeaderScreen()) }
-        settle(controller)
+        await settle(controller)
         return (controller, navigation, window)
     }
 
-    private func assertContentStartsBelowTheBar(_ controller: CraftNativeScreenController, _ navigation: UINavigationController) throws {
+    private func assertContentStartsBelowTheBar(_ controller: CraftNativeScreenController, _ navigation: UINavigationController) async throws {
         let bar = navigation.navigationBar.convert(navigation.navigationBar.bounds, to: controller.view)
         let week = try frame("week", in: controller)
         let summary = try frame("summary", in: controller)
@@ -1009,7 +1016,7 @@ final class NativeLayoutUnitTests: XCTestCase {
 
         // Scrolled, the strip sticks under the bar, drawn over the content.
         scroll.setContentOffset(CGPoint(x: 0, y: 300 - scroll.adjustedContentInset.top), animated: false)
-        settle(controller)
+        await settle(controller)
         let stuck = try frame("week", in: controller)
         let collapsed = navigation.navigationBar.convert(navigation.navigationBar.bounds, to: controller.view)
         XCTAssertEqual(stuck.minY, collapsed.maxY, accuracy: 1)
@@ -1018,18 +1025,18 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertGreaterThan(weekView.layer.zPosition, 0)
     }
 
-    func testALargeTitleScreenRenderedBeforeItAppearsStartsBelowTheBar() throws {
-        let (controller, navigation, window) = try largeTitleScreen(renderFirst: true)
+    func testALargeTitleScreenRenderedBeforeItAppearsStartsBelowTheBar() async throws {
+        let (controller, navigation, window) = try await largeTitleScreen(renderFirst: true)
         defer { window.isHidden = true }
-        try assertContentStartsBelowTheBar(controller, navigation)
+        try await assertContentStartsBelowTheBar(controller, navigation)
     }
 
-    func testALargeTitleScreenRenderedAfterItAppearsStartsBelowTheBar() throws {
+    func testALargeTitleScreenRenderedAfterItAppearsStartsBelowTheBar() async throws {
         // The first render switches the screen edge to edge under a bar that
         // is already showing: the scroll view's inset grows from nothing
         // while it rests at the top.
-        let (controller, navigation, window) = try largeTitleScreen(renderFirst: false)
+        let (controller, navigation, window) = try await largeTitleScreen(renderFirst: false)
         defer { window.isHidden = true }
-        try assertContentStartsBelowTheBar(controller, navigation)
+        try await assertContentStartsBelowTheBar(controller, navigation)
     }
 }

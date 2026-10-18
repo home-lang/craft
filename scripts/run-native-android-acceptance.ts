@@ -1,4 +1,4 @@
-import { dirname, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { createAndroidEmulator } from '../packages/android/src/emulator'
 
 // The SDK owns startup and disposal; acceptance still requires a responsive
@@ -17,12 +17,31 @@ const session = await createAndroidEmulator({
   artifactsDirectory: resolve('artifacts/android-navigation/emulator'),
 })
 try {
-  const test = Bun.spawn(['bash', 'packages/android/scripts/run-native-navigation-device.sh'], {
+  const test = Bun.spawn(['bash', '-x', 'packages/android/scripts/run-native-navigation-device.sh'], {
     env: { ...session.env, PATH: `${dirname(session.adb)}:${session.env.PATH ?? ''}` },
     stdout: 'inherit', stderr: 'inherit',
   })
   const code = await test.exited
-  if (code !== 0) throw new Error(`Native Android acceptance failed with exit ${code}`)
+  if (code !== 0) {
+    // Retain the owned device state before disposal, including failures before
+    // Gradle/instrumentation produces any JUnit result. Diagnostic failure must
+    // not replace the original acceptance exit or turn it into a pass.
+    for (const [name, args] of [
+      ['device-state', ['get-state']],
+      ['platform-events', ['logcat', '-b', 'events', '-d', '-v', 'threadtime']],
+      ['platform-properties', ['shell', 'getprop']],
+    ] as const) {
+      try {
+        const diagnostic = Bun.spawn([session.adb, '-s', session.serial, ...args], {
+          env: session.env, stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(10_000),
+        })
+        const [status, stdout, stderr] = await Promise.all([diagnostic.exited, new Response(diagnostic.stdout).text(), new Response(diagnostic.stderr).text()])
+        await Bun.write(join('artifacts/android-navigation', `failure-${name}.json`), JSON.stringify({ status, stdout, stderr }, null, 2) + '\n')
+      }
+      catch (error) { console.error(`Could not retain Android ${name}: ${error}`) }
+    }
+    throw new Error(`Native Android acceptance failed with exit ${code}`)
+  }
 }
 finally {
   await session.dispose()

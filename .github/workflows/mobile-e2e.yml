@@ -695,6 +695,7 @@ jobs:
           path: |
             artifacts/android-navigation/**/app/build/outputs/androidTest-results/**
             artifacts/android-navigation/emulator/**
+            artifacts/android-navigation/failure-*.json
             artifacts/android-navigation/**/app/build/reports/androidTests/**
             artifacts/android-navigation/**/app/build/outputs/connected_android_test_additional_output/**
             artifacts/android-navigation/launcher-*.txt
