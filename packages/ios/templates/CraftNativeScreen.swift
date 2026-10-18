@@ -4598,9 +4598,23 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         applyNavigationBarAppearance()
         // Each screen says whether it wants the tab bar, so one that hid it
-        // never leaves it hidden for the next.
-        restoreShellChrome()
+        // never leaves it hidden for the next. Only the screen on screen:
+        // UIKit tells a tab's screen prepared in a hidden stack that it
+        // appears too, and that one took the accessory of the screen showing.
+        if isShownOnScreen { restoreShellChrome() }
         refreshTraitDefaults()
+    }
+
+    /// In the window with nothing above it hidden: the screen the person
+    /// sees, not a tab prepared behind it.
+    private var isShownOnScreen: Bool {
+        guard let window = view.window else { return false }
+        var candidate: UIView? = view
+        while let current = candidate, current !== window {
+            if current.isHidden { return false }
+            candidate = current.superview
+        }
+        return true
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -4620,11 +4634,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        screenVisibilityChanged(true)
-        // A navigation breadcrumb for the crash reporter: the trail a crash
-        // report carries is the screens that led to it.
-        if !isAppScript, let routeName, !routeName.isEmpty {
-            CraftCrashReporter.shared.screenAppeared(routeName)
+        // A tab prepared in a hidden stack "appears" to UIKit as well; the
+        // shell says when it really shows (screenVisibilityChanged).
+        if isShownOnScreen {
+            screenVisibilityChanged(true)
+            // A navigation breadcrumb for the crash reporter: the trail a
+            // crash report carries is the screens that led to it.
+            if !isAppScript, let routeName, !routeName.isEmpty {
+                CraftCrashReporter.shared.screenAppeared(routeName)
+            }
         }
         // onLayout reports views that are on screen: a pushed screen lays
         // out before it has a window, and nothing moved again once it had
