@@ -4,6 +4,14 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
     private var map: MapLibreMap? = null
     private var destroyed = false
     private var lifecycleStarted = false
+    private var lifecycleResumed = false
+    private var lifecycleOwner: androidx.lifecycle.LifecycleOwner? = null
+    private val lifecycleObserver = object : androidx.lifecycle.DefaultLifecycleObserver {
+        override fun onStart(owner: androidx.lifecycle.LifecycleOwner) { startMap() }
+        override fun onResume(owner: androidx.lifecycle.LifecycleOwner) { resumeMap() }
+        override fun onPause(owner: androidx.lifecycle.LifecycleOwner) { pauseMap() }
+        override fun onStop(owner: androidx.lifecycle.LifecycleOwner) { stopMap() }
+    }
     private var pendingProps = JSONObject()
     private var pendingChildren = JSONArray()
     private var styleKey: String? = null
@@ -358,12 +366,36 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (!destroyed && !lifecycleStarted) { mapView.onStart(); mapView.onResume(); lifecycleStarted = true }
+        if (destroyed) return
+        lifecycleOwner = context as? androidx.lifecycle.LifecycleOwner
+        val owner = lifecycleOwner
+        if (owner != null) owner.lifecycle.addObserver(lifecycleObserver)
+        else { startMap(); resumeMap() }
     }
 
     override fun onDetachedFromWindow() {
-        if (lifecycleStarted) { mapView.onPause(); mapView.onStop(); lifecycleStarted = false }
+        lifecycleOwner?.lifecycle?.removeObserver(lifecycleObserver)
+        lifecycleOwner = null
+        stopMap()
         super.onDetachedFromWindow()
+    }
+
+    private fun startMap() {
+        if (!destroyed && !lifecycleStarted) { mapView.onStart(); lifecycleStarted = true }
+    }
+
+    private fun resumeMap() {
+        startMap()
+        if (!destroyed && !lifecycleResumed) { mapView.onResume(); lifecycleResumed = true }
+    }
+
+    private fun pauseMap() {
+        if (lifecycleResumed) { mapView.onPause(); lifecycleResumed = false }
+    }
+
+    private fun stopMap() {
+        pauseMap()
+        if (lifecycleStarted) { mapView.onStop(); lifecycleStarted = false }
     }
 
     fun lowMemory() { if (!destroyed) mapView.onLowMemory() }
@@ -374,7 +406,9 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
         styleVersion++
         onMarkerTap = null; onMapPress = null; onRegionChangeComplete = null
         markerHandlers.clear(); geometryPoints = emptyList()
-        if (lifecycleStarted) { mapView.onPause(); mapView.onStop(); lifecycleStarted = false }
+        lifecycleOwner?.lifecycle?.removeObserver(lifecycleObserver)
+        lifecycleOwner = null
+        stopMap()
         mapView.onDestroy()
         readyStyle = null; map = null
         reportedRegion = null; reportedCamera = null; reportedViewport = null

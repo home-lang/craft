@@ -249,6 +249,30 @@ class NativeMapTest {
     }
 
     @Test
+    fun backgroundAndResumeKeepTheNativeMapAndCamera() = withMap { activity, host, _, map, _ ->
+        awaitBasemapPixels(host, "before-background")
+        val camera = main { map.cameraPosition }
+        for (action in listOf(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.ACTION_UP)) {
+            assertTrue(instrumentation.uiAutomation.injectInputEvent(android.view.KeyEvent(action, android.view.KeyEvent.KEYCODE_HOME), true))
+        }
+        instrumentation.uiAutomation.waitForIdle(500, 5_000)
+        assertNotEquals("The Home action must actually background the app", activity.packageName, instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString())
+        val resumed = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        assertSame("Returning must reuse the retained native map activity", activity, resumed)
+        awaitState("The resumed native map must render its retained route and arrows") {
+            features(map).size == 3 && map.queryRenderedFeatures(map.projection.toScreenLocation(LatLng(47.005, 11.005)), "craft-map-directions").isNotEmpty()
+        }
+        awaitBasemapPixels(host, "after-background")
+        main {
+            assertEquals(camera.zoom, map.cameraPosition.zoom, 0.001)
+            assertEquals(camera.target!!.latitude, map.cameraPosition.target!!.latitude, 0.000001)
+            assertEquals(camera.target!!.longitude, map.cameraPosition.target!!.longitude, 0.000001)
+        }
+        evidence("map-resumed-after-home")
+    }
+
+    @Test
     fun showingTheLocationDotDoesNotRequestPermissionDuringRendering() = withMap { activity, host, _, map, _ ->
         assertEquals(PackageManager.PERMISSION_DENIED, activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION))
         main {
