@@ -29,6 +29,7 @@ struct CraftNativeMutationResult {
 final class CraftNativeMutationDocument {
     private struct Node {
         let id: String
+        let key: String?
         var type: String
         var props: [String: Any]
         var style: [String: Any]
@@ -177,6 +178,7 @@ final class CraftNativeMutationDocument {
         }
         nodes[id] = Node(
             id: id,
+            key: value["key"] as? String,
             type: type,
             props: dictionary(value["props"]),
             style: dictionary(value["style"]),
@@ -330,6 +332,7 @@ final class CraftNativeMutationDocument {
             "style": node.style,
             "events": node.events,
         ]
+        if let key = node.key { value["key"] = key }
         let text: [Any] = node.text
         let children: [Any] = node.children.compactMap { materialize($0, nodes: nodes) }
         value["children"] = text + children
@@ -350,6 +353,7 @@ final class CraftNativeMutationDocument {
         let children = value["children"] as? [Any] ?? []
         nodes[id] = Node(
             id: id,
+            key: value["key"] as? String,
             type: value["type"] as? String ?? "View",
             props: props,
             style: dictionary(value["style"]),

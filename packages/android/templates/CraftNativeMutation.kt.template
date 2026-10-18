@@ -30,7 +30,8 @@ class CraftNativeMutationDocument {
         var events: JSONObject,
         var text: MutableList<String>,
         var children: MutableList<String>,
-        var parent: String?
+        var parent: String?,
+        val key: String? = null
     ) {
         fun duplicate(): Node = copy(
             props = JSONObject(props.toString()),
@@ -175,7 +176,8 @@ class CraftNativeMutationDocument {
             dictionary(value.opt("events")),
             textChildren(if (value.has("children")) value.opt("children") else value.opt("text")),
             mutableListOf(),
-            null
+            null,
+            key = value.opt("key") as? String
         )
         return if (makeRoot) id else root
     }
@@ -299,6 +301,7 @@ class CraftNativeMutationDocument {
             .put("style", node.style)
             .put("events", node.events)
             .put("children", children)
+            .also { value -> node.key?.let { value.put("key", it) } }
     }
 
     private fun importNode(
@@ -322,7 +325,8 @@ class CraftNativeMutationDocument {
             dictionary(value.opt("events")),
             mutableListOf(),
             mutableListOf(),
-            parent
+            parent,
+            key = value.opt("key") as? String
         )
         nodes[id] = node
         for (index in 0 until children.length()) {
