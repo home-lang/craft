@@ -448,7 +448,11 @@ final class DriverTests: XCTestCase {
             var found = element(containing: arg)
             var swipes = 0
             while (found == nil || !(found!.isHittable)) && swipes < 8 {
-                app.swipeUp()
+                if let target = found, !target.frame.isEmpty, target.frame.midY < app.frame.midY {
+                    app.swipeDown()
+                } else {
+                    app.swipeUp()
+                }
                 swipes += 1
                 found = element(containing: arg)
             }

@@ -12,7 +12,16 @@ struct HostApp: App {
                 Text(taps.isEmpty ? "none" : taps.joined(separator: ","))
                     .lineLimit(1)
                     .accessibilityIdentifier("received-taps")
-                Spacer()
+                ScrollView {
+                    VStack {
+                        Button("Start of scroll fixture") {}
+                            .accessibilityIdentifier("driver-scroll-start")
+                        Color.clear.frame(height: 1600).accessibilityHidden(true)
+                        Button("End of scroll fixture") {}
+                            .accessibilityIdentifier("driver-scroll-end")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
                 HStack {
                     ForEach(names, id: \.self) { name in
                         Button(name) { taps.append(name) }

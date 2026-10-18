@@ -259,6 +259,10 @@ try {
     ]) },
     { command: 'labelid', id: 'received-taps', text: inputSequence.join(',') },
     { command: 'selected', text: 'Four' },
+    { command: 'scrollto', text: 'End of scroll fixture' },
+    { command: 'expectid', text: 'driver-scroll-end' },
+    { command: 'scrollto', text: 'Start of scroll fixture' },
+    { command: 'expectid', text: 'driver-scroll-start' },
   ])
   initSimulatorDriver({ output: driverOutput, bundleId: 'dev.craft.timedinput.host',
     bundleIdPrefix: 'dev.craft.timedinput', projectName: 'TimedInputDriver', tabs: inputNames, script })
