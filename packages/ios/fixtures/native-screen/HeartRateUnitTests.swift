@@ -361,7 +361,7 @@ final class PersistentRecordingCheckpointUnitTests: XCTestCase {
 
     func testConditionalCheckpointRespectsDeletionFeedbackTypesAndDiskFailure() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let prefix = "craft-cas-test-" + UUID().uuidString()
+        let prefix = "craft-cas-test-" + UUID().uuidString
         defer { try? FileManager.default.removeItem(at: directory); UserDefaults.standard.removeObject(forKey: prefix + "draft") }
         let old: [String: Any] = ["owner": "A", "feedback": "latest", "visits": 1]
         let next: [String: Any] = ["owner": "A", "feedback": "latest", "visits": 2]
@@ -380,7 +380,7 @@ final class PersistentRecordingCheckpointUnitTests: XCTestCase {
     }
 
     func testCorruptLegacyValueDoesNotBecomeAMissingDraft() throws {
-        let prefix = "craft-corrupt-test-" + UUID().uuidString()
+        let prefix = "craft-corrupt-test-" + UUID().uuidString
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { UserDefaults.standard.removeObject(forKey: prefix + "draft"); try? FileManager.default.removeItem(at: directory) }
         UserDefaults.standard.set(Data("not JSON".utf8), forKey: prefix + "draft")
@@ -389,7 +389,7 @@ final class PersistentRecordingCheckpointUnitTests: XCTestCase {
 
     func testFailedLegacyMigrationKeepsTheReadableCheckpointAndRejectsNewWrites() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let prefix = "craft-checkpoint-test-" + UUID().uuidString()
+        let prefix = "craft-checkpoint-test-" + UUID().uuidString
         defer { try? FileManager.default.removeItem(at: directory); UserDefaults.standard.removeObject(forKey: prefix + "draft") }
         // A real filesystem refusal: the destination directory is a file.
         try Data("occupied".utf8).write(to: directory)
@@ -405,7 +405,7 @@ final class PersistentRecordingCheckpointUnitTests: XCTestCase {
 
     func testFailedDurableCheckpointLeavesPreviousValueAndLegacyCacheIntact() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let prefix = "craft-checkpoint-test-" + UUID().uuidString()
+        let prefix = "craft-checkpoint-test-" + UUID().uuidString
         defer { try? FileManager.default.removeItem(at: directory); UserDefaults.standard.removeObject(forKey: prefix + "draft") }
         let old = Data("{\"owner\":\"A\"}".utf8)
         let next = Data("{\"owner\":\"A-complete\"}".utf8)
@@ -423,7 +423,7 @@ final class PersistentRecordingCheckpointUnitTests: XCTestCase {
 
     func testMigrationIsDurableAndRemovalTombstonePreventsLegacyResurrection() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let prefix = "craft-checkpoint-test-" + UUID().uuidString()
+        let prefix = "craft-checkpoint-test-" + UUID().uuidString
         defer { try? FileManager.default.removeItem(at: directory); UserDefaults.standard.removeObject(forKey: prefix + "draft") }
         let old = Data("{\"owner\":\"A\"}".utf8)
         UserDefaults.standard.set(old, forKey: prefix + "draft")
