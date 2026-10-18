@@ -2,7 +2,7 @@
 //! the public Crypto service share these primitives; no clock or JS PRNG.
 const std = @import("std");
 const builtin = @import("builtin");
-const Jni = @import("jni.zig").Jni;
+const Jni = @import("jni_runtime.zig").Jni;
 const objc = @import("objc_runtime.zig").objc;
 
 pub fn darwin(allocator: std.mem.Allocator) ![]u8 {
