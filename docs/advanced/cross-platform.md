@@ -4,13 +4,23 @@ Craft supports building applications for macOS, Linux, Windows, iOS, and Android
 
 ## Platform Support
 
-| Platform | Status | WebView | Native Components |
-|----------|--------|---------|-------------------|
-| **macOS** | Production | WKWebView | Full support |
-| **Linux** | Production | WebKit2GTK 4.0+ | Full support |
-| **Windows** | Production | WebView2 (Edge) | Full support |
-| **iOS** | Beta | WKWebView | UIKit |
-| **Android** | Beta | WebView | Material |
+| Platform | Web renderer | Native STX screen renderer |
+|----------|--------------|----------------------------|
+| **macOS** | WKWebView | Mobile screen renderer does not target desktop |
+| **Linux** | GTK3 + WebKit2GTK 4.1 | Mobile screen renderer does not target desktop |
+| **Windows** | WebView2 (Edge) | Mobile screen renderer does not target desktop |
+| **iOS** | WKWebView (default) | JavaScriptCore + UIKit (opt-in, experimental) |
+| **Android** | WebView (default) | JavaScriptSandbox + Android views (opt-in, experimental) |
+
+In native mobile mode the app runs a local compiled STX route bundle and creates
+platform controls without a WebView. Reuse the same component sources for browser,
+iOS and Android targets; STX owns translation and reactive bindings, and Craft
+owns platform controls and services. Native bundles and imported helpers need a
+new app build to update. A site URL supplies the API/navigation origin rather
+than the native UI. Follow the [Native STX guide](../guides/native-stx.md) for the
+supported component and capability contracts, and test each target explicitly.
+Platform support does not imply that every API or desktop feature exists on
+every mobile renderer.
 
 ## Platform Detection
 

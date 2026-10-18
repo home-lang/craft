@@ -1,14 +1,27 @@
-# Android Development
+# Android Zig Migration: Historical Audit
+
+This is the original migration audit and implementation plan, retained as
+historical context. Its empty-archive finding, bridge mismatches, counts and
+line references describe the source at that audit, not current build results.
+For current application development, use the
+[Android package guide](../packages/android/README.md) and
+[Native STX on iOS and Android](guides/native-stx.md).
+
+The default `web` renderer hosts web content in WebView. Experimental `native`
+mode evaluates a local STX route bundle with JavaScriptSandbox and renders
+Android views without creating a WebView. The same component sources can also
+compile for iOS and the browser. Bundled code and native capabilities need a new
+app build and release; a website deployment does not replace that bundle.
 
 Making Android a Zig-native platform: Zig reaches Android's Java APIs through JNI, the way
 `packages/zig/src/macos.zig` reaches AppKit through `objc_msgSend`.
 
-This document is the working plan. It is meant to be checked off, and the phase gates are
-meant to be run.
+The following sections preserve the original working plan. Check current source
+and the corresponding CI gates before treating an item as outstanding.
 
 ---
 
-## Where Android actually stands
+## Findings at the original audit
 
 **`zig build build-android` exits 0 and ships nothing.**
 
