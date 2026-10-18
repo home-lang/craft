@@ -780,7 +780,11 @@ class NativeNavigationTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
         fun rows(): List<View> {
-            val list = awaitView(activity, "identity-list")
+            val list = awaitView(activity, "identity-list") { candidate ->
+                val rendered = mutableListOf<View>()
+                findAll(candidate, "identity-row", rendered)
+                rendered.size == 2
+            }
             val matches = mutableListOf<View>()
             instrumentation.runOnMainSync {
                 findAll(list, "identity-row", matches)
