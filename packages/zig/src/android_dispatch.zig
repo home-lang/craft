@@ -253,6 +253,11 @@ pub export fn JNI_OnLoad(vm_handle: jni.JavaVM, _: ?*anyopaque) callconv(.c) jni
 /// the method, rather than corrupting a stack on first use.
 const natives = [_]jni.JNINativeMethod{
     .{
+        .name = "nativeRandomUUID",
+        .signature = "()Ljava/lang/String;",
+        .fnPtr = @ptrCast(&nativeRandomUUID),
+    },
+    .{
         .name = "nativeGetDeviceInfo",
         .signature = "(Landroid/app/Activity;)Ljava/lang/String;",
         .fnPtr = @ptrCast(&nativeGetDeviceInfo),
@@ -842,6 +847,15 @@ fn nativeGetDeviceInfo(env: jni.JNIEnv, _: jni.jobject, activity: jni.jobject) c
     // model name, a carrier — and `NewStringUTF` reads modified UTF-8, where a
     // NUL is two bytes and an astral character is a surrogate pair.
     return j.newStringUtf8(allocator, json) catch |err| fellThrough("getDeviceInfo", err, @as(jni.jstring, null));
+}
+
+fn nativeRandomUUID(env: jni.JNIEnv, _: jni.jobject) callconv(.c) jni.jstring {
+    var arena = std.heap.ArenaAllocator.init(backing);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const j = Jni.init(env);
+    const id = @import("platform_uuid.zig").android(j, allocator) catch |err| return fellThrough("randomUUID", err, @as(jni.jstring, null));
+    return j.newStringUtf8(allocator, id) catch |err| fellThrough("randomUUID", err, @as(jni.jstring, null));
 }
 
 /// `nativeGetMemoryUsage()` — the JVM heap, as JSON.

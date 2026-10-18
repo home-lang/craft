@@ -35,6 +35,7 @@ const Jni = jni.Jni;
 /// The action names, spelled exactly as `CraftBridge.kt` spells them. The
 /// conformance ratchet matches the two lists by string.
 pub const A = struct {
+    pub const random_uuid = "randomUUID";
     pub const get_memory_usage = "getMemoryUsage";
     pub const log = "log";
 };
