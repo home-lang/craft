@@ -34,6 +34,7 @@ function fixture(run: (directory: string, git: (...args: string[]) => string) =>
   finally { rmSync(directory, { recursive: true, force: true }) }
 }
 
+// Real Git/Logsmith fixtures use the release CLI rehearsals' bounded budget.
 test('real generator preview preserves a clean checkout and tracked changelog', () => {
   fixture((directory, git) => {
     const before = readFileSync(join(directory, 'CHANGELOG.md'), 'utf8')
@@ -42,7 +43,7 @@ test('real generator preview preserves a clean checkout and tracked changelog', 
     expect(readFileSync(join(directory, 'CHANGELOG.md'), 'utf8')).toBe(before)
     expect(git('status', '--porcelain')).toBe('')
   })
-})
+}, 30_000)
 
 test('CLI emits only the preview and preserves pre-existing local edits', () => {
   fixture((directory, git) => {
@@ -56,7 +57,7 @@ test('CLI emits only the preview and preserves pre-existing local edits', () => 
     expect(readFileSync(join(directory, 'CHANGELOG.md'), 'utf8')).toBe(notes)
     expect(git('status', '--porcelain')).toBe(before)
   })
-})
+}, 30_000)
 
 test('rejects output overrides and invalid refs without mutating the repository', () => {
   fixture((directory, git) => {
@@ -67,7 +68,7 @@ test('rejects output overrides and invalid refs without mutating the repository'
       expect(git('status', '--porcelain')).toBe('')
     }
   })
-})
+}, 30_000)
 
 test('keeps one link per issue or pull request without dropping distinct references', () => {
   const first = '[#326](https://github.com/craft-native/craft/issues/326)'
@@ -85,7 +86,7 @@ test('real merge commit preview has only one linked reference', () => {
     expect(output.match(/\[#326\]\(https:\/\/github\.com\/example\/fixture\/issues\/326\)/g)).toHaveLength(1)
     expect(git('status', '--porcelain')).toBe('')
   })
-})
+}, 30_000)
 
 test('release generation prepends a deduplicated section with the future tag', () => {
   fixture((directory, git) => {
@@ -98,7 +99,7 @@ test('release generation prepends a deduplicated section with the future tag', (
     expect(git('status', '--porcelain')).toBe(' M CHANGELOG.md\n')
     expect(() => generateReleaseChangelog(directory)).toThrow('already in the changelog')
   })
-})
+}, 30_000)
 
 test('failed release generation leaves the changelog unchanged', () => {
   fixture((directory, git) => {
@@ -108,7 +109,7 @@ test('failed release generation leaves the changelog unchanged', () => {
     expect(readFileSync(join(directory, 'CHANGELOG.md'), 'utf8')).toBe(changelog)
     expect(git('status', '--porcelain')).toBe(' M package.json\n')
   })
-})
+}, 30_000)
 
 test('release notes can include changes since the last published release after an abandoned tag', () => {
   fixture((directory, git) => {
@@ -120,7 +121,7 @@ test('release notes can include changes since the last published release after a
     expect(content).toContain('/compare/v1.0.0...v1.0.2)')
     expect(git('tag', '--list', 'v1.0.1')).toBe('v1.0.1\n')
   })
-})
+}, 30_000)
 
 test('patch release uses the guarded changelog generator before committing', () => {
   const project = JSON.parse(readFileSync(join(import.meta.dir, '..', 'package.json'), 'utf8'))
