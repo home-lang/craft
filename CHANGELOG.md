@@ -1,5 +1,102 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.238...v0.0.240)
+
+## 🚀 Features
+
+- **maps**: add native map providers and controls ([a207001](https://github.com/craft-native/craft/commit/a207001)) _(by Chris)_
+- **maps**: bind native marker colors on both platforms ([c7e68a4](https://github.com/craft-native/craft/commit/c7e68a4)) _(by Chris Breuer)_
+- **maps**: expose native providers and consistent tilt gestures ([758d5b4](https://github.com/craft-native/craft/commit/758d5b4)) _(by Chris Breuer)_
+- **android**: add a key-free native MapLibre map host ([d2c029e](https://github.com/craft-native/craft/commit/d2c029e)) _(by Chris Breuer)_
+- **testing**: verify native paste through real edit menus ([0e20906](https://github.com/craft-native/craft/commit/0e20906)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- guard native SDK release transactions ([eb95b5e](https://github.com/craft-native/craft/commit/eb95b5e)) _(by Chris)_
+- release native manifests in the same version transaction ([35c88d5](https://github.com/craft-native/craft/commit/35c88d5)) _(by Chris Breuer)_
+- require project-owned release tool installations ([bdd91a2](https://github.com/craft-native/craft/commit/bdd91a2)) _(by Chris Breuer)_
+- require a clean synchronized main before SDK releases ([fc6b3c8](https://github.com/craft-native/craft/commit/fc6b3c8)) _(by Chris Breuer)_
+- support safe publication after an abandoned release tag ([d71a288](https://github.com/craft-native/craft/commit/d71a288)) _(by Chris Breuer)_
+- validate release dependencies before changing versions ([1f113f1](https://github.com/craft-native/craft/commit/1f113f1)) _(by Chris Breuer)_
+- **ios**: preserve authored map polyline draw order ([027f97b](https://github.com/craft-native/craft/commit/027f97b)) _(by Chris Breuer)_
+- **android**: configure bounded emulator boot readiness waits ([99cd167](https://github.com/craft-native/craft/commit/99cd167)) _(by Chris Breuer)_
+- **zig**: link Darwin UUID dependencies in Android host tests ([c28d11d](https://github.com/craft-native/craft/commit/c28d11d)) _(by Chris Breuer)_
+- **ci**: report template XCTest failures before fixture cleanup ([7a52c19](https://github.com/craft-native/craft/commit/7a52c19)) _(by Chris Breuer)_
+- **ci**: run native Android acceptance through the SDK-owned emulator ([e56a7ca](https://github.com/craft-native/craft/commit/e56a7ca)) _(by Chris Breuer)_
+- use the upstream Zig iOS descriptor fix ([5c3d229](https://github.com/craft-native/craft/commit/5c3d229)) _(by Chris Breuer)_
+- verify the emulator root identity after adbd restarts ([4e76cb2](https://github.com/craft-native/craft/commit/4e76cb2)) _(by Chris Breuer)_
+- apply sandboxed Apple process policy to threaded I/O ([d848436](https://github.com/craft-native/craft/commit/d848436)) _(by Chris Breuer)_
+- **android**: expose native STX test identities to accessibility tools ([a2b9025](https://github.com/craft-native/craft/commit/a2b9025)) _(by Chris Breuer)_
+- emit the complete Zig 0.17 Android libc configuration ([6728933](https://github.com/craft-native/craft/commit/6728933)) _(by Chris Breuer)_
+- **android**: follow the native map activity lifecycle ([0a933c7](https://github.com/craft-native/craft/commit/0a933c7)) _(by Chris Breuer)_
+- **ci**: require verified public Pantry 0.11.92 for native SDK checks ([3c4d0fc](https://github.com/craft-native/craft/commit/3c4d0fc)) _(by Chris Breuer)_
+- **android**: preserve native map gestures on controlled region echoes ([5e8a586](https://github.com/craft-native/craft/commit/5e8a586)) _(by Chris Breuer)_
+- **android**: preserve Node-compatible map type exports ([a05b5f0](https://github.com/craft-native/craft/commit/a05b5f0)) _(by Chris Breuer)_
+- **maps**: keep attribution above floating controls ([c77eac9](https://github.com/craft-native/craft/commit/c77eac9)) _(by Chris Breuer)_
+- **android**: align Kotlin with native map SDK metadata ([c264a93](https://github.com/craft-native/craft/commit/c264a93)) _(by Chris Breuer)_
+- **ios**: wait for foreground authorization before requesting location ([0a397ef](https://github.com/craft-native/craft/commit/0a397ef)) _(by Chris Breuer)_
+- **ios**: preserve automatic aspect ratios when sizing overlays ([f27808d](https://github.com/craft-native/craft/commit/f27808d)) _(by Chris Breuer)_
+- **ios**: honor bounds on absolutely positioned native views ([434f1c7](https://github.com/craft-native/craft/commit/434f1c7)) _(by Chris Breuer)_
+- **ios**: release keyboard focus when native modals close ([a43d047](https://github.com/craft-native/craft/commit/a43d047)) _(by Chris Breuer)_
+- **ios**: preserve compact direction marker colors ([7880430](https://github.com/craft-native/craft/commit/7880430)) _(by Chris Breuer)_
+
+## ♻️ Code Refactoring
+
+- **android**: isolate the native map host template ([dfa6ad3](https://github.com/craft-native/craft/commit/dfa6ad3)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- align release guidance with verified publication gates ([6f648b6](https://github.com/craft-native/craft/commit/6f648b6)) _(by Chris Breuer)_
+- **maps**: distinguish native hosts from the WebView adapter ([acfc579](https://github.com/craft-native/craft/commit/acfc579)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: await layout in native map fixture ([33ed27c](https://github.com/craft-native/craft/commit/33ed27c)) _(by Chris Breuer)_
+- **ios**: cover native map polyline stacking across updates ([587cc81](https://github.com/craft-native/craft/commit/587cc81)) _(by Chris Breuer)_
+- **ios**: follow canonical asynchronous layout readiness ([6032432](https://github.com/craft-native/craft/commit/6032432)) _(by Chris Breuer)_
+- **ios**: await committed list content before measuring layout ([5d9ed28](https://github.com/craft-native/craft/commit/5d9ed28)) _(by Chris Breuer)_
+- **android**: await the actual compositor frame before tapping a mutated pin ([2153c8a](https://github.com/craft-native/craft/commit/2153c8a)) _(by Chris Breuer)_
+- **android**: query native test identities through accessibility node metadata ([20a7b14](https://github.com/craft-native/craft/commit/20a7b14)) _(by Chris Breuer)_
+- **android**: wait for the real map background transition ([f76bd79](https://github.com/craft-native/craft/commit/f76bd79)) _(by Chris Breuer)_
+- **android**: background native maps through the system Home action ([0595589](https://github.com/craft-native/craft/commit/0595589)) _(by Chris Breuer)_
+- **android**: await retained map activity resumption ([06d8abe](https://github.com/craft-native/craft/commit/06d8abe)) _(by Chris Breuer)_
+- **android**: retain new controlled map camera requests ([060af2e](https://github.com/craft-native/craft/commit/060af2e)) _(by Chris Breuer)_
+- **android**: round-trip native map drag regions ([277dd2f](https://github.com/craft-native/craft/commit/277dd2f)) _(by Chris Breuer)_
+- **android**: require visible native basemap tiles ([33d5606](https://github.com/craft-native/craft/commit/33d5606)) _(by Chris Breuer)_
+- **android**: inspect native permission window through UI automation ([28d4e42](https://github.com/craft-native/craft/commit/28d4e42)) _(by Chris Breuer)_
+- **android**: exercise real native map rendering and camera controls ([2fe919e](https://github.com/craft-native/craft/commit/2fe919e)) _(by Chris Breuer)_
+- **android**: correct native map fixture package paths ([8a3c5b5](https://github.com/craft-native/craft/commit/8a3c5b5)) _(by Chris Breuer)_
+- assemble native map contracts from provider templates ([e2b0d9b](https://github.com/craft-native/craft/commit/e2b0d9b)) _(by Chris Breuer)_
+- **android**: compile and verify key-free native map projects ([e690218](https://github.com/craft-native/craft/commit/e690218)) _(by Chris Breuer)_
+- **ios**: drive native sliders and verify app handoffs ([3fd7b45](https://github.com/craft-native/craft/commit/3fd7b45)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- preserve the canonical software emulator acceptance budget ([463daf7](https://github.com/craft-native/craft/commit/463daf7)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- release v0.0.239 ([0eb9bf5](https://github.com/craft-native/craft/commit/0eb9bf5)) _(by Chris Breuer)_
+- merge published Craft SDK baseline ([b36dc78](https://github.com/craft-native/craft/commit/b36dc78)) _(by Chris Breuer)_
+- integrate bounded native software provisioning diagnostics ([6b1c1a5](https://github.com/craft-native/craft/commit/6b1c1a5)) _(by Chris Breuer)_
+- follow canonical bounded emulator diagnostics ([ded1007](https://github.com/craft-native/craft/commit/ded1007)) _(by Chris Breuer)_
+- integrate native event-log and asynchronous UIKit readiness ([2178e46](https://github.com/craft-native/craft/commit/2178e46)) _(by Chris Breuer)_
+- integrate deterministic UIKit and retained XCTest evidence ([25703e8](https://github.com/craft-native/craft/commit/25703e8)) _(by Chris Breuer)_
+- integrate verified native Android acceptance lifecycle ([8f048f0](https://github.com/craft-native/craft/commit/8f048f0)) _(by Chris Breuer)_
+- integrate optional native event forwarding fix ([d76e27c](https://github.com/craft-native/craft/commit/d76e27c)) _(by Chris Breuer)_
+- integrate verified Pantry toolchain and account guards ([c022121](https://github.com/craft-native/craft/commit/c022121)) _(by Chris Breuer)_
+- integrate guarded recording and UUID SDK fixes ([668adbf](https://github.com/craft-native/craft/commit/668adbf)) _(by Chris Breuer)_
+- integrate native recording ownership with trail maps ([0d3e448](https://github.com/craft-native/craft/commit/0d3e448)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge commit '554330dc9376bb4da88908832d549d90f6474426' into codex/wildloop-native-map-providers ([dc4b76b](https://github.com/craft-native/craft/commit/dc4b76b)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.237...v0.0.238)
 
 ## 🚀 Features
