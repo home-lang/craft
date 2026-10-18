@@ -222,6 +222,9 @@ const tab_fields = [_]Field{
     .{ .name = "id", .kind = .string, .required = true },
     .{ .name = "title", .kind = .string, .required = true },
     .{ .name = "symbol", .kind = .string, .required = false },
+    .{ .name = "selectedSymbol", .kind = .string, .required = false },
+    .{ .name = "selectedIconTint", .kind = .string, .required = false },
+    .{ .name = "selectedIconPulse", .kind = .bool, .required = false },
 };
 
 /// `CraftConfiguredShortcut`, decoded by Swift before enabling capabilities.
@@ -802,6 +805,8 @@ test "nested types decode field by field, defaults or not" {
         "\"backgroundRefresh\":{\"enabled\":false,\"identifier\":null,\"minimumIntervalMinutes\":30,\"newer\":1}",
         "\"tabs\":[]",
         "\"tabs\":[{\"id\":\"a\",\"title\":\"A\"},{\"id\":\"b\",\"title\":\"B\",\"symbol\":null}]",
+        "\"tabs\":[{\"id\":\"health\",\"title\":\"Health\",\"selectedSymbol\":\"heart.fill\",\"selectedIconTint\":\"#ef4444\",\"selectedIconPulse\":false}]",
+        "\"tabs\":[{\"id\":\"health\",\"title\":\"Health\",\"selectedSymbol\":null,\"selectedIconTint\":null,\"selectedIconPulse\":null}]",
         "\"crashReporting\":{\"key\":\"bughq_k\"}",
         "\"crashReporting\":{\"key\":\"bughq_k\",\"host\":\"https://bughq.org\",\"environment\":null,\"sessions\":false}",
     }) |good| {
@@ -821,6 +826,9 @@ test "nested types decode field by field, defaults or not" {
         "\"crashReporting\":{\"key\":\"bughq_k\",\"sessions\":\"yes\"}",
         "\"tabs\":[{\"id\":\"a\"}]",
         "\"tabs\":[{\"id\":\"a\",\"title\":\"A\",\"symbol\":1}]",
+        "\"tabs\":[{\"id\":\"a\",\"title\":\"A\",\"selectedSymbol\":true}]",
+        "\"tabs\":[{\"id\":\"a\",\"title\":\"A\",\"selectedIconTint\":1}]",
+        "\"tabs\":[{\"id\":\"a\",\"title\":\"A\",\"selectedIconPulse\":\"false\"}]",
         "\"tabs\":[null]",
         "\"tabs\":{}",
     }) |bad| {
