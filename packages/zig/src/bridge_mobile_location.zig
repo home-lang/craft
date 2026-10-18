@@ -918,17 +918,31 @@ pub fn adoptRecording() bool {
     defer state.deinit(allocator);
 
     if (state.id) |id| {
-        if (locrec.acknowledged(allocator, id) catch { failRecordingRestore(); return true; }) {
-            locrec.acknowledgeCompleted(allocator, id) catch { failRecordingRestore(); return true; };
-            locrec.removeTrack(allocator) catch { failRecordingRestore(); return true; };
-            locrec.writeState(allocator, .{}) catch { failRecordingRestore(); return true; };
-            commitRecording(.{}, null) catch { failRecordingRestore(); return true; };
+        if (locrec.acknowledged(allocator, id) catch {
+            failRecordingRestore();
+            return true;
+        }) {
+            locrec.acknowledgeCompleted(allocator, id) catch {
+                failRecordingRestore();
+                return true;
+            };
+            locrec.removeTrack(allocator) catch {
+                failRecordingRestore();
+                return true;
+            };
+            locrec.writeState(allocator, .{}) catch {
+                failRecordingRestore();
+                return true;
+            };
+            commitRecording(.{}, null) catch {
+                failRecordingRestore();
+                return true;
+            };
             return true;
         }
     }
 
-    // `guard … state["active"] as? Bool == true else { return }` already
-    // applied by `readState`, so this is Swift's early return.
+    // A completed owner remains available for guarded recovery after relaunch.
     if (!state.active) {
         commitRecording(state, null) catch |err| {
             failRecordingRestore();

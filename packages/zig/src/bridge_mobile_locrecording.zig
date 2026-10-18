@@ -554,7 +554,7 @@ pub fn writeState(allocator: std.mem.Allocator, state: State) !void {
     protectFile(path);
 }
 
-fn completedPathIn(allocator: std.mem.Allocator, directory: []const u8, id: []const u8, acknowledged: bool) ![]u8 {
+fn completedPathIn(allocator: std.mem.Allocator, directory: []const u8, id: []const u8, is_acknowledged: bool) ![]u8 {
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(id, &digest, .{});
     var hex: [64]u8 = undefined;
@@ -563,7 +563,7 @@ fn completedPathIn(allocator: std.mem.Allocator, directory: []const u8, id: []co
         hex[i * 2] = digits[byte >> 4];
         hex[i * 2 + 1] = digits[byte & 15];
     }
-    return std.fmt.allocPrint(allocator, "{s}/craft-location-{s}-{s}.json", .{ directory, if (acknowledged) "ack" else "completed", hex });
+    return std.fmt.allocPrint(allocator, "{s}/craft-location-{s}-{s}.json", .{ directory, if (is_acknowledged) "ack" else "completed", hex });
 }
 
 pub fn acknowledged(allocator: std.mem.Allocator, id: []const u8) !bool {
@@ -578,7 +578,10 @@ pub fn acknowledged(allocator: std.mem.Allocator, id: []const u8) !bool {
 }
 
 pub fn readCompleted(allocator: std.mem.Allocator, id: []const u8) !?[]u8 {
-    if (try acknowledged(allocator, id)) { try acknowledgeCompleted(allocator, id); return error.RecordingNotFound; }
+    if (try acknowledged(allocator, id)) {
+        try acknowledgeCompleted(allocator, id);
+        return error.RecordingNotFound;
+    }
     const directory = try applicationSupportPath(allocator);
     defer allocator.free(directory);
     const path = try completedPathIn(allocator, directory, id, false);
@@ -612,8 +615,14 @@ pub fn completedReply(allocator: std.mem.Allocator, payload: []const u8, kind: C
 pub fn archiveCompleted(allocator: std.mem.Allocator, state: State) !void {
     const id = state.id orelse return;
     if (state.active) return error.RecordingAlreadyActive;
-    if (try acknowledged(allocator, id)) { try acknowledgeCompleted(allocator, id); return; }
-    if (try readCompleted(allocator, id)) |existing| { allocator.free(existing); return; }
+    if (try acknowledged(allocator, id)) {
+        try acknowledgeCompleted(allocator, id);
+        return;
+    }
+    if (try readCompleted(allocator, id)) |existing| {
+        allocator.free(existing);
+        return;
+    }
     const track_path = try trackFilePath(allocator);
     defer allocator.free(track_path);
     const raw = try readTrackBytes(allocator, track_path) orelse return error.NativeCallFailed;
@@ -643,13 +652,19 @@ pub fn acknowledgeCompleted(allocator: std.mem.Allocator, id: []const u8) !void 
     protectFile(marker);
     const archive = try completedPathIn(allocator, directory, id, false);
     defer allocator.free(archive);
-    std.Io.Dir.cwd().deleteFile(io_context.get(), archive) catch |err| switch (err) { error.FileNotFound => {}, else => return err };
+    std.Io.Dir.cwd().deleteFile(io_context.get(), archive) catch |err| switch (err) {
+        error.FileNotFound => {},
+        else => return err,
+    };
 }
 
 pub fn removeTrack(allocator: std.mem.Allocator) !void {
     const path = try trackFilePath(allocator);
     defer allocator.free(path);
-    std.Io.Dir.cwd().deleteFile(io_context.get(), path) catch |err| switch (err) { error.FileNotFound => {}, else => return err };
+    std.Io.Dir.cwd().deleteFile(io_context.get(), path) catch |err| switch (err) {
+        error.FileNotFound => {},
+        else => return err,
+    };
 }
 
 /// The four keys, in `persistLocationRecordingState`'s spelling.
@@ -1148,12 +1163,8 @@ fn outcomeFor(data: []const u8) ?anyerror {
 }
 
 test "omitted recording identity permits unrelated option fields" {
-    // The injected JS posts `{action:'readLocationRecording', callbackId: id}`
-    // and nothing else, and the Swift dispatcher reads nothing out of `body`.
-    // A handler that parsed `d` would turn the malformed case into an
-    // `INVALID_JSON` rejection for a call Swift answers — which is why these
-    // are asserted *equal* rather than each asserted successful. A parsing
-    // handler fails this test on every platform.
+    // Guard omission preserves legacy reads; unrelated fields do not change
+    // the result. Supplied identities are validated by recording_identity.zig.
     const baseline = outcomeFor("{}");
 
     try testing.expectEqual(baseline, outcomeFor("{\"callbackId\":\"cb_7\"}"));
