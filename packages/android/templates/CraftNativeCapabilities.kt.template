@@ -652,29 +652,9 @@ internal class CraftNativeCapabilities(
         }
     }
 
-    private fun commitStorage(update: (android.content.SharedPreferences.Editor) -> Unit): Boolean {
-        val previous = storage.all
-        val editor = storage.edit()
-        update(editor)
-        if (editor.commit()) return true
-        // A failed commit has already changed SharedPreferences' memory map.
-        // Restore it before a later draft read can mistake it for a checkpoint.
-        val rollback = storage.edit().clear()
-        previous.forEach { (key, value) -> when (value) {
-            is String -> rollback.putString(key, value)
-            is Boolean -> rollback.putBoolean(key, value)
-            is Long -> rollback.putLong(key, value)
-            is Int -> rollback.putInt(key, value)
-            is Float -> rollback.putFloat(key, value)
-            else -> error("Invalid stored value")
-        } }
-        rollback.commit()
-        return false
-    }
-
-    private fun storage(method: String, args: JSONArray): CraftNativeCapabilityResult {
+    private fun storage(method: String, args: JSONArray): CraftNativeCapabilityResult = synchronized(CraftNativeStorage.lock) {
         if (method == "clear") {
-            if (!commitStorage { it.clear() }) return failure("STORAGE_ERROR", "Storage could not be cleared")
+            if (!CraftNativeStorage.commit(storage) { it.clear() }) return failure("STORAGE_ERROR", "Storage could not be cleared")
             storeObserver?.invoke("storage", null, null)
             return success(true)
         }
@@ -690,13 +670,13 @@ internal class CraftNativeCapabilities(
                 if (args.length() != 2) return failure("INVALID_ARGUMENT", "Storage.set needs a key and value")
                 val value = jsonString(args.opt(1))
                     ?: return failure("INVALID_ARGUMENT", "Storage values must be JSON serializable")
-                if (commitStorage { it.putString(key, value) }) {
+                if (CraftNativeStorage.commit(storage) { it.putString(key, value) }) {
                     storeObserver?.invoke("storage", key, value)
                     success(true)
                 }
                 else failure("STORAGE_ERROR", "Storage could not persist the value")
             }
-            "remove" -> if (commitStorage { it.remove(key) }) {
+            "remove" -> if (CraftNativeStorage.commit(storage) { it.remove(key) }) {
                 storeObserver?.invoke("storage", key, null)
                 success(true)
             } else failure("STORAGE_ERROR", "Storage could not remove the value")

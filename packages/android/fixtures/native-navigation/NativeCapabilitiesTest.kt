@@ -22,6 +22,66 @@ class NativeCapabilitiesTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
     @Test
+    fun aNewIsolateCannotPreloadAnUncommittedCheckpoint() {
+        val base = instrumentation.targetContext
+        val name = "checkpoint-preload-${UUID.randomUUID()}"
+        val root = java.io.File(base.cacheDir, name).apply { check(mkdirs()) }
+        val values = base.getSharedPreferences(name, android.content.Context.MODE_PRIVATE)
+        check(values.edit().putString("draft", "{\"owner\":\"A\"}").commit())
+        val changedMemory = CountDownLatch(1)
+        val releaseDisk = CountDownLatch(1)
+        val first = java.util.concurrent.atomic.AtomicBoolean(true)
+        val failing = object : android.content.SharedPreferences by values {
+            override fun edit(): android.content.SharedPreferences.Editor {
+                val editor = values.edit()
+                return object : android.content.SharedPreferences.Editor by editor {
+                    override fun commit(): Boolean {
+                        editor.commit()
+                        if (first.getAndSet(false)) {
+                            changedMemory.countDown()
+                            check(releaseDisk.await(5, TimeUnit.SECONDS))
+                        }
+                        return false
+                    }
+                }
+            }
+        }
+        val context = object : android.content.ContextWrapper(base) {
+            override fun getApplicationContext(): android.content.Context = this
+            override fun getFilesDir() = root
+            override fun getSharedPreferences(key: String, mode: Int) =
+                if (key == "craft-native-storage") failing else super.getSharedPreferences(key, mode)
+        }
+        val constructor = CraftNativeStores::class.java.getDeclaredConstructor(android.content.Context::class.java, Boolean::class.javaPrimitiveType)
+        constructor.isAccessible = true
+        val stores = constructor.newInstance(context, false)
+        val capabilities = CraftNativeCapabilities(context, JSONObject())
+        val completed = CountDownLatch(1)
+        var answer: CraftNativeCapabilityResult? = null
+        val preloaded = CountDownLatch(1)
+        var snapshot: JSONObject? = null
+        try {
+            capabilities.perform(UUID.randomUUID().toString(), CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION, "Storage", "set", JSONArray().put("draft").put(JSONObject().put("owner", "B"))) {
+                answer = it; completed.countDown()
+            }
+            assertTrue(changedMemory.await(5, TimeUnit.SECONDS))
+            thread(name = "recording-checkpoint-preload") { snapshot = stores.preload(); preloaded.countDown() }
+            // A real preload races the production commit/rollback critical section.
+            assertFalse(preloaded.await(100, TimeUnit.MILLISECONDS))
+            releaseDisk.countDown()
+            assertTrue(completed.await(5, TimeUnit.SECONDS))
+            assertTrue(preloaded.await(5, TimeUnit.SECONDS))
+            assertEquals("STORAGE_ERROR", answer?.code)
+            assertEquals("A", JSONObject(requireNotNull(snapshot).getJSONObject("storage").getString("draft")).getString("owner"))
+        } finally {
+            releaseDisk.countDown()
+            capabilities.close()
+            base.deleteSharedPreferences(name)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun failedStorageCheckpointRestoresMemoryBeforeRejecting() {
         val base = instrumentation.targetContext
         val name = "checkpoint-test-${UUID.randomUUID()}"
