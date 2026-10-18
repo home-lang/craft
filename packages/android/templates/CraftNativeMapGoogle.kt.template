@@ -92,6 +92,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         map.uiSettings.isScrollGesturesEnabled = craftNativeBoolean(pendingProps.opt("scrollEnabled"), true)
         map.uiSettings.isZoomGesturesEnabled = craftNativeBoolean(pendingProps.opt("zoomEnabled"), true)
         map.uiSettings.isRotateGesturesEnabled = craftNativeBoolean(pendingProps.opt("rotateEnabled"))
+        map.uiSettings.isTiltGesturesEnabled = craftNativeBoolean(pendingProps.opt("pitchEnabled"), true)
         map.mapType = when (craftNativeOptionalString(pendingProps.opt("mapType")).orEmpty().lowercase()) {
             "satellite" -> GoogleMap.MAP_TYPE_SATELLITE
             "hybrid" -> GoogleMap.MAP_TYPE_HYBRID

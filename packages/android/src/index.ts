@@ -11,6 +11,8 @@ import { androidMapHost, type AndroidMapProvider } from './native-map'
 import { renderAndroidPromiseRuntime } from './promise-runtime'
 
 export type { AndroidMapProvider } from './native-map'
+/** Providers this published builder can generate as real Android map views. */
+export const nativeMapProviders = ['google', 'maplibre'] as const
 export { runKotlinFixture } from './testing.js'
 export { createAndroidEmulator } from './emulator.js'
 export type { AndroidEmulatorOptions, AndroidEmulatorSession } from './emulator.js'

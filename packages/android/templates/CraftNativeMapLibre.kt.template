@@ -97,7 +97,7 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
         nativeMap.uiSettings.isScrollGesturesEnabled = craftNativeBoolean(pendingProps.opt("scrollEnabled"), true)
         nativeMap.uiSettings.isZoomGesturesEnabled = craftNativeBoolean(pendingProps.opt("zoomEnabled"), true)
         nativeMap.uiSettings.isRotateGesturesEnabled = craftNativeBoolean(pendingProps.opt("rotateEnabled"))
-        nativeMap.uiSettings.isTiltGesturesEnabled = true
+        nativeMap.uiSettings.isTiltGesturesEnabled = craftNativeBoolean(pendingProps.opt("pitchEnabled"), true)
         // The authored attribution is kept visible rather than hidden in a menu.
         nativeMap.uiSettings.isAttributionEnabled = false
         nativeMap.uiSettings.isLogoEnabled = false
@@ -128,9 +128,10 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
             val key = "region:${pendingProps.optJSONObject("initialRegion")}"
             if (initialCameraKey != key) { moveCamera(initial, 0); initialCameraKey = key }
         } else if (craftNativeBoolean(pendingProps.opt("fitToBounds"))) {
-            val key = geometryPoints.joinToString(";") { "${it.latitude},${it.longitude}" }
+            val key = "$width,$height:${pendingProps.optJSONObject("edgePadding")}:" + geometryPoints.joinToString(";") { "${it.latitude},${it.longitude}" }
             if (initialCameraKey != key && geometryPoints.isNotEmpty() && width > 0 && height > 0) {
-                if (geometryPoints.size == 1) nativeMap.moveCamera(CameraUpdateFactory.newLatLngZoom(geometryPoints.first(), 15.0))
+                val distinct = geometryPoints.distinctBy { it.latitude to it.longitude }
+                if (distinct.size == 1) nativeMap.moveCamera(CameraUpdateFactory.newLatLngZoom(distinct.first(), 15.0))
                 else moveCamera(LatLngBounds.Builder().includes(geometryPoints).build(), if (pendingProps.has("edgePadding")) 0 else (24 * resources.displayMetrics.density).roundToInt())
                 initialCameraKey = key
             }
@@ -304,7 +305,7 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
         super.onSizeChanged(width, height, oldWidth, oldHeight)
-        if (width > 0 && height > 0) { applyPadding(); updateScale(); if (initialCameraKey == null) applyPending() }
+        if (width > 0 && height > 0) applyPending()
     }
 
     override fun onAttachedToWindow() {

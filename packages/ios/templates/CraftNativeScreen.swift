@@ -1206,6 +1206,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         isScrollEnabled = props["scrollEnabled"] as? Bool ?? true
         isZoomEnabled = props["zoomEnabled"] as? Bool ?? true
         isRotateEnabled = props["rotateEnabled"] as? Bool ?? false
+        isPitchEnabled = props["pitchEnabled"] as? Bool ?? true
         mapType = Self.mapType(props["mapType"] as? String)
         configureTiles(props["tileOverlay"] as? [String: Any])
         showsCompass = props["showsCompass"] as? Bool ?? false
