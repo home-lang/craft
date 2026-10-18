@@ -188,3 +188,26 @@ test('the published release tool restores all workspace and native versions on a
     expect(git('status', '--porcelain')).toBe('')
   })
 })
+
+test('pending validation rejects an incomplete workspace before a tag or commit exists', () => {
+  fixture((directory, git) => {
+    const paths = nativeWorkspace(directory, git)
+    mkdirSync(join(directory, 'scripts'))
+    writeFileSync(join(directory, 'scripts/release-version.ts'), readFileSync(join(import.meta.dir, 'release-version.ts')))
+    git('add', 'scripts')
+    git('commit', '-qm', 'chore: install actual release validator')
+    const head = git('rev-parse', 'HEAD')
+    const before = paths.map(path => readFileSync(join(directory, path), 'utf8'))
+    const bumpx = Bun.resolveSync('@stacksjs/bumpx/bin/cli.js', import.meta.dir)
+    const result = Bun.spawnSync([
+      process.execPath, bumpx, '1.0.2', '--files', 'package.json', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
+      '--execute', `${shellQuote(process.execPath)} scripts/release-version.ts --pending`,
+    ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
+    expect(result.exitCode).not.toBe(0)
+    expect(`${result.stdout.toString()}${result.stderr.toString()}`).toContain('packages/sdk/package.json')
+    expect(paths.map(path => readFileSync(join(directory, path), 'utf8'))).toEqual(before)
+    expect(git('rev-parse', 'HEAD')).toBe(head)
+    expect(git('tag', '--list', 'v1.0.2')).toBe('')
+    expect(git('status', '--porcelain')).toBe('')
+  })
+})
