@@ -1,4 +1,5 @@
 import { androidMapHost, type AndroidMapProvider } from './native-map'
+export type { AndroidMapProvider } from './native-map'
 /**
  * Craft Android Builder
  *
