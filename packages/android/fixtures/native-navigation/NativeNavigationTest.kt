@@ -774,6 +774,53 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun repeatedTestIdsKeepDistinctProtocolViewsAcrossReorders() {
+        val activity = instrumentation.startActivitySync(
+            Intent(instrumentation.targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        fun rows(): List<View> {
+            val list = awaitView(activity, "identity-list")
+            val matches = mutableListOf<View>()
+            instrumentation.runOnMainSync {
+                findAll(list, "identity-row", matches)
+            }
+            assertEquals("Repeated test selectors must identify two separate rows", 2, matches.size)
+            return matches
+        }
+        try {
+            click(activity, "open-identity")
+            awaitView(activity, "identity-title")
+            val original = rows()
+            val alpha = original[0]
+            val beta = original[1]
+            val alphaInput = find(alpha, "identity-input") as EditText
+            val betaInput = find(beta, "identity-input") as EditText
+            assertTrue("Repeated selectors aliased separate inputs", alphaInput !== betaInput)
+            instrumentation.runOnMainSync {
+                betaInput.requestFocus()
+                betaInput.setText("Beta private draft")
+            }
+            instrumentation.waitForIdleSync()
+            click(activity, "identity-reverse")
+            awaitView(activity, "identity-list") { list ->
+                find(list, "identity-row")?.let { find(it, "identity-label-beta") != null } == true
+            }
+            instrumentation.waitForIdleSync()
+            val reversed = rows()
+            assertSame("Reordered Beta row lost its protocol identity", beta, reversed[0])
+            assertSame("Reordered Alpha row lost its protocol identity", alpha, reversed[1])
+            assertSame("Reordering replaced the focused native input", betaInput, find(reversed[0], "identity-input"))
+            assertEquals("Beta private draft", betaInput.text.toString())
+            assertEquals("The second row received another row's draft", "", alphaInput.text.toString())
+            assertTrue("Reordering dropped native focus", betaInput.isFocused)
+        } finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
     fun outgoingTabTapWinsOverSettlingSwipe() {
         assertTabTapInterruptsSettlingSwipe(0, "navigation-home-state", "Home state: Ada/1")
     }

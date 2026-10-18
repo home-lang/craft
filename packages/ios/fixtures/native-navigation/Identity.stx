@@ -1,0 +1,21 @@
+<script>
+const rows = state([{ id: 'alpha', label: 'Alpha' }, { id: 'beta', label: 'Beta' }])
+const drafts = state({ alpha: '', beta: '' })
+function changeDraft(id, event) {
+  drafts.set({ ...drafts(), [id]: event.text })
+}
+function reverseRows() {
+  rows.set([...rows()].reverse())
+}
+</script>
+
+<SafeAreaView style={{"flex":1,"padding":16}}>
+  <Text testID="identity-title">Repeated selectors</Text>
+  <View testID="identity-list">
+    <View :for="row in rows" :key="row.id" testID="identity-row" style={{"height":72}}>
+      <Text :testID="'identity-label-' + row.id" :text="row.label" />
+      <TextInput testID="identity-input" :accessibilityLabel="row.label + ' draft'" :value="drafts()[row.id]" @input="changeDraft(row.id, $event)" />
+    </View>
+  </View>
+  <Button testID="identity-reverse" @click="reverseRows()">Reverse rows</Button>
+</SafeAreaView>

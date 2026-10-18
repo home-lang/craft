@@ -66,6 +66,7 @@ try {
       renderer: 'native',
       nativeScreens: {
         '/': 'home',
+        '/identity': 'identity',
         '/details': 'details',
         '/linked-details': 'details',
         '/summary': 'summary',

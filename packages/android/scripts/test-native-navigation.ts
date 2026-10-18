@@ -34,6 +34,7 @@ try {
       mapProvider: 'maplibre',
       nativeScreens: {
         '/': 'home',
+        '/identity': 'identity',
         '/details': 'details',
         '/linked-details': 'details',
         '/summary': 'summary',

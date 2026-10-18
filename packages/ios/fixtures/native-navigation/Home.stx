@@ -568,6 +568,7 @@ function openDetailsThenUpdateBackground() {
     <Button testID="keyed-list-reorder" @click="reorderNavigationRows()">Reorder rows</Button>
     <Text testID="navigation-home-state" :text="'Home state: ' + navigationName + '/' + navigationCount" />
     <Button testID="navigation-increment" @click="incrementNavigation()">Increment navigation state</Button>
+    <Button testID="open-identity" @click="globalThis.craft.navigation.open('/identity')">Repeated selector identity</Button>
     <Button testID="navigation-open-details" @click="openDetails()">Open navigation details</Button>
     <Button testID="navigation-check-lifecycle" @click="verifyNavigationLifecycle()">Check details lifecycle</Button>
     <Text testID="navigation-lifecycle" :text="navigationLifecycle" />
