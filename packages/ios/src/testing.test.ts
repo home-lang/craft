@@ -39,6 +39,7 @@ describe('package-owned iOS shells', () => {
     expect(source).toContain('XCUIApplication(bundleIdentifier: "org.example.app")')
     expect(source).toContain('"CRAFT_TEST_CONTROL"')
     expect(source).toContain('XCTAssertTrue(ok, what)')
+    expect(source).toContain('let tabIdentifiers: [String: String] = [:]')
     expect(source).not.toContain('{{')
     expect(source).not.toContain('training.hq')
     const mtime = statSync(file).mtimeMs
@@ -47,6 +48,26 @@ describe('package-owned iOS shells', () => {
     expect(readFileSync(join(output, 'project.yml'), 'utf8')).toContain('ExampleDriverUITests:')
     expect(() => initSimulatorDriver({ ...options, projectName: '../escape' })).toThrow()
     expect(() => initSimulatorDriver({ ...options, bundleId: 'bad"id' })).toThrow()
+  })
+
+  it('generates stable native tab identities independently of changing captions', () => {
+    const output = folder()
+    const identifier = 'tab-quote"\\value'
+    const options = { output, bundleId: 'org.example.app', tabs: ['Health', 'Second'], tabIdentifiers: { Health: 'tab-heart', Second: identifier } }
+    initSimulatorDriver(options)
+    const path = join(output, 'UITests/DriverTests.swift')
+    const source = readFileSync(path, 'utf8')
+    expect(source).toContain(`let tabIdentifiers: [String: String] = ["Health": "tab-heart", "Second": ${JSON.stringify(identifier)}]`)
+    expect(source).toContain('if let identifier = tabIdentifiers[name]')
+    expect(source).toContain('NSPredicate(format: "identifier == %@", identifier)).firstMatch')
+    expect(source).toContain('NSPredicate(format: "label == %@", name)')
+    expect(source).not.toContain('{{')
+    const mtime = statSync(path).mtimeMs
+    initSimulatorDriver(options)
+    expect(statSync(path).mtimeMs).toBe(mtime)
+    expect(() => initSimulatorDriver({ ...options, tabIdentifiers: { Health: ' ' } })).toThrow('nonempty')
+    expect(() => initSimulatorDriver({ ...options, tabIdentifiers: { '': 'tab-heart' } })).toThrow('nonempty')
+    expect(readFileSync(path, 'utf8')).toBe(source)
   })
 
   it('serializes typed journeys and rejects extra wire commands and invalid coordinates', () => {
