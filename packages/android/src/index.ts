@@ -1,3 +1,4 @@
+import { androidMapHost, type AndroidMapProvider } from './native-map'
 /**
  * Craft Android Builder
  *
@@ -155,7 +156,9 @@ export interface CraftAndroidConfig {
   trustedOrigins?: string[]
   appIconPath?: string
   googleServicesFile?: string
-  /** Google Maps Android SDK key used by native `Map` screens. */
+  /** Native map renderer. MapLibre needs no SDK key; Google remains the default for compatibility. */
+  mapProvider?: AndroidMapProvider
+  /** Google Maps Android SDK key, used only by the Google native map host. */
   mapsApiKey?: string
   devServerURL?: string
   hasBundledFallback?: boolean
@@ -440,6 +443,7 @@ function normalizeAndroidNetworkConfig(config: CraftAndroidConfig): void {
 }
 
 function validateAndroidConfig(config: CraftAndroidConfig): void {
+  androidMapHost(config.mapProvider)
   if (!config.appName.trim()) throw new Error('Android app name must not be empty')
   if (config.renderer !== undefined && config.renderer !== 'web' && config.renderer !== 'native') {
     throw new Error(`Unknown Android renderer: ${config.renderer}. Expected web or native.`)
@@ -915,7 +919,8 @@ export async function init(options: InitOptions): Promise<void> {
     config.renderer === 'native' ? 'MainActivityNative.kt.template' : 'MainActivity.kt.template',
   ), 'utf-8')
   const mainActivity = mainActivityTemplate
-    .replace(/\{\{NATIVE_MAP_HOST\}\}/g, () => readFileSync(join(TEMPLATES_DIR, 'CraftNativeMapGoogle.kt.template'), 'utf8'))
+    .replace(/\{\{NATIVE_MAP_IMPORTS\}\}/g, () => androidMapHost(config.mapProvider).imports)
+    .replace(/\{\{NATIVE_MAP_HOST\}\}/g, () => readFileSync(join(TEMPLATES_DIR, androidMapHost(config.mapProvider).template), 'utf8'))
     .replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName)
     .replace(/\{\{APP_NAME\}\}/g, name)
 
@@ -1042,7 +1047,7 @@ export async function init(options: InitOptions): Promise<void> {
     // Starts the crash reporter before Application.onCreate, for every way
     // the process starts (CraftCrashReporter.kt). Inert without a key.
     .replace(/\{\{CRASH_REPORTER_PROVIDER\}\}/g, `        <provider android:name=".CraftCrashReporterInit" android:authorities="\${applicationId}.craft-crash" android:exported="false" android:initOrder="1000" />`)
-    .replace(/\{\{GOOGLE_MAPS_API_KEY\}\}/g, config.mapsApiKey
+    .replace(/\{\{GOOGLE_MAPS_API_KEY\}\}/g, config.mapProvider !== 'maplibre' && config.mapsApiKey
       ? `        <meta-data android:name="com.google.android.geo.API_KEY" android:value="${escapeXml(config.mapsApiKey)}" />`
       : '')
     .replace(/\{\{HEALTH_CONNECT_QUERIES\}\}/g, config.enableHealthConnect
@@ -1081,8 +1086,8 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{REFRESH_LAYOUT_DEPENDENCY\}\}/g, config.renderer === 'native'
       ? '    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")'
       : '')
-    .replace(/\{\{GOOGLE_MAPS_DEPENDENCY\}\}/g, config.renderer === 'native'
-      ? '    // Native STX Map overlays and trail routes\n    implementation("com.google.android.gms:play-services-maps:18.2.0")'
+    .replace(/\{\{NATIVE_MAP_DEPENDENCY\}\}/g, config.renderer === 'native'
+      ? `    // Native STX Map overlays and trail routes\n    implementation("${androidMapHost(config.mapProvider).dependency}")`
       : '')
     .replace(/\{\{HEALTH_CONNECT_DEPENDENCIES\}\}/g, config.enableHealthConnect
       ? `    implementation("androidx.health.connect:connect-client:1.1.0")

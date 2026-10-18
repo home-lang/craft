@@ -110,17 +110,7 @@ import androidx.javascriptengine.Message
 import androidx.javascriptengine.MessagePort
 import androidx.javascriptengine.MessagePortClient
 import com.craft.runtime.CraftNative
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.MapView
-import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
-import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.model.Polyline
-import com.google.android.gms.maps.model.PolylineOptions
+{{NATIVE_MAP_IMPORTS}}
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File

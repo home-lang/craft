@@ -99,7 +99,7 @@ dependencies {
     // Google Play Location Services (for geolocation)
     implementation("com.google.android.gms:play-services-location:21.1.0")
 
-{{GOOGLE_MAPS_DEPENDENCY}}
+{{NATIVE_MAP_DEPENDENCY}}
 
     // Google Play In-App Review
     implementation("com.google.android.play:review:2.0.1")

@@ -1,0 +1,354 @@
+/** A key-free native Android map. STX geometry never enters a WebView. */
+internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMapReadyCallback {
+    private val mapView: MapView
+    private var map: MapLibreMap? = null
+    private var destroyed = false
+    private var lifecycleStarted = false
+    private var pendingProps = JSONObject()
+    private var pendingChildren = JSONArray()
+    private var styleKey: String? = null
+    private var styleVersion = 0
+    private var readyStyle: Style? = null
+    private var initialCameraKey: String? = null
+    private var userChangingCamera = false
+    private var geometryPoints = emptyList<LatLng>()
+    private val markerHandlers = mutableMapOf<String, String>()
+    private var onMarkerTap: ((String) -> Unit)? = null
+    var onMapPress: ((LatLng) -> Unit)? = null
+    var onRegionChangeComplete: ((JSONObject) -> Unit)? = null
+    private val attribution = TextView(context).apply {
+        textSize = 9f
+        setTextColor(Color.DKGRAY)
+        setBackgroundColor(Color.argb(230, 255, 255, 255))
+        maxLines = 2
+    }
+    private val scale = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(4, 2, 4, 2)
+        setBackgroundColor(Color.argb(230, 255, 255, 255))
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        visibility = View.GONE
+    }
+    private val scaleLabel = TextView(context).apply { textSize = 11f; setTextColor(Color.rgb(37, 51, 33)) }
+    private val scaleLine = View(context).apply { setBackgroundColor(Color.rgb(37, 51, 33)) }
+
+    init {
+        MapLibre.getInstance(context)
+        mapView = MapView(context)
+        addView(mapView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        scale.addView(scaleLabel)
+        scale.addView(scaleLine, LinearLayout.LayoutParams(1, 2))
+        addView(scale, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.START).apply {
+            leftMargin = (8 * resources.displayMetrics.density).roundToInt()
+            bottomMargin = (24 * resources.displayMetrics.density).roundToInt()
+        })
+        addView(attribution, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.END).apply {
+            rightMargin = (8 * resources.displayMetrics.density).roundToInt()
+            bottomMargin = (8 * resources.displayMetrics.density).roundToInt()
+        })
+        mapView.onCreate(null)
+        mapView.getMapAsync(this)
+    }
+
+    override fun onMapReady(nativeMap: MapLibreMap) {
+        if (destroyed) return
+        map = nativeMap
+        nativeMap.addOnMapClickListener { point ->
+            val screen = nativeMap.projection.toScreenLocation(point)
+            val radius = 18 * resources.displayMetrics.density
+            val hit = nativeMap.queryRenderedFeatures(android.graphics.RectF(screen.x - radius, screen.y - radius, screen.x + radius, screen.y + radius), "craft-map-markers", "craft-map-directions").firstOrNull()
+            val id = hit?.takeIf { it.hasProperty("craftMarkerId") }?.getStringProperty("craftMarkerId")
+            if (id != null) onMarkerTap?.invoke(id) else onMapPress?.invoke(point)
+            true
+        }
+        nativeMap.addOnCameraMoveStartedListener { reason ->
+            if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) userChangingCamera = true
+        }
+        nativeMap.addOnCameraMoveListener { updateScale() }
+        nativeMap.addOnCameraIdleListener {
+            updateScale()
+            if (userChangingCamera) {
+                userChangingCamera = false
+                val bounds = nativeMap.projection.visibleRegion.latLngBounds
+                val camera = nativeMap.cameraPosition
+                val center = camera.target
+                if (center != null) onRegionChangeComplete?.invoke(JSONObject()
+                    .put("center", JSONObject().put("latitude", center.latitude).put("longitude", center.longitude))
+                    .put("span", JSONObject().put("latitudeDelta", bounds.latitudeNorth - bounds.latitudeSouth).put("longitudeDelta", bounds.longitudeEast - bounds.longitudeWest))
+                    .put("heading", camera.bearing).put("pitch", camera.tilt))
+            }
+        }
+        applyPending()
+    }
+
+    fun configure(props: JSONObject, children: JSONArray, markerHandler: (String) -> Unit) {
+        pendingProps = props
+        pendingChildren = children
+        onMarkerTap = markerHandler
+        applyPending()
+    }
+
+    fun markerHandler(id: String): String? = markerHandlers[id]
+
+    private fun applyPending() {
+        val nativeMap = map ?: return
+        if (destroyed) return
+        nativeMap.uiSettings.isCompassEnabled = craftNativeBoolean(pendingProps.opt("showsCompass"))
+        nativeMap.uiSettings.isScrollGesturesEnabled = craftNativeBoolean(pendingProps.opt("scrollEnabled"), true)
+        nativeMap.uiSettings.isZoomGesturesEnabled = craftNativeBoolean(pendingProps.opt("zoomEnabled"), true)
+        nativeMap.uiSettings.isRotateGesturesEnabled = craftNativeBoolean(pendingProps.opt("rotateEnabled"))
+        nativeMap.uiSettings.isTiltGesturesEnabled = true
+        // The authored attribution is kept visible rather than hidden in a menu.
+        nativeMap.uiSettings.isAttributionEnabled = false
+        nativeMap.uiSettings.isLogoEnabled = false
+        applyPadding()
+        val nextStyle = basemapStyle()
+        if (styleKey != nextStyle) {
+            styleKey = nextStyle
+            readyStyle = null
+            val version = ++styleVersion
+            nativeMap.setStyle(Style.Builder().fromJson(nextStyle)) { loaded ->
+                if (!destroyed && version == styleVersion) {
+                    readyStyle = loaded
+                    installOverlays(loaded)
+                    applyPending()
+                }
+            }
+            return
+        }
+        val loaded = readyStyle ?: return
+        updateOverlays(loaded)
+        applyLocation(nativeMap, loaded)
+        val explicit = region(pendingProps.optJSONObject("region"))
+        val initial = region(pendingProps.optJSONObject("initialRegion"))
+        if (explicit != null) {
+            moveCamera(explicit, 0)
+            initialCameraKey = null
+        } else if (initial != null) {
+            val key = "region:${pendingProps.optJSONObject("initialRegion")}"
+            if (initialCameraKey != key) { moveCamera(initial, 0); initialCameraKey = key }
+        } else if (craftNativeBoolean(pendingProps.opt("fitToBounds"))) {
+            val key = geometryPoints.joinToString(";") { "${it.latitude},${it.longitude}" }
+            if (initialCameraKey != key && geometryPoints.isNotEmpty() && width > 0 && height > 0) {
+                if (geometryPoints.size == 1) nativeMap.moveCamera(CameraUpdateFactory.newLatLngZoom(geometryPoints.first(), 15.0))
+                else moveCamera(LatLngBounds.Builder().includes(geometryPoints).build(), if (pendingProps.has("edgePadding")) 0 else (24 * resources.displayMetrics.density).roundToInt())
+                initialCameraKey = key
+            }
+        } else initialCameraKey = null
+        applyOrientation()
+        updateScale()
+    }
+
+    private fun basemapStyle(): String {
+        val custom = pendingProps.optJSONObject("tileOverlay")
+        val template = custom?.optString("urlTemplate").orEmpty()
+        val credit = custom?.optString("attribution").orEmpty()
+        val customValid = template.startsWith("https://") && listOf("{z}", "{x}", "{y}").all { template.contains(it) } && credit.isNotBlank()
+        val type = pendingProps.optString("mapType", "standard").lowercase()
+        val satellite = type == "satellite" || type == "hybrid"
+        val url = when {
+            customValid -> template
+            satellite -> "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            type == "terrain" -> "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
+            else -> "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        }
+        val attributionText = when {
+            customValid -> credit
+            satellite -> "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+            type == "terrain" -> "Topography: Esri, USGS, NOAA, OpenStreetMap contributors"
+            else -> "© OpenStreetMap contributors"
+        }
+        attribution.text = attributionText
+        val sources = JSONObject().put("basemap", rasterSource(url, attributionText))
+        val layers = JSONArray().put(JSONObject().put("id", "basemap").put("type", "raster").put("source", "basemap"))
+        if (!customValid && type == "hybrid") {
+            sources.put("labels", rasterSource("https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", "Labels © Esri"))
+            layers.put(JSONObject().put("id", "labels").put("type", "raster").put("source", "labels"))
+            attribution.text = "$attributionText · Labels © Esri"
+        }
+        return JSONObject().put("version", 8).put("sources", sources).put("layers", layers).toString()
+    }
+
+    private fun rasterSource(url: String, credit: String): JSONObject = JSONObject()
+        .put("type", "raster").put("tiles", JSONArray().put(url)).put("tileSize", 256).put("maxzoom", 19).put("attribution", credit)
+
+    private fun installOverlays(style: Style) {
+        style.addSource(GeoJsonSource("craft-map-overlays"))
+        style.addImage("craft-map-direction", directionBitmap())
+        style.addLayer(LineLayer("craft-map-routes", "craft-map-overlays")
+            .withFilter(Expression.eq(Expression.get("kind"), "line"))
+            .withProperties(lineColor(Expression.toColor(Expression.get("color"))), lineWidth(Expression.get("width")), lineCap("round"), lineJoin("round")))
+        style.addLayer(CircleLayer("craft-map-markers", "craft-map-overlays")
+            .withFilter(Expression.eq(Expression.get("kind"), "marker"))
+            .withProperties(circleColor(Expression.toColor(Expression.get("color"))), circleRadius(7f), circleStrokeColor(Color.WHITE), circleStrokeWidth(2f)))
+        style.addLayer(SymbolLayer("craft-map-directions", "craft-map-overlays")
+            .withFilter(Expression.eq(Expression.get("kind"), "direction"))
+            .withProperties(iconImage("craft-map-direction"), iconRotate(Expression.get("bearing")), iconRotationAlignment("map"), iconAllowOverlap(true), iconIgnorePlacement(true), iconAnchor("center")))
+    }
+
+    private fun updateOverlays(style: Style) {
+        val features = JSONArray()
+        val pointsForFit = mutableListOf<LatLng>()
+        markerHandlers.clear()
+        for (index in 0 until pendingChildren.length()) {
+            val child = pendingChildren.optJSONObject(index) ?: continue
+            val type = child.optString("type").lowercase()
+            val props = child.optJSONObject("props") ?: JSONObject()
+            val events = child.optJSONObject("events") ?: JSONObject()
+            val id = craftNativeOptionalString(props.opt("id")) ?: craftNativeOptionalString(child.opt("id")) ?: "overlay-$index"
+            val points = coordinates(props.optJSONArray("geometry"))
+            val properties = JSONObject()
+            val geometry = JSONObject()
+            if ((type == "mapmarker" || type == "marker") && points.isNotEmpty()) {
+                val point = points.first()
+                val bearing = finiteNumber(props.opt("bearing"))
+                properties.put("kind", if (bearing == null) "marker" else "direction").put("craftMarkerId", id)
+                properties.put("bearing", (bearing ?: 0.0) % 360).put("color", cssColor(props.opt("pinColor"), Color.rgb(36, 114, 75)))
+                geometry.put("type", "Point").put("coordinates", JSONArray().put(point.longitude).put(point.latitude))
+                listOf(events.opt("onPress"), events.opt("onMarkerPress")).firstNotNullOfOrNull(::craftNativeOptionalString)?.let { markerHandlers[id] = it }
+                pointsForFit.add(point)
+            } else if ((type == "mappolyline" || type == "polyline") && points.size > 1) {
+                val authoredWidth = props.opt("strokeWidth")
+                val width = if (authoredWidth == null || authoredWidth == JSONObject.NULL) 3.0 else finiteNumber(authoredWidth) ?: continue
+                if (width <= 0 || !width.toFloat().isFinite()) continue
+                properties.put("kind", "line").put("color", cssColor(props.opt("strokeColor"), Color.BLUE)).put("width", width)
+                geometry.put("type", "LineString").put("coordinates", JSONArray().apply { points.forEach { put(JSONArray().put(it.longitude).put(it.latitude)) } })
+                pointsForFit.addAll(points)
+            } else continue
+            features.put(JSONObject().put("type", "Feature").put("properties", properties).put("geometry", geometry))
+        }
+        geometryPoints = pointsForFit
+        style.getSourceAs<GeoJsonSource>("craft-map-overlays")?.setGeoJson(JSONObject().put("type", "FeatureCollection").put("features", features).toString())
+    }
+
+    private fun cssColor(value: Any?, fallback: Int): String {
+        val color = (value as? String)?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: fallback
+        return "rgba(${Color.red(color)},${Color.green(color)},${Color.blue(color)},${Color.alpha(color) / 255.0})"
+    }
+
+    private fun directionBitmap(): Bitmap {
+        val size = (26 * resources.displayMetrics.density).roundToInt().coerceAtLeast(24)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        bitmap.density = resources.displayMetrics.densityDpi
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.color = Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        paint.color = Color.rgb(36, 114, 75)
+        canvas.drawCircle(size / 2f, size / 2f, size * 0.43f, paint)
+        paint.color = Color.WHITE
+        paint.textSize = size * 0.76f
+        paint.textAlign = Paint.Align.CENTER
+        paint.typeface = Typeface.DEFAULT_BOLD
+        canvas.drawText("↑", size / 2f, size / 2f - (paint.ascent() + paint.descent()) / 2, paint)
+        return bitmap
+    }
+
+    private fun applyLocation(nativeMap: MapLibreMap, style: Style) {
+        val permitted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val enabled = permitted && craftNativeBoolean(pendingProps.opt("showsUserLocation"))
+        val component = nativeMap.locationComponent
+        if (!enabled && !component.isLocationComponentActivated) return
+        try {
+            if (!component.isLocationComponentActivated) component.activateLocationComponent(LocationComponentActivationOptions.builder(context, style).useDefaultLocationEngine(true).build())
+            component.isLocationComponentEnabled = enabled
+        } catch (error: SecurityException) {
+            // Permission may be revoked between the check and native activation.
+            if (component.isLocationComponentActivated) component.isLocationComponentEnabled = false
+        }
+    }
+
+    private fun applyPadding() {
+        val value = pendingProps.optJSONObject("edgePadding")
+        fun inset(key: String): Double = (finiteNumber(value?.opt(key)) ?: 0.0).coerceIn(0.0, 10_000.0) * resources.displayMetrics.density
+        var left = inset("left"); var right = inset("right"); var top = inset("top"); var bottom = inset("bottom")
+        val availableWidth = (width - 40 * resources.displayMetrics.density).coerceAtLeast(0f)
+        val availableHeight = (height - 40 * resources.displayMetrics.density).coerceAtLeast(0f)
+        val horizontal = left + right; val vertical = top + bottom
+        if (horizontal > availableWidth && horizontal > 0) { left *= availableWidth / horizontal; right *= availableWidth / horizontal }
+        if (vertical > availableHeight && vertical > 0) { top *= availableHeight / vertical; bottom *= availableHeight / vertical }
+        map?.setPadding(left.roundToInt(), top.roundToInt(), right.roundToInt(), bottom.roundToInt())
+    }
+
+    private fun moveCamera(bounds: LatLngBounds, padding: Int) {
+        post { if (!destroyed && width > 0 && height > 0) { map?.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding)); applyOrientation() } }
+    }
+
+    private fun applyOrientation() {
+        val nativeMap = map ?: return
+        val camera = nativeMap.cameraPosition
+        val pitch = finiteNumber(pendingProps.opt("cameraPitch"))?.coerceIn(0.0, 60.0) ?: camera.tilt
+        val heading = finiteNumber(pendingProps.opt("cameraHeading")) ?: camera.bearing
+        if (abs(camera.tilt - pitch) > 0.01 || abs(camera.bearing - heading) > 0.01) {
+            nativeMap.moveCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(camera).tilt(pitch).bearing(heading).build()))
+        }
+    }
+
+    private fun updateScale() {
+        val nativeMap = map ?: return
+        if (!craftNativeBoolean(pendingProps.opt("showsScale")) || width <= 0 || height <= 0) { scale.visibility = View.GONE; return }
+        val pixels = 80 * resources.displayMetrics.density
+        val start = nativeMap.projection.fromScreenLocation(android.graphics.PointF(width / 2f, height / 2f))
+        val end = nativeMap.projection.fromScreenLocation(android.graphics.PointF(width / 2f + pixels, height / 2f))
+        val measured = FloatArray(1)
+        android.location.Location.distanceBetween(start.latitude, start.longitude, end.latitude, end.longitude, measured)
+        val meters = measured[0].toDouble()
+        if (!meters.isFinite() || meters <= 0) { scale.visibility = View.GONE; return }
+        val magnitude = Math.pow(10.0, kotlin.math.floor(kotlin.math.log10(meters)))
+        val length = listOf(5.0, 2.0, 1.0).firstOrNull { it * magnitude <= meters }?.times(magnitude) ?: magnitude
+        scaleLabel.text = if (length >= 1000) "${length / 1000} km" else "${length.roundToInt()} m"
+        scaleLine.layoutParams = LinearLayout.LayoutParams((pixels * length / meters).roundToInt().coerceAtLeast(1), 2)
+        scale.visibility = View.VISIBLE
+    }
+
+    override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight)
+        if (width > 0 && height > 0) { applyPadding(); updateScale(); if (initialCameraKey == null) applyPending() }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (!destroyed && !lifecycleStarted) { mapView.onStart(); mapView.onResume(); lifecycleStarted = true }
+    }
+
+    override fun onDetachedFromWindow() {
+        if (lifecycleStarted) { mapView.onPause(); mapView.onStop(); lifecycleStarted = false }
+        super.onDetachedFromWindow()
+    }
+
+    fun lowMemory() { if (!destroyed) mapView.onLowMemory() }
+
+    fun destroy() {
+        if (destroyed) return
+        destroyed = true
+        styleVersion++
+        onMarkerTap = null; onMapPress = null; onRegionChangeComplete = null
+        markerHandlers.clear(); geometryPoints = emptyList()
+        if (lifecycleStarted) { mapView.onPause(); mapView.onStop(); lifecycleStarted = false }
+        mapView.onDestroy()
+        readyStyle = null; map = null
+    }
+
+    private fun coordinates(value: JSONArray?): List<LatLng> {
+        if (value == null) return emptyList()
+        return (0 until value.length() - 1 step 2).mapNotNull { index ->
+            val latitude = finiteNumber(value.opt(index)) ?: return@mapNotNull null
+            val longitude = finiteNumber(value.opt(index + 1)) ?: return@mapNotNull null
+            if (latitude in -90.0..90.0 && longitude in -180.0..180.0) LatLng(latitude, longitude) else null
+        }
+    }
+
+    private fun region(value: JSONObject?): LatLngBounds? {
+        val center = value?.optJSONObject("center") ?: return null
+        val span = value.optJSONObject("span") ?: return null
+        val latitude = finiteNumber(center.opt("latitude")) ?: return null
+        val longitude = finiteNumber(center.opt("longitude")) ?: return null
+        val height = finiteNumber(span.opt("latitudeDelta")) ?: finiteNumber(span.opt("latitude_delta")) ?: return null
+        val width = finiteNumber(span.opt("longitudeDelta")) ?: finiteNumber(span.opt("longitude_delta")) ?: return null
+        if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0 || height <= 0 || height > 180 || width <= 0 || width > 360 || latitude - height / 2 < -90 || latitude + height / 2 > 90) return null
+        return LatLngBounds.from(latitude + height / 2, longitude + width / 2, latitude - height / 2, longitude - width / 2)
+    }
+
+    private fun finiteNumber(value: Any?): Double? = (value as? Number)?.toDouble()?.takeIf { it.isFinite() }
+}
