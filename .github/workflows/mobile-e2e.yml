@@ -301,6 +301,15 @@ jobs:
           STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
         run: bun packages/ios/scripts/test-hybrid-navigation.ts
 
+      - name: Retain hybrid XCTest evidence before protocol tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-e2e-ios-hybrid
+          path: artifacts/mobile-e2e/ios-hybrid/**
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Cache Zig artifacts
         uses: actions/cache@v5
         with:
