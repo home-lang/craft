@@ -236,6 +236,16 @@ class NativeMapTest {
             assertEquals("Echoing a native region must preserve longitude", before.get().target!!.longitude, after.get().target!!.longitude, 0.000001)
         }
         evidence("map-controlled-region-after-drag")
+        main {
+            host.configure(props().put("region", JSONObject()
+                .put("center", JSONObject().put("latitude", 47.04).put("longitude", 11.04))
+                .put("span", JSONObject().put("latitudeDelta", 0.004).put("longitudeDelta", 0.004))), overlays()) {}
+        }
+        awaitState("A new controlled region must still move the native camera") {
+            val target = map.cameraPosition.target
+            target != null && kotlin.math.abs(target.latitude - before.get().target!!.latitude) > 0.01 &&
+                kotlin.math.abs(target.longitude - before.get().target!!.longitude) > 0.01
+        }
     }
 
     @Test
