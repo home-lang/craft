@@ -346,7 +346,7 @@ describe('Craft iOS builder', () => {
     expect(flatListSwift).toContain('func fittingHeight(width: CGFloat) -> CGFloat')
     expect(flatListSwift).toContain('pendingApply')
     expect(swift).toContain('CraftNativeActions.perform(action: action, body: body, config: config)')
-    expect(swift).toContain('private var nativeListeners: [UUID: (URL, Bool) -> Void] = [:]')
+    expect(swift).toContain('private var nativeListeners: [UUID: (canReceive: () -> Bool, receive: (URL, Bool) -> Void)] = [:]')
     expect(mutationSwift).toContain('final class CraftNativeMutationDocument')
     expect(mutationSwift).toContain('case "moveChild"')
     expect(actionsSwift).toContain('case "getDeviceInfo":')

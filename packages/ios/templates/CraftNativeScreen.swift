@@ -4501,6 +4501,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        screenVisibilityChanged(false)
         stopCelebrations(in: view)
         // The accessory belongs to the visible native screen. Clear the
         // shared shell state before a hybrid/web route appears, otherwise a
@@ -4563,6 +4564,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if visible { restoreShellChrome() }
         guard visible != reportedVisible else { return }
         reportedVisible = visible
+        if visible { DeepLinkManager.shared.replayNativeLinks() }
         if visible, !hasAppeared {
             hasAppeared = true
             return
@@ -5619,8 +5621,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         sendAppState(CraftNativeActions.currentAppState())
         // Links are the screens' to show; the app script hears none.
         guard !isAppScript else { return }
-        deepLinkListener = DeepLinkManager.shared.addNativeListener { [weak self] url, initial in
-            guard let self = self, self.navigationController?.topViewController === self else { return }
+        deepLinkListener = DeepLinkManager.shared.addNativeListener(canReceive: { [weak self] in
+            guard let self = self else { return false }
+            return self.reportedVisible && !self.runtimeDisposed && self.navigationController?.topViewController === self
+        }) { [weak self] url, initial in
+            guard let self = self else { return }
             var payload = CraftNativeActions.deepLinkData(url)
             payload["initial"] = initial
             self.send(type: "DEEP_LINK", payload: payload)

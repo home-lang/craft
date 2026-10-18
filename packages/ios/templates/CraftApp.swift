@@ -1267,13 +1267,14 @@ class DeepLinkManager {
     // Every link that arrived while no page could receive it, in order. This
     // was a single slot, so a second link before the bridge was ready replaced
     // the first; on a cold start, that could be the link that launched the app.
-    private var pendingURLs: [URL] = []
+    private var pendingURLs: [(url: URL, initial: Bool)] = []
+    private var replayingNativeLinks = false
     private weak var webView: WKWebView?
     private var isReady = false
     // Replay bookkeeping only. A native screen can become ready before UIKit
     // delivers the launch URL; listener readiness cannot classify that URL.
     private var hasBeenReady = false
-    private var nativeListeners: [UUID: (URL, Bool) -> Void] = [:]
+    private var nativeListeners: [UUID: (canReceive: () -> Bool, receive: (URL, Bool) -> Void)] = [:]
 
     private init() {
         for name in [UIApplication.didBecomeActiveNotification, UIApplication.didEnterBackgroundNotification] {
@@ -1297,12 +1298,11 @@ class DeepLinkManager {
 
     func setReady() {
         isReady = true
-        let firstPage = !hasBeenReady
         hasBeenReady = true
         let urls = pendingURLs
         pendingURLs.removeAll()
-        for url in urls {
-            dispatchDeepLink(url, initial: firstPage && url == initialURL)
+        for link in urls {
+            dispatchDeepLink(link.url, initial: link.initial)
         }
     }
 
@@ -1316,21 +1316,21 @@ class DeepLinkManager {
             if CraftHybrid.shared.handleDeepLink(url) {
                 dispatchNative(url, initial: false)
             } else if !CraftHybrid.shared.hasWeb {
-                if nativeListeners.isEmpty { pendingURLs.append(url) } else { dispatchNative(url, initial: false) }
+                enqueueNative(url)
             } else if isReady && webView != nil {
                 dispatchDeepLink(url, initial: false)
             } else {
-                pendingURLs.append(url)
+                pendingURLs.append((url, !hasBeenReady && url == initialURL))
             }
             return
         }
 
         if !nativeListeners.isEmpty {
-            dispatchNative(url, initial: false)
+            enqueueNative(url)
         } else if isReady && webView != nil {
             dispatchDeepLink(url, initial: false)
         } else {
-            pendingURLs.append(url)
+            pendingURLs.append((url, !hasBeenReady && url == initialURL))
         }
     }
 
@@ -1350,20 +1350,14 @@ class DeepLinkManager {
     }
 
     @discardableResult
-    func addNativeListener(_ listener: @escaping (URL, Bool) -> Void) -> UUID {
+    func addNativeListener(canReceive: @escaping () -> Bool = { true }, _ listener: @escaping (URL, Bool) -> Void) -> UUID {
         let token = UUID()
-        nativeListeners[token] = listener
+        nativeListeners[token] = (canReceive, listener)
         // In a hybrid app the page is the one waiting for the links that
         // arrived early; a native screen hears only native ones, as they come.
         // An all-native app has no page, so its first screen hears them.
         if CraftHybrid.shared.isEnabled && CraftHybrid.shared.hasWeb { return token }
-        let firstNativeScreen = !hasBeenReady
-        hasBeenReady = true
-        let urls = pendingURLs
-        pendingURLs.removeAll()
-        for url in urls {
-            listener(url, firstNativeScreen && url == initialURL)
-        }
+        replayNativeLinks()
         return token
     }
 
@@ -1371,8 +1365,31 @@ class DeepLinkManager {
         nativeListeners.removeValue(forKey: token)
     }
 
+    private func enqueueNative(_ url: URL) {
+        pendingURLs.append((url, !hasBeenReady && url == initialURL))
+        replayNativeLinks()
+    }
+
+    /// Registration can happen while a controller is being prewarmed. Keep
+    /// links until a screen is visible, including across a tab switch.
+    func replayNativeLinks() {
+        guard !(CraftHybrid.shared.isEnabled && CraftHybrid.shared.hasWeb), !replayingNativeLinks else { return }
+        replayingNativeLinks = true
+        defer { replayingNativeLinks = false }
+        while let link = pendingURLs.first {
+            let receivers = nativeListeners.values.filter { $0.canReceive() }
+            guard !receivers.isEmpty else { return }
+            pendingURLs.removeFirst()
+            hasBeenReady = true
+            for receiver in receivers { receiver.receive(link.url, link.initial) }
+        }
+    }
+
     private func dispatchNative(_ url: URL, initial: Bool) {
-        for listener in nativeListeners.values { listener(url, initial) }
+        // The hybrid shell already opened this route; notify visible screens
+        // without queuing a second navigation for its future destination.
+        let receivers = nativeListeners.values.filter { $0.canReceive() }
+        for receiver in receivers { receiver.receive(url, initial) }
     }
 
     private func dispatchDeepLink(_ url: URL, initial: Bool) {
