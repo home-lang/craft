@@ -2950,7 +2950,7 @@ fn recordingStoreCall(j: Jni, activity: jni.jobject, method: jni.jstring, option
 }
 
 fn nativeRecordingOwnershipVersion(_: jni.JNIEnv, _: jni.jobject) callconv(.c) jni.jint {
-    return 1;
+    return 2;
 }
 
 fn nativeRecordingAction(env: jni.JNIEnv, _: jni.jobject, activity: jni.jobject, method: jni.jstring, options: jni.jstring) callconv(.c) jni.jstring {

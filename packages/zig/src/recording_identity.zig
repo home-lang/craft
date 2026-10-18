@@ -12,6 +12,16 @@ pub fn expectedId(allocator: std.mem.Allocator, payload: []const u8) !?[]u8 {
     return try allocator.dupe(u8, expected.string);
 }
 
+pub fn startId(allocator: std.mem.Allocator, payload: []const u8) !?[]u8 {
+    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, payload, .{});
+    defer parsed.deinit();
+    if (parsed.value != .object) return error.InvalidArgument;
+    const requested = parsed.value.object.get("recordingId") orelse return null;
+    if (requested != .string or std.mem.trim(u8, requested.string, " \t\r\n").len == 0)
+        return error.InvalidArgument;
+    return try allocator.dupe(u8, requested.string);
+}
+
 pub fn validate(allocator: std.mem.Allocator, payload: []const u8, actual_id: ?[]const u8) !void {
     const expected = try expectedId(allocator, payload) orelse return;
     defer allocator.free(expected);
@@ -26,5 +36,16 @@ test "recording guards preserve omission and reject changed or invalid identitie
     try std.testing.expectError(error.RecordingConflict, validate(a, "{\"expectedId\":\"A\"}", null));
     inline for (.{ "null", "42", "\"\"", "\"  \"" }) |invalid| {
         try std.testing.expectError(error.InvalidArgument, validate(a, "{\"expectedId\":" ++ invalid ++ "}", "B"));
+    }
+}
+
+test "recording start preserves planned identity and refuses malformed IDs" {
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(?[]u8, null), try startId(a, "{}"));
+    const id = (try startId(a, "{\"recordingId\":\"planned\"}")).?;
+    defer a.free(id);
+    try std.testing.expectEqualStrings("planned", id);
+    inline for (.{ "null", "42", "\"\"", "\"  \"" }) |invalid| {
+        try std.testing.expectError(error.InvalidArgument, startId(a, "{\"recordingId\":" ++ invalid ++ "}"));
     }
 }

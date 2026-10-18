@@ -661,12 +661,21 @@ pub const LocationBridge = struct {
     /// start: a recording the page is told is running is one that will still be
     /// there after a relaunch.
     fn startRecording(self: *Self, data: []const u8) !void {
-        _ = data;
         if (!is_darwin) return error.UnsupportedPlatform;
 
         var existing = try snapshotRecording(self.allocator);
         defer existing.deinit(self.allocator);
         if (existing.active) return bridge_error.BridgeError.RecordingAlreadyActive;
+        // A caller can persist this ID before starting, then recover it even
+        // if the start response or its subsequent checkpoint is lost.
+        const id = try @import("recording_identity.zig").startId(recording_allocator, data) orelse try newRecordingId(recording_allocator);
+        defer recording_allocator.free(id);
+        if (existing.id != null and std.mem.eql(u8, existing.id.?, id)) return error.RecordingConflict;
+        if (try locrec.acknowledged(self.allocator, id)) return error.RecordingConflict;
+        if (try locrec.readCompleted(self.allocator, id)) |completed| {
+            self.allocator.free(completed);
+            return error.RecordingConflict;
+        }
         try locrec.archiveCompleted(self.allocator, existing);
 
         // Everything that can fail, resolved before the track is cleared. A
@@ -677,10 +686,6 @@ pub const LocationBridge = struct {
         const updates = try UpdateSelectors.resolve(authorization);
         const background = try backgroundLocationDeclared();
         const mgr = try ensureManager();
-
-        // `commitRecording` copies it, so this frame owns it either way.
-        const id = try newRecordingId(recording_allocator);
-        defer recording_allocator.free(id);
 
         const started_at = nowMillis();
         const next: locrec.State = .{
