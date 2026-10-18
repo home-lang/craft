@@ -604,3 +604,24 @@ It writes a persistent tombstone before cleanup, so interrupted deletion cannot
 resurrect acknowledged data. Subsequent guarded reads return
 `RECORDING_NOT_FOUND`. A failed account checkpoint must leave the native copy
 unacknowledged for recovery. Stopping alone does not acknowledge a recording.
+
+For account drafts, use `storage.supportsCompareAndSet()` and
+`storage.compareAndSet(key, expectedValue, nextValue)`. This operation replaces
+an **existing** matching JSON value under the native storage lock and waits for
+its durable write. Object key order does not matter; array order and JSON types
+do. A missing or changed key returns `false` without creating or changing it.
+A storage failure rejects, preserving the previous value. Hosts without the
+explicit `storageCompareAndSet` capability reject with
+`STORAGE_COMPARE_AND_SET_UNSUPPORTED`; there is no read-then-set fallback.
+
+Durably register the captured recording intent before starting native recording.
+When keeping a completed result, read the latest value through asynchronous
+`storage.get`, validate its captured account/session/recording identity, merge
+its latest feedback, then compare-and-set that exact value. Retry concurrent
+feedback changes with at most two fresh reads; never overwrite a newer session
+or recreate a deleted draft. Only a successful durable checkpoint permits the
+normal ACK. A failed write or exhausted conflict leaves the native archive.
+An explicit discard may ACK the captured old ID only after a fresh committed
+native read proves that its previously registered intent was deleted or
+replaced. A cached missing draft or an unsuccessful initial registration is
+not evidence of deletion.
