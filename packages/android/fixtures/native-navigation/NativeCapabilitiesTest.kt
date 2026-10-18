@@ -58,7 +58,13 @@ class NativeCapabilitiesTest {
         val changedMemory = CountDownLatch(1)
         val releaseDisk = CountDownLatch(1)
         val first = java.util.concurrent.atomic.AtomicBoolean(true)
+        val preloadReadWasLocked = java.util.concurrent.atomic.AtomicBoolean(false)
         val failing = object : android.content.SharedPreferences by values {
+            override fun getAll(): MutableMap<String, *> {
+                if (Thread.currentThread().name == "recording-checkpoint-preload")
+                    preloadReadWasLocked.set(Thread.holdsLock(CraftNativeStorage.lock))
+                return values.all.toMutableMap()
+            }
             override fun edit(): android.content.SharedPreferences.Editor {
                 val editor = values.edit()
                 return object : android.content.SharedPreferences.Editor by editor {
@@ -98,6 +104,7 @@ class NativeCapabilitiesTest {
             releaseDisk.countDown()
             assertTrue(completed.await(5, TimeUnit.SECONDS))
             assertTrue(preloaded.await(5, TimeUnit.SECONDS))
+            assertTrue("Preload must read inside the same commit/rollback boundary", preloadReadWasLocked.get())
             assertEquals("STORAGE_ERROR", answer?.code)
             assertEquals("A", JSONObject(requireNotNull(snapshot).getJSONObject("storage").getString("draft")).getString("owner"))
         } finally {
