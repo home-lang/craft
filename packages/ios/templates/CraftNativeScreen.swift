@@ -1435,19 +1435,45 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     private func configureMarkerView(_ view: MKAnnotationView, id: String) {
         if let bearing = markerBearings[id] {
-            let configuration = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
-                .applying(UIImage.SymbolConfiguration(paletteColors: [.white, .systemGreen]))
-            // MapKit otherwise tints this as a monochrome template and loses
-            // the contrasting route arrow when displayed over map content.
-            view.image = UIImage(systemName: "arrow.up.circle.fill", withConfiguration: configuration)?
-                .withRenderingMode(.alwaysOriginal)
+            let color = (markerPinColors[id] ?? .systemGreen).resolvedColor(with: traitCollection)
+            view.tintColor = color
+            view.image = Self.markerImage(color: color, direction: true)
             view.transform = CGAffineTransform(rotationAngle: CGFloat((bearing - camera.heading) * .pi / 180))
         } else {
-            view.tintColor = markerPinColors[id] ?? .systemRed
-            view.image = UIImage(systemName: "mappin.circle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 28))?
-                .withTintColor(view.tintColor, renderingMode: .alwaysOriginal)
+            let color = (markerPinColors[id] ?? .systemRed).resolvedColor(with: traitCollection)
+            view.tintColor = color
+            view.image = Self.markerImage(color: color, direction: false)
             view.transform = .identity
         }
+    }
+
+    private static let markerImages: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 64
+        return cache
+    }()
+
+    private static func markerImage(color: UIColor, direction: Bool) -> UIImage {
+        let key = "\(direction ? "direction" : "pin"):\(color.description)" as NSString
+        if let cached = markerImages.object(forKey: key) { return cached }
+        let size = direction ? CGSize(width: 20, height: 24) : CGSize(width: 28, height: 28)
+        // Explicit native drawing preserves the light backing independently
+        // of MapKit's tint and SF Symbols' multicolor rendering preferences.
+        let image = UIGraphicsImageRenderer(size: size).image { _ in
+            let border = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: 1, dy: 1),
+                                      cornerRadius: (size.width - 2) / 2)
+            UIColor.white.setFill()
+            border.fill()
+            color.setStroke()
+            border.lineWidth = 1.5
+            border.stroke()
+            let symbol = UIImage(systemName: direction ? "arrow.up" : "mappin",
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold))?
+                .withTintColor(color, renderingMode: .alwaysOriginal)
+            symbol?.draw(in: direction ? CGRect(x: 5, y: 6, width: 10, height: 12) : CGRect(x: 7, y: 5, width: 14, height: 18))
+        }.withRenderingMode(.alwaysOriginal)
+        markerImages.setObject(image, forKey: key)
+        return image
     }
 
     override func layoutSubviews() {
@@ -6740,7 +6766,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func explicitKey(_ node: [String: Any], props: [String: Any]) -> String? {
         if let authored = authoredKey(node, props: props) { return authored }
-        return (node["id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        // Repeated test selectors are valid for list rows. Retain each row by
+        // its unique protocol ID before considering legacy selector identity.
+        return [node["id"], props["testID"]]
+            .compactMap { $0 as? String }
+            .first { !$0.isEmpty }
     }
 
     /// The key a node's author gave it. A wrapper of one child (a
@@ -6752,7 +6782,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func authoredKey(_ node: [String: Any], props: [String: Any]) -> String? {
         // The current @stacksjs/stx native compiler emits key in props; accept the IR
         // field too so keyed children keep working when the compiler adopts it.
-        let direct = [node["key"], props["key"], props["testID"]]
+        let direct = [node["key"], props["key"]]
             .compactMap { $0 as? String }
             .first { !$0.isEmpty }
         if let direct { return direct }
