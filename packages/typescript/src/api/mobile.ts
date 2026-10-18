@@ -2275,9 +2275,10 @@ export const heartRate = {
   disconnect: (options: { forget?: boolean } = {}): Promise<HeartRateState> => heartRateCall('disconnect', noHeartRate, normalizeHeartRateState, options),
 
   /** Keep every reading natively from now on: screen locked, page suspended or app closed. */
-  async startRecording(options: RecordingStartOptions = {}): Promise<HeartRateRecordingState> {
-    validateRecordingStart('heartRate', options)
-    return verifyRecordingStart(options, await heartRateCall('startRecording', noRecording, normalizeHeartRateRecording, options))
+  async startRecording(options?: RecordingStartOptions): Promise<HeartRateRecordingState> {
+    const supplied = options ?? {}
+    validateRecordingStart('heartRate', supplied)
+    return verifyRecordingStart(supplied, await heartRateCall('startRecording', noRecording, normalizeHeartRateRecording, ...(options === undefined ? [] : [options])))
   },
   async pauseRecording(options?: RecordingOwnershipOptions): Promise<HeartRateRecordingState> {
     validateRecordingOwnership('heartRate', options)

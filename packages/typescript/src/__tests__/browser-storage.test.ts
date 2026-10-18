@@ -92,6 +92,8 @@ describe('browser atomic account checkpoints', () => {
     a.craft.storage.setSync('draft', null)
     expect(a.craft.storage.getSync('draft')).toBeNull()
     expect(await b.call('Storage', 'setIfAbsent', ['draft', { id: 'D' }])).toBe(true)
+    expect(await a.call('Storage', 'setIfAbsent', ['draft', null])).toBe(false)
+    await b.call('Storage', 'remove', ['draft'])
     expect(await a.call('Storage', 'setIfAbsent', ['draft', null])).toBe(true)
     expect(await b.call('Storage', 'setIfAbsent', ['draft', { id: 'B' }])).toBe(false)
   })
