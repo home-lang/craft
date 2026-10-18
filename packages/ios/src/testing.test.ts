@@ -94,6 +94,21 @@ describe('package-owned iOS shells', () => {
     expect(handoff).not.toContain('target.launch()')
   })
 
+  it('checks actual native field values after a real edit-menu gesture', () => {
+    expect(serializeSimulatorSteps([
+      { command: 'longpressid', text: 'route-name' },
+      { command: 'tapexact', text: 'Paste' },
+      { command: 'valueid', id: 'route-name', text: 'https://example.org/trail/7' },
+    ])).toBe('longpressid route-name\ntapexact Paste\nvalueid route-name https://example.org/trail/7\n')
+    expect(() => serializeSimulatorSteps([{ command: 'longpressid', text: 'two fields' }])).toThrow()
+    expect(() => serializeSimulatorSteps([{ command: 'valueid', id: 'route-name', text: 'x\nlaunch' }])).toThrow()
+    const output = folder()
+    initSimulatorDriver({ output, bundleId: 'org.example.app' })
+    const source = readFileSync(join(output, 'UITests/DriverTests.swift'), 'utf8')
+    expect(source).toContain('target.press(forDuration: 1.2)')
+    expect(source).toContain('(target.value as? String) == want')
+  })
+
   it('bundles an on-device journey with native XCTest evidence and removes it when returning to server mode', () => {
     const output = folder()
     const options = { output, bundleId: 'org.example.app', script: 'activate\nshot current\ntree current\n' }
@@ -155,7 +170,7 @@ describe('package-owned iOS shells', () => {
     initSimulatorDriver({ output, bundleId: 'org.example.app' })
     const source = readFileSync(join(output, 'UITests/DriverTests.swift'), 'utf8')
     const handled = new Set([...source.matchAll(/case "([a-z]+)"/g)].map(match => match[1]))
-    const commands: SimulatorStep['command'][] = ['launch', 'activate', 'terminate', 'home', 'back', 'return', 'unlabelled', 'background', 'wait', 'delay', 'net', 'swipe', 'drag', 'edge', 'tabbar', 'tapxy', 'touches', 'field', 'typeid', 'labelid', 'expect', 'expectexact', 'expectid', 'tap', 'tapif', 'tapid', 'tapexact', 'type', 'absent', 'absentid', 'selected', 'tab', 'scrollto', 'dismiss', 'log', 'shot', 'tree', 'audit', 'exec', 'openurl', 'universallink', 'ifid', 'notifications', 'systemexpect', 'systemabsent', 'systemtap', 'systemtree']
+    const commands: SimulatorStep['command'][] = ['launch', 'activate', 'terminate', 'home', 'back', 'return', 'unlabelled', 'background', 'wait', 'delay', 'net', 'swipe', 'drag', 'edge', 'tabbar', 'tapxy', 'touches', 'field', 'typeid', 'labelid', 'valueid', 'sliderid', 'expectapp', 'expect', 'expectexact', 'expectid', 'tap', 'tapif', 'tapid', 'longpressid', 'tapexact', 'type', 'absent', 'absentid', 'selected', 'tab', 'scrollto', 'dismiss', 'log', 'shot', 'tree', 'audit', 'exec', 'openurl', 'universallink', 'ifid', 'notifications', 'systemexpect', 'systemabsent', 'systemtap', 'systemtree']
     expect(commands.filter(command => !handled.has(command))).toEqual([])
     // ifid re-enters the same dispatcher, so a guarded command is any command.
     expect(source).toContain('func run(_ line: String)')
