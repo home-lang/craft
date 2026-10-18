@@ -435,6 +435,15 @@ final class NativeNavigationUnitTests: XCTestCase {
         await renderFrames()
         XCTAssertEqual(CraftChrome.shared.selected, "/")
         XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
+
+        let background = try XCTUnwrap(stack("/details"))
+        XCTAssertTrue(background.view.isHidden)
+        let prepared = try XCTUnwrap(background.topViewController as? CraftNativeScreenController)
+        // UIKit can deliver the prepared tab's first appearance after the
+        // foreground push has finished. That callback must not claim chrome.
+        prepared.viewDidAppear(false)
+        XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
     }
 
     func testDisappearingHiddenNativeTabCannotClearTheVisibleAccessory() async throws {
