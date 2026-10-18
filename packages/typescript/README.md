@@ -575,3 +575,32 @@ MIT © [Chris Breuer](https://github.com/chrisbbreuer)
 - [Examples](../examples-ts)
 - [Benchmarks](../../benchmarks)
 - [Issues](https://github.com/home-lang/craft/issues)
+
+### Recording ownership and recovery
+
+Native STX screens and the mobile page use the same native recorder. Before
+starting an account-owned GPS or heart-rate session, require
+`location.supportsRecordingOwnership()` or `heartRate.supportsRecordingOwnership()`.
+The check requires both the current SDK adapter and a capable native host.
+Unsupported hosts reject guarded operations with
+`RECORDING_OWNERSHIP_UNSUPPORTED`; they never discard the guard and retry.
+
+Capture the ID returned by `startRecording()` and pass `{ expectedId: id }` to
+pause, resume, stop, read and get-state calls. Heart-rate reads also accept
+`since`. A supplied empty, whitespace or non-string ID rejects with
+`INVALID_ARGUMENT`. Starting while another session is active rejects with
+`RECORDING_ALREADY_ACTIVE`, preserving its files.
+
+Completed recordings survive relaunch and subsequent sessions. Guarded reads,
+get-state and repeated stops can recover a completed A while B is recording;
+pausing or resuming A rejects with `RECORDING_CONFLICT`. The native recorder
+archives A before reusing its current track. A failed archive or unreadable
+known track refuses replacement rather than truncating the only copy.
+
+After stopping, await durable storage of the result under the captured account
+owner, then call `acknowledgeRecording({ expectedId: id })`. ACK is idempotent,
+refuses active recordings and never removes another owner's current session.
+It writes a persistent tombstone before cleanup, so interrupted deletion cannot
+resurrect acknowledged data. Subsequent guarded reads return
+`RECORDING_NOT_FOUND`. A failed account checkpoint must leave the native copy
+unacknowledged for recovery. Stopping alone does not acknowledge a recording.

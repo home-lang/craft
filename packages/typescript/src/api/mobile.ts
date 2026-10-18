@@ -845,6 +845,8 @@ export const secureStorage = {
  * Location coordinates.
  */
 export interface Location {
+  /** Owner captured when a native recording emits this sample. */
+  recordingId?: string
   latitude: number
   longitude: number
   altitude?: number
@@ -876,7 +878,7 @@ function recordingOwnershipSupported(namespace: 'location' | 'heartRate'): boole
   const flag = namespace === 'location' ? 'locationRecordingOwnership' : 'heartRateRecordingOwnership'
   const caps = root?.capabilities
   const advertised = Array.isArray(caps) ? caps.includes(flag) : caps?.[flag] === true
-  return advertised && ['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording'].every(method => typeof root?.[namespace]?.[method] === 'function')
+  return advertised && ['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'].every(method => typeof root?.[namespace]?.[method] === 'function')
 }
 
 function validateRecordingOwnership(namespace: 'location' | 'heartRate', options?: Partial<RecordingOwnershipOptions>): void {
@@ -1060,11 +1062,24 @@ export const location = {
     return { ...webLocationRecording, locations: [...webLocationRecording.locations] }
   },
 
-  async getRecordingState(): Promise<LocationRecordingState> {
+  async getRecordingState(options?: RecordingOwnershipOptions): Promise<LocationRecordingState> {
+    validateRecordingOwnership('location', options)
     const craft = getCraftMobile()
     if (typeof window !== 'undefined' && craft?.location?.getRecordingState)
-      return craft.location.getRecordingState()
+      return craft.location.getRecordingState(options)
     return { ...webLocationRecording, sampleCount: webLocationRecording.locations.length }
+  },
+
+  async acknowledgeRecording(options: RecordingOwnershipOptions): Promise<boolean> {
+    if (!options || !Object.prototype.hasOwnProperty.call(options, 'expectedId'))
+      throw Object.assign(new Error('Acknowledgement needs expectedId'), { code: 'INVALID_ARGUMENT' })
+    validateRecordingOwnership('location', options)
+    const craft = getCraftMobile()
+    if (craft?.location?.acknowledgeRecording) return craft.location.acknowledgeRecording(options)
+    if (webLocationRecording.active)
+      throw Object.assign(new Error('The recording is still active'), { code: 'RECORDING_ALREADY_ACTIVE' })
+    webLocationRecording = { id: null, active: false, paused: false, startedAt: null, locations: [] }
+    return true
   },
 
   async readRecording(options?: RecordingOwnershipOptions): Promise<Location[]> {
@@ -1970,7 +1985,7 @@ export interface HeartRateSample {
 }
 
 export type HeartRateMethod = 'getState' | 'requestAuthorization' | 'scan' | 'stopScan' | 'getDevices' | 'connect' | 'reconnect' | 'disconnect'
-  | 'startRecording' | 'pauseRecording' | 'resumeRecording' | 'stopRecording' | 'getRecordingState' | 'readRecording'
+  | 'startRecording' | 'pauseRecording' | 'resumeRecording' | 'stopRecording' | 'getRecordingState' | 'readRecording' | 'acknowledgeRecording'
 
 const HR_AUTHORIZATIONS: readonly HeartRateAuthorization[] = ['authorized', 'denied', 'restricted', 'notDetermined', 'unavailable']
 const HR_BLUETOOTH: readonly BluetoothState[] = ['poweredOn', 'poweredOff', 'unauthorized', 'unsupported', 'resetting', 'unknown']
@@ -2189,7 +2204,16 @@ export const heartRate = {
       value => ({ ...normalizeHeartRateRecording(value), samples: normalizeHeartRateSamples(hrRecord(value).samples) }), ...(options === undefined ? [] : [options]))
   },
 
-  getRecordingState: (): Promise<HeartRateRecordingState> => heartRateCall('getRecordingState', noRecording, normalizeHeartRateRecording),
+  async getRecordingState(options?: RecordingOwnershipOptions): Promise<HeartRateRecordingState> {
+    validateRecordingOwnership('heartRate', options)
+    return heartRateCall('getRecordingState', noRecording, normalizeHeartRateRecording, ...(options === undefined ? [] : [options]))
+  },
+  async acknowledgeRecording(options: RecordingOwnershipOptions): Promise<boolean> {
+    if (!options || !Object.prototype.hasOwnProperty.call(options, 'expectedId'))
+      throw Object.assign(new Error('Acknowledgement needs expectedId'), { code: 'INVALID_ARGUMENT' })
+    validateRecordingOwnership('heartRate', options)
+    return heartRateCall('acknowledgeRecording', () => false, value => value === true, options)
+  },
 
   /** The recording so far; only what came after `since` (ms) when given. */
   async readRecording(options: { since?: number, expectedId?: string } = {}): Promise<HeartRateSample[]> {
@@ -3494,7 +3518,8 @@ interface CraftMobileBridge {
     pauseRecording?(options?: RecordingOwnershipOptions): Promise<LocationRecordingState>
     resumeRecording?(options?: RecordingOwnershipOptions): Promise<LocationRecordingState>
     stopRecording?(options?: RecordingOwnershipOptions): Promise<LocationRecordingResult>
-    getRecordingState?(): Promise<LocationRecordingState>
+    getRecordingState?(options?: RecordingOwnershipOptions): Promise<LocationRecordingState>
+    acknowledgeRecording?(options: RecordingOwnershipOptions): Promise<boolean>
     readRecording?(options?: RecordingOwnershipOptions): Promise<Location[]>
   }
   share?: {

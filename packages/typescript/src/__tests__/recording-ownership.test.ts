@@ -9,9 +9,9 @@ afterEach(() => {
 
 function host(capable: boolean) {
   const calls: unknown[][] = []
-  const namespace = Object.fromEntries(['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording'].map(method => [method, async (...args: unknown[]) => {
+  const namespace = Object.fromEntries(['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'].map(method => [method, async (...args: unknown[]) => {
     calls.push([method, ...args])
-    return method === 'readRecording' ? [] : { id: 'owned', active: true, paused: false, startedAt: 1 }
+    return method === 'acknowledgeRecording' ? true : method === 'readRecording' ? [] : { id: 'owned', active: true, paused: false, startedAt: 1 }
   }]))
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { craft: {
     capabilities: { geolocation: true, heartRate: true, locationRecordingOwnership: capable, heartRateRecordingOwnership: capable },
@@ -24,7 +24,7 @@ for (const [name, api] of [['GPS', location], ['heart rate', heartRate]] as cons
   test(`${name} refuses guarded calls on an old host before any native operation`, async () => {
     const calls = host(false)
     expect(api.supportsRecordingOwnership()).toBe(false)
-    for (const method of ['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording'] as const)
+    for (const method of ['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'] as const)
       await expect(api[method]({ expectedId: 'owned' })).rejects.toMatchObject({ code: 'RECORDING_OWNERSHIP_UNSUPPORTED' })
     expect(calls).toEqual([])
   })
@@ -32,9 +32,9 @@ for (const [name, api] of [['GPS', location], ['heart rate', heartRate]] as cons
   test(`${name} forwards the expected recording ID through every guarded operation`, async () => {
     const calls = host(true)
     expect(api.supportsRecordingOwnership()).toBe(true)
-    for (const method of ['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording'] as const)
+    for (const method of ['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'] as const)
       await api[method]({ expectedId: 'owned' })
-    expect(calls).toEqual(['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording'].map(method => [method, { expectedId: 'owned' }]))
+    expect(calls).toEqual(['pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'].map(method => [method, { expectedId: 'owned' }]))
   })
 
   test(`${name} rejects malformed identities without turning them into an unfenced operation`, async () => {
