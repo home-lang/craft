@@ -11,7 +11,6 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiDevice
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -175,7 +174,8 @@ class NativeMapTest {
             host.configure(props().put("showsUserLocation", true), overlays()) {}
             assertFalse(map.locationComponent.isLocationComponentActivated)
         }
-        assertEquals("Rendering a map must not open a permission dialog", activity.packageName, UiDevice.getInstance(instrumentation).currentPackageName)
+        instrumentation.uiAutomation.waitForIdle(500, 5_000)
+        assertEquals("Rendering a map must not open a permission dialog", activity.packageName, instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString())
         evidence("map-location-permission-not-requested")
     }
 }
