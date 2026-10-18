@@ -148,6 +148,44 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(celebration.isRunning, "all decoration is removed after the finite reveal")
     }
 
+    func testSelectedTabIconPolicySurvivesLiveCaptionCleanupAndResetsExplicitly() throws {
+        let configured = try JSONDecoder().decode(CraftConfig.Tab.self, from: Data(#"{"id":"/health","title":"Health","symbol":"heart","selectedSymbol":"heart.fill","selectedIconTint":"#ff3b30","selectedIconPulse":false}"#.utf8))
+        XCTAssertEqual(configured.selectedSymbol, "heart.fill")
+        XCTAssertEqual(configured.selectedIconTint, "#ff3b30")
+        XCTAssertEqual(configured.selectedIconPulse, false)
+        let chrome = CraftChrome.shared
+        let previous = chrome.tabs
+        let selected = chrome.selected
+        defer { chrome.tabs = previous; chrome.selected = selected }
+        chrome.tabs = [CraftChrome.Tab(id: "/health", title: "Health", symbol: "heart", badge: "2")]
+        chrome.selected = "/health"
+        chrome.updateTab(["id": "/health", "selectedSymbol": "heart.fill", "selectedIconTint": "#ff3b30", "selectedIconPulse": true])
+        var active = chrome.tabs[0].iconAppearance(selected: chrome.selected == "/health", motionAllowed: true)
+        XCTAssertEqual(active.symbol, "heart.fill")
+        XCTAssertEqual(active.tint, "#ff3b30")
+        XCTAssertTrue(active.pulse, "selection must work without a heart-rate sensor")
+        let inactive = chrome.tabs[0].iconAppearance(selected: false, motionAllowed: true)
+        XCTAssertEqual(inactive.symbol, "heart")
+        XCTAssertNil(inactive.tint)
+        XCTAssertFalse(inactive.pulse)
+        XCTAssertFalse(chrome.tabs[0].iconAppearance(selected: true, motionAllowed: false).pulse, "Reduce Motion, hidden bars and inactive scenes stop animation")
+        chrome.updateTab(["id": "/health", "title": "145 bpm", "iconTint": "#ff3b30", "iconPulse": true])
+        chrome.updateTab(["id": "/health", "title": NSNull(), "iconTint": NSNull(), "iconPulse": false])
+        active = chrome.tabs[0].iconAppearance(selected: true, motionAllowed: true)
+        XCTAssertEqual(active.symbol, "heart.fill")
+        XCTAssertTrue(active.pulse, "stale live-reading cleanup must preserve selected styling")
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "Health")
+        XCTAssertEqual(chrome.tabs[0].badge, "2")
+        XCTAssertEqual(chrome.selected, "/health")
+        chrome.updateTab(["id": "/health", "iconPulse": true, "selectedIconPulse": false])
+        XCTAssertFalse(chrome.tabs[0].iconAppearance(selected: true, motionAllowed: true).pulse, "false overrides the legacy pulse")
+        chrome.updateTab(["id": "/health", "selectedSymbol": NSNull(), "selectedIconTint": "invalid", "selectedIconPulse": NSNull()])
+        active = chrome.tabs[0].iconAppearance(selected: true, motionAllowed: true)
+        XCTAssertEqual(active.symbol, "heart")
+        XCTAssertNil(active.tint)
+        XCTAssertTrue(active.pulse, "null restores the legacy pulse")
+    }
+
     func testTabUpdatesKeepTheIconAndSelectionWhileChangingItsLiveCaption() {
         let chrome = CraftChrome.shared
         let previous = chrome.tabs

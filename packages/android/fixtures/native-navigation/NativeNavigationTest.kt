@@ -568,6 +568,58 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun selectedTabIconPolicyFollowsNativeSelectionAndSurvivesLiveReadingCleanup() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        try {
+            awaitView(activity, "navigation-home-state")
+            instrumentation.runOnMainSync {
+                val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
+                    ?: throw AssertionError("native chrome did not mount")
+                val configured = CraftNativeRoutes(org.json.JSONObject().put("tabs", org.json.JSONArray().put(
+                    org.json.JSONObject().put("id", "/health").put("title", "Health").put("symbol", "heart")
+                        .put("selectedSymbol", "heart.fill").put("selectedIconTint", "#ff3b30").put("selectedIconPulse", false),
+                ))).tabs.single()
+                val configuredChrome = CraftNativeChrome(activity, listOf(configured))
+                assertEquals(CraftTabIconAppearance("heart.fill", Color.parseColor("#ff3b30"), false), configuredChrome.tabIconAppearance(0, true))
+                fun patch(item: org.json.JSONObject) {
+                    chrome.apply(org.json.JSONObject().put("tabItem", item.put("id", "/")), 0, "Home")
+                }
+                patch(org.json.JSONObject().put("selectedSymbol", "heart.fill").put("selectedIconTint", "#ff3b30").put("selectedIconPulse", true))
+                chrome.selectTab(0)
+                val cell = find(chrome, "craft-tab-/") as LinearLayout
+                val icon = cell.getChildAt(0) as TextView
+                assertEquals(CraftTabIconAppearance("heart.fill", Color.parseColor("#ff3b30"), true), chrome.tabIconAppearance(0, true))
+                assertEquals(Color.parseColor("#ff3b30"), icon.currentTextColor)
+                assertTrue("selected filled icon was not rendered", icon.foreground != null || icon.text.toString() == "♥")
+                assertFalse("reduced motion must suppress animation", chrome.tabIconAppearance(0, false).pulse)
+                chrome.selectTab(1)
+                assertFalse("inactive tab kept its selection pulse", chrome.tabIconAppearance(0, true).pulse)
+                assertTrue("inactive tab kept its selected symbol", chrome.tabIconAppearance(0, true).symbol != "heart.fill")
+                assertTrue("inactive tab retained its animation", icon.animation == null)
+                chrome.selectTab(0)
+                patch(org.json.JSONObject().put("title", "145 bpm").put("iconTint", "#ff3b30").put("iconPulse", true))
+                patch(org.json.JSONObject().put("title", org.json.JSONObject.NULL).put("iconTint", org.json.JSONObject.NULL).put("iconPulse", false))
+                assertEquals("Home", (cell.getChildAt(1) as TextView).text.toString())
+                assertEquals(CraftTabIconAppearance("heart.fill", Color.parseColor("#ff3b30"), true), chrome.tabIconAppearance(0, true))
+                assertTrue("caption cleanup changed the owning native tab", cell.isSelected)
+                patch(org.json.JSONObject().put("iconPulse", true).put("selectedIconPulse", false))
+                assertFalse("explicit false must override legacy pulse", chrome.tabIconAppearance(0, true).pulse)
+                assertTrue(icon.animation == null)
+                patch(org.json.JSONObject().put("selectedSymbol", org.json.JSONObject.NULL).put("selectedIconTint", "invalid").put("selectedIconPulse", org.json.JSONObject.NULL))
+                assertTrue("null must restore the legacy pulse", chrome.tabIconAppearance(0, true).pulse)
+                assertTrue(chrome.tabIconAppearance(0, true).symbol != "heart.fill")
+                assertTrue(chrome.tabIconAppearance(0, true).tint == null)
+            }
+        } finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
     fun liveTabCaptionKeepsItsSymbolAndResetsWithoutChangingSelection() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(

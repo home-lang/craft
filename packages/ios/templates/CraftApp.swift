@@ -631,6 +631,16 @@ final class CraftChrome: ObservableObject {
         var titleOverride: String? = nil
         var iconTint: String? = nil
         var iconPulse = false
+        var selectedSymbol: String? = nil
+        var selectedIconTint: String? = nil
+        var selectedIconPulse: Bool? = nil
+
+        func iconAppearance(selected: Bool, motionAllowed: Bool) -> (symbol: String, tint: String?, pulse: Bool) {
+            let name = selected ? selectedSymbol ?? symbol : symbol
+            let tint = selected ? selectedIconTint ?? iconTint : iconTint
+            let pulse = selected ? selectedIconPulse ?? iconPulse : iconPulse
+            return (name, tint, pulse && motionAllowed)
+        }
         var displayTitle: String { titleOverride ?? title }
         var accessibilityLabel: String? = nil
         var image: String? = nil
@@ -685,7 +695,7 @@ final class CraftChrome: ObservableObject {
         splashVisible = splash
         tabSwipeEnabled = true
         guard !configured.isEmpty else { return }
-        tabs = configured.map { Tab(id: $0.id, title: $0.title, symbol: $0.symbol ?? "circle", badge: nil) }
+        tabs = configured.map { Tab(id: $0.id, title: $0.title, symbol: $0.symbol ?? "circle", badge: nil, selectedSymbol: $0.selectedSymbol, selectedIconTint: $0.selectedIconTint, selectedIconPulse: $0.selectedIconPulse) }
         self.selected = selected ?? configured.first?.id
         tabBarVisible = true
     }
@@ -713,6 +723,15 @@ final class CraftChrome: ObservableObject {
         }
         if item.keys.contains("iconPulse") {
             next.iconPulse = item["iconPulse"] as? Bool ?? false
+        }
+        if item.keys.contains("selectedSymbol") {
+            next.selectedSymbol = (item["selectedSymbol"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        }
+        if item.keys.contains("selectedIconTint") {
+            next.selectedIconTint = (item["selectedIconTint"] as? String).flatMap { UIColor(hex: $0) == nil ? nil : $0 }
+        }
+        if item.keys.contains("selectedIconPulse") {
+            next.selectedIconPulse = item["selectedIconPulse"] as? Bool
         }
         if item.keys.contains("accessibilityLabel") {
             next.accessibilityLabel = (item["accessibilityLabel"] as? String).map { String($0.prefix(160)) }
@@ -768,7 +787,10 @@ final class CraftChrome: ObservableObject {
             tabs = (body["tabs"] as? [[String: Any]] ?? []).compactMap { item in
                 guard let id = item["id"] as? String, let title = item["title"] as? String else { return nil }
                 let badge = (item["badge"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-                return Tab(id: id, title: title, symbol: item["symbol"] as? String ?? "circle", badge: badge)
+                return Tab(id: id, title: title, symbol: item["symbol"] as? String ?? "circle", badge: badge,
+                    selectedSymbol: (item["selectedSymbol"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                    selectedIconTint: (item["selectedIconTint"] as? String).flatMap { UIColor(hex: $0) == nil ? nil : $0 },
+                    selectedIconPulse: item["selectedIconPulse"] as? Bool)
             }
             if let selected = body["selected"] as? String {
                 self.selected = selected
@@ -1134,13 +1156,15 @@ struct CraftTabBarView: View {
 
     /// Live styling belongs to the icon, leaving selection and the caption clear.
     @ViewBuilder private func tabSymbol(_ tab: CraftChrome.Tab, selected: Bool) -> some View {
-        let color = tab.iconTint.flatMap { UIColor(hex: $0) }.map { Color($0) } ?? (selected ? selectedColor : Color.primary)
-        let icon = Image(systemName: symbol(tab.symbol, selected: selected))
+        let appearance = tab.iconAppearance(selected: selected, motionAllowed: !reduceMotion && scenePhase == .active && chrome.tabBarVisible)
+        let color = appearance.tint.flatMap { UIColor(hex: $0) }.map { Color($0) } ?? (selected ? selectedColor : Color.primary)
+        let name = selected && tab.selectedSymbol != nil ? appearance.symbol : symbol(appearance.symbol, selected: selected)
+        let icon = Image(systemName: name)
             .font(.system(size: iconSize, weight: selected ? .semibold : .regular))
             .foregroundStyle(color)
             .frame(height: iconSize + 6)
         if #available(iOS 17.0, *) {
-            icon.symbolEffect(.pulse, options: .repeating, isActive: tab.iconPulse && !reduceMotion && scenePhase == .active)
+            icon.symbolEffect(.pulse, options: .repeating, isActive: appearance.pulse)
         } else {
             icon
         }
@@ -1542,6 +1566,9 @@ struct CraftConfig: Codable {
         var id: String
         var title: String
         var symbol: String? = nil
+        var selectedSymbol: String? = nil
+        var selectedIconTint: String? = nil
+        var selectedIconPulse: Bool? = nil
     }
 
     struct BackgroundRefresh: Codable {
