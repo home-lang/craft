@@ -2003,9 +2003,20 @@ describe('Craft iOS builder', () => {
     // Wi-Fi only: iOS refuses a metered connection, and that answer is a wait, not a failure.
     expect(actions).toContain('request.allowsExpensiveNetworkAccess = false')
     expect(actions).toContain('request.allowsConstrainedNetworkAccess = false')
-    expect(actions).toContain('CraftNativeMedia.finish(address, flight: flight, .success(["ok": false, "url": address, "reason": "cellular"]))')
+    expect(files).toContain('CraftNativeMedia.finish(transfer.address, flight: flight, .success(["ok": false, "url": transfer.address, "reason": "cellular"]))')
     // Two screens asking for the same address share one download.
-    expect(actions).toContain('guard let flight = CraftNativeMedia.begin(address, { complete(requestToken, $0, completion) }) else { return }')
+    expect(actions).toContain('guard let flight = CraftNativeMedia.begin(address, answer) else { return }')
+    // On a background session: it carries on while the app is suspended or
+    // closed, a keep it cannot fetch now is answered as queued, and iOS's
+    // relaunch for finished transfers reaches the session.
+    expect(actions).toContain('CraftNativeMediaTransfers.shared.start(request, address: address, flight: flight, wifiOnly: wifiOnly)')
+    expect(files).toContain('URLSessionConfiguration.background(withIdentifier: Self.identifier)')
+    expect(files).toContain('configuration.sessionSendsLaunchEvents = true')
+    expect(files).toContain('"reason": reason, "queued": true')
+    expect(readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')).toContain('handleEventsForBackgroundURLSession identifier: String')
+    // A sign-out stops every transfer, and one started before it never lands.
+    expect(files).toContain('CraftNativeMediaTransfers.shared.cancelAll()')
+    expect(files).toContain('stillWanted: { [weak self] in self?.isCurrent(started) ?? false }')
     // The Video element plays the kept copy, and says so when an address cannot load.
     expect(screen).toContain('let kept = CraftNativeMedia.local(uri)')
     expect(screen).toContain('self.fire("onError", ["message": "The video address is not a full URL: \\(uri)"])')

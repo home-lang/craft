@@ -1138,6 +1138,17 @@ given an address with a kept copy plays the copy, so a screen keeps its
 videos and passes the same URLs as before. A `Video` whose source has no
 scheme (`/videos/a.mp4`) cannot load on a native screen and fires `onError`.
 
+On iOS the downloads run on the app's background URL session, so a video
+being kept carries on while the app is suspended or closed, and iOS
+relaunches the app in the background to store it. `{ cellular: false }` keeps
+a download off cellular, hotspots and Low Data Mode. When the phone cannot
+fetch the file now (no connection, or only a metered one for a Wi-Fi-only
+keep), `keep` resolves at once with `{ ok: false, url, reason: 'offline' |
+'cellular', queued: true }` and the transfer stays queued with iOS: it
+finishes when it can, and the next `keep` of that address answers from the
+copy. `prune` stops the transfers for addresses it does not keep, and
+`clear` (sign-out) stops them all, so none lands afterwards.
+
 ```ts
 await craft.media.keep('https://example.com/videos/squat.mp4')
 await craft.media.prune(['https://example.com/videos/squat.mp4'])

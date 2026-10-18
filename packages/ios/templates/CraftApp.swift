@@ -251,6 +251,17 @@ final class CraftAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         CraftEventManager.shared.sendToWeb("craftSilentPush", data: ["id": id, "payload": CraftEventManager.pageData(userInfo)])
     }
 
+    /// iOS relaunched the app because `craft.media.keep`'s background
+    /// transfers finished (CraftNativeMediaTransfers): their session takes
+    /// the events, stores the files, then says it is done.
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+        guard identifier == CraftNativeMediaTransfers.identifier else {
+            completionHandler()
+            return
+        }
+        CraftNativeMediaTransfers.shared.backgroundCompletion = completionHandler
+    }
+
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         NotificationCenter.default.post(name: .craftPushToken, object: token)
