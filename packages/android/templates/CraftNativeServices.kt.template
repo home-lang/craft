@@ -1,5 +1,7 @@
 package {{PACKAGE_NAME}}
 
+import com.craft.runtime.CraftNative
+
 import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
