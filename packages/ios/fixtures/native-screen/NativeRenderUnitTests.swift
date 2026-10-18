@@ -843,7 +843,7 @@ final class NativeRenderUnitTests: XCTestCase {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
         controller.render([
-            "type": "Map", "props": ["key": "topo-map", "tileOverlay": ["urlTemplate": "https://example.org/tiles/{z}/{y}/{x}.png", "attribution": "Test map data"]],
+            "type": "Map", "props": ["key": "topo-map", "edgePadding": ["bottom": 160], "tileOverlay": ["urlTemplate": "https://example.org/tiles/{z}/{y}/{x}.png", "attribution": "Test map data"]],
             "style": ["width": 320, "height": 480],
             "children": [["type": "MapPolyline", "props": ["geometry": [37.7, -119.5, 37.72, -119.49]]]],
         ])
@@ -852,7 +852,10 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(tiles.canReplaceMapContent)
         XCTAssertTrue(map.delegate?.mapView?(map, rendererFor: tiles) is MKTileOverlayRenderer)
         XCTAssertTrue(map.overlays.last is MKPolyline, "The route must remain above the basemap")
-        XCTAssertTrue(map.subviews.compactMap { $0 as? UILabel }.contains { $0.text == "Test map data" && !$0.isHidden })
+        controller.view.layoutIfNeeded()
+        map.layoutIfNeeded()
+        let credit = try XCTUnwrap(map.subviews.compactMap { $0 as? UILabel }.first { $0.text == "Test map data" && !$0.isHidden })
+        XCTAssertLessThanOrEqual(credit.frame.maxY, map.bounds.height - 160, "The floating profile must not cover map attribution")
     }
 
     func testMapReservesRoomForFloatingControls() throws {

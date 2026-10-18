@@ -154,6 +154,8 @@ class NativeMapTest {
                 assertEquals(11.0, start.longitude(), 0.000001)
                 assertEquals(90.0, features(map).first { it.getStringProperty("craftOverlayId") == "direction" }.getNumberProperty("bearing").toDouble(), 0.001)
                 assertTrue("Provider attribution must remain visible", textViews(host).any { it.visibility == View.VISIBLE && (it.text.contains("Esri") || it.text.contains("OpenStreetMap")) })
+                val credit = textViews(host).first { it.text.contains("Esri") || it.text.contains("OpenStreetMap") }
+                assertTrue("Floating profiles must not cover provider attribution", credit.bottom <= host.height - 180 * host.resources.displayMetrics.density)
                 for (point in listOf(LatLng(47.0, 11.0), LatLng(47.01, 11.01))) {
                     val screen = map.projection.toScreenLocation(point)
                     val density = host.resources.displayMetrics.density
@@ -168,7 +170,8 @@ class NativeMapTest {
     @Test
     fun nativeMapMutationsUpdateThePinAndCameraWithoutReloadingTheStyle() = withMap { _, host, _, map, _ ->
         val style = main { map.style }
-        main { host.configure(props().put("pitchEnabled", true).put("cameraPitch", 30).put("cameraHeading", 90), overlays("#2878c8")) {} }
+        val pressed = AtomicReference<String?>()
+        main { host.configure(props().put("pitchEnabled", true).put("cameraPitch", 30).put("cameraHeading", 90), overlays("#2878c8")) { pressed.set(it) } }
         awaitState("The native map did not apply camera and pin mutations") {
             val pin = features(map).firstOrNull { it.getStringProperty("craftOverlayId") == "start" }
             pin?.getStringProperty("color") == "rgba(40,120,200,1.0)" &&
@@ -195,6 +198,12 @@ class NativeMapTest {
             assertEquals(120.0, Color.green(pixel).toDouble(), 8.0)
             assertEquals(200.0, Color.blue(pixel).toDouble(), 8.0)
         } finally { image.recycle() }
+        val downAt = SystemClock.uptimeMillis()
+        for (action in listOf(android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP)) {
+            val touch = android.view.MotionEvent.obtain(downAt, SystemClock.uptimeMillis(), action, location.first.toFloat(), location.second.toFloat(), 0)
+            try { assertTrue(instrumentation.uiAutomation.injectInputEvent(touch, true)) } finally { touch.recycle() }
+        }
+        awaitState("Tapping the actual native pin must dispatch its stable marker ID") { pressed.get() == "start" }
         evidence("map-mutated-pin-and-camera")
     }
 

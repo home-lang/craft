@@ -271,6 +271,16 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
         if (horizontal > availableWidth && horizontal > 0) { left *= availableWidth / horizontal; right *= availableWidth / horizontal }
         if (vertical > availableHeight && vertical > 0) { top *= availableHeight / vertical; bottom *= availableHeight / vertical }
         map?.setPadding(left.roundToInt(), top.roundToInt(), right.roundToInt(), bottom.roundToInt())
+        // Floating STX controls reserve the same space for credits and scale
+        // as for route fitting, so a profile never covers either utility.
+        (attribution.layoutParams as LayoutParams).let { params ->
+            val margin = bottom.roundToInt() + (8 * resources.displayMetrics.density).roundToInt()
+            if (params.bottomMargin != margin) { params.bottomMargin = margin; attribution.layoutParams = params }
+        }
+        (scale.layoutParams as LayoutParams).let { params ->
+            val margin = bottom.roundToInt() + (32 * resources.displayMetrics.density).roundToInt()
+            if (params.bottomMargin != margin) { params.bottomMargin = margin; scale.layoutParams = params }
+        }
     }
 
     private fun moveCamera(bounds: LatLngBounds, padding: Int) {

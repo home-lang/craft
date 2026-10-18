@@ -1174,6 +1174,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var markerPinColors: [String: UIColor] = [:]
     private var tileOverlay: MKTileOverlay?
     private var tileTemplate: String?
+    private var tileAttributionBottom: NSLayoutConstraint?
     private lazy var tileAttribution: UILabel = {
         let label = UILabel()
         label.font = .systemFont(ofSize: 9)
@@ -1182,7 +1183,9 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         label.translatesAutoresizingMaskIntoConstraints = false
         label.numberOfLines = 2
         addSubview(label)
-        NSLayoutConstraint.activate([label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8), label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8), label.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 48)])
+        let bottom = label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8)
+        tileAttributionBottom = bottom
+        NSLayoutConstraint.activate([label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8), bottom, label.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 48)])
         return label
     }()
 
@@ -1433,7 +1436,10 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if tileTemplate != nil { bringSubviewToFront(tileAttribution) }
+        if tileTemplate != nil {
+            tileAttributionBottom?.constant = -min(edgePadding.bottom, max(0, bounds.height - 40)) - 8
+            bringSubviewToFront(tileAttribution)
+        }
         if let region = pendingRegion, bounds.width > 0, bounds.height > 0 {
             pendingRegion = nil
             setRegion(region, animated: false)
