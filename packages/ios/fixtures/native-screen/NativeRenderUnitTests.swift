@@ -901,6 +901,44 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(marker.transform.b, 1, accuracy: 0.02)
     }
 
+    func testMapDirectionSignsKeepALightBackdropAndTheAuthoredColor() throws {
+        for appearance in [UIUserInterfaceStyle.light, .dark] {
+            let controller = CraftNativeScreenController(config: CraftConfig())
+            controller.overrideUserInterfaceStyle = appearance
+            controller.loadViewIfNeeded()
+            controller.render([
+                "type": "Map", "props": ["key": "contrast-map"],
+                "style": ["width": 320, "height": 320],
+                "children": [["type": "MapMarker", "props": ["id": "direction", "geometry": [37.7, -119.5], "bearing": 90, "pinColor": "#365b2d"]]],
+            ])
+            let map = try XCTUnwrap(find(MKMapView.self, key: "contrast-map", below: controller.view))
+            let annotation = try XCTUnwrap(map.annotations.first)
+            let marker = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+            let image = try XCTUnwrap(marker.image)
+            let raster = UIGraphicsImageRenderer(size: image.size).image { _ in image.draw(at: .zero) }
+            let cgImage = try XCTUnwrap(raster.cgImage)
+            var pixels = [UInt8](repeating: 0, count: cgImage.width * cgImage.height * 4)
+            try pixels.withUnsafeMutableBytes { bytes in
+                let context = try XCTUnwrap(CGContext(data: bytes.baseAddress, width: cgImage.width, height: cgImage.height,
+                    bitsPerComponent: 8, bytesPerRow: cgImage.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+            }
+            var opaque = 0
+            var light = 0
+            var authored = 0
+            for offset in stride(from: 0, to: pixels.count, by: 4) where pixels[offset + 3] > 240 {
+                opaque += 1
+                let red = Int(pixels[offset]), green = Int(pixels[offset + 1]), blue = Int(pixels[offset + 2])
+                if red > 235 && green > 235 && blue > 235 { light += 1 }
+                if abs(red - 54) < 12 && abs(green - 91) < 12 && abs(blue - 45) < 12 { authored += 1 }
+            }
+            XCTAssertGreaterThan(opaque, 50)
+            XCTAssertGreaterThan(light, opaque / 3, "direction signs need an opaque light backdrop over the basemap")
+            XCTAssertGreaterThan(authored, 10, "the native direction sign ignored its authored pinColor")
+        }
+    }
+
     func testMapPreservesAuthoredPolylineOrderAcrossUpdatesAndMoves() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
