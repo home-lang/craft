@@ -257,9 +257,13 @@ class NativeMapTest {
         }
         instrumentation.uiAutomation.waitForIdle(500, 5_000)
         assertNotEquals("The Home action must actually background the app", activity.packageName, instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString())
-        val resumed = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+        // startActivitySync waits for a new Activity creation; this Intent
+        // deliberately resumes the existing instance instead.
+        instrumentation.targetContext.startActivity(Intent(instrumentation.targetContext, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP))
-        assertSame("Returning must reuse the retained native map activity", activity, resumed)
+        awaitState("Returning must resume the retained native map activity") {
+            activity.lifecycle.currentState == androidx.lifecycle.Lifecycle.State.RESUMED && activity.hasWindowFocus()
+        }
         awaitState("The resumed native map must render its retained route and arrows") {
             features(map).size == 3 && map.queryRenderedFeatures(map.projection.toScreenLocation(LatLng(47.005, 11.005)), "craft-map-directions").isNotEmpty()
         }
