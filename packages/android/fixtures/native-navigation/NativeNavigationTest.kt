@@ -613,9 +613,20 @@ class NativeNavigationTest {
             Intent(instrumentation.targetContext, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
+        fun matching(root: AccessibilityNodeInfo, id: String): AccessibilityNodeInfo? {
+            if (root.viewIdResourceName == id) return root
+            for (index in 0 until root.childCount) {
+                val child = root.getChild(index) ?: continue
+                matching(child, id)?.let { return it }
+            }
+            return null
+        }
         fun node(id: String): AccessibilityNodeInfo {
             repeat(100) {
-                automation.rootInActiveWindow?.findAccessibilityNodeInfosByViewId(id)?.firstOrNull()?.let { return it }
+                // Native automation consumes node metadata. Android's direct
+                // find-by-view-ID RPC instead resolves an AAPT resource ID,
+                // which authored STX identities deliberately do not allocate.
+                automation.rootInActiveWindow?.let { matching(it, id) }?.let { return it }
                 SystemClock.sleep(100)
             }
             throw AssertionError("The native accessibility tree did not expose STX testID $id")
