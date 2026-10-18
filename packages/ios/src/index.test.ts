@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { afterAll, describe, expect, it } from 'bun:test'
 import { addSchemeBuildTargets, addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from '../scripts/insert-project-targets'
@@ -7,6 +7,7 @@ import {
   build,
   init,
   installRuntime,
+  nativeRouteBundles,
   renderFeatureSettings,
   renderRuntimeSettings,
   resolveRuntimeDir,
@@ -399,6 +400,30 @@ describe('Craft iOS builder', () => {
     await build({ output, nativeBundlePath: bundle, generateProject: false, runtimeDir: null })
     expect(readFileSync(join(output, 'dist', 'native-screen.js'), 'utf8')).toBe('globalThis.screenLoaded = true')
     await build({ output, nativeBundlePath: join(output, 'dist', 'native-screen.js'), generateProject: false, runtimeDir: null })
+
+    // A directory of route bundles (stx's routesDir) replaces the one-file
+    // bundle, and the one file replaces the routes again: the app prefers a
+    // route's own file, so a stale one beside the fresh layout would run.
+    const routes = join(output, 'routes')
+    mkdirSync(routes)
+    writeFileSync(join(routes, 'Home.js'), 'globalThis.home = true')
+    writeFileSync(join(routes, '__app.js'), 'globalThis.app = true')
+    await build({ output, nativeBundlePath: routes, generateProject: false, runtimeDir: null })
+    expect(readFileSync(join(output, 'dist', 'native-screens', 'Home.js'), 'utf8')).toBe('globalThis.home = true')
+    expect(existsSync(join(output, 'dist', 'native-screens', '__app.js'))).toBe(true)
+    expect(existsSync(join(output, 'dist', 'native-screen.js'))).toBe(false)
+    await build({ output, generateProject: false, runtimeDir: null })
+    await build({ output, nativeBundlePath: bundle, generateProject: false, runtimeDir: null })
+    expect(existsSync(join(output, 'dist', 'native-screens'))).toBe(false)
+    expect(readFileSync(join(output, 'dist', 'native-screen.js'), 'utf8')).toBe('globalThis.screenLoaded = true')
+    mkdirSync(join(output, 'empty-routes'))
+    await expect(build({ output, nativeBundlePath: join(output, 'empty-routes'), generateProject: false, runtimeDir: null })).rejects.toThrow('Native route bundles not found')
+    expect(nativeRouteBundles).toBe(true)
+    // Each screen runs from its route's file when there is one, in one
+    // shared virtual machine, with the one-file bundle as the fallback.
+    expect(nativeSwift).toContain('subdirectory: "dist/native-screens"')
+    expect(nativeSwift).toContain('JSContext(virtualMachine: CraftNativeBundle.virtualMachine)')
+    expect(nativeSwift).toContain('jsContext.evaluateScript(bundle.source, withSourceURL: bundle.url)')
     await expect(build({ output, htmlPath: bundle, generateProject: false, runtimeDir: null })).rejects.toThrow('cannot use --html-path')
     await expect(init({ runtimeDir: null, name: 'Invalid', output: join(output, 'invalid'), config: { renderer: 'canvas' as 'native' } })).rejects.toThrow('Unknown iOS renderer')
   })
@@ -1771,7 +1796,9 @@ describe('Craft iOS builder', () => {
     expect(hybrid).toContain('current.topViewController is CraftNativeScreenController')
     expect(hybrid).toContain('scroll.contentSize.width > scroll.bounds.width + 1')
     expect(app).toContain('func swipe(to id: String)')
-    expect(app).toContain('UISelectionFeedbackGenerator().selectionChanged()')
+    expect(app).toContain('private let selectionFeedback = UISelectionFeedbackGenerator()')
+    expect(app).toContain('selectionFeedback.selectionChanged()')
+    expect(app).toContain('selectionFeedback.prepare()')
     expect(app).toContain('func setHiddenByScreen(_ hidden: Bool) {')
     expect(screen).toContain('case "NAVIGATE_POP_TO_ROOT":')
     expect(screen).toContain('navigationController?.popToRootViewController(animated: true)')

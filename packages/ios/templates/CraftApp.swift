@@ -679,6 +679,9 @@ final class CraftChrome: ObservableObject {
     private var splashDeadline: DispatchWorkItem?
     private var tabSwipePrevious: String?
     private var tabSwipeTarget: String?
+    /// One generator for every tab change. A new one per tick started the
+    /// Taptic Engine cold each time, on the main thread, late.
+    private let selectionFeedback = UISelectionFeedbackGenerator()
     /// The keyboard is up and covers the tab bar, so the page need not leave
     /// room for it: the web view ends at the keyboard (CraftHybrid's webHost).
     private var keyboardUp = false
@@ -866,7 +869,7 @@ final class CraftChrome: ObservableObject {
     func swipe(to id: String) {
         guard id != selected, tabs.contains(where: { $0.id == id }) else { return }
         withAnimation(Self.motion(.spring(response: 0.32, dampingFraction: 0.86))) { selected = id }
-        UISelectionFeedbackGenerator().selectionChanged()
+        selectionFeedback.selectionChanged()
         guard CraftHybrid.shared.tabTapped(id, reselect: false) else { return }
         emit("craftTabSelect", ["id": id])
     }
@@ -875,13 +878,19 @@ final class CraftChrome: ObservableObject {
     /// controller commits or restores this preview when the finger lifts.
     func beginTabSwipe(to id: String, from previous: String) {
         guard id != previous, tabs.contains(where: { $0.id == id }) else { return }
+        // The tick comes as the swipe commits; wake the Taptic Engine now, as
+        // UIFeedbackGenerator asks, so it is on time rather than late.
+        selectionFeedback.prepare()
         // A page's pending selection report may disagree with the native
         // stack. Cancellation belongs to the stack the finger left.
         tabSwipePrevious = previous
         tabSwipeTarget = id
+        // Only the indicator moves now. The highlight follows it across the
+        // midpoint (updateTabSwipe), as iOS's own tab bar lens does; turning
+        // it at once rebuilt every tab in the swipe's first frame, which is
+        // also when UIKit puts the incoming screen on screen.
         withAnimation(nil) {
             tabSwipePosition = tabs.firstIndex(where: { $0.id == previous }).map { CGFloat($0) }
-            selected = id
         }
     }
 
@@ -893,11 +902,14 @@ final class CraftChrome: ObservableObject {
               let to = tabs.firstIndex(where: { $0.id == target }) else { return }
         let position = CGFloat(from) + CGFloat(to - from) * min(1, max(0, progress))
         if tabSwipePosition != position { withAnimation(nil) { tabSwipePosition = position } }
+        let lit = progress >= 0.5 ? target : previous
+        if selected != lit { withAnimation(nil) { selected = lit } }
     }
 
     func settleTabSwipe(completed: Bool, duration: TimeInterval) {
         guard let id = completed ? tabSwipeTarget : tabSwipePrevious,
               let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        if selected != id { withAnimation(nil) { selected = id } }
         withAnimation(Self.motion(.easeOut(duration: duration))) { tabSwipePosition = CGFloat(index) }
     }
 
@@ -917,7 +929,7 @@ final class CraftChrome: ObservableObject {
         withAnimation(nil) { tabSwipePosition = nil }
         guard tabs.contains(where: { $0.id == id }) else { return }
         withAnimation(nil) { selected = id }
-        UISelectionFeedbackGenerator().selectionChanged()
+        selectionFeedback.selectionChanged()
         guard CraftHybrid.shared.tabTapped(id, reselect: false) else { return }
         emit("craftTabSelect", ["id": id])
     }
@@ -1183,8 +1195,19 @@ struct CraftTabBarView: View {
 
     /// The filled variant for the current tab, when the symbol has one.
     private func symbol(_ name: String, selected: Bool) -> String {
-        guard selected, !name.hasSuffix(".fill"), UIImage(systemName: "\(name).fill") != nil else { return name }
+        guard selected, !name.hasSuffix(".fill"), Self.hasFilledSymbol(name) else { return name }
         return "\(name).fill"
+    }
+
+    /// Whether `<name>.fill` exists, asked of the symbol catalog once per
+    /// name: the bar's body runs again for every selection change and asked
+    /// it for every tab each time.
+    private static var filledSymbols: [String: Bool] = [:]
+    private static func hasFilledSymbol(_ name: String) -> Bool {
+        if let known = filledSymbols[name] { return known }
+        let exists = UIImage(systemName: "\(name).fill") != nil
+        filledSymbols[name] = exists
+        return exists
     }
 }
 

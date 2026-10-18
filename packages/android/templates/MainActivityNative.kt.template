@@ -3683,7 +3683,6 @@ class MainActivity : AppCompatActivity() {
     private val backgroundWaiters = mutableMapOf<String, (Boolean) -> Unit>()
     /** A tapped notification that opened the app, for the app script once it runs. */
     private var pendingNotificationTap: JSONObject? = null
-    private var bundle = ""
     private lateinit var config: JSONObject
     private lateinit var capabilities: CraftNativeCapabilities
     private val capabilityHandler = Handler(Looper.getMainLooper())
@@ -3794,9 +3793,7 @@ class MainActivity : AppCompatActivity() {
         for (index in 0 until schemes.length()) urlSchemes.add(schemes.optString(index).lowercase())
         if (!routes.isEmpty) installChrome()
         refreshThemeDefaults()
-        bundle = runCatching {
-            assets.open("native-screen.js").bufferedReader().use { it.readText() }
-        }.getOrElse {
+        if (!CraftNativeBundle.isAvailable(this)) {
             showError("Missing native-screen.js. Build with --native-bundle after compiling STX.")
             return
         }
@@ -4362,7 +4359,12 @@ class MainActivity : AppCompatActivity() {
             if (!activeScreen.active) return@addListener
             try {
                 setup.get()
-                val load = isolate.evaluateJavaScriptAsync(bundle)
+                val source = CraftNativeBundle.source(this, route)
+                if (source == null) {
+                    if (activeScreen.active) showError("Missing native-screen.js. Build with --native-bundle after compiling STX.")
+                    return@addListener
+                }
+                val load = isolate.evaluateJavaScriptAsync(source)
                 load.addListener({
                     try {
                         load.get()

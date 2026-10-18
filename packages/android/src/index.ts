@@ -11,6 +11,13 @@ import { androidMapHost, type AndroidMapProvider } from './native-map.js'
 import { renderAndroidPromiseRuntime } from './promise-runtime'
 
 export type { AndroidMapProvider } from './native-map.js'
+/**
+ * The builder installs a directory of route bundles (stx's `routesDir`) as
+ * well as the one-file bundle, and the app runs each screen from its own
+ * route's file. Stacks asks for route bundles only when this is true.
+ */
+export const nativeRouteBundles = true
+
 /** Providers this published builder can generate as real Android map views. */
 export const nativeMapProviders = ['google', 'maplibre'] as const
 export { runKotlinFixture } from './testing.js'
@@ -1365,13 +1372,29 @@ export async function build(options: BuildOptions): Promise<void> {
   if (config.renderer === 'native') {
     if (htmlPath || devServer) throw new Error('A native Android screen cannot use --html-path or --dev-server.')
     const destination = join(output, 'app/src/main/assets/native-screen.js')
-    if (nativeBundlePath && resolve(nativeBundlePath) !== resolve(destination)) cpSync(nativeBundlePath, destination)
+    const routeDestination = join(output, 'app/src/main/assets/native-screens')
+    if (nativeBundlePath) {
+      // One file, or a directory of route bundles (stx's routesDir); each
+      // replaces the other, since a route's own file wins at runtime.
+      if (!existsSync(nativeBundlePath)) throw new Error(`Native bundle not found: ${nativeBundlePath}`)
+      if (statSync(nativeBundlePath).isDirectory()) {
+        if (resolve(nativeBundlePath) !== resolve(routeDestination)) {
+          rmSync(routeDestination, { recursive: true, force: true })
+          cpSync(nativeBundlePath, routeDestination, { recursive: true })
+        }
+        rmSync(destination, { force: true })
+      }
+      else {
+        if (resolve(nativeBundlePath) !== resolve(destination)) cpSync(nativeBundlePath, destination)
+        rmSync(routeDestination, { recursive: true, force: true })
+      }
+    }
     const icons = join(output, 'app/src/main/assets/craft-icons.json')
     if (options.iconsPath) {
       requireRegularFile(options.iconsPath, 'Icon table')
       if (resolve(options.iconsPath) !== resolve(icons)) cpSync(options.iconsPath, icons)
     }
-    if (!existsSync(destination)) {
+    if (!existsSync(destination) && !existsSync(routeDestination)) {
       throw new Error('Native Android mode needs app/src/main/assets/native-screen.js. Compile a .stx screen with `stx native compile` first.')
     }
   }
