@@ -22,6 +22,19 @@ class NativeCapabilitiesTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
     @Test
+    fun secureUuidUsesTheNativePlatformWithoutJavaScriptEntropy() {
+        val capabilities = CraftNativeCapabilities(instrumentation.targetContext, JSONObject())
+        try {
+            assertTrue(capabilities.names().toString().contains("crypto"))
+            val first = call(capabilities, "Crypto", "randomUUID").data as String
+            val second = call(capabilities, "Crypto", "randomUUID").data as String
+            assertEquals(4, UUID.fromString(first).version())
+            assertEquals(2, UUID.fromString(first).variant())
+            assertFalse(first == second)
+        } finally { capabilities.close() }
+    }
+
+    @Test
     fun conditionalCheckpointCannotResurrectDeletedDataOrOverwriteFeedback() {
         val base = instrumentation.targetContext
         val name = "cas-test-${UUID.randomUUID()}"
@@ -146,6 +159,10 @@ class NativeCapabilitiesTest {
             assertEquals(0, notifications)
             val conditional = call(capabilities, "Storage", "compareAndSet", JSONArray().put("draft").put(JSONObject().put("owner", "A")).put(JSONObject().put("owner", "B")))
             assertEquals("STORAGE_ERROR", conditional.code)
+            assertEquals(0, notifications)
+            val registration = call(capabilities, "Storage", "setIfAbsent", JSONArray().put("new-draft").put(JSONObject().put("owner", "B")))
+            assertEquals("STORAGE_ERROR", registration.code)
+            assertFalse(values.contains("new-draft"))
             assertEquals(0, notifications)
             val stored = call(capabilities, "Storage", "get", JSONArray().put("draft")).data as JSONObject
             assertEquals("A", stored.getString("owner"))

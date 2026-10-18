@@ -118,6 +118,7 @@ internal class CraftNativeCapabilities(
         listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files").forEach(::put)
         put("storageCompareAndSet")
         put("storageSetIfAbsent")
+        put("crypto")
         if (config.optBoolean("enableBluetooth")) put("bluetooth")
         if (config.optBoolean("enableBiometric")) put("biometric")
         if (config.optBoolean("enableSecureStorage")) put("secureStorage")
@@ -140,6 +141,10 @@ internal class CraftNativeCapabilities(
             return
         }
         when (module) {
+            "Crypto" -> {
+                if (method == "randomUUID") complete(requestToken, success(UUID.randomUUID().toString()), completion)
+                else complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Crypto method"), completion)
+            }
             "Bluetooth" -> {
                 if (!config.optBoolean("enableBluetooth")) complete(requestToken, failure("CAPABILITY_DISABLED", "Bluetooth is disabled"), completion)
                 else bluetooth.perform(method, args) { complete(requestToken, it, completion) }

@@ -41,6 +41,38 @@ class NativeRecordingTest {
         catch (error: CraftRecordingException) { assertEquals(code, error.code) }
     }
 
+    @Test fun plannedIdentitySurvivesLostStartResponseAndRejectsReuse() = fixture { context, root ->
+        val planned = UUID.randomUUID().toString()
+        // Only permission and the OS service launch are isolated. The actual
+        // production perform/start/state/file/ACK code runs unchanged.
+        val host = object : ContextWrapper(context) {
+            override fun checkPermission(permission: String, pid: Int, uid: Int) = android.content.pm.PackageManager.PERMISSION_GRANTED
+            override fun checkSelfPermission(permission: String) = android.content.pm.PackageManager.PERMISSION_GRANTED
+            override fun startForegroundService(intent: android.content.Intent): android.content.ComponentName = android.content.ComponentName(packageName, "FixtureLocationService")
+            override fun startService(intent: android.content.Intent): android.content.ComponentName = android.content.ComponentName(packageName, "FixtureLocationService")
+        }
+        val intent = File(root, "draft.json")
+        intent.writeText(JSONObject().put("owner", "A").put("gpsRecordingId", planned).toString())
+        val started = JSONObject(Store.perform(host, "startRecording", JSONObject().put("recordingId", planned).toString()))
+        assertTrue(started.toString(), started.getBoolean("ok"))
+        // Discard the response's ID; recover only the precommitted intent.
+        val reopened = JSONObject(intent.readText()).getString("gpsRecordingId")
+        val current = File(root, "craft-location-recording.jsonl")
+        current.writeText("{\"latitude\":1}\n")
+        Store.recover(context)
+        assertEquals(planned, reopened)
+        assertEquals(planned, Store.state(context, options = owner(reopened)).getString("id"))
+        assertEquals(1, Store.read(context, owner(reopened)).getJSONObject(0).getInt("latitude"))
+        Store.finish(context, owner(reopened))
+        val reused = JSONObject(Store.perform(host, "startRecording", JSONObject().put("recordingId", planned).toString()))
+        assertEquals("RECORDING_CONFLICT", reused.getString("code"))
+        assertEquals("{\"latitude\":1}\n", current.readText())
+        Store.acknowledge(context, owner(reopened))
+        val acknowledged = JSONObject(Store.perform(host, "startRecording", JSONObject().put("recordingId", planned).toString()))
+        assertEquals("RECORDING_CONFLICT", acknowledged.getString("code"))
+        assertFalse(current.exists())
+    }
+
     @Test fun aPageStartedRecordingAlsoReachesTheNativeScreenHub() = fixture { context, _ ->
         val token = "recording-hub-${UUID.randomUUID()}"
         val received = CountDownLatch(1)
