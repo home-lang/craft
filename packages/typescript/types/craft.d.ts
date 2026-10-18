@@ -1224,6 +1224,11 @@ export type NativeBridgeErrorCode =
   | 'MISSING_DATA'
   | 'INVALID_JSON'
   | 'INVALID_PARAMETER'
+  | 'INVALID_ARGUMENT'
+  | 'RECORDING_CONFLICT'
+  | 'RECORDING_ALREADY_ACTIVE'
+  | 'RECORDING_NOT_FOUND'
+  | 'RECORDING_STORAGE_ERROR'
   | 'BUSY'
   | 'PLATFORM_NOT_SUPPORTED'
   | 'NATIVE_CALL_FAILED'
@@ -1237,6 +1242,7 @@ export type NativeBridgeErrorCode =
 
 /** Native wire codes plus existing mobile/shim names retained for compatibility. */
 export type CraftErrorCode = NativeBridgeErrorCode
+  | 'RECORDING_OWNERSHIP_UNSUPPORTED'
   | 'CRAFT_ERROR'           // Generic error
   | 'PERMISSION_DENIED'     // Permission not granted
   | 'NOT_AVAILABLE'         // Feature not available on device
