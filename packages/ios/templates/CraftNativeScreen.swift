@@ -7497,13 +7497,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             .font: font,
         ]
         if let spacing = number(style["letterSpacing"]) { attributes[.kern] = spacing }
+        // UIKit otherwise resets the field's alignment to natural when these attributes are applied.
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = alignment
         if let lineHeight = number(style["lineHeight"]) {
-            let paragraph = NSMutableParagraphStyle()
             paragraph.minimumLineHeight = lineHeight
             paragraph.maximumLineHeight = lineHeight
-            paragraph.alignment = alignment
-            attributes[.paragraphStyle] = paragraph
         }
+        attributes[.paragraphStyle] = paragraph
         addTextDecorationAttributes(style, to: &attributes)
         if let shadow = textShadow(style) { attributes[.shadow] = shadow }
         return attributes
