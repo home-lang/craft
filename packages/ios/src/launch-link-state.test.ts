@@ -38,3 +38,78 @@ print("launch-link-state OK")
   }
   finally { rmSync(root, { recursive: true, force: true }) }
 }, 30_000)
+
+test.skipIf(process.platform !== 'darwin')('queued Swift links wait for a visible native screen and replay once in order', async () => {
+  const template = readFileSync(join(import.meta.dir, '../templates/CraftApp.swift'), 'utf8')
+  const manager = template.slice(template.indexOf('final class CraftInitialLinkState {'), template.indexOf('// MARK: - App State'))
+  const root = mkdtempSync(join(tmpdir(), 'craft-native-link-replay-'))
+  try {
+    const source = join(root, 'main.swift')
+    writeFileSync(source, `import Foundation
+class UIApplication {
+    enum State { case active, background, inactive }
+    static let shared = UIApplication()
+    static let didBecomeActiveNotification = Notification.Name("active")
+    static let didEnterBackgroundNotification = Notification.Name("background")
+    var applicationState = State.inactive
+    var connectedScenes: [Int] = [1]
+}
+class WKWebView {
+    func evaluateJavaScript(_ script: String, completionHandler: ((Any?, Error?) -> Void)?) {}
+}
+class CraftHybrid {
+    static let shared = CraftHybrid()
+    var isEnabled = true
+    var hasWeb = false
+    func handleDeepLink(_ url: URL) -> Bool { false }
+}
+${manager}
+let links = DeepLinkManager.shared
+let first = URL(string: "https://hq.training/diego-ruiz")!
+let second = URL(string: "https://hq.training/pawel")!
+var visible = false
+var delivered: [URL] = []
+var initialFlags: [Bool] = []
+links.handleURL(first)
+let hidden = links.addNativeListener(canReceive: { visible }) { url, initial in
+    if visible { delivered.append(url); initialFlags.append(initial) }
+}
+links.handleURL(second)
+assert(delivered.isEmpty, "prewarming must not deliver to an invisible screen")
+links.removeNativeListener(hidden)
+visible = true
+let active = links.addNativeListener(canReceive: { visible }) { url, initial in
+    delivered.append(url)
+    initialFlags.append(initial)
+}
+assert(delivered == [first, second], "an inactive listener must not discard queued links")
+assert(initialFlags == [true, false], "the cold URL stays initial while waiting for a screen")
+let third = URL(string: "https://hq.training/gyms/trifit")!
+visible = false
+links.handleURL(third)
+links.replayNativeLinks()
+assert(delivered == [first, second], "a hidden tab must retain a warm link")
+visible = true
+links.replayNativeLinks()
+links.replayNativeLinks()
+assert(delivered == [first, second, third] && initialFlags == [true, false, false])
+links.removeNativeListener(active)
+let fourth = URL(string: "https://hq.training/rappid")!
+links.handleURL(first)
+let reentrant = links.addNativeListener { url, initial in
+    delivered.append(url)
+    if url == first { links.handleURL(fourth); links.replayNativeLinks() }
+}
+assert(delivered == [first, second, third, first, fourth], "reentrant delivery must stay ordered without duplication")
+links.removeNativeListener(reentrant)
+_ = links.addNativeListener { url, initial in delivered.append(url) }
+assert(delivered == [first, second, third, first, fourth], "consumed links must not replay again")
+print("native-link-replay OK")
+`)
+    const child = Bun.spawn(['swift', source], { stdout: 'pipe', stderr: 'pipe' })
+    const [status, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()])
+    expect(status, stderr).toBe(0)
+    expect(stdout).toContain('native-link-replay OK')
+  }
+  finally { rmSync(root, { recursive: true, force: true }) }
+}, 30_000)

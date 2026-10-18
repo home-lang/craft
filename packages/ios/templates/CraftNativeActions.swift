@@ -764,11 +764,15 @@ enum CraftNativeActions {
     /// screens asking at the same time share one download). A refused answer
     /// (not 2xx) keeps nothing and says its status. Cancelled like fetch.
     ///
-    /// `cellular: false` keeps it off a metered connection: iOS refuses the
-    /// download on cellular, a personal hotspot and Low Data Mode, and the
-    /// answer is `{ ok: false, reason: "cellular" }` straight away, so the
-    /// screen can say it is waiting for Wi-Fi instead of failing. A copy
-    /// already kept still answers, whatever the connection.
+    /// `cellular: false` keeps it off a metered connection (cellular, a
+    /// personal hotspot, Low Data Mode). The download runs on a background
+    /// session (CraftNativeMediaTransfers), so it carries on while the app is
+    /// suspended or closed. When the phone cannot fetch it now (no
+    /// connection, or only a metered one for a Wi-Fi-only keep) the answer is
+    /// `{ ok: false, reason: "offline" | "cellular", queued: true }` straight
+    /// away, so the screen can say it is waiting rather than failing, and the
+    /// transfer finishes with iOS when it can. A copy already kept still
+    /// answers, whatever the connection.
     private static func keepMedia(
         requestToken: String,
         args: [Any],
@@ -797,38 +801,33 @@ enum CraftNativeActions {
                 request.setValue(value, forHTTPHeaderField: name)
             }
         }
-        if options["cellular"] as? Bool == false {
+        let wifiOnly = options["cellular"] as? Bool == false
+        if wifiOnly {
             request.allowsExpensiveNetworkAccess = false
             request.allowsConstrainedNetworkAccess = false
         }
-        guard let flight = CraftNativeMedia.begin(address, { complete(requestToken, $0, completion) }) else { return }
-        let task = fetchSession.downloadTask(with: request) { location, response, error in
+        let answer: (Result<Any, CraftNativeActionError>) -> Void = { result in
             cancellationLock.lock()
             fetchTasks.removeValue(forKey: requestToken)
             cancellationLock.unlock()
-            if let error = error {
-                // Refused only because the connection is metered: not a failure, a wait.
-                if let reason = (error as? URLError)?.networkUnavailableReason, reason == .expensive || reason == .constrained {
-                    CraftNativeMedia.finish(address, flight: flight, .success(["ok": false, "url": address, "reason": "cellular"]))
-                    return
-                }
-                let code = (error as? URLError)?.code == .timedOut ? "TIMEOUT" : "NETWORK_ERROR"
-                CraftNativeMedia.finish(address, flight: flight, failure(CraftNativeMedia.errorCode(error, fallback: code), error.localizedDescription))
-                return
-            }
-            guard let http = response as? HTTPURLResponse, let location else {
-                CraftNativeMedia.finish(address, flight: flight, failure("NETWORK_ERROR", "media.keep received a response that is not HTTP"))
-                return
-            }
-            // The system deletes `location` once this returns: move it now.
-            CraftNativeMedia.finish(address, flight: flight, CraftNativeMedia.store(address, at: location, response: http, flight: flight))
+            complete(requestToken, result, completion)
         }
+        guard let flight = CraftNativeMedia.begin(address, answer) else { return }
         cancellationLock.lock()
         let alreadyCancelled = cancelledRequests.contains(requestToken)
-        if !alreadyCancelled { fetchTasks[requestToken] = task }
         cancellationLock.unlock()
-        if alreadyCancelled { CraftNativeMedia.finish(address, flight: flight, failure("CANCELLED", "media.keep was cancelled")) }
-        else { task.resume() }
+        if alreadyCancelled {
+            CraftNativeMedia.finish(address, flight: flight, failure("CANCELLED", "media.keep was cancelled"))
+            return
+        }
+        // On the app's background session (CraftNativeMediaTransfers): it
+        // carries on while the app is suspended, and a keep the phone cannot
+        // fetch now is answered at once while its transfer waits with iOS.
+        let task = CraftNativeMediaTransfers.shared.start(request, address: address, flight: flight, wifiOnly: wifiOnly)
+        cancellationLock.lock()
+        // Unless it answered already (a queued transfer, or an instant failure).
+        if CraftNativeMedia.isWaiting(address, flight: flight) { fetchTasks[requestToken] = task }
+        cancellationLock.unlock()
     }
 
     private static func claimInitialDeepLink(_ url: URL?) -> URL? {

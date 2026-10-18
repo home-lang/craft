@@ -1,5 +1,32 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.241...v0.0.242)
+
+## 🚀 Features
+
+- **ios**: keep offline media on a background URL session ([4ee95f2](https://github.com/craft-native/craft/commit/4ee95f2)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **ios**: retain links until a native screen is visible ([4ff57a1](https://github.com/craft-native/craft/commit/4ff57a1)) _(by Chris Breuer)_
+
+## ⚡ Performance Improvements
+
+- **native**: run each screen from its own route bundle ([8d9091d](https://github.com/craft-native/craft/commit/8d9091d)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- use consistent budgets for real changelog commands ([e403a66](https://github.com/craft-native/craft/commit/e403a66)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge pull request #367 from craft-native/codex/native-changelog-command-budgets ([1bcec53](https://github.com/craft-native/craft/commit/1bcec53)) _(by Chris)_ ([#367](https://github.com/craft-native/craft/issues/367))
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.240...v0.0.241)
 
 ## 🚀 Features

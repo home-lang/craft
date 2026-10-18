@@ -280,7 +280,12 @@ export interface CraftConfig {
    * opens in the in-app browser on the app's site.
    */
   nativeScreens?: Record<string, string>
-  /** The bundle `stx native compile --format bundle` wrote, copied to `dist/native-screen.js`. */
+  /**
+   * The bundle `stx native compile --format bundle` wrote, copied to
+   * `dist/native-screen.js`; or a directory of route bundles (stx's
+   * `routesDir`: `<Screen>.js` and `__app.js`), copied to
+   * `dist/native-screens/`, so each screen evaluates only its own file.
+   */
   nativeBundle?: string
   /**
    * The bundle route of a screen-less script that runs once for the app's
@@ -497,12 +502,40 @@ export function hybridConfigProblems(config: Pick<CraftConfig, 'renderer' | 'nat
   return problems
 }
 
-/** Copy the compiled native bundle where the app loads it from. */
+/**
+ * The builder installs a directory of route bundles (stx's `routesDir`) as
+ * well as the one-file bundle, and the app runs each screen from its own
+ * route's file. Stacks asks for route bundles only when this is true.
+ */
+export const nativeRouteBundles = true
+
+/**
+ * Copy the compiled native bundle where the app loads it from: one file to
+ * `dist/native-screen.js`, a directory of route bundles to
+ * `dist/native-screens/`. Whichever it is replaces the other, because the
+ * app prefers a route's own file and would run a stale one.
+ */
 function installNativeBundle(source: string, output: string): void {
   if (!existsSync(source)) throw new Error(`Native bundle not found: ${source}`)
-  const destination = join(output, 'dist', 'native-screen.js')
-  mkdirSync(dirname(destination), { recursive: true })
-  if (resolve(source) !== resolve(destination)) cpSync(source, destination)
+  const single = join(output, 'dist', 'native-screen.js')
+  const routes = join(output, 'dist', 'native-screens')
+  mkdirSync(dirname(single), { recursive: true })
+  if (statSync(source).isDirectory()) {
+    if (!readdirSync(source).some(name => name.endsWith('.js'))) throw new Error(`Native route bundles not found in ${source}`)
+    if (resolve(source) !== resolve(routes)) {
+      rmSync(routes, { recursive: true, force: true })
+      cpSync(source, routes, { recursive: true })
+    }
+    rmSync(single, { force: true })
+    return
+  }
+  if (resolve(source) !== resolve(single)) cpSync(source, single)
+  rmSync(routes, { recursive: true, force: true })
+}
+
+/** Whether the generated project carries native screens, in either layout. */
+function hasInstalledNativeBundle(output: string): boolean {
+  return existsSync(join(output, 'dist', 'native-screen.js')) || existsSync(join(output, 'dist', 'native-screens'))
 }
 
 export interface CraftBackgroundRefresh {
@@ -1620,7 +1653,7 @@ export async function build(options: BuildOptions): Promise<void> {
     }
     const bundle = nativeBundlePath ?? config.nativeBundle
     if (bundle) installNativeBundle(bundle, output)
-    if (!existsSync(join(output, 'dist', 'native-screen.js'))) {
+    if (!hasInstalledNativeBundle(output)) {
       throw new Error('Native iOS mode needs dist/native-screen.js. Compile a .stx screen with `stx native compile` first.')
     }
   }
@@ -1649,9 +1682,9 @@ export async function build(options: BuildOptions): Promise<void> {
     const bundle = nativeBundlePath ?? config.nativeBundle
     if (bundle) {
       installNativeBundle(bundle, output)
-      console.log(`   Native screens: ${bundle} → dist/native-screen.js`)
+      console.log(`   Native screens: ${bundle} → ${statSync(bundle).isDirectory() ? 'dist/native-screens/' : 'dist/native-screen.js'}`)
     }
-    else if (!existsSync(join(output, 'dist', 'native-screen.js'))) {
+    else if (!hasInstalledNativeBundle(output)) {
       console.warn('   ⚠ nativeScreens is set but there is no native bundle: every path opens in the web view.')
     }
   }

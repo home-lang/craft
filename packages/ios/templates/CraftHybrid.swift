@@ -342,10 +342,9 @@ final class CraftHybrid: NSObject {
         webView.evaluateJavaScript("window.__craftHybrid && window.__craftHybrid.adopt && window.__craftHybrid.adopt(\(json))")
     }
 
-    static var bundleURL: URL? {
-        Bundle.main.url(forResource: "native-screen", withExtension: "js", subdirectory: "dist")
-            ?? Bundle.main.url(forResource: "native-screen", withExtension: "js")
-    }
+    /// Whether the app carries native screens: the one-file bundle, or a
+    /// file per route (`CraftNativeBundle`).
+    static var hasBundle: Bool { CraftNativeBundle.isAvailable }
 
     /// From the bundled config, at launch: whether the shell routes paths,
     /// whether there is a web view, where it starts, the tab bar it starts
@@ -363,12 +362,12 @@ final class CraftHybrid: NSObject {
         startPath = config.devServerURL.flatMap(URL.init(string:)).map(CraftHybridRoutes.appPath(of:)) ?? "/"
         if startPath.isEmpty { startPath = "/" }
         let wanted = !routes.isEmpty
-        if wanted && Self.bundleURL == nil {
+        if wanted && !Self.hasBundle {
             NSLog(hasWeb
                 ? "[craft hybrid] nativeScreens are set but dist/native-screen.js is missing; every path opens in the web view"
                 : "[craft hybrid] nativeScreens are set but dist/native-screen.js is missing; the app has no screens to show")
         }
-        isEnabled = wanted && Self.bundleURL != nil
+        isEnabled = wanted && Self.hasBundle
         if isEnabled, !hasWeb, routes.match(startPath) == nil {
             // No web view to show it in: the first tab a screen draws.
             let fallback = (config.tabs ?? []).map(\.id).first { routes.match($0) != nil }
@@ -380,7 +379,7 @@ final class CraftHybrid: NSObject {
         CraftChrome.shared.configure(tabs: config.tabs ?? [], selected: tabIds(from: config.tabs ?? []).isEmpty ? nil : CraftHybridRoutes.tab(owning: startPath, among: tabIds(from: config.tabs ?? [])), splash: hasWeb && !startsNative)
 
         let script = config.nativeApp.flatMap { $0.isEmpty ? nil : $0 }
-        appScriptRoute = script != nil && Self.bundleURL != nil && (isEnabled || !hasWeb) ? script : nil
+        appScriptRoute = script != nil && Self.hasBundle && (isEnabled || !hasWeb) ? script : nil
         if let script, appScriptRoute == nil {
             NSLog("[craft hybrid] nativeApp %@ does not run: it needs dist/native-screen.js, and nativeScreens or renderer \"native\"", script)
         }
@@ -1158,6 +1157,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             let complete = recognizer.state == .ended && speed > -700
                 && (progress >= max(32, view.bounds.width * 0.28) || speed > 700)
             finishInteractiveTabSwipe(completed: complete, velocity: velocity) { [weak self] in
+                CraftFramePacing.shared.end("tab swipe")
                 self?.activeTabSwipeTarget = nil
                 self?.tabSwipeSettling = false
                 self?.prepareAdjacentNativeTabs()
@@ -1187,7 +1187,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             // create a second web root here: the shared WebView cannot draw
             // both pages during the same gesture.
             guard hybrid.routes.match(id) != nil else { return false }
-            target = makeStack(tab: id, rootPath: id)
+            target = CraftFramePacing.shared.measure("tab swipe mount \(id)") { makeStack(tab: id, rootPath: id) }
             (target.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(false)
         }
         guard current.view !== target.view,
@@ -1216,6 +1216,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         target.view.frame = view.bounds.offsetBy(dx: tabSwipeFrom, dy: 0)
         view.bringSubviewToFront(target.view)
         CraftChrome.shared.beginTabSwipe(to: id, from: currentTab)
+        lastNavigation = CACurrentMediaTime()
+        CraftFramePacing.shared.begin("tab swipe")
         return true
     }
 
@@ -1245,12 +1247,11 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         CraftChrome.shared.settleTabSwipe(completed: completed, duration: duration)
         let remaining = end - target.view.frame.minX
         let initialVelocity = abs(remaining) > 1 ? max(0, min(12, velocity / remaining)) : 0
-        UIView.animate(withDuration: duration, delay: 0, usingSpringWithDamping: 1,
-                       initialSpringVelocity: initialVelocity,
-                       options: [.beginFromCurrentState, .allowUserInteraction], animations: {
+        let move = {
             target.view.frame.origin.x = end
             current.view.frame.origin.x = completed ? -direction * width : 0
-        }, completion: { _ in
+        }
+        let settled: (Bool) -> Void = { _ in
             guard self.tabSwipeGeneration == generation,
                   self.activeTabSwipeTarget == targetId else { return }
             if completed {
@@ -1268,7 +1269,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
                 }
             }
             completion()
-        })
+        }
+        UIView.animate(withDuration: duration, delay: 0, usingSpringWithDamping: 1,
+                       initialSpringVelocity: initialVelocity,
+                       options: [.beginFromCurrentState, .allowUserInteraction], animations: move, completion: settled)
     }
 
     /// A newer navigation action wins immediately, including a tap back on
@@ -1448,9 +1452,15 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     private func show(tab id: String, rootPath: String? = nil) {
+        lastNavigation = CACurrentMediaTime()
         interruptTabSwipe(restoringSelection: false)
         cancelPendingTab()
-        let nav = stacks[id] ?? makeStack(tab: id, rootPath: rootPath ?? (id.isEmpty ? hybrid.startPath : id))
+        let pacing = CraftFramePacing.shared
+        if pacing.enabled, id != currentTab, !currentTab.isEmpty {
+            pacing.begin("tab \(id)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { pacing.end("tab \(id)") }
+        }
+        let nav = stacks[id] ?? pacing.measure("tab \(id) mount") { makeStack(tab: id, rootPath: rootPath ?? (id.isEmpty ? hybrid.startPath : id)) }
         // A stack is hidden and shown rather than moved, so UIKit tells its
         // screens nothing: the shell says which went away and which is back.
         if id != currentTab {
@@ -1469,29 +1479,67 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         }
     }
 
-    /// Prepare one neighbour after the first frame, never inside the finger's
-    /// tracking run-loop mode. A first swipe then uses a laid-out native root
-    /// rather than compiling, measuring and fetching at gesture start.
+    /// Prepare the other tabs' first screens after the first frame, nearest
+    /// first, one per idle moment and never inside the finger's tracking
+    /// run-loop mode. A swipe or a tap then lands on a laid-out native root
+    /// rather than compiling, measuring and fetching while it animates. Only
+    /// the neighbours used to be prepared, so arriving on a tab mounted the
+    /// next one 150ms later, which was just when the next swipe began.
+    ///
+    /// Idle means idle: not while a push, a pop or a tab swipe animates, and
+    /// not right after one (a link opened at launch must not wait behind
+    /// tabs nobody asked for). The neighbours come first and soon; the tabs
+    /// further away only once the screen has been still for a while.
     private func prepareAdjacentNativeTabs() {
         let owner = currentTab
-        let timer = Timer(timeInterval: 0.15, repeats: false) { [weak self] _ in
-            guard let self, self.currentTab == owner, self.activeTabSwipeTarget == nil,
-                  self.view.window != nil,
-                  let index = self.hybrid.tabIds.firstIndex(of: owner) else { return }
-            let tabs = self.hybrid.tabIds
-            for neighbour in [index + 1, index - 1] where tabs.indices.contains(neighbour) {
-                let id = tabs[neighbour]
-                guard self.stacks[id] == nil, self.hybrid.routes.match(id) != nil else { continue }
+        guard let index = hybrid.tabIds.firstIndex(of: owner) else { return }
+        let tabs = hybrid.tabIds
+        let waiting = tabs.indices.filter { $0 != index && stacks[tabs[$0]] == nil && hybrid.routes.match(tabs[$0]) != nil }
+            .sorted { abs($0 - index) < abs($1 - index) || (abs($0 - index) == abs($1 - index) && $0 > $1) }
+        // One preparation pending at a time, for the tab on screen now.
+        preparation?.invalidate()
+        preparation = nil
+        guard let next = waiting.first else { return }
+        let neighbour = abs(next - index) == 1
+        let timer = Timer(timeInterval: neighbour ? 0.15 : 0.6, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.preparation = nil
+            guard self.currentTab == owner, self.view.window != nil else { return }
+            let quietFor = neighbour ? 0.3 : 1.0
+            guard self.activeTabSwipeTarget == nil, !self.tabSwipeSettling,
+                  !self.stacks.values.contains(where: { $0.transitionCoordinator != nil }),
+                  CACurrentMediaTime() - self.lastNavigation >= quietFor else {
+                self.prepareAdjacentNativeTabs()
+                return
+            }
+            let id = tabs[next]
+            guard self.stacks[id] == nil else { self.prepareAdjacentNativeTabs(); return }
+            let nav = CraftFramePacing.shared.measure("prepare \(id)") { () -> UINavigationController in
                 let nav = self.makeStack(tab: id, rootPath: id)
                 nav.view.isHidden = true
                 nav.view.layoutIfNeeded()
-                (nav.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(false)
-                (self.visibleStack?.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(true)
-                self.prepareAdjacentNativeTabs()
-                break
+                // Draw its text and pictures now. A hidden layer is not
+                // drawn at commit, so the first swipe to this tab drew
+                // every label of the screen in the gesture's first frame.
+                Self.drawContents(of: nav.view.layer)
+                return nav
             }
+            (nav.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(false)
+            (self.visibleStack?.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(true)
+            self.prepareAdjacentNativeTabs()
         }
+        preparation = timer
         RunLoop.main.add(timer, forMode: .default)
+    }
+
+    private var preparation: Timer?
+
+    /// When the shell last moved between screens: a tab, a push or a pop.
+    private var lastNavigation: CFTimeInterval = 0
+
+    private static func drawContents(of layer: CALayer) {
+        layer.displayIfNeeded()
+        layer.sublayers?.forEach(drawContents(of:))
     }
 
     private func cancelPendingTab() {
@@ -1759,6 +1807,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     // MARK: UINavigationControllerDelegate
 
     func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController, animated: Bool) {
+        lastNavigation = CACurrentMediaTime()
+        if animated { CraftFramePacing.shared.begin("navigation") }
         // The page draws its own header, and a tab's root screen its own
         // title unless it asked for the bar; a pushed native screen gets the
         // bar and its Back.
@@ -1773,6 +1823,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool) {
+        lastNavigation = CACurrentMediaTime()
+        CraftFramePacing.shared.end("navigation")
         let key = ObjectIdentifier(navigationController)
         let before = shownStacks[key] ?? []
         let now = navigationController.viewControllers
@@ -1957,5 +2009,117 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         #if DEBUG
         NSLog("[craft hybrid] %@", message)
         #endif
+    }
+}
+
+// MARK: - Frame pacing
+
+/// How smoothly the app's own motion runs, measured the way Instruments'
+/// Animation Hitches template counts it: a frame that reaches the screen
+/// later than the display expected it is a hitch, and the time it was late
+/// is hitch time. Apple's bar is a hitch time ratio under 5 ms per second of
+/// motion; above 10 the motion reads as broken.
+///
+/// Off unless the app is launched with `-CraftFramePacing YES` (or
+/// `CRAFT_FRAME_PACING=1`), so a shipped app never runs a display link for
+/// it. Each span (a scroll, a tab swipe, a push, a screen mount) logs one
+/// `[craft frames]` line, which simulator and device runs read back with
+/// `log show`. The Animation Hitches instrument does not run in the
+/// simulator; this does.
+final class CraftFramePacing: NSObject {
+    static let shared = CraftFramePacing()
+
+    let enabled: Bool = {
+        let info = ProcessInfo.processInfo
+        return UserDefaults.standard.bool(forKey: "CraftFramePacing") || info.environment["CRAFT_FRAME_PACING"] == "1"
+    }()
+
+    private struct Span {
+        var started: CFTimeInterval
+        var frames = 0
+        var hitches = 0
+        var hitchTime: CFTimeInterval = 0
+        var worst: CFTimeInterval = 0
+    }
+
+    private var spans: [String: Span] = [:]
+    private var link: CADisplayLink?
+    private var lastTimestamp: CFTimeInterval = 0
+    private var lastTarget: CFTimeInterval = 0
+
+    /// Start counting frames for `name`; a span already open keeps counting.
+    func begin(_ name: String) {
+        guard enabled, spans[name] == nil else { return }
+        spans[name] = Span(started: CACurrentMediaTime())
+        guard link == nil else { return }
+        let link = CADisplayLink(target: self, selector: #selector(frame(_:)))
+        // ProMotion runs scrolling at up to 120Hz; measure against what the
+        // display actually asked for, not a fixed 60.
+        if #available(iOS 15.0, *) { link.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120) }
+        link.add(to: .main, forMode: .common)
+        self.link = link
+        lastTimestamp = 0
+    }
+
+    /// Close `name` and log its frames.
+    func end(_ name: String) {
+        guard enabled, let span = spans.removeValue(forKey: name) else { return }
+        let duration = max(0.001, CACurrentMediaTime() - span.started)
+        write(String(format: "%@ frames=%d duration=%.0fms hitches=%d hitchTime=%.1fms worst=%.1fms ratio=%.1fms/s",
+                     name, span.frames, duration * 1000, span.hitches, span.hitchTime * 1000, span.worst * 1000,
+                     span.hitchTime * 1000 / duration))
+        if spans.isEmpty {
+            link?.invalidate()
+            link = nil
+        }
+    }
+
+    /// One main-thread block, timed: a screen mount, a bundle evaluation.
+    @discardableResult
+    func measure<T>(_ name: String, _ work: () -> T) -> T {
+        guard enabled else { return work() }
+        let started = CACurrentMediaTime()
+        let result = work()
+        write(String(format: "%@ main=%.1fms", name, (CACurrentMediaTime() - started) * 1000))
+        return result
+    }
+
+    /// Each line to the log and to `Library/Caches/craft-frame-pacing.log`
+    /// in the app's container, which a test run reads back whole (a
+    /// simulator's unified log can drop an app's lines under load). Written
+    /// off the main thread, so the measuring costs no frames itself.
+    private let output = DispatchQueue(label: "craft.frame-pacing", qos: .utility)
+    private lazy var file: FileHandle? = {
+        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
+        let url = caches.appendingPathComponent("craft-frame-pacing.log")
+        if !FileManager.default.fileExists(atPath: url.path) { FileManager.default.createFile(atPath: url.path, contents: nil) }
+        let handle = try? FileHandle(forWritingTo: url)
+        _ = try? handle?.seekToEnd()
+        return handle
+    }()
+
+    private func write(_ line: String) {
+        NSLog("[craft frames] %@", line)
+        let stamped = "\(Date().timeIntervalSince1970) \(line)\n"
+        output.async { [weak self] in try? self?.file?.write(contentsOf: Data(stamped.utf8)) }
+    }
+
+    @objc private func frame(_ link: CADisplayLink) {
+        defer {
+            lastTimestamp = link.timestamp
+            lastTarget = link.targetTimestamp
+        }
+        guard lastTimestamp > 0 else { return }
+        // The frame was due at the last target; anything later than that,
+        // beyond a millisecond of scheduling noise, is hitch time.
+        let late = link.timestamp - lastTarget
+        for key in spans.keys {
+            spans[key]!.frames += 1
+            if late > 0.001 {
+                spans[key]!.hitches += 1
+                spans[key]!.hitchTime += late
+                spans[key]!.worst = max(spans[key]!.worst, late)
+            }
+        }
     }
 }

@@ -1781,6 +1781,25 @@ private var craftNativeCornerRadiiKey: UInt8 = 0
 private var craftNativeBorderLayerKey: UInt8 = 0
 private var craftNativeSideBorderLayersKey: UInt8 = 0
 
+private let craftAllCorners: CACornerMask = [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMaxXMaxYCorner, .layerMinXMaxYCorner]
+
+/// One radius for every rounded corner of `radii` (top-left, top-right,
+/// bottom-right, bottom-left), and which corners those are; nil when the
+/// rounded corners differ.
+func craftSharedCornerRadius(_ radii: [CGFloat]) -> (radius: CGFloat, corners: CACornerMask)? {
+    let order: [CACornerMask] = [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMaxXMaxYCorner, .layerMinXMaxYCorner]
+    var radius: CGFloat?
+    var corners: CACornerMask = []
+    for (index, corner) in order.enumerated() {
+        let value = max(0, radii.count > index ? radii[index] : 0)
+        guard value > 0 else { continue }
+        if let radius, abs(radius - value) > 0.01 { return nil }
+        radius = value
+        corners.insert(corner)
+    }
+    return radius.map { ($0, corners) } ?? (0, craftAllCorners)
+}
+
 private func craftRoundedPath(_ rect: CGRect, _ rawRadii: [CGFloat]) -> CGPath {
     let limit = min(rect.width, rect.height) / 2
     let radii = (0..<4).map { min(max(0, rawRadii.count > $0 ? rawRadii[$0] : 0), limit) }
@@ -1831,25 +1850,62 @@ extension UIView {
         let requested = craftRequestedCornerRadius ?? 0
         let limit = min(bounds.width, bounds.height) / 2
         let radius = limit > 0 ? min(requested, limit) : min(requested, 9_998)
-        if let radii = craftRequestedCornerRadii {
+        if let radii = craftRequestedCornerRadii, let shared = craftSharedCornerRadius(radii) {
+            // The rounded corners share one radius (`rounded-t-md`): the
+            // layer rounds just those corners itself. A mask layer is an
+            // offscreen render pass for every frame the view is on screen,
+            // which Apple names first among render-phase hitches. Clipped
+            // like the mask was.
+            let clamped = limit > 0 ? min(shared.radius, limit) : min(shared.radius, 9_998)
+            layer.mask = nil
+            if layer.cornerRadius != clamped { layer.cornerRadius = clamped }
+            if layer.maskedCorners != shared.corners { layer.maskedCorners = shared.corners }
+            if !layer.masksToBounds { layer.masksToBounds = true }
+        } else if let radii = craftRequestedCornerRadii {
+            // Corners of different radii: only a path can draw them.
             let mask = (layer.mask as? CAShapeLayer) ?? CAShapeLayer()
-            mask.frame = bounds
+            if mask.frame != bounds { mask.frame = bounds }
             mask.path = craftRoundedPath(bounds, radii)
             layer.mask = mask
             layer.cornerRadius = 0
         } else {
-            layer.mask = nil
+            if layer.mask != nil { layer.mask = nil }
+            if layer.maskedCorners != craftAllCorners { layer.maskedCorners = craftAllCorners }
             if layer.cornerRadius != radius { layer.cornerRadius = radius }
         }
-        if let border = objc_getAssociatedObject(self, &craftNativeBorderLayerKey) as? CAShapeLayer {
-            border.frame = bounds
+        // A box shadow, as CSS draws it: the shape of the rounded box. Given
+        // no path, Core Animation renders the layer offscreen every frame to
+        // find the shadow's shape from its pixels.
+        if layer.shadowOpacity > 0, bounds.width > 0, bounds.height > 0 {
+            let cornerRadius = layer.mask == nil ? layer.cornerRadius : 0
+            let shape: CGPath = layer.mask == nil
+                ? (layer.maskedCorners == craftAllCorners || cornerRadius == 0
+                    ? CGPath(roundedRect: bounds, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                    : craftRoundedPath(bounds, [CACornerMask.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMaxXMaxYCorner, .layerMinXMaxYCorner].map { layer.maskedCorners.contains($0) ? cornerRadius : 0 }))
+                : craftRoundedPath(bounds, craftRequestedCornerRadii ?? [])
+            if layer.shadowPath != shape { layer.shadowPath = shape }
+        } else if layer.shadowPath != nil {
+            layer.shadowPath = nil
+        }
+        let border = objc_getAssociatedObject(self, &craftNativeBorderLayerKey) as? CAShapeLayer
+        let sides = (objc_getAssociatedObject(self, &craftNativeSideBorderLayersKey) as? [CALayer]).flatMap { $0.count == 4 ? $0 : nil }
+        guard border != nil || sides != nil else { return }
+        // Border layers are the view's own sublayers, so a new frame or path
+        // would animate implicitly; and a path set again, even an equal one,
+        // draws the shape again. Layout runs for every child on every pass.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        if let border {
+            if border.frame != bounds { border.frame = bounds }
             let inset = border.lineWidth / 2
-            border.path = UIBezierPath(
+            let path = UIBezierPath(
                 roundedRect: bounds.insetBy(dx: inset, dy: inset),
                 cornerRadius: max(0, radius - inset)
             ).cgPath
+            if border.path != path { border.path = path }
         }
-        if let sides = objc_getAssociatedObject(self, &craftNativeSideBorderLayersKey) as? [CALayer], sides.count == 4 {
+        if let sides {
             let top = sides[0].frame.height
             let right = sides[1].frame.width
             let bottom = sides[2].frame.height
@@ -1861,9 +1917,10 @@ extension UIView {
                 CGRect(x: 0, y: 0, width: left, height: bounds.height),
             ]
             for (index, side) in sides.enumerated() {
-                side.frame = frames[index]
+                if side.frame != frames[index] { side.frame = frames[index] }
                 if let shape = side as? CAShapeLayer {
-                    shape.path = craftSideBorderPath(shape.bounds, index: index)
+                    let path = craftSideBorderPath(shape.bounds, index: index)
+                    if shape.path != path { shape.path = path }
                 }
             }
         }
@@ -4318,6 +4375,52 @@ private final class CraftNativeTextView: UITextView {
     }
 }
 
+/// The native screens' JavaScript. A screen is a JavaScriptCore context of
+/// its own and evaluates the whole file it is given, so each route has a file
+/// of its own when stx wrote one (`dist/native-screens/<route>.js`, stx's
+/// `routesDir`): a screen then parses its own code rather than every
+/// screen's. The one-file `dist/native-screen.js` remains the fallback.
+enum CraftNativeBundle {
+    /// Every screen's context lives in this one virtual machine. They all run
+    /// on the main thread, the machine's only one, and sharing it shares its
+    /// code cache: a screen opened again (a second workout, a tab rebuilt)
+    /// is not parsed again. Each screen keeps a global object of its own.
+    static let virtualMachine = JSVirtualMachine()!
+
+    private static let sources: NSCache<NSString, NSString> = {
+        let cache = NSCache<NSString, NSString>()
+        // Room for the one-file bundle, or a dozen route files.
+        cache.totalCostLimit = 24 << 20
+        return cache
+    }()
+
+    /// The file a route runs from: its own, else the one-file bundle.
+    static func url(for route: String?) -> URL? {
+        if let route, !route.isEmpty, !route.contains("/"), !route.hasPrefix("."),
+           let own = Bundle.main.url(forResource: route, withExtension: "js", subdirectory: "dist/native-screens") {
+            return own
+        }
+        return Bundle.main.url(forResource: "native-screen", withExtension: "js", subdirectory: "dist")
+            ?? Bundle.main.url(forResource: "native-screen", withExtension: "js")
+    }
+
+    /// Whether the app has native screens to run at all.
+    static var isAvailable: Bool {
+        url(for: nil) != nil || Bundle.main.url(forResource: "native-screens", withExtension: nil, subdirectory: "dist") != nil
+    }
+
+    /// The route's source, read from disk once and kept while memory allows:
+    /// a push read and decoded the file on the main thread every time.
+    static func source(for route: String?) -> (source: String, url: URL)? {
+        guard let url = url(for: route) else { return nil }
+        let key = url.path as NSString
+        if let cached = sources.object(forKey: key) { return (cached as String, url) }
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        sources.setObject(text as NSString, forKey: key, cost: text.utf8.count)
+        return (text, url)
+    }
+}
+
 final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate, UITextFieldDelegate, UITextViewDelegate, UIPickerViewDataSource, UIPickerViewDelegate {
     private final class RenderedNode {
         let identity: String
@@ -4339,7 +4442,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private let config: CraftConfig
     private let routeName: String?
     private(set) var routeParams: [String: Any]
-    private let jsContext = JSContext()!
+    private let jsContext = JSContext(virtualMachine: CraftNativeBundle.virtualMachine)!
     private let rootStack = CraftNativeFlowView()
     private var handlers: [ObjectIdentifier: String] = [:]
     private var pressInHandlers: [ObjectIdentifier: String] = [:]
@@ -4487,8 +4590,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             rootLeadingToSafeArea!,
             rootTrailingToSafeArea!
         ])
-        setupJavaScript()
-        loadBundle()
+        let pacing = CraftFramePacing.shared
+        pacing.measure("mount \(routeName ?? "screen") setup") { setupJavaScript() }
+        pacing.measure("mount \(routeName ?? "screen") bundle") { loadBundle() }
         observeNativeEvents()
         if isAppScript {
             // Its bundle has run, so its listeners are in place: the app's
@@ -4527,6 +4631,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        screenVisibilityChanged(false)
         stopCelebrations(in: view)
         // The accessory belongs to the visible native screen. Clear the
         // shared shell state before a hybrid/web route appears, otherwise a
@@ -4589,6 +4694,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if visible { restoreShellChrome() }
         guard visible != reportedVisible else { return }
         reportedVisible = visible
+        if visible { DeepLinkManager.shared.replayNativeLinks() }
         if visible, !hasAppeared {
             hasAppeared = true
             return
@@ -5159,13 +5265,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func loadBundle() {
-        guard let url = Bundle.main.url(forResource: "native-screen", withExtension: "js", subdirectory: "dist")
-            ?? Bundle.main.url(forResource: "native-screen", withExtension: "js"),
-            let script = try? String(contentsOf: url, encoding: .utf8) else {
+        guard let bundle = CraftNativeBundle.source(for: routeName) else {
             showError("Missing dist/native-screen.js. Compile a .stx screen with `stx native compile` first.")
             return
         }
-        jsContext.evaluateScript(script)
+        jsContext.evaluateScript(bundle.source, withSourceURL: bundle.url)
         // A bundle that names no route leaves `__stxNativeRoute` undefined;
         // its title is the app's, not the word "undefined". A title the
         // script set with `navigation.setOptions` wins over both.
@@ -5511,7 +5615,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func loadBarImage(_ url: URL, _ done: @escaping (UIImage?) -> Void) {
         if let cached = Self.barImages.object(forKey: url as NSURL) { done(cached); return }
         URLSession.shared.dataTask(with: url) { data, _, _ in
-            let image = data.flatMap(UIImage.init(data:))
+            let image = data.flatMap(UIImage.init(data:)).map { $0.preparingForDisplay() ?? $0 }
             if let image { Self.barImages.setObject(image, forKey: url as NSURL) }
             DispatchQueue.main.async { done(image) }
         }.resume()
@@ -5645,8 +5749,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         sendAppState(CraftNativeActions.currentAppState())
         // Links are the screens' to show; the app script hears none.
         guard !isAppScript else { return }
-        deepLinkListener = DeepLinkManager.shared.addNativeListener { [weak self] url, initial in
-            guard let self = self, self.navigationController?.topViewController === self else { return }
+        deepLinkListener = DeepLinkManager.shared.addNativeListener(canReceive: { [weak self] in
+            guard let self = self else { return false }
+            return self.reportedVisible && !self.runtimeDisposed && self.navigationController?.topViewController === self
+        }) { [weak self] url, initial in
+            guard let self = self else { return }
             var payload = CraftNativeActions.deepLinkData(url)
             payload["initial"] = initial
             self.send(type: "DEEP_LINK", payload: payload)
@@ -7455,6 +7562,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             || (view is UIScrollView && overflow != "visible")
             || (view is UILabel && (view.craftRequestedCornerRadius ?? 0) > 0)
             || (view is UIImageView && (borderRadius > 0 || hasCornerRadii))
+            // Per-corner rounding clips its content, as its mask did.
+            || hasCornerRadii
         view.layer.masksToBounds = view.clipsToBounds
         view.craftLayoutStyle = CraftNativeLayoutStyle(style)
         (view as? CraftNativeFlowView)?.invalidateMeasurements()
@@ -7717,6 +7826,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
+    /// Downloaded images, decoded, for every screen: a screen opened again or
+    /// a row scrolled back draws its picture in its first frame rather than
+    /// fetching and decoding it again. Bounded by decoded bytes.
+    private static let decodedImages: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.totalCostLimit = 48 << 20
+        return cache
+    }()
+
     /// An image the screen downloads: https anywhere, and http only from this
     /// machine (localhost, 127.0.0.1, ::1, *.localhost), the development
     /// server the app's ATS exception already allows. Internal for XCTest.
@@ -7768,14 +7886,30 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return
         }
         if let url = URL(string: uri), Self.loadsImage(from: url) {
+            // Shown before: on screen in this same frame, already decoded.
+            if let decoded = Self.decodedImages.object(forKey: requestKey as NSString) {
+                view.image = imageForDisplay(decoded, view: view)
+                imageDidChange(view)
+                emitImageEvent(view, handler: imageLoadHandlers[id])
+                emitImageEvent(view, handler: imageLoadEndHandlers[id])
+                return
+            }
             var request = URLRequest(url: url)
             for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
             let task = URLSession.shared.dataTask(with: request) { [weak self, weak view] data, _, _ in
+                // Decoded here, off the main thread. A UIImage made from data
+                // is only decoded when it first draws, on the main thread, in
+                // the frame it scrolls into view: Apple's "prepare" hitch.
+                let decoded = data.flatMap(UIImage.init(data:)).map { $0.preparingForDisplay() ?? $0 }
+                if let decoded {
+                    let pixels = decoded.size.width * decoded.scale * decoded.size.height * decoded.scale
+                    Self.decodedImages.setObject(decoded, forKey: requestKey as NSString, cost: Int(pixels * 4))
+                }
                 guard let self, let view else { return }
                 DispatchQueue.main.async {
                     guard self.imageSources[ObjectIdentifier(view)] == requestKey else { return }
                     self.imageTasks.removeValue(forKey: ObjectIdentifier(view))
-                    guard let data, let image = UIImage(data: data) else {
+                    guard let image = decoded else {
                         self.imageFailure(view, uri: uri, message: "Image download failed")
                         return
                     }
@@ -8289,12 +8423,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": scrollEvent(scrollView)])
     }
 
+    private var pacingName: String { "scroll \(routeName ?? "screen")" }
+
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        CraftFramePacing.shared.begin(pacingName)
         guard let handler = scrollBeginHandlers[ObjectIdentifier(scrollView)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": scrollEvent(scrollView)])
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if !decelerate { CraftFramePacing.shared.end(pacingName) }
         guard let handler = scrollEndHandlers[ObjectIdentifier(scrollView)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": scrollEvent(scrollView)])
     }
@@ -8305,6 +8443,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        CraftFramePacing.shared.end(pacingName)
         guard let handler = scrollMomentumEndHandlers[ObjectIdentifier(scrollView)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": scrollEvent(scrollView)])
     }

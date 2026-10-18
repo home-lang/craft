@@ -1,6 +1,7 @@
 import ImageIO
 import UIKit
 import UniformTypeIdentifiers
+import Network
 import XCTest
 @testable import NativeRender
 
@@ -177,6 +178,57 @@ final class FilesUnitTests: XCTestCase {
         XCTAssertEqual(CraftNativeMedia.errorCode(URLError(.notConnectedToInternet), fallback: "NETWORK_ERROR"), "NETWORK_ERROR")
     }
 
+    func testABackgroundTransferFromBeforeASignOutNeverLands() throws {
+        let address = "https://example.com/before-sign-out-\(UUID().uuidString).mp4"
+        let started = CraftNativeMediaTransfers.shared.currentGeneration
+        _ = try CraftNativeMedia.clear()
+        XCTAssertFalse(CraftNativeMediaTransfers.shared.isCurrent(started))
+        let location = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([1, 2, 3, 4]).write(to: location)
+        defer { try? FileManager.default.removeItem(at: location) }
+        let response = HTTPURLResponse(url: URL(string: address)!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Length": "4"])!
+        let landed = CraftNativeMedia.store(address, at: location, response: response, stillWanted: { CraftNativeMediaTransfers.shared.isCurrent(started) })
+        guard case .failure(let error) = landed else { return XCTFail("A signed-out account's video was kept") }
+        XCTAssertEqual(error.code, "CANCELLED")
+        XCTAssertNil(CraftNativeMedia.local(address))
+    }
+
+    func testATransferWhoseKeepWasAnsweredEarlyStillLands() throws {
+        let address = "https://example.com/queued-\(UUID().uuidString).mp4"
+        defer { try? FileManager.default.removeItem(at: CraftNativeMedia.file(for: address)) }
+        // Answered "waiting for Wi-Fi": the flight is gone, the transfer is not.
+        let flight = try XCTUnwrap(CraftNativeMedia.begin(address) { _ in })
+        CraftNativeMedia.finish(address, flight: flight, .success(["ok": false, "reason": "cellular", "queued": true]))
+        XCTAssertFalse(CraftNativeMedia.isWaiting(address, flight: flight))
+        let location = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([9, 8, 7]).write(to: location)
+        let response = HTTPURLResponse(url: URL(string: address)!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Length": "3"])!
+        let started = CraftNativeMediaTransfers.shared.currentGeneration
+        if case .failure(let error) = CraftNativeMedia.store(address, at: location, response: response, stillWanted: { CraftNativeMediaTransfers.shared.isCurrent(started) }) {
+            return XCTFail("queued transfer was dropped: \(error.code)")
+        }
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(CraftNativeMedia.local(address))), Data([9, 8, 7]))
+    }
+
+    func testKeepingAVideoDownloadsItOnTheBackgroundSessionAndAnswers() throws {
+        let body = Data("craft-video".utf8)
+        let server = try OneFileServer(body: body)
+        defer { server.stop() }
+        let address = "http://127.0.0.1:\(try server.port())/clip-\(UUID().uuidString).mp4"
+        defer { try? FileManager.default.removeItem(at: CraftNativeMedia.file(for: address)) }
+        let answered = expectation(description: "the keep is answered")
+        var answer: Result<Any, CraftNativeActionError>?
+        let flight = try XCTUnwrap(CraftNativeMedia.begin(address) { answer = $0; answered.fulfill() })
+        let task = CraftNativeMediaTransfers.shared.start(URLRequest(url: URL(string: address)!), address: address, flight: flight, wifiOnly: false)
+        XCTAssertEqual(task.taskDescription, address)
+        wait(for: [answered], timeout: 30)
+        guard case .success(let value)? = answer, let info = value as? [String: Any] else { return XCTFail("keep failed: \(String(describing: answer))") }
+        XCTAssertEqual(info["ok"] as? Bool, true)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(CraftNativeMedia.local(address))), body)
+        // A second keep answers from the copy, whatever the network.
+        XCTAssertNotNil(CraftNativeMedia.local(address))
+    }
+
     func testClearingVideosInvalidatesOldTransfersWithoutLosingANewTransferForTheSameURL() throws {
         let address = "https://example.com/account-\(UUID().uuidString).mp4"
         var cancelled = false
@@ -215,4 +267,31 @@ final class FilesUnitTests: XCTestCase {
         }
     }
 
+}
+
+/// A one-file HTTP server on 127.0.0.1 for the background transfer test.
+private final class OneFileServer {
+    private let listener: NWListener
+    private let ready = DispatchSemaphore(value: 0)
+
+    init(body: Data) throws {
+        listener = try NWListener(using: .tcp, on: .any)
+        listener.stateUpdateHandler = { [ready] state in if case .ready = state { ready.signal() } }
+        listener.newConnectionHandler = { connection in
+            connection.start(queue: .global())
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { _, _, _, _ in
+                var reply = Data("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8)
+                reply.append(body)
+                connection.send(content: reply, completion: .contentProcessed { _ in connection.cancel() })
+            }
+        }
+        listener.start(queue: .global())
+    }
+
+    func port() throws -> UInt16 {
+        guard ready.wait(timeout: .now() + 5) == .success, let port = listener.port?.rawValue else { throw URLError(.cannotConnectToHost) }
+        return port
+    }
+
+    func stop() { listener.cancel() }
 }

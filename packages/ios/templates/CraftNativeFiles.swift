@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import ImageIO
+import Network
 import PhotosUI
 import UIKit
 import UniformTypeIdentifiers
@@ -554,6 +555,13 @@ enum CraftNativeMedia {
         return id
     }
 
+    /// Whether `flight` is still the download `address`'s keeps wait for.
+    static func isWaiting(_ address: String, flight: UUID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return inFlight[address]?.id == flight
+    }
+
     static func finish(_ address: String, flight: UUID, _ result: Result<Any, CraftNativeActionError>) {
         lock.lock()
         let waiting = inFlight[address]?.id == flight ? inFlight.removeValue(forKey: address)?.waiting ?? [] : []
@@ -563,7 +571,7 @@ enum CraftNativeMedia {
 
     /// A finished download moved into place (atomically, so a half-written
     /// file is never played), or a refusal with the server's status.
-    static func store(_ address: String, at location: URL, response: HTTPURLResponse, flight: UUID? = nil) -> Result<Any, CraftNativeActionError> {
+    static func store(_ address: String, at location: URL, response: HTTPURLResponse, flight: UUID? = nil, stillWanted: (() -> Bool)? = nil) -> Result<Any, CraftNativeActionError> {
         guard response.statusCode == 200 else {
             return .success(["ok": false, "url": address, "status": response.statusCode])
         }
@@ -572,6 +580,10 @@ enum CraftNativeMedia {
         lock.lock()
         defer { lock.unlock() }
         if let flight, inFlight[address]?.id != flight {
+            return .failure(CraftNativeActionError(code: "CANCELLED", message: "The video cache was cleared"))
+        }
+        // A background transfer from before the cache was cleared (sign-out).
+        if let stillWanted, !stillWanted() {
             return .failure(CraftNativeActionError(code: "CANCELLED", message: "The video cache was cleared"))
         }
         let staging = root.appendingPathComponent(UUID().uuidString + ".part")
@@ -609,6 +621,9 @@ enum CraftNativeMedia {
         lock.lock()
         let waiting = inFlight.values.flatMap { $0.waiting }
         inFlight.removeAll()
+        // Under the same lock a background transfer commits under: none
+        // started before this lands after it.
+        CraftNativeMediaTransfers.shared.cancelAll()
         let fm = FileManager.default
         let files = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         var removed = 0
@@ -625,6 +640,7 @@ enum CraftNativeMedia {
 
     /// Removes every copy whose address is not in `keep`; answers how many.
     static func prune(keep: [String]) -> Int {
+        CraftNativeMediaTransfers.shared.cancel(except: keep + Array(inFlightAddresses()))
         lock.lock()
         defer { lock.unlock() }
         let wanted = Set(keep.map { file(for: $0).lastPathComponent })
@@ -637,11 +653,199 @@ enum CraftNativeMedia {
         return removed
     }
 
+    private static func inFlightAddresses() -> Set<String> {
+        lock.lock()
+        defer { lock.unlock() }
+        return Set(inFlight.keys)
+    }
+
     /// What the kept copies come to, in bytes, and how many there are.
     static func usage() -> [String: Any] {
         let files = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.fileSizeKey])) ?? []
         let kept = files.filter { $0.pathExtension != "part" }
         let bytes = kept.reduce(0) { $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) }
         return ["files": kept.count, "bytes": bytes]
+    }
+}
+
+/// The downloads `media.keep` starts, on a background URLSession: a transfer
+/// carries on while the app is suspended or closed, waits for Wi-Fi when it
+/// was asked to, and lands in CraftNativeMedia when it finishes, whether or
+/// not anyone is still waiting for it (the address travels with the task as
+/// its description, so a transfer outlives the launch that started it).
+///
+/// A request answers as soon as its file is kept, or at once with
+/// `{ ok: false, reason: "cellular" | "offline", queued: true }` when the
+/// phone cannot fetch it now: the transfer stays with iOS and finishes on
+/// its own, and the next `keep` of that address answers from the copy.
+final class CraftNativeMediaTransfers: NSObject, URLSessionDownloadDelegate {
+    static let shared = CraftNativeMediaTransfers()
+    static var identifier: String { "\(Bundle.main.bundleIdentifier ?? "dev.craft.app").craft-media" }
+
+    /// iOS's handler from relaunching the app for this session's events.
+    var backgroundCompletion: (() -> Void)?
+
+    private struct Transfer {
+        let address: String
+        /// The keep still waiting for this transfer; nil once answered early.
+        var flight: UUID?
+        let wifiOnly: Bool
+        /// Transfers from before the last `clear` must not land.
+        let generation: Int
+    }
+
+    private let lock = NSLock()
+    private var transfers: [Int: Transfer] = [:]
+    /// What each finished download came to, until its task completes.
+    private var finished: [Int: Result<Any, CraftNativeActionError>] = [:]
+    /// Transfers left running by an earlier launch, by address.
+    private var restored: [String: URLSessionDownloadTask] = [:]
+    private var generation = 0
+    private let monitor = NWPathMonitor()
+
+    /// Made once, at first use: iOS hands this identifier's finished
+    /// transfers to whichever session object the app makes with it.
+    private(set) var session: URLSession!
+
+    override init() {
+        super.init()
+        let configuration = URLSessionConfiguration.background(withIdentifier: Self.identifier)
+        configuration.sessionSendsLaunchEvents = true
+        configuration.isDiscretionary = false
+        session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        session.getAllTasks { [weak self] tasks in
+            guard let self else { return }
+            self.lock.lock()
+            for case let task as URLSessionDownloadTask in tasks where task.state == .running || task.state == .suspended {
+                if let address = task.taskDescription, self.transfers[task.taskIdentifier] == nil { self.restored[address] = task }
+            }
+            self.lock.unlock()
+        }
+        // A connection lost (or only a metered one left for a Wi-Fi-only
+        // keep) answers the waiting keeps; their transfers carry on later.
+        monitor.pathUpdateHandler = { [weak self] path in self?.release(on: path) }
+        monitor.start(queue: DispatchQueue(label: "dev.craft.native.media.path"))
+    }
+
+    /// Fetches `request` into the copy for `address`, finishing `flight`.
+    func start(_ request: URLRequest, address: String, flight: UUID, wifiOnly: Bool) -> URLSessionTask {
+        lock.lock()
+        let task: URLSessionDownloadTask
+        if let earlier = restored.removeValue(forKey: address), earlier.state == .running || earlier.state == .suspended {
+            task = earlier
+        }
+        else {
+            task = session.downloadTask(with: request)
+            task.taskDescription = address
+        }
+        transfers[task.taskIdentifier] = Transfer(address: address, flight: flight, wifiOnly: wifiOnly, generation: generation)
+        lock.unlock()
+        task.resume()
+        release(on: monitor.currentPath)
+        return task
+    }
+
+    /// Answers the keeps that cannot be fetched on `path`; their transfers stay queued with iOS.
+    private func release(on path: NWPath) {
+        let offline = path.status != .satisfied
+        let metered = path.isExpensive || path.isConstrained
+        lock.lock()
+        var answered: [(String, UUID, String)] = []
+        for (id, transfer) in transfers {
+            guard let flight = transfer.flight, offline || (transfer.wifiOnly && metered) else { continue }
+            transfers[id]?.flight = nil
+            answered.append((transfer.address, flight, offline ? "offline" : "cellular"))
+        }
+        lock.unlock()
+        for (address, flight, reason) in answered {
+            CraftNativeMedia.finish(address, flight: flight, .success(["ok": false, "url": address, "reason": reason, "queued": true]))
+        }
+    }
+
+    /// Stops every transfer: an account's copies are being cleared, and none of its videos may land after.
+    func cancelAll() {
+        lock.lock()
+        generation += 1
+        restored.removeAll()
+        lock.unlock()
+        session.getAllTasks { tasks in tasks.forEach { $0.cancel() } }
+    }
+
+    /// Stops the transfers for addresses no longer wanted.
+    func cancel(except keep: [String]) {
+        let wanted = Set(keep)
+        lock.lock()
+        restored = restored.filter { wanted.contains($0.key) }
+        lock.unlock()
+        session.getAllTasks { tasks in
+            for task in tasks where !wanted.contains(task.taskDescription ?? "") { task.cancel() }
+        }
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        lock.lock()
+        let transfer = transfers[downloadTask.taskIdentifier]
+        lock.unlock()
+        // One left by an earlier launch belongs to the generation this launch began with.
+        let started = transfer?.generation ?? 0
+        guard let address = transfer?.address ?? downloadTask.taskDescription else { return }
+        guard let http = downloadTask.response as? HTTPURLResponse else {
+            record(downloadTask, .failure(CraftNativeActionError(code: "NETWORK_ERROR", message: "media.keep received a response that is not HTTP")))
+            return
+        }
+        // The system deletes `location` once this returns: move it now. It
+        // lands whether its keep is still waiting or was answered early; only
+        // a clear since it started (sign-out) keeps it out.
+        record(downloadTask, CraftNativeMedia.store(address, at: location, response: http, stillWanted: { [weak self] in self?.isCurrent(started) ?? false }))
+    }
+
+    /// How many times the cache was cleared in this launch; a transfer started before the last clear does not land.
+    var currentGeneration: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return generation
+    }
+
+    func isCurrent(_ started: Int) -> Bool {
+        currentGeneration == started
+    }
+
+    private func record(_ task: URLSessionTask, _ result: Result<Any, CraftNativeActionError>) {
+        lock.lock()
+        finished[task.taskIdentifier] = result
+        lock.unlock()
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        lock.lock()
+        let transfer = transfers.removeValue(forKey: task.taskIdentifier)
+        let result = finished.removeValue(forKey: task.taskIdentifier)
+        if let address = task.taskDescription, restored[address] === task { restored.removeValue(forKey: address) }
+        lock.unlock()
+        guard let transfer, let flight = transfer.flight else { return }
+        if let error {
+            let urlError = error as? URLError
+            if urlError?.code == .cancelled {
+                CraftNativeMedia.finish(transfer.address, flight: flight, .failure(CraftNativeActionError(code: "CANCELLED", message: "media.keep was cancelled")))
+                return
+            }
+            // Refused only because the connection is metered: not a failure, a wait.
+            if let reason = urlError?.networkUnavailableReason, reason == .expensive || reason == .constrained {
+                CraftNativeMedia.finish(transfer.address, flight: flight, .success(["ok": false, "url": transfer.address, "reason": "cellular"]))
+                return
+            }
+            let code = urlError?.code == .timedOut ? "TIMEOUT" : "NETWORK_ERROR"
+            CraftNativeMedia.finish(transfer.address, flight: flight, .failure(CraftNativeActionError(code: CraftNativeMedia.errorCode(error, fallback: code), message: error.localizedDescription)))
+            return
+        }
+        CraftNativeMedia.finish(transfer.address, flight: flight, result ?? .failure(CraftNativeActionError(code: "NETWORK_ERROR", message: "media.keep finished without a file")))
+    }
+
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        DispatchQueue.main.async { [weak self] in
+            let done = self?.backgroundCompletion
+            self?.backgroundCompletion = nil
+            done?()
+        }
     }
 }

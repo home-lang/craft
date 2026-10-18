@@ -57,6 +57,33 @@ internal object CraftNativeSandbox {
 }
 
 /**
+ * The native screens' JavaScript: a route's own file when stx wrote one
+ * (`native-screens/<route>.js`, its `routesDir`), else the one-file
+ * `native-screen.js`. An isolate evaluates all it is given, so a route file
+ * spares each screen parsing (and sending the sandbox) every other screen.
+ * Read once and kept while memory allows.
+ */
+internal object CraftNativeBundle {
+    private val sources = object : android.util.LruCache<String, String>(24 shl 20) {
+        override fun sizeOf(key: String, value: String) = value.length
+    }
+
+    private fun read(context: Context, asset: String): String? = sources.get(asset)
+        ?: runCatching { context.assets.open(asset).bufferedReader().use { it.readText() } }.getOrNull()?.also { sources.put(asset, it) }
+
+    fun source(context: Context, route: String?): String? {
+        if (!route.isNullOrBlank() && !route.contains('/') && !route.startsWith('.')) {
+            read(context, "native-screens/$route.js")?.let { return it }
+        }
+        return read(context, "native-screen.js")
+    }
+
+    fun isAvailable(context: Context): Boolean =
+        runCatching { context.assets.open("native-screen.js").close(); true }.getOrDefault(false)
+            || (context.assets.list("native-screens")?.isNotEmpty() == true)
+}
+
+/**
  * Background refresh, as iOS's BGAppRefreshTask gives it: WorkManager wakes
  * the app every `backgroundRefresh.minimumIntervalMinutes` (15 at the
  * least, with a network) and the app script (`nativeApp`) hears
@@ -153,8 +180,7 @@ internal class CraftNativeHeadlessApp(
     fun start() {
         val route = config.optString("nativeApp")
         if (route.isBlank() || !JavaScriptSandbox.isSupported()) return finish(true)
-        val bundle = runCatching { context.assets.open("native-screen.js").bufferedReader().use { it.readText() } }.getOrNull()
-            ?: return finish(true)
+        val bundle = CraftNativeBundle.source(context, route) ?: return finish(true)
         CraftNativeSandbox.connect(context) { engine, error ->
             if (closed) return@connect
             if (engine == null || !engine.isFeatureSupported(JavaScriptSandbox.JS_FEATURE_CONSOLE_MESSAGING)) {

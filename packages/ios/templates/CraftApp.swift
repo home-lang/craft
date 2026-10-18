@@ -251,6 +251,17 @@ final class CraftAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         CraftEventManager.shared.sendToWeb("craftSilentPush", data: ["id": id, "payload": CraftEventManager.pageData(userInfo)])
     }
 
+    /// iOS relaunched the app because `craft.media.keep`'s background
+    /// transfers finished (CraftNativeMediaTransfers): their session takes
+    /// the events, stores the files, then says it is done.
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+        guard identifier == CraftNativeMediaTransfers.identifier else {
+            completionHandler()
+            return
+        }
+        CraftNativeMediaTransfers.shared.backgroundCompletion = completionHandler
+    }
+
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         NotificationCenter.default.post(name: .craftPushToken, object: token)
@@ -679,6 +690,9 @@ final class CraftChrome: ObservableObject {
     private var splashDeadline: DispatchWorkItem?
     private var tabSwipePrevious: String?
     private var tabSwipeTarget: String?
+    /// One generator for every tab change. A new one per tick started the
+    /// Taptic Engine cold each time, on the main thread, late.
+    private let selectionFeedback = UISelectionFeedbackGenerator()
     /// The keyboard is up and covers the tab bar, so the page need not leave
     /// room for it: the web view ends at the keyboard (CraftHybrid's webHost).
     private var keyboardUp = false
@@ -866,7 +880,7 @@ final class CraftChrome: ObservableObject {
     func swipe(to id: String) {
         guard id != selected, tabs.contains(where: { $0.id == id }) else { return }
         withAnimation(Self.motion(.spring(response: 0.32, dampingFraction: 0.86))) { selected = id }
-        UISelectionFeedbackGenerator().selectionChanged()
+        selectionFeedback.selectionChanged()
         guard CraftHybrid.shared.tabTapped(id, reselect: false) else { return }
         emit("craftTabSelect", ["id": id])
     }
@@ -875,6 +889,9 @@ final class CraftChrome: ObservableObject {
     /// controller commits or restores this preview when the finger lifts.
     func beginTabSwipe(to id: String, from previous: String) {
         guard id != previous, tabs.contains(where: { $0.id == id }) else { return }
+        // The tick comes as the swipe commits; wake the Taptic Engine now, as
+        // UIFeedbackGenerator asks, so it is on time rather than late.
+        selectionFeedback.prepare()
         // A page's pending selection report may disagree with the native
         // stack. Cancellation belongs to the stack the finger left.
         tabSwipePrevious = previous
@@ -917,7 +934,7 @@ final class CraftChrome: ObservableObject {
         withAnimation(nil) { tabSwipePosition = nil }
         guard tabs.contains(where: { $0.id == id }) else { return }
         withAnimation(nil) { selected = id }
-        UISelectionFeedbackGenerator().selectionChanged()
+        selectionFeedback.selectionChanged()
         guard CraftHybrid.shared.tabTapped(id, reselect: false) else { return }
         emit("craftTabSelect", ["id": id])
     }
@@ -1183,8 +1200,19 @@ struct CraftTabBarView: View {
 
     /// The filled variant for the current tab, when the symbol has one.
     private func symbol(_ name: String, selected: Bool) -> String {
-        guard selected, !name.hasSuffix(".fill"), UIImage(systemName: "\(name).fill") != nil else { return name }
+        guard selected, !name.hasSuffix(".fill"), Self.hasFilledSymbol(name) else { return name }
         return "\(name).fill"
+    }
+
+    /// Whether `<name>.fill` exists, asked of the symbol catalog once per
+    /// name: the bar's body runs again for every selection change and asked
+    /// it for every tab each time.
+    private static var filledSymbols: [String: Bool] = [:]
+    private static func hasFilledSymbol(_ name: String) -> Bool {
+        if let known = filledSymbols[name] { return known }
+        let exists = UIImage(systemName: "\(name).fill") != nil
+        filledSymbols[name] = exists
+        return exists
     }
 }
 
@@ -1267,13 +1295,14 @@ class DeepLinkManager {
     // Every link that arrived while no page could receive it, in order. This
     // was a single slot, so a second link before the bridge was ready replaced
     // the first; on a cold start, that could be the link that launched the app.
-    private var pendingURLs: [URL] = []
+    private var pendingURLs: [(url: URL, initial: Bool)] = []
+    private var replayingNativeLinks = false
     private weak var webView: WKWebView?
     private var isReady = false
     // Replay bookkeeping only. A native screen can become ready before UIKit
     // delivers the launch URL; listener readiness cannot classify that URL.
     private var hasBeenReady = false
-    private var nativeListeners: [UUID: (URL, Bool) -> Void] = [:]
+    private var nativeListeners: [UUID: (canReceive: () -> Bool, receive: (URL, Bool) -> Void)] = [:]
 
     private init() {
         for name in [UIApplication.didBecomeActiveNotification, UIApplication.didEnterBackgroundNotification] {
@@ -1297,12 +1326,11 @@ class DeepLinkManager {
 
     func setReady() {
         isReady = true
-        let firstPage = !hasBeenReady
         hasBeenReady = true
         let urls = pendingURLs
         pendingURLs.removeAll()
-        for url in urls {
-            dispatchDeepLink(url, initial: firstPage && url == initialURL)
+        for link in urls {
+            dispatchDeepLink(link.url, initial: link.initial)
         }
     }
 
@@ -1316,21 +1344,21 @@ class DeepLinkManager {
             if CraftHybrid.shared.handleDeepLink(url) {
                 dispatchNative(url, initial: false)
             } else if !CraftHybrid.shared.hasWeb {
-                if nativeListeners.isEmpty { pendingURLs.append(url) } else { dispatchNative(url, initial: false) }
+                enqueueNative(url)
             } else if isReady && webView != nil {
                 dispatchDeepLink(url, initial: false)
             } else {
-                pendingURLs.append(url)
+                pendingURLs.append((url, !hasBeenReady && url == initialURL))
             }
             return
         }
 
         if !nativeListeners.isEmpty {
-            dispatchNative(url, initial: false)
+            enqueueNative(url)
         } else if isReady && webView != nil {
             dispatchDeepLink(url, initial: false)
         } else {
-            pendingURLs.append(url)
+            pendingURLs.append((url, !hasBeenReady && url == initialURL))
         }
     }
 
@@ -1350,20 +1378,14 @@ class DeepLinkManager {
     }
 
     @discardableResult
-    func addNativeListener(_ listener: @escaping (URL, Bool) -> Void) -> UUID {
+    func addNativeListener(canReceive: @escaping () -> Bool = { true }, _ listener: @escaping (URL, Bool) -> Void) -> UUID {
         let token = UUID()
-        nativeListeners[token] = listener
+        nativeListeners[token] = (canReceive, listener)
         // In a hybrid app the page is the one waiting for the links that
         // arrived early; a native screen hears only native ones, as they come.
         // An all-native app has no page, so its first screen hears them.
         if CraftHybrid.shared.isEnabled && CraftHybrid.shared.hasWeb { return token }
-        let firstNativeScreen = !hasBeenReady
-        hasBeenReady = true
-        let urls = pendingURLs
-        pendingURLs.removeAll()
-        for url in urls {
-            listener(url, firstNativeScreen && url == initialURL)
-        }
+        replayNativeLinks()
         return token
     }
 
@@ -1371,8 +1393,31 @@ class DeepLinkManager {
         nativeListeners.removeValue(forKey: token)
     }
 
+    private func enqueueNative(_ url: URL) {
+        pendingURLs.append((url, !hasBeenReady && url == initialURL))
+        replayNativeLinks()
+    }
+
+    /// Registration can happen while a controller is being prewarmed. Keep
+    /// links until a screen is visible, including across a tab switch.
+    func replayNativeLinks() {
+        guard !(CraftHybrid.shared.isEnabled && CraftHybrid.shared.hasWeb), !replayingNativeLinks else { return }
+        replayingNativeLinks = true
+        defer { replayingNativeLinks = false }
+        while let link = pendingURLs.first {
+            let receivers = nativeListeners.values.filter { $0.canReceive() }
+            guard !receivers.isEmpty else { return }
+            pendingURLs.removeFirst()
+            hasBeenReady = true
+            for receiver in receivers { receiver.receive(link.url, link.initial) }
+        }
+    }
+
     private func dispatchNative(_ url: URL, initial: Bool) {
-        for listener in nativeListeners.values { listener(url, initial) }
+        // The hybrid shell already opened this route; notify visible screens
+        // without queuing a second navigation for its future destination.
+        let receivers = nativeListeners.values.filter { $0.canReceive() }
+        for receiver in receivers { receiver.receive(url, initial) }
     }
 
     private func dispatchDeepLink(_ url: URL, initial: Bool) {
