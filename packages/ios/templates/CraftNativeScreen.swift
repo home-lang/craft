@@ -1171,6 +1171,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var authoredHeading: Double?
     private var edgePadding = UIEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
     private var markerBearings: [String: Double] = [:]
+    private var markerPinColors: [String: UIColor] = [:]
     private var tileOverlay: MKTileOverlay?
     private var tileTemplate: String?
     private lazy var tileAttribution: UILabel = {
@@ -1220,6 +1221,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         }
         edgePadding = UIEdgeInsets(top: inset("top"), left: inset("left"), bottom: inset("bottom"), right: inset("right"))
         var nextBearings: [String: Double] = [:]
+        var nextPinColors: [String: UIColor] = [:]
         // Showing the user dot must not trigger a permission prompt from a
         // renderer pass. The app's existing location capability owns that
         // prompt; a map only opts in after authorization is already granted.
@@ -1240,6 +1242,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             if type == "mapmarker" || type == "marker" {
                 guard let point = points.first else { continue }
                 nextMarkers[id] = (point, childProps["title"] as? String)
+                if let color = childProps["pinColor"] as? String { nextPinColors[id] = Self.color(color) }
                 if let bearing = Self.numeric(childProps["bearing"]), bearing.isFinite {
                     nextBearings[id] = bearing.truncatingRemainder(dividingBy: 360)
                 }
@@ -1257,6 +1260,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         }
 
         markerBearings = nextBearings
+        markerPinColors = nextPinColors
         let staleMarkers = annotationsByID.keys.filter { nextMarkers[$0] == nil }
         removeAnnotations(staleMarkers.compactMap { annotationsByID.removeValue(forKey: $0) })
         for (id, value) in nextMarkers {
@@ -1420,8 +1424,9 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
                 .withRenderingMode(.alwaysOriginal)
             view.transform = CGAffineTransform(rotationAngle: CGFloat((bearing - camera.heading) * .pi / 180))
         } else {
+            view.tintColor = markerPinColors[id] ?? .systemRed
             view.image = UIImage(systemName: "mappin.circle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 28))?
-                .withTintColor(.systemRed, renderingMode: .alwaysOriginal)
+                .withTintColor(view.tintColor, renderingMode: .alwaysOriginal)
             view.transform = .identity
         }
     }

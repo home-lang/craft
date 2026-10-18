@@ -23,6 +23,8 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
     var onRegionChangeComplete: ((JSONObject) -> Unit)? = null
     private var userChangingCamera = false
     private var markerBearings = mutableMapOf<String, Float>()
+    private var markerPinColors = mutableMapOf<String, Int>()
+    private val pinIcons = mutableMapOf<Int, com.google.android.gms.maps.model.BitmapDescriptor>()
     private var directionIcon: com.google.android.gms.maps.model.BitmapDescriptor? = null
     private var lifecycleStarted = false
     private var destroyed = false
@@ -104,6 +106,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         runCatching { map.isMyLocationEnabled = showUserLocation }
         val nextMarkers = mutableMapOf<String, Pair<LatLng, String?>>()
         val nextBearings = mutableMapOf<String, Float>()
+        val nextPinColors = mutableMapOf<String, Int>()
         val nextHandlers = mutableMapOf<String, String>()
         val nextPolylines = mutableMapOf<String, Triple<List<LatLng>, Int, Float>>()
         for (index in 0 until pendingChildren.length()) {
@@ -118,6 +121,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
             if (type == "mapmarker" || type == "marker") {
                 points.firstOrNull()?.let { point ->
                     nextMarkers[id] = point to (props.opt("title") as? String)
+                    (props.opt("pinColor") as? String)?.let { value -> runCatching { craftNativeColor(value) }.getOrNull()?.let { nextPinColors[id] = it } }
                     (props.opt("bearing") as? Number)?.toDouble()?.takeIf { it.isFinite() }?.let { nextBearings[id] = (it % 360).toFloat() }
                     listOf(events.opt("onPress"), events.opt("onMarkerPress"))
                         .firstNotNullOfOrNull(::craftNativeOptionalString)
@@ -146,18 +150,20 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
             }
         }
         markerBearings = nextBearings
+        markerPinColors = nextPinColors
+        pinIcons.keys.filter { it !in markerPinColors.values }.forEach { pinIcons.remove(it) }
         markers.keys.filter { nextMarkers[it] == null }.forEach { markers.remove(it)?.remove() }
         for ((id, value) in nextMarkers) {
             val marker = markers[id]
             if (marker != null) {
                 marker.position = value.first
                 marker.title = value.second
-                marker.setIcon(if (markerBearings.containsKey(id)) directionMarkerIcon() else BitmapDescriptorFactory.defaultMarker())
+                marker.setIcon(if (markerBearings.containsKey(id)) directionMarkerIcon() else pinMarkerIcon(id))
                 marker.isFlat = markerBearings.containsKey(id)
                 marker.rotation = markerBearings[id] ?: 0f
-                marker.setAnchor(0.5f, if (markerBearings.containsKey(id)) 0.5f else 1f)
+                marker.setAnchor(0.5f, if (markerBearings.containsKey(id) || markerPinColors.containsKey(id)) 0.5f else 1f)
             } else {
-                map.addMarker(MarkerOptions().position(value.first).title(value.second).icon(if (markerBearings.containsKey(id)) directionMarkerIcon() else BitmapDescriptorFactory.defaultMarker()).flat(markerBearings.containsKey(id)).rotation(markerBearings[id] ?: 0f).anchor(0.5f, if (markerBearings.containsKey(id)) 0.5f else 1f))?.let { markers[id] = it }
+                map.addMarker(MarkerOptions().position(value.first).title(value.second).icon(if (markerBearings.containsKey(id)) directionMarkerIcon() else pinMarkerIcon(id)).flat(markerBearings.containsKey(id)).rotation(markerBearings[id] ?: 0f).anchor(0.5f, if (markerBearings.containsKey(id) || markerPinColors.containsKey(id)) 0.5f else 1f))?.let { markers[id] = it }
             }
         }
         markerHandlers.clear()
@@ -261,6 +267,21 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         }
     }
 
+    private fun pinMarkerIcon(id: String): com.google.android.gms.maps.model.BitmapDescriptor {
+        val color = markerPinColors[id] ?: return BitmapDescriptorFactory.defaultMarker()
+        return pinIcons.getOrPut(color) {
+            val size = (18 * resources.displayMetrics.density).roundToInt().coerceAtLeast(18)
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            paint.color = Color.WHITE
+            canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+            paint.color = color
+            canvas.drawCircle(size / 2f, size / 2f, size * 0.38f, paint)
+            BitmapDescriptorFactory.fromBitmap(bitmap)
+        }
+    }
+
     private fun directionMarkerIcon(): com.google.android.gms.maps.model.BitmapDescriptor {
         directionIcon?.let { return it }
         val size = (26 * resources.displayMetrics.density).roundToInt().coerceAtLeast(24)
@@ -360,6 +381,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         onMapPress = null
         onRegionChangeComplete = null
         directionIcon = null
+        pinIcons.clear(); markerPinColors.clear()
         tileOverlay?.remove(); tileOverlay = null
         markerHandlers.clear()
         markers.values.forEach { it.remove() }

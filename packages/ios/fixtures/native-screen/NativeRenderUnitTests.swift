@@ -811,6 +811,34 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(marker.transform.b, 1, accuracy: 0.02)
     }
 
+    func testMapUpdatesNativePinColorAndTiltGestureWithoutReplacingTheMarker() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        func document(_ color: String, _ pitch: Bool) -> [String: Any] {
+            ["type": "Map", "props": ["key": "colored-map", "pitchEnabled": pitch],
+             "style": ["width": 320, "height": 320],
+             "children": [["type": "MapMarker", "props": ["id": "start", "geometry": [37.7, -119.5], "pinColor": color]]]]
+        }
+        controller.render(document("#24724b", false))
+        controller.view.layoutIfNeeded()
+        let map = try XCTUnwrap(find(MKMapView.self, key: "colored-map", below: controller.view))
+        let annotation = try XCTUnwrap(map.annotations.first)
+        let marker = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+        XCTAssertFalse(map.isPitchEnabled)
+        XCTAssertEqual(marker.tintColor, UIColor(red: 36 / 255, green: 114 / 255, blue: 75 / 255, alpha: 1))
+        XCTAssertEqual(marker.image?.renderingMode, .alwaysOriginal)
+        controller.render(document("#2878c8", true))
+        controller.view.layoutIfNeeded()
+        XCTAssertTrue(map.isPitchEnabled)
+        XCTAssertTrue(map.annotations.first === annotation)
+        let updated = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+        XCTAssertEqual(updated.tintColor, UIColor(red: 40 / 255, green: 120 / 255, blue: 200 / 255, alpha: 1))
+    }
+
     func testMapUsesNativeTopographicTilesWithAttribution() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
