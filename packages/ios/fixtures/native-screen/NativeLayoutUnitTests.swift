@@ -549,15 +549,6 @@ final class NativeLayoutUnitTests: XCTestCase {
 
         // More rows: the header is redrawn and the list grows.
         controller.render(document(rows: 5))
-        // Diffable snapshots commit asynchronously, including the initial
-        // snapshot that can defer this second render. Wait for the rendered
-        // header before measuring geometry; synchronous layout cannot drain
-        // the collection view's snapshot completion callbacks.
-        let snapshotDeadline = Date().addingTimeInterval(5)
-        while Date() < snapshotDeadline,
-              (find("header-text", below: controller.view) as? UILabel)?.text != "5 sessions" {
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
-        }
         settle(controller)
         let header = try XCTUnwrap(find("header-text", below: controller.view) as? UILabel)
         XCTAssertEqual(header.text, "5 sessions")
