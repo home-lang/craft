@@ -437,6 +437,8 @@ object CraftNative {
     private external fun nativeSetKeepAwake(activity: Activity, enabled: Boolean): Boolean
     private external fun nativeDownloadFile(activity: Activity, url: String, filename: String): Boolean
     private external fun nativeSaveFile(activity: Activity, data: String, filename: String): Boolean
+    private external fun nativeRecordingAction(activity: Activity, method: String, options: String): String?
+    private external fun nativeRecordingOwnershipVersion(): Int
     private external fun nativeGetLocationRecordingState(activity: Activity): String?
     private external fun nativeReadLocationRecording(activity: Activity): String?
     private external fun nativeStartLocationRecording(activity: Activity): String?
@@ -1921,6 +1923,20 @@ object CraftNative {
      * The read side of the recording store. Null is "Zig declined", not "no
      * recording" — an absent recording is a state object saying so.
      */
+    fun supportsRecordingOwnership(): Boolean {
+        if (!isAvailable) return true
+        return try { nativeRecordingOwnershipVersion() == 1 } catch (_: UnsatisfiedLinkError) { false }
+    }
+
+    fun recordingAction(activity: Activity, method: String, options: String): String? {
+        if (!isAvailable) return null
+        return try { nativeRecordingAction(activity, method, options)
+            ?: org.json.JSONObject().put("ok", false).put("code", "RECORDING_OWNERSHIP_UNSUPPORTED").put("message", "The linked runtime did not serve the recorder request").toString() }
+        catch (error: UnsatisfiedLinkError) {
+            org.json.JSONObject().put("ok", false).put("code", "RECORDING_OWNERSHIP_UNSUPPORTED").put("message", "The linked runtime lacks the shared recorder API").toString()
+        }
+    }
+
     fun getLocationRecordingState(activity: Activity): String? {
         if (!isAvailable) return null
         return try {

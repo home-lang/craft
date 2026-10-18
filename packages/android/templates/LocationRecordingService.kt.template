@@ -21,71 +21,235 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
+class CraftRecordingException(val code: String, message: String) : IllegalStateException(message)
+
 object CraftLocationRecordingStore {
     private const val PREFS = "craft_location_recording"
     private const val FILE = "craft-location-recording.jsonl"
-
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private fun file(context: Context) = File(context.filesDir, FILE)
+    private fun archive(context: Context, id: String): File {
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(id.toByteArray(Charsets.UTF_8))
+        return File(context.filesDir, "craft-location-completed-${digest.joinToString("") { "%02x".format(it) }}.json")
+    }
+    private fun acknowledged(context: Context, id: String): Boolean {
+        val marker = File(archive(context, id).path.replace("-completed-", "-ack-"))
+        if (!marker.exists()) return false
+        if (marker.readText() != id) throw CraftRecordingException("RECORDING_STORAGE_ERROR", "Invalid recording acknowledgement")
+        return true
+    }
+    private fun writeAtomic(destination: File, value: String) {
+        val temporary = File.createTempFile(".craft-recording-", ".tmp", destination.parentFile)
+        try {
+            java.io.FileOutputStream(temporary).use { stream -> stream.write(value.toByteArray(Charsets.UTF_8)); stream.fd.sync() }
+            java.nio.file.Files.move(temporary.toPath(), destination.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        } finally { temporary.delete() }
+    }
+    private fun expected(options: JSONObject?): String? {
+        if (options == null || !options.has("expectedId")) return null
+        val id = options.opt("expectedId")
+        if (id !is String || id.isBlank()) throw CraftRecordingException("INVALID_ARGUMENT", "expectedId must be a nonempty recording ID")
+        return id
+    }
+    private fun requireOwner(context: Context, options: JSONObject?) {
+        val id = expected(options) ?: return
+        if (id != prefs(context).getString("id", null)) throw CraftRecordingException("RECORDING_CONFLICT", "The active location recording has changed")
+    }
+    private fun completed(context: Context, id: String?): JSONObject? {
+        if (id == null) return null
+        val source = archive(context, id)
+        if (acknowledged(context, id)) {
+            if (source.exists() && !source.delete()) throw CraftRecordingException("RECORDING_STORAGE_ERROR", "Unable to remove acknowledged recording")
+            throw CraftRecordingException("RECORDING_NOT_FOUND", "This recording has been acknowledged")
+        }
+        if (!source.exists()) return null
+        val saved = JSONObject(source.readText())
+        if (saved.optString("id") != id || saved.optBoolean("active") || saved.optJSONArray("locations") == null)
+            throw CraftRecordingException("RECORDING_STORAGE_ERROR", "Invalid completed recording archive")
+        return saved
+    }
+    private fun archiveCompleted(context: Context) {
+        val id = prefs(context).getString("id", null) ?: return
+        if (acknowledged(context, id) || completed(context, id) != null) return
+        val saved = state(context, includeLocations = true)
+        val destination = archive(context, id)
+        writeAtomic(destination, saved.toString())
+    }
+    private fun edit(context: Context, update: (android.content.SharedPreferences.Editor) -> Unit) {
+        val values = prefs(context)
+        val previous = values.all.toMap()
+        val editor = values.edit()
+        update(editor)
+        if (editor.commit()) return
+        // SharedPreferences publishes its memory map before reporting disk
+        // failure. Restore it too, so a rejected operation cannot change owner.
+        val rollback = values.edit().clear()
+        previous.forEach { (key, value) -> when (value) {
+            is String -> rollback.putString(key, value)
+            is Boolean -> rollback.putBoolean(key, value)
+            is Long -> rollback.putLong(key, value)
+            is Int -> rollback.putInt(key, value)
+            is Float -> rollback.putFloat(key, value)
+            else -> throw CraftRecordingException("RECORDING_STORAGE_ERROR", "Invalid recording metadata")
+        } }
+        rollback.commit()
+        throw CraftRecordingException("RECORDING_STORAGE_ERROR", "Unable to persist recording state")
+    }
+    private fun commit(context: Context, active: Boolean, paused: Boolean) {
+        edit(context) { it.putBoolean("active", active).putBoolean("paused", paused) }
+    }
+
+    @Synchronized
+    fun recover(context: Context) {
+        val id = recordingId(context) ?: return
+        if (!acknowledged(context, id)) return
+        val saved = archive(context, id)
+        if (saved.exists() && !saved.delete()) throw CraftRecordingException("RECORDING_STORAGE_ERROR", "Unable to remove acknowledged recording")
+        if (file(context).exists() && !file(context).delete()) throw CraftRecordingException("RECORDING_STORAGE_ERROR", "Unable to remove acknowledged samples")
+        edit(context) { it.remove("id").remove("startedAt").putBoolean("active", false).putBoolean("paused", false) }
+        listener = null
+    }
 
     @Synchronized
     fun start(context: Context, id: String, startedAt: Long) {
+        recover(context)
+        if (isActive(context)) throw CraftRecordingException("RECORDING_ALREADY_ACTIVE", "A location recording is already active")
+        if (id == recordingId(context) || archive(context, id).exists() || acknowledged(context, id))
+            throw CraftRecordingException("RECORDING_CONFLICT", "Recording IDs cannot be reused")
+        archiveCompleted(context)
         file(context).writeText("")
-        prefs(context).edit()
-            .putString("id", id)
-            .putBoolean("active", true)
-            .putBoolean("paused", false)
-            .putLong("startedAt", startedAt)
-            .apply()
+        edit(context) { it.putString("id", id).putBoolean("active", true).putBoolean("paused", false).putLong("startedAt", startedAt) }
     }
 
     @Synchronized
-    fun setPaused(context: Context, paused: Boolean) {
-        prefs(context).edit().putBoolean("paused", paused).apply()
+    fun updatePause(context: Context, paused: Boolean, options: JSONObject?): JSONObject {
+        requireOwner(context, options)
+        if (!isActive(context)) throw CraftRecordingException("NO_ACTIVE_RECORDING", "No active location recording")
+        commit(context, true, paused)
+        return state(context)
     }
+    @Synchronized fun setPaused(context: Context, paused: Boolean) { updatePause(context, paused, null) }
 
     @Synchronized
-    fun stop(context: Context) {
-        prefs(context).edit().putBoolean("active", false).putBoolean("paused", false).apply()
+    fun finish(context: Context, options: JSONObject?): JSONObject {
+        completed(context, expected(options))?.let { return it }
+        requireOwner(context, options)
+        val stopped = state(context, includeLocations = true)
+        commit(context, false, false)
+        listener = null
+        return stopped.put("active", false).put("paused", false)
     }
-
-    fun isActive(context: Context) = prefs(context).getBoolean("active", false)
-    fun isPaused(context: Context) = prefs(context).getBoolean("paused", false)
-
-    /**
-     * Hears each fix the recording keeps, while the app is running: a native
-     * screen shows the route growing (`craftLocationUpdate`).
-     */
-    @Volatile var listener: ((android.location.Location) -> Unit)? = null
-
+    @Synchronized fun stop(context: Context) { finish(context, null) }
     @Synchronized
-    fun append(context: Context, location: android.location.Location) {
-        if (!isActive(context) || isPaused(context)) return
-        listener?.invoke(location)
-        val json = JSONObject().apply {
-            put("latitude", location.latitude)
-            put("longitude", location.longitude)
-            put("accuracy", location.accuracy)
-            put("altitude", location.altitude)
-            put("speed", location.speed)
-            put("heading", location.bearing)
-            put("timestamp", location.time)
+    fun acknowledge(context: Context, options: JSONObject?): Boolean {
+        val id = expected(options) ?: throw CraftRecordingException("INVALID_ARGUMENT", "Acknowledgement needs expectedId")
+        val current = recordingId(context) == id
+        if (current && isActive(context)) throw CraftRecordingException("RECORDING_ALREADY_ACTIVE", "The recording is still active")
+        if (!current && !acknowledged(context, id) && completed(context, id) == null)
+            throw CraftRecordingException("RECORDING_CONFLICT", "Unknown recording ID")
+        val saved = archive(context, id)
+        val marker = File(saved.path.replace("-completed-", "-ack-"))
+        if (!marker.exists()) writeAtomic(marker, id)
+        if (saved.exists() && !saved.delete()) throw CraftRecordingException("RECORDING_STORAGE_ERROR", "Unable to remove completed recording")
+        if (current) {
+            if (file(context).exists() && !file(context).delete()) throw CraftRecordingException("RECORDING_STORAGE_ERROR", "Unable to remove recording samples")
+            edit(context) { it.remove("id").remove("startedAt").putBoolean("active", false).putBoolean("paused", false) }
+            listener = null
         }
-        file(context).appendText("$json\n")
+        return true
+    }
+
+    /** One native backend used by the STX host and the page's JNI entry point. */
+    @JvmStatic
+    fun perform(context: Context, method: String, optionsJson: String): String = synchronized(this) {
+        return try {
+            recover(context)
+            val options = JSONObject(optionsJson)
+            val result: Any = when (method) {
+                "startRecording" -> {
+                    val permitted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    if (!permitted) throw CraftRecordingException("PERMISSION_DENIED", "Location is not allowed")
+                    val id = java.util.UUID.randomUUID().toString()
+                    start(context, id, System.currentTimeMillis())
+                    try { ContextCompat.startForegroundService(context, Intent(context, LocationRecordingService::class.java).setAction(LocationRecordingService.ACTION_START).putExtra("recordingId", id)) }
+                    catch (error: Exception) { finish(context, JSONObject().put("expectedId", id)); throw error }
+                    state(context)
+                }
+                "pauseRecording" -> updatePause(context, true, options)
+                "resumeRecording" -> {
+                    val permitted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    if (!permitted) throw CraftRecordingException("PERMISSION_DENIED", "Location is not allowed")
+                    val wasPaused = isPaused(context)
+                    val resumed = updatePause(context, false, options)
+                    try { ContextCompat.startForegroundService(context, Intent(context, LocationRecordingService::class.java).setAction(LocationRecordingService.ACTION_START).putExtra("recordingId", recordingId(context))) }
+                    catch (error: Exception) { updatePause(context, wasPaused, options); throw error }
+                    resumed
+                }
+                "stopRecording" -> {
+                    val stopped = finish(context, options)
+                    if (stopped.optString("id") == recordingId(context) && !isActive(context))
+                        context.startService(Intent(context, LocationRecordingService::class.java).setAction(LocationRecordingService.ACTION_STOP).putExtra("recordingId", stopped.optString("id")))
+                    stopped
+                }
+                "getRecordingState" -> state(context, options = options)
+                "readRecording" -> read(context, options)
+                "acknowledgeRecording" -> acknowledge(context, options)
+                else -> throw CraftRecordingException("UNKNOWN_ACTION", "Unsupported Location method")
+            }
+            JSONObject().put("ok", true).put("data", result).toString()
+        } catch (error: Exception) {
+            JSONObject().put("ok", false).put("code", (error as? CraftRecordingException)?.code ?: "RECORDING_STORAGE_ERROR").put("message", error.message ?: "Recording failed").toString()
+        }
+    }
+
+    @Synchronized fun isActive(context: Context) = prefs(context).getBoolean("active", false)
+    @Synchronized fun isPaused(context: Context) = prefs(context).getBoolean("paused", false)
+    @Synchronized fun recordingId(context: Context): String? = prefs(context).getString("id", null)
+    @Volatile var listener: ((android.location.Location, String) -> Unit)? = null
+
+    @JvmOverloads
+    fun append(context: Context, location: android.location.Location, expectedId: String? = null) {
+        val notify = synchronized(this) {
+            val id = recordingId(context) ?: return
+            if (!isActive(context) || isPaused(context) || (expectedId != null && expectedId != id)) return
+            val json = JSONObject().apply {
+                put("latitude", location.latitude); put("longitude", location.longitude)
+                put("accuracy", location.accuracy); put("altitude", location.altitude)
+                put("speed", location.speed); put("heading", location.bearing)
+                put("timestamp", location.time); put("recordingId", recordingId(context))
+            }
+            file(context).appendText("$json\n")
+            Pair(listener, id)
+        }
+        // The event keeps the owner captured before releasing the store lock.
+        notify.first?.invoke(location, notify.second)
     }
 
     @Synchronized
     fun locations(context: Context): JSONArray {
         val result = JSONArray()
         val source = file(context)
-        if (!source.exists()) return result
-        source.forEachLine { line ->
-            if (line.isNotBlank()) runCatching { result.put(JSONObject(line)) }
+        if (!source.exists()) {
+            val id = recordingId(context)
+            if (id != null && !acknowledged(context, id)) throw CraftRecordingException("RECORDING_STORAGE_ERROR", "Recording samples are missing")
+            return result
         }
+        source.forEachLine { line -> if (line.isNotBlank()) runCatching { result.put(JSONObject(line)) } }
         return result
     }
-
-    fun state(context: Context, includeLocations: Boolean = false): JSONObject {
+    @Synchronized
+    fun read(context: Context, options: JSONObject?): JSONArray {
+        completed(context, expected(options))?.let { return it.getJSONArray("locations") }
+        requireOwner(context, options)
+        return locations(context)
+    }
+    @Synchronized
+    fun state(context: Context, includeLocations: Boolean = false, options: JSONObject? = null): JSONObject {
+        completed(context, expected(options))?.let {
+            if (!includeLocations) it.remove("locations")
+            return it
+        }
+        requireOwner(context, options)
         val values = prefs(context)
         val locations = locations(context)
         return JSONObject().apply {
@@ -102,6 +266,8 @@ object CraftLocationRecordingStore {
 class LocationRecordingService : Service() {
     private val client by lazy { LocationServices.getFusedLocationProviderClient(this) }
     private var callback: LocationCallback? = null
+    private var callbackRecordingId: String? = null
+    private var serviceStartId = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -120,28 +286,52 @@ class LocationRecordingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        return synchronized(CraftLocationRecordingStore) {
+        try { CraftLocationRecordingStore.recover(this) }
+        catch (error: Exception) {
+            android.util.Log.e("CraftLocation", "Unable to restore recording", error)
+            stopUpdates()
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
+        val expected = intent?.getStringExtra("recordingId")
+        val current = CraftLocationRecordingStore.recordingId(this)
+        if (expected != null && expected != current) {
+            // ACK can clear A before its queued service intent arrives. Only
+            // tear down an unowned service; a newer B must keep its callback.
+            if (current == null && !CraftLocationRecordingStore.isActive(this)) {
+                stopUpdates()
+                stopSelfResult(startId)
+                return START_NOT_STICKY
+            }
+            return START_STICKY
+        }
+        serviceStartId = startId
         when (intent?.action) {
             ACTION_STOP -> {
                 stopUpdates()
-                stopSelf()
+                stopSelfResult(startId)
                 return START_NOT_STICKY
             }
             else -> if (!startUpdates()) {
-                stopSelf()
+                stopSelfResult(startId)
                 return START_NOT_STICKY
             }
         }
-        return START_STICKY
+        START_STICKY
+        }
     }
 
     private fun startUpdates(): Boolean {
-        if (callback != null) return true
+        val id = CraftLocationRecordingStore.recordingId(this) ?: return false
+        if (callback != null && callbackRecordingId == id) return true
+        stopUpdates()
         if (!CraftLocationRecordingStore.isActive(this)) return false
         val hasForegroundLocation =
             ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
                 ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (!hasForegroundLocation) {
-            CraftLocationRecordingStore.stop(this)
+            runCatching { CraftLocationRecordingStore.finish(this, JSONObject().put("expectedId", id)) }
             return false
         }
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5_000)
@@ -150,23 +340,27 @@ class LocationRecordingService : Service() {
             .build()
         val nextCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
-                for (location in result.locations) CraftLocationRecordingStore.append(this@LocationRecordingService, location)
+                for (location in result.locations) CraftLocationRecordingStore.append(this@LocationRecordingService, location, id)
             }
         }
         callback = nextCallback
+        callbackRecordingId = id
         return try {
             client.requestLocationUpdates(request, nextCallback, Looper.getMainLooper())
                 .addOnFailureListener {
-                    if (callback === nextCallback) {
-                        CraftLocationRecordingStore.stop(this)
-                        stopUpdates()
-                        stopSelf()
+                    synchronized(CraftLocationRecordingStore) {
+                        if (callback === nextCallback && CraftLocationRecordingStore.recordingId(this) == id) {
+                            runCatching { CraftLocationRecordingStore.finish(this, JSONObject().put("expectedId", id)) }
+                                .onFailure { android.util.Log.e("CraftLocation", "Unable to persist failed recording", it) }
+                            stopUpdates()
+                            stopSelfResult(serviceStartId)
+                        }
                     }
                 }
             true
         } catch (error: Exception) {
             callback = null
-            CraftLocationRecordingStore.stop(this)
+            runCatching { CraftLocationRecordingStore.finish(this, JSONObject().put("expectedId", id)) }
             false
         }
     }
@@ -174,6 +368,7 @@ class LocationRecordingService : Service() {
     private fun stopUpdates() {
         callback?.let { client.removeLocationUpdates(it) }
         callback = null
+        callbackRecordingId = null
     }
 
     override fun onDestroy() {
