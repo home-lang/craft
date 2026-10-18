@@ -410,6 +410,7 @@ class CraftBridge(
                     pushNotifications: {{ENABLE_PUSH}},
                     secureStorage: {{ENABLE_SECURE_STORAGE}},
                     geolocation: {{ENABLE_GEOLOCATION}},
+                    locationRecordingOwnership: {{ENABLE_GEOLOCATION}} && ${CraftNative.supportsRecordingOwnership()},
                     backgroundLocation: {{ENABLE_BACKGROUND_LOCATION}},
                     clipboard: false,
                     deviceInfo: true,
@@ -1769,16 +1770,34 @@ class CraftBridge(
                         return Promise.resolve().then(function() { return JSON.parse(CraftAndroid.crashReporterContext()); });
                     }
                 };
+                function recordingCall(method, options) {
+                    return Promise.resolve().then(function() {
+                        if (options && Object.prototype.hasOwnProperty.call(options, 'expectedId') &&
+                            (typeof options.expectedId !== 'string' || !options.expectedId.trim())) {
+                            var invalid = new Error('expectedId must be a nonempty recording ID');
+                            invalid.code = 'INVALID_ARGUMENT';
+                            throw invalid;
+                        }
+                        var result = JSON.parse(CraftAndroid.recordingAction(method, JSON.stringify(options || {})));
+                        if (!result.ok) {
+                            var error = new Error(result.message || 'Recording failed');
+                            error.code = result.code;
+                            throw error;
+                        }
+                        return result.data;
+                    });
+                }
                 craft.location = {
                     getCurrentPosition: craft.getCurrentPosition,
                     watchPosition: craft.watchPosition,
                     clearWatch: craft.clearWatch,
-                    startRecording: function(options) { return Promise.resolve().then(function() { return JSON.parse(CraftAndroid.startLocationRecording(JSON.stringify(options || {}))); }); },
-                    pauseRecording: function() { return Promise.resolve().then(function() { return JSON.parse(CraftAndroid.pauseLocationRecording()); }); },
-                    resumeRecording: function() { return Promise.resolve().then(function() { return JSON.parse(CraftAndroid.resumeLocationRecording()); }); },
-                    stopRecording: function() { return Promise.resolve().then(function() { return JSON.parse(CraftAndroid.stopLocationRecording()); }); },
-                    getRecordingState: function() { return Promise.resolve().then(function() { return JSON.parse(CraftAndroid.getLocationRecordingState()); }); },
-                    readRecording: function() { return Promise.resolve().then(function() { return JSON.parse(CraftAndroid.readLocationRecording()); }); }
+                    startRecording: function(options) { return recordingCall('startRecording', options); },
+                    pauseRecording: function(options) { return recordingCall('pauseRecording', options); },
+                    resumeRecording: function(options) { return recordingCall('resumeRecording', options); },
+                    stopRecording: function(options) { return recordingCall('stopRecording', options); },
+                    getRecordingState: function(options) { return recordingCall('getRecordingState', options); },
+                    readRecording: function(options) { return recordingCall('readRecording', options); },
+                    acknowledgeRecording: function(options) { return recordingCall('acknowledgeRecording', options); }
                 };
                 var shareApi = function(text, title) { return legacyShare(text, title); };
                 shareApi.share = function(options) {
@@ -2738,75 +2757,56 @@ class CraftBridge(
     }
 
     @JavascriptInterface
-    fun startLocationRecording(optionsJson: String): String {
-        // Null is "Zig declined". A permission-denied answer is not null — it
-        // is a state object saying so, and returning it here is the answer.
-        CraftNative.startLocationRecording(activity)?.let { return it }
-
-        if (!hasForegroundLocationPermission()) {
-            return JSONObject().apply {
-                put("id", JSONObject.NULL)
-                put("active", false)
-                put("paused", false)
-                put("startedAt", JSONObject.NULL)
-                put("sampleCount", 0)
-            }.toString()
+    fun recordingAction(method: String, optionsJson: String): String {
+        if (!{{ENABLE_GEOLOCATION}}) return JSONObject().put("ok", false).put("code", "CAPABILITY_DISABLED").put("message", "Geolocation is disabled").toString()
+        val result = CraftNative.recordingAction(activity, method, optionsJson)
+            ?: CraftLocationRecordingStore.perform(activity, method, optionsJson)
+        if (method == "startRecording" && JSONObject(result).optBoolean("ok")) {
+            CraftLocationRecordingStore.listener = { location, id ->
+                val detail = mapOf<String, Any>("latitude" to location.latitude, "longitude" to location.longitude,
+                    "accuracy" to location.accuracy, "altitude" to location.altitude, "speed" to location.speed,
+                    "heading" to location.bearing, "timestamp" to location.time, "recordingId" to id)
+                sendEvent("craftLocationUpdate", detail)
+                CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", JSONObject(detail)))
+            }
         }
-        val id = UUID.randomUUID().toString()
-        CraftLocationRecordingStore.start(activity, id, System.currentTimeMillis())
-        ContextCompat.startForegroundService(
-            activity,
-            Intent(activity, LocationRecordingService::class.java).setAction(LocationRecordingService.ACTION_START)
-        )
-        return CraftLocationRecordingStore.state(activity).toString()
+        return result
+    }
+
+    private fun legacyRecordingAction(method: String, optionsJson: String = "{}"): String {
+        val answer = JSONObject(recordingAction(method, optionsJson))
+        if (!answer.optBoolean("ok")) throw com.craft.runtime.CraftRecordingException(answer.optString("code"), answer.optString("message"))
+        return answer.get("data").toString()
+    }
+
+    @JavascriptInterface
+    fun startLocationRecording(optionsJson: String): String {
+        return legacyRecordingAction("startRecording", optionsJson)
     }
 
     @JavascriptInterface
     fun pauseLocationRecording(): String {
-        CraftNative.pauseLocationRecording(activity)?.let { return it }
-
-        CraftLocationRecordingStore.setPaused(activity, true)
-        return CraftLocationRecordingStore.state(activity).toString()
+        return legacyRecordingAction("pauseRecording")
     }
 
     @JavascriptInterface
     fun resumeLocationRecording(): String {
-        CraftNative.resumeLocationRecording(activity)?.let { return it }
-
-        CraftLocationRecordingStore.setPaused(activity, false)
-        if (CraftLocationRecordingStore.isActive(activity)) {
-            ContextCompat.startForegroundService(
-                activity,
-                Intent(activity, LocationRecordingService::class.java).setAction(LocationRecordingService.ACTION_START)
-            )
-        }
-        return CraftLocationRecordingStore.state(activity).toString()
+        return legacyRecordingAction("resumeRecording")
     }
 
     @JavascriptInterface
     fun stopLocationRecording(): String {
-        CraftNative.stopLocationRecording(activity)?.let { return it }
-
-        CraftLocationRecordingStore.stop(activity)
-        val result = CraftLocationRecordingStore.state(activity, includeLocations = true).toString()
-        activity.stopService(Intent(activity, LocationRecordingService::class.java).setAction(LocationRecordingService.ACTION_STOP))
-        return result
+        return legacyRecordingAction("stopRecording")
     }
 
     @JavascriptInterface
     fun getLocationRecordingState(): String {
-        // Null is "Zig declined", not "no recording" — an absent recording is
-        // a state object saying so, and returning it here is the answer.
-        CraftNative.getLocationRecordingState(activity)?.let { return it }
-
-        return CraftLocationRecordingStore.state(activity).toString()
+        return legacyRecordingAction("getRecordingState")
     }
 
     @JavascriptInterface
     fun readLocationRecording(): String {
-        CraftNative.readLocationRecording(activity)?.let { return it }
-
-        return CraftLocationRecordingStore.locations(activity).toString()
+        return legacyRecordingAction("readRecording")
     }
 
     // ==================== Clipboard ====================

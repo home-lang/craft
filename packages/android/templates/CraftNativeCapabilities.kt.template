@@ -142,7 +142,7 @@ internal class CraftNativeCapabilities(
                 if (!config.optBoolean("enableBluetooth")) complete(requestToken, failure("CAPABILITY_DISABLED", "Bluetooth is disabled"), completion)
                 else bluetooth.perform(method, args) { complete(requestToken, it, completion) }
             }
-            "Storage" -> complete(requestToken, storage(method, args), completion)
+            "Storage" -> mainHandler.post { complete(requestToken, storage(method, args), completion) }
             "SecureStorage" -> {
                 if (!config.optBoolean("enableSecureStorage")) complete(requestToken, failure("CAPABILITY_DISABLED", "Secure storage is disabled"), completion)
                 else complete(requestToken, secureStorage(method, args), completion)
@@ -650,7 +650,7 @@ internal class CraftNativeCapabilities(
 
     private fun storage(method: String, args: JSONArray): CraftNativeCapabilityResult {
         if (method == "clear") {
-            storage.edit().clear().commit()
+            if (!storage.edit().clear().commit()) return failure("STORAGE_ERROR", "Storage could not be cleared")
             storeObserver?.invoke("storage", null, null)
             return success(true)
         }
@@ -672,7 +672,10 @@ internal class CraftNativeCapabilities(
                 }
                 else failure("STORAGE_ERROR", "Storage could not persist the value")
             }
-            "remove" -> success(storage.edit().remove(key).commit().also { storeObserver?.invoke("storage", key, null) })
+            "remove" -> if (storage.edit().remove(key).commit()) {
+                storeObserver?.invoke("storage", key, null)
+                success(true)
+            } else failure("STORAGE_ERROR", "Storage could not remove the value")
             else -> failure("UNKNOWN_ACTION", "Unsupported Storage method")
         }
     }

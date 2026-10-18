@@ -1427,8 +1427,8 @@ describe('Craft Android builder', () => {
     expect(service).toContain('CraftLocationRecordingStore.append')
     expect(service).toContain('else -> if (!startUpdates())')
     expect(service).toContain('.addOnFailureListener')
-    expect(service).toContain('CraftLocationRecordingStore.stop(this)')
-    expect(service).toContain('stopSelf()')
+    expect(service).toContain('CraftLocationRecordingStore.finish(this, JSONObject().put("expectedId", id))')
+    expect(service).toContain('stopSelfResult(startId)')
     expect(bridge).toContain('startRecording: function(options)')
     expect(bridge).toContain('fun stopLocationRecording()')
     expect(manifest).toContain('android:name="com.craft.runtime.LocationRecordingService"')
@@ -1609,13 +1609,15 @@ describe('Craft Android builder', () => {
     expect(bridge).not.toContain('Promise.resolve(JSON.parse(CraftAndroid')
     for (const guardedCall of [
       'Promise.resolve().then(function() { return CraftAndroid.checkPermission(String(permission)); })',
-      'Promise.resolve().then(function() { return JSON.parse(CraftAndroid.startLocationRecording(JSON.stringify(options || {}))); })',
       'Promise.resolve().then(function() { return legacySecureStore.get(key); })',
       'Promise.resolve().then(function() { return window.craft.notifications.cancel(id); })',
     ]) {
       expect(bridge).toContain(guardedCall)
     }
     expect(bridge).toContain('return {reachable: CraftAndroid.isWatchReachable()};')
+    expect(bridge).toContain('function recordingCall(method, options)')
+    expect(bridge).toContain("return recordingCall('startRecording', options)")
+    expect(bridge).toContain('var result = JSON.parse(CraftAndroid.recordingAction(method, JSON.stringify(options || {})))')
   })
 
   it('rejects Bluetooth scans that never reach the platform scanner', async () => {
