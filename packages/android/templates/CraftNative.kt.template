@@ -230,6 +230,7 @@ object CraftNative {
     }
 
     private external fun nativeGetDeviceInfo(activity: Activity): String?
+    private external fun nativeRandomUUID(): String?
     private external fun nativeGetMemoryUsage(): String?
     private external fun nativeLog(message: String): Boolean
     private external fun nativeFlexRow(
@@ -487,6 +488,11 @@ object CraftNative {
         } catch (e: UnsatisfiedLinkError) {
             null
         }
+    }
+
+    fun randomUUID(): String? {
+        if (!isAvailable) return null
+        return try { nativeRandomUUID() } catch (_: UnsatisfiedLinkError) { null }
     }
 
     /** The JVM heap as JSON, or null to use the Kotlin implementation. */

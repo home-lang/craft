@@ -1869,7 +1869,7 @@ class CraftBridge(
     }
 
     @JavascriptInterface
-    fun randomUUID(): String = java.util.UUID.randomUUID().toString()
+    fun randomUUID(): String = CraftNative.randomUUID() ?: java.util.UUID.randomUUID().toString()
 
     // ==================== Haptics ====================
 

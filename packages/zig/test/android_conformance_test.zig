@@ -200,6 +200,7 @@ fn collectZigActions(allocator: std.mem.Allocator) !std.StringHashMap(void) {
                 );
                 return error.ActionDeclaredTwice;
             }
+            if (std.mem.eql(u8, name, "randomUUID") and !directCryptoRoute(android_spec, native_holder, dispatch_source)) continue;
             try set.put(name, {});
         }
     }
@@ -216,6 +217,30 @@ fn scopedContains(source: []const u8, marker: []const u8, ending: []const u8, ne
     const start = std.mem.indexOf(u8, source, marker) orelse return false;
     const end = std.mem.indexOfPos(u8, source, start + marker.len, ending) orelse return false;
     return std.mem.indexOf(u8, source[start..end], needle) != null;
+}
+
+fn directCryptoRoute(page: []const u8, holder: []const u8, native: []const u8) bool {
+    return scopedContains(page, "fun randomUUID(", "\n", "CraftNative.randomUUID()") and
+        scopedContains(holder, "fun randomUUID(", "\n    }", "nativeRandomUUID()") and
+        scopedContains(native, ".name = \"nativeRandomUUID\"", "\n    },", ".fnPtr = @ptrCast(&nativeRandomUUID)") and
+        scopedContains(native, "fn nativeRandomUUID(", "\n}", "@import(\"platform_uuid.zig\").android(j, allocator)");
+}
+
+test "secure UUID migration requires every independently intact JNI link" {
+    try testing.expect(directCryptoRoute(android_spec, native_holder, dispatch_source));
+    const a = testing.allocator;
+    const page = try std.mem.replaceOwned(u8, a, android_spec, "CraftNative.randomUUID()", "otherUUID()");
+    defer a.free(page);
+    try testing.expect(!directCryptoRoute(page, native_holder, dispatch_source));
+    const holder = try std.mem.replaceOwned(u8, a, native_holder, "return try { nativeRandomUUID() }", "return try { otherUUID() }");
+    defer a.free(holder);
+    try testing.expect(!directCryptoRoute(android_spec, holder, dispatch_source));
+    const binding = try std.mem.replaceOwned(u8, a, dispatch_source, ".fnPtr = @ptrCast(&nativeRandomUUID)", ".fnPtr = @ptrCast(&otherUUID)");
+    defer a.free(binding);
+    try testing.expect(!directCryptoRoute(android_spec, native_holder, binding));
+    const implementation = try std.mem.replaceOwned(u8, a, dispatch_source, "@import(\"platform_uuid.zig\").android(j, allocator)", "otherUUID(j, allocator)");
+    defer a.free(implementation);
+    try testing.expect(!directCryptoRoute(android_spec, native_holder, implementation));
 }
 
 fn directRecordingRoute(page: []const u8, holder: []const u8, native: []const u8) bool {
