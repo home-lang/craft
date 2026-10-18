@@ -1,5 +1,3 @@
-import { androidMapHost, type AndroidMapProvider } from './native-map'
-export type { AndroidMapProvider } from './native-map'
 /**
  * Craft Android Builder
  *
@@ -9,8 +7,10 @@ export type { AndroidMapProvider } from './native-map'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { $ } from 'bun'
+import { androidMapHost, type AndroidMapProvider } from './native-map'
 import { renderAndroidPromiseRuntime } from './promise-runtime'
 
+export type { AndroidMapProvider } from './native-map'
 export { runKotlinFixture } from './testing.js'
 export { createAndroidEmulator } from './emulator.js'
 export type { AndroidEmulatorOptions, AndroidEmulatorSession } from './emulator.js'

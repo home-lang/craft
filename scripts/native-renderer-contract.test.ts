@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'bun:test'
+import { androidMapHost } from '../packages/android/src/native-map'
 
 const root = join(import.meta.dir, '..')
 const ios = readFileSync(join(root, 'packages/ios/templates/CraftNativeScreen.swift'), 'utf8')
@@ -11,6 +12,8 @@ const iosHealth = readFileSync(join(root, 'packages/ios/templates/CraftHealth.sw
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
+  .replace('{{NATIVE_MAP_HOST}}', () => readFileSync(join(root, 'packages/android/templates', androidMapHost('google').template), 'utf8'))
+  .replace('{{NATIVE_MAP_IMPORTS}}', () => androidMapHost('google').imports)
 const androidMutation = readFileSync(join(root, 'packages/android/templates/CraftNativeMutation.kt.template'), 'utf8')
 const androidBuild = readFileSync(join(root, 'packages/android/templates/build.gradle.kts.app.template'), 'utf8')
 const androidBuilder = readFileSync(join(root, 'packages/android/src/index.ts'), 'utf8')
@@ -568,9 +571,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('override fun onLowMemory()')
     expect(android).toContain('mapViews().forEach { it.lowMemory() }')
     expect(android).toContain('released.filterIsInstance<CraftNativeMapView>().forEach { it.destroy() }')
-    expect(androidBuild).toContain('{{GOOGLE_MAPS_DEPENDENCY}}')
+    expect(androidBuild).toContain('{{NATIVE_MAP_DEPENDENCY}}')
     expect(androidBuilder).toContain('mapsApiKey?: string')
-    expect(androidBuilder).toContain(".replace(/\\{\\{GOOGLE_MAPS_DEPENDENCY\\}\\}/g, config.renderer === 'native'")
+    expect(androidBuilder).toContain(".replace(/\\{\\{NATIVE_MAP_DEPENDENCY\\}\\}/g, config.renderer === 'native'")
     expect(androidBuilder).toContain('com.google.android.geo.API_KEY')
     expect(androidManifest).toContain('{{GOOGLE_MAPS_API_KEY}}')
     expect(guide).toContain('| `Map` | `CraftNativeMapView` (`MKMapView`) |')
