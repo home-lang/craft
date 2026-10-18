@@ -2319,7 +2319,7 @@ fn readNSInteger(object: Id, comptime name: [*:0]const u8) c_long {
 const testing = std.testing;
 
 test "the declared actions are the ones the handler serves" {
-    try testing.expectEqual(@as(usize, 8), capability_actions.len);
+    try testing.expectEqual(@as(usize, 9), capability_actions.len);
     try testing.expectEqualStrings(A.get_current_position, capability_actions[0].name);
     try testing.expectEqualStrings(A.watch_position, capability_actions[1].name);
     try testing.expectEqualStrings(A.clear_watch, capability_actions[2].name);
@@ -2328,6 +2328,7 @@ test "the declared actions are the ones the handler serves" {
     try testing.expectEqualStrings(A.resume_location_recording, capability_actions[5].name);
     try testing.expectEqualStrings(A.stop_location_recording, capability_actions[6].name);
     try testing.expectEqualStrings(A.get_location_recording_state, capability_actions[7].name);
+    try testing.expectEqualStrings(A.acknowledge_location_recording, capability_actions[8].name);
 
     for (capability_actions) |decl| {
         // A `.result` whose handler never replies parks the caller until its

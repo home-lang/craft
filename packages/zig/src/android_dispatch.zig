@@ -2954,7 +2954,7 @@ fn nativeRecordingOwnershipVersion(_: jni.JNIEnv, _: jni.jobject) callconv(.c) j
 }
 
 fn nativeRecordingAction(env: jni.JNIEnv, _: jni.jobject, activity: jni.jobject, method: jni.jstring, options: jni.jstring) callconv(.c) jni.jstring {
-    return recordingStoreCall(Jni.init(env), activity, method, options) catch null;
+    return recordingStoreCall(Jni.init(env), activity, method, options) catch |err| return fellThrough("recordingAction", err, null);
 }
 
 fn legacyRecordingStore(j: Jni, activity: jni.jobject, comptime method: [:0]const u8) jni.jstring {

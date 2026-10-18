@@ -203,7 +203,48 @@ fn collectZigActions(allocator: std.mem.Allocator) !std.StringHashMap(void) {
             try set.put(name, {});
         }
     }
+    // This entry returns its structured reply synchronously through JNI rather
+    // than the older A-block/page callback dispatcher. Require the complete
+    // page -> holder -> registered native -> canonical store chain; merely
+    // naming a Kotlin method cannot lower the migration ratchet.
+    if (directRecordingRoute(android_spec, native_holder, dispatch_source))
+        try set.put("recordingAction", {});
     return set;
+}
+
+fn scopedContains(source: []const u8, marker: []const u8, ending: []const u8, needle: []const u8) bool {
+    const start = std.mem.indexOf(u8, source, marker) orelse return false;
+    const end = std.mem.indexOfPos(u8, source, start + marker.len, ending) orelse return false;
+    return std.mem.indexOf(u8, source[start..end], needle) != null;
+}
+
+fn directRecordingRoute(page: []const u8, holder: []const u8, native: []const u8) bool {
+    return scopedContains(page, "fun recordingAction(", "\n    }", "CraftNative.recordingAction(activity, method, optionsJson)") and
+        scopedContains(holder, "fun recordingAction(", "\n    }", "nativeRecordingAction(activity, method, options)") and
+        scopedContains(native, ".name = \"nativeRecordingAction\"", "\n    },", ".fnPtr = @ptrCast(&nativeRecordingAction)") and
+        scopedContains(native, "fn nativeRecordingAction(", "\n}", "return recordingStoreCall(Jni.init(env), activity, method, options)") and
+        scopedContains(native, "fn recordingStoreCall(", "\n}", "j.findClass(\"com/craft/runtime/CraftLocationRecordingStore\")") and
+        scopedContains(native, "fn recordingStoreCall(", "\n}", "j.staticMethodId(cls, \"perform\"");
+}
+
+test "a direct recording JNI route requires every independently intact link" {
+    try testing.expect(directRecordingRoute(android_spec, native_holder, dispatch_source));
+    const page = try std.mem.replaceOwned(u8, testing.allocator, android_spec, "CraftNative.recordingAction(activity, method, optionsJson)", "otherAction(activity, method, optionsJson)");
+    defer testing.allocator.free(page);
+    try testing.expect(!directRecordingRoute(page, native_holder, dispatch_source));
+    const holder = try std.mem.replaceOwned(u8, testing.allocator, native_holder, "nativeRecordingAction(activity, method, options)", "otherNativeAction(activity, method, options)");
+    defer testing.allocator.free(holder);
+    try testing.expect(!directRecordingRoute(android_spec, holder, dispatch_source));
+    inline for (.{
+        .{ ".fnPtr = @ptrCast(&nativeRecordingAction)", ".fnPtr = @ptrCast(&otherAction)" },
+        .{ "return recordingStoreCall(Jni.init(env), activity, method, options)", "return null" },
+        .{ "com/craft/runtime/CraftLocationRecordingStore", "com/craft/runtime/OtherStore" },
+        .{ "j.staticMethodId(cls, \"perform\"", "j.staticMethodId(cls, \"other\"" },
+    }) |mutation| {
+        const changed = try std.mem.replaceOwned(u8, testing.allocator, dispatch_source, mutation[0], mutation[1]);
+        defer testing.allocator.free(changed);
+        try testing.expect(!directRecordingRoute(android_spec, native_holder, changed));
+    }
 }
 
 const Deferral = struct {
