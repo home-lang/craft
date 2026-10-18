@@ -5,6 +5,79 @@ import XCTest
 /// A real strap needs a phone; the payloads here are the ones straps send.
 @MainActor
 final class HeartRateUnitTests: XCTestCase {
+    private func recordingCall(_ monitor: CraftHeartRate, _ method: String, _ options: [String: Any] = [:]) async throws -> Any {
+        try await withCheckedThrowingContinuation { continuation in
+            monitor.perform(method: method, args: [options]) { result in
+                switch result {
+                case .success(let value): continuation.resume(returning: value)
+                case .failure(let error): continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    func testStartingAgainPreservesTheActiveRecordingAndItsPersistedSamples() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let first = CraftHeartRate(recordingDirectory: directory)
+        let initial = try await recordingCall(first, "startRecording") as? [String: Any]
+        let id = try XCTUnwrap(initial?["id"] as? String)
+        let samples = Data("{\"timestamp\":1000,\"bpm\":140}\n".utf8)
+        let file = directory.appendingPathComponent("craft-heart-rate-recording.jsonl")
+        try samples.write(to: file)
+        // Restore through the production disk reader, as after account handoff or relaunch.
+        let restored = CraftHeartRate(recordingDirectory: directory)
+        do {
+            _ = try await recordingCall(restored, "startRecording")
+            XCTFail("a second start replaced an active recording")
+        } catch let error as CraftHeartRateError {
+            XCTAssertEqual(error.code, "RECORDING_ALREADY_ACTIVE")
+        }
+        let state = try await recordingCall(restored, "getRecordingState") as? [String: Any]
+        XCTAssertEqual(state?["id"] as? String, id)
+        XCTAssertEqual(state?["active"] as? Bool, true)
+        XCTAssertEqual(state?["sampleCount"] as? Int, 1)
+        XCTAssertEqual(try Data(contentsOf: file), samples)
+    }
+
+    func testStaleIdentityCannotReadPauseResumeOrStopAnotherRecording() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let monitor = CraftHeartRate(recordingDirectory: directory)
+        let first = try await recordingCall(monitor, "startRecording") as? [String: Any]
+        let oldId = try XCTUnwrap(first?["id"] as? String)
+        _ = try await recordingCall(monitor, "stopRecording", ["expectedId": oldId])
+        let second = try await recordingCall(monitor, "startRecording") as? [String: Any]
+        let newId = try XCTUnwrap(second?["id"] as? String)
+        XCTAssertNotEqual(oldId, newId)
+        let samples = Data("{\"timestamp\":2000,\"bpm\":150}\n".utf8)
+        let file = directory.appendingPathComponent("craft-heart-rate-recording.jsonl")
+        try samples.write(to: file)
+        let restored = CraftHeartRate(recordingDirectory: directory)
+        for method in ["pauseRecording", "resumeRecording", "stopRecording", "readRecording"] {
+            do {
+                _ = try await recordingCall(restored, method, ["expectedId": oldId])
+                XCTFail("\(method) accepted a stale owner")
+            } catch let error as CraftHeartRateError {
+                XCTAssertEqual(error.code, "RECORDING_CONFLICT", method)
+            }
+            let state = try await recordingCall(restored, "getRecordingState") as? [String: Any]
+            XCTAssertEqual(state?["id"] as? String, newId, method)
+            XCTAssertEqual(state?["active"] as? Bool, true, method)
+            XCTAssertEqual(state?["paused"] as? Bool, false, method)
+            XCTAssertEqual(try Data(contentsOf: file), samples, method)
+        }
+        _ = try await recordingCall(restored, "pauseRecording", ["expectedId": newId])
+        _ = try await recordingCall(restored, "resumeRecording", ["expectedId": newId])
+        let read = try await recordingCall(restored, "readRecording", ["expectedId": newId]) as? [[String: Any]]
+        XCTAssertEqual(read?.first?["bpm"] as? Int, 150)
+        let stopped = try await recordingCall(restored, "stopRecording", ["expectedId": newId]) as? [String: Any]
+        XCTAssertEqual(stopped?["id"] as? String, newId)
+        XCTAssertEqual(stopped?["active"] as? Bool, false)
+        XCTAssertEqual((stopped?["samples"] as? [[String: Any]])?.count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+
     func testAUint8RateWithNothingElse() {
         XCTAssertEqual(CraftHeartRateMeasurement.parse([0x00, 72]), CraftHeartRateMeasurement(bpm: 72, sensorContact: nil, energyExpended: nil, rrIntervals: []))
     }

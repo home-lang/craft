@@ -136,9 +136,11 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     static let maxRecordedSamples = 50_000
 
     private let clock: () -> Date
+    private let recordingDirectory: URL?
 
-    init(now: @escaping () -> Date = Date.init) {
+    init(now: @escaping () -> Date = Date.init, recordingDirectory: URL? = nil) {
         self.clock = now
+        self.recordingDirectory = recordingDirectory
         super.init()
     }
 
@@ -712,7 +714,7 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     // MARK: Recording
 
     private var directory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        recordingDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
     }
     private var stateURL: URL { directory.appendingPathComponent("craft-heart-rate-recording-state.json") }
     private var samplesURL: URL { directory.appendingPathComponent("craft-heart-rate-recording.jsonl") }
