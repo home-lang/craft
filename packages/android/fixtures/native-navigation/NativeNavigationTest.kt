@@ -584,6 +584,8 @@ class NativeNavigationTest {
                 ))).tabs.single()
                 val configuredChrome = CraftNativeChrome(activity, listOf(configured))
                 assertEquals(CraftTabIconAppearance("heart.fill", Color.parseColor("#ff3b30"), false), configuredChrome.tabIconAppearance(0, true))
+                val blankChrome = CraftNativeChrome(activity, listOf(configured.copy(selectedSymbol = " \n ")))
+                assertEquals("heart", blankChrome.tabIconAppearance(0, true).symbol)
                 fun patch(item: org.json.JSONObject) {
                     chrome.apply(org.json.JSONObject().put("tabItem", item.put("id", "/")), 0, "Home")
                 }
@@ -600,6 +602,10 @@ class NativeNavigationTest {
                 assertTrue("inactive tab kept its selected symbol", chrome.tabIconAppearance(0, true).symbol != "heart.fill")
                 assertTrue("inactive tab retained its animation", icon.animation == null)
                 chrome.selectTab(0)
+                patch(org.json.JSONObject().put("selectedSymbol", " \n "))
+                assertTrue("blank overrides must restore the base symbol", chrome.tabIconAppearance(0, true).symbol != "heart.fill")
+                patch(org.json.JSONObject().put("selectedSymbol", " heart.fill "))
+                assertEquals("heart.fill", chrome.tabIconAppearance(0, true).symbol)
                 patch(org.json.JSONObject().put("title", "145 bpm").put("iconTint", "#ff3b30").put("iconPulse", true))
                 patch(org.json.JSONObject().put("title", org.json.JSONObject.NULL).put("iconTint", org.json.JSONObject.NULL).put("iconPulse", false))
                 assertEquals("Home", (cell.getChildAt(1) as TextView).text.toString())

@@ -635,6 +635,11 @@ final class CraftChrome: ObservableObject {
         var selectedIconTint: String? = nil
         var selectedIconPulse: Bool? = nil
 
+        static func normalizedSelectedSymbol(_ value: String?) -> String? {
+            guard let name = value?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+            return name
+        }
+
         func iconAppearance(selected: Bool, motionAllowed: Bool) -> (symbol: String, tint: String?, pulse: Bool) {
             let name = selected ? selectedSymbol ?? symbol : symbol
             let tint = selected ? selectedIconTint ?? iconTint : iconTint
@@ -695,7 +700,7 @@ final class CraftChrome: ObservableObject {
         splashVisible = splash
         tabSwipeEnabled = true
         guard !configured.isEmpty else { return }
-        tabs = configured.map { Tab(id: $0.id, title: $0.title, symbol: $0.symbol ?? "circle", badge: nil, selectedSymbol: $0.selectedSymbol, selectedIconTint: $0.selectedIconTint, selectedIconPulse: $0.selectedIconPulse) }
+        tabs = configured.map { Tab(id: $0.id, title: $0.title, symbol: $0.symbol ?? "circle", badge: nil, selectedSymbol: Tab.normalizedSelectedSymbol($0.selectedSymbol), selectedIconTint: $0.selectedIconTint, selectedIconPulse: $0.selectedIconPulse) }
         self.selected = selected ?? configured.first?.id
         tabBarVisible = true
     }
@@ -725,7 +730,7 @@ final class CraftChrome: ObservableObject {
             next.iconPulse = item["iconPulse"] as? Bool ?? false
         }
         if item.keys.contains("selectedSymbol") {
-            next.selectedSymbol = (item["selectedSymbol"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            next.selectedSymbol = Tab.normalizedSelectedSymbol(item["selectedSymbol"] as? String)
         }
         if item.keys.contains("selectedIconTint") {
             next.selectedIconTint = (item["selectedIconTint"] as? String).flatMap { UIColor(hex: $0) == nil ? nil : $0 }
@@ -788,7 +793,7 @@ final class CraftChrome: ObservableObject {
                 guard let id = item["id"] as? String, let title = item["title"] as? String else { return nil }
                 let badge = (item["badge"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 return Tab(id: id, title: title, symbol: item["symbol"] as? String ?? "circle", badge: badge,
-                    selectedSymbol: (item["selectedSymbol"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                    selectedSymbol: Tab.normalizedSelectedSymbol(item["selectedSymbol"] as? String),
                     selectedIconTint: (item["selectedIconTint"] as? String).flatMap { UIColor(hex: $0) == nil ? nil : $0 },
                     selectedIconPulse: item["selectedIconPulse"] as? Bool)
             }

@@ -122,8 +122,8 @@ navigation.setOptions({
 
 Omitted fields preserve their current policy. Explicit `false` disables the
 selected pulse even when legacy `iconPulse` is true. A dynamic `null` clears
-an override and restores the legacy icon policy; empty symbols and invalid
-tints also clear their respective overrides. Nonselected tabs retain legacy
+an override and restores the legacy icon policy; symbol names are trimmed,
+blank symbols and invalid tints also clear their respective overrides. Nonselected tabs retain legacy
 `iconTint` / `iconPulse` behavior, including live sensor styling. Native
 animation is suppressed by reduced-motion settings, inactive scenes or
 windows, and a hidden tab bar. Text icons and profile images keep their

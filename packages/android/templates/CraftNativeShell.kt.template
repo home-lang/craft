@@ -113,7 +113,7 @@ internal class CraftNativeRoutes(config: JSONObject) {
             val tab = list.optJSONObject(index) ?: continue
             val id = tab.optString("id").takeIf { it.isNotBlank() } ?: continue
             add(CraftNativeTab(normalize(id), tab.optString("title", id), tab.optString("symbol"),
-                tab.optString("selectedSymbol").takeUnless { tab.isNull("selectedSymbol") || it.isBlank() },
+                tab.optString("selectedSymbol").trim().takeUnless { tab.isNull("selectedSymbol") || it.isBlank() },
                 tab.optString("selectedIconTint").takeUnless { tab.isNull("selectedIconTint") || it.isBlank() },
                 if (tab.opt("selectedIconPulse") is Boolean) tab.optBoolean("selectedIconPulse") else null))
         }
@@ -716,7 +716,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         tabBar.orientation = HORIZONTAL
         tabBar.gravity = Gravity.CENTER
         tabs.forEachIndexed { index, tab ->
-            tab.selectedSymbol?.takeIf { it.isNotBlank() }?.let { selectedSymbols[tab.id] = it }
+            tab.selectedSymbol?.trim()?.takeIf { it.isNotEmpty() }?.let { selectedSymbols[tab.id] = it }
             tab.selectedIconTint?.let { runCatching { Color.parseColor(it) }.getOrNull() }?.let { selectedIconTints[tab.id] = it }
             tab.selectedIconPulse?.let { selectedIconPulses[tab.id] = it }
             val cell = LinearLayout(context)
@@ -885,7 +885,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         }
         if (item.has("selectedSymbol")) {
             selectedSymbols.remove(id)
-            item.optString("selectedSymbol").takeUnless { item.isNull("selectedSymbol") || it.isBlank() }?.let { selectedSymbols[id] = it }
+            item.optString("selectedSymbol").trim().takeUnless { item.isNull("selectedSymbol") || it.isBlank() }?.let { selectedSymbols[id] = it }
         }
         if (item.has("selectedIconTint")) {
             selectedIconTints.remove(id)
