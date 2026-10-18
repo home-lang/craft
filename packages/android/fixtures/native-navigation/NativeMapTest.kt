@@ -186,21 +186,35 @@ class NativeMapTest {
             assertEquals(3, features(map).size)
         }
         // Inspect the actual rendered pin, not just the JSON property sent to GL.
-        val location = main {
-            val screen = map.projection.toScreenLocation(LatLng(47.0, 11.0))
-            val origin = IntArray(2).also { host.getLocationOnScreen(it) }
-            (screen.x.toInt() + origin[0]) to (screen.y.toInt() + origin[1])
+        // A native source query can observe new feature properties before the
+        // compositor presents that frame. Require the actual requested color,
+        // using a fresh projection for each capture while the camera settles.
+        val deadline = SystemClock.uptimeMillis() + 45_000
+        var location: Pair<Int, Int>? = null
+        var lastPixel = Color.TRANSPARENT
+        while (SystemClock.uptimeMillis() < deadline && location == null) {
+            val candidate = main {
+                val screen = map.projection.toScreenLocation(LatLng(47.0, 11.0))
+                val origin = IntArray(2).also { host.getLocationOnScreen(it) }
+                (screen.x.toInt() + origin[0]) to (screen.y.toInt() + origin[1])
+            }
+            val image = instrumentation.uiAutomation.takeScreenshot() ?: throw AssertionError("Native screenshot unavailable")
+            try {
+                lastPixel = image.getPixel(candidate.first, candidate.second)
+                if (kotlin.math.abs(Color.red(lastPixel) - 40) <= 8 &&
+                    kotlin.math.abs(Color.green(lastPixel) - 120) <= 8 &&
+                    kotlin.math.abs(Color.blue(lastPixel) - 200) <= 8) location = candidate
+            } finally { image.recycle() }
+            if (location == null) SystemClock.sleep(100)
         }
-        val image = instrumentation.uiAutomation.takeScreenshot() ?: throw AssertionError("Native screenshot unavailable")
-        try {
-            val pixel = image.getPixel(location.first, location.second)
-            assertEquals(40.0, Color.red(pixel).toDouble(), 8.0)
-            assertEquals(120.0, Color.green(pixel).toDouble(), 8.0)
-            assertEquals(200.0, Color.blue(pixel).toDouble(), 8.0)
-        } finally { image.recycle() }
+        if (location == null) evidence("map-mutated-pin-not-visible")
+        assertEquals("The compositor must show the new pin red channel", 40.0, Color.red(lastPixel).toDouble(), 8.0)
+        assertEquals("The compositor must show the new pin green channel", 120.0, Color.green(lastPixel).toDouble(), 8.0)
+        assertEquals("The compositor must show the new pin blue channel", 200.0, Color.blue(lastPixel).toDouble(), 8.0)
+        val tap = location ?: throw AssertionError("The updated native pin was never visible")
         val downAt = SystemClock.uptimeMillis()
         for (action in listOf(android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP)) {
-            val touch = android.view.MotionEvent.obtain(downAt, SystemClock.uptimeMillis(), action, location.first.toFloat(), location.second.toFloat(), 0)
+            val touch = android.view.MotionEvent.obtain(downAt, SystemClock.uptimeMillis(), action, tap.first.toFloat(), tap.second.toFloat(), 0)
             try { assertTrue(instrumentation.uiAutomation.injectInputEvent(touch, true)) } finally { touch.recycle() }
         }
         awaitState("Tapping the actual native pin must dispatch its stable marker ID") { pressed.get() == "start" }
