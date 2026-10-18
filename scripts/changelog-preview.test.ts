@@ -128,48 +128,57 @@ test('patch release uses the guarded changelog generator before committing', () 
   expect(project.scripts['changelog:generate']).toBe('bun scripts/generate-release-changelog.ts')
   expect(command).toContain('--no-changelog')
   expect(command).toContain('bun scripts/generate-release-changelog.ts')
-  expect(command).toContain('--files package.json,packages/zig/build.zig.zon,packages/zig/pantry.json')
+  expect(command).not.toContain('--files')
+  expect(command).toContain('bun scripts/release-version.ts --pending && bun scripts/generate-release-changelog.ts')
 })
 
-test('an explicit version commits and tags the guarded changelog without its duplicate generator', () => {
-  fixture((directory, git) => {
-    mkdirSync(join(directory, 'packages/zig'), { recursive: true })
-    writeFileSync(join(directory, 'packages/zig/build.zig.zon'), '.{ .version = "1.0.1", }')
-    writeFileSync(join(directory, 'packages/zig/pantry.json'), '{"version":"1.0.1"}')
-    git('add', 'packages')
-    git('commit', '-qm', 'chore: register native release metadata')
-    git('commit', '--allow-empty', '-qm', 'Merge pull request #326 from example/feature')
+function nativeWorkspace(directory: string, git: (...args: string[]) => string): string[] {
+  mkdirSync(join(directory, 'packages/zig'), { recursive: true })
+  mkdirSync(join(directory, 'packages/sdk'), { recursive: true })
+  writeFileSync(join(directory, 'package.json'), '{"name":"fixture","version":"1.0.1","workspaces":["packages/*"]}')
+  writeFileSync(join(directory, 'packages/sdk/package.json'), '{"name":"fixture-sdk","version":"1.0.0"}')
+  writeFileSync(join(directory, 'packages/zig/build.zig.zon'), '.{ .version = "1.0.0", }')
+  writeFileSync(join(directory, 'packages/zig/pantry.json'), '{"version":"1.0.0"}')
+  // This is the real repository's ignore rule; explicit additionalFiles must
+  // retain the tracked native manifest while recursive workspace discovery runs.
+  writeFileSync(join(directory, '.gitignore'), 'pantry\n')
+  writeFileSync(join(directory, 'bumpx.config.ts'), readFileSync(join(import.meta.dir, '..', 'bumpx.config.ts')))
+  git('add', '.')
+  git('commit', '-qm', 'chore: register native and workspace release metadata')
+  return ['package.json', 'packages/sdk/package.json', 'packages/zig/build.zig.zon', 'packages/zig/pantry.json']
+}
+
+test('the real release configuration versions every workspace and native manifest before tagging', () => {
+  for (const release of ['1.0.2', 'patch']) fixture((directory, git) => {
+    const paths = nativeWorkspace(directory, git)
     const bumpx = Bun.resolveSync('@stacksjs/bumpx/bin/cli.js', import.meta.dir)
     const generator = join(import.meta.dir, 'generate-release-changelog.ts')
+    const validator = join(import.meta.dir, 'release-version.ts')
+    // The validator must read the fixture checkout rather than its own source root.
+    mkdirSync(join(directory, 'scripts'))
+    writeFileSync(join(directory, 'scripts/release-version.ts'), readFileSync(validator))
+    git('add', 'scripts')
+    git('commit', '-qm', 'chore: install actual release validator')
     const result = Bun.spawnSync([
-      process.execPath, bumpx, '--recursive', '--files', 'package.json,packages/zig/build.zig.zon,packages/zig/pantry.json', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
-      '--execute', `${shellQuote(process.execPath)} ${shellQuote(generator)} && git add CHANGELOG.md`,
-      '1.0.2',
+      process.execPath, bumpx, '--recursive', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
+      '--execute', `${shellQuote(process.execPath)} scripts/release-version.ts --pending && ${shellQuote(process.execPath)} ${shellQuote(generator)} && git add CHANGELOG.md`, release,
     ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
     expect(result.exitCode, result.stderr.toString()).toBe(0)
     expect(git('tag', '--list', 'v1.0.2')).toBe('v1.0.2\n')
-    const notes = git('show', 'HEAD:CHANGELOG.md')
-    expect(notes).toContain('[Compare changes](https://github.com/example/fixture/compare/v1.0.0...v1.0.2)')
-    expect(notes.match(/\[#326\]\(https:\/\/github\.com\/example\/fixture\/issues\/326\)/g)).toHaveLength(1)
-    expect(JSON.parse(git('show', 'HEAD:packages/zig/pantry.json')).version).toBe('1.0.2')
-    expect(git('show', 'HEAD:packages/zig/build.zig.zon')).toContain('"1.0.2"')
+    for (const path of paths) expect(git('show', `HEAD:${path}`)).toContain('1.0.2')
+    expect(git('show', 'HEAD:CHANGELOG.md')).toContain('/compare/v1.0.0...v1.0.2)')
     expect(git('status', '--porcelain')).toBe('')
   })
 })
 
-test('the published release tool restores workspace and native versions when a required command fails', () => {
+test('the published release tool restores all workspace and native versions on a failed command', () => {
   fixture((directory, git) => {
-    mkdirSync(join(directory, 'packages/zig'), { recursive: true })
-    writeFileSync(join(directory, 'packages/zig/build.zig.zon'), '.{ .version = "1.0.1", }')
-    writeFileSync(join(directory, 'packages/zig/pantry.json'), '{"version":"1.0.1"}')
-    git('add', 'packages')
-    git('commit', '-qm', 'chore: register native release metadata')
+    const paths = nativeWorkspace(directory, git)
     const head = git('rev-parse', 'HEAD')
-    const paths = ['package.json', 'packages/zig/build.zig.zon', 'packages/zig/pantry.json']
     const before = paths.map(path => readFileSync(join(directory, path), 'utf8'))
     const bumpx = Bun.resolveSync('@stacksjs/bumpx/bin/cli.js', import.meta.dir)
     const result = Bun.spawnSync([
-      process.execPath, bumpx, 'patch', '--recursive', '--files', paths.join(','), '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
+      process.execPath, bumpx, 'patch', '--recursive', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
       '--execute', 'bun -e "process.exit(23)"',
     ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
     expect(result.exitCode).not.toBe(0)

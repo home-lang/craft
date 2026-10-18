@@ -79,7 +79,10 @@ if (import.meta.main) {
     console.log('Release checkout contains every tracked package manifest')
     process.exit(0)
   }
-  const version = checkReleaseVersion(root, process.env.GITHUB_REF ?? '')
+  const ref = process.argv.includes('--pending')
+    ? `refs/tags/v${JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version}`
+    : process.env.GITHUB_REF ?? ''
+  const version = checkReleaseVersion(root, ref)
   console.log(`Verified release v${version}`)
   if (process.env.GITHUB_OUTPUT)
     appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`)
