@@ -1,4 +1,4 @@
-import { copyFileSync } from 'node:fs'
+import { copyFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { Glob } from 'bun'
 import { bootSimulator, init, pickSimulator, type CraftConfig } from '../src/index'
@@ -113,8 +113,19 @@ function run(args: string[], cwd: string, label: string): void {
     stdout: 'inherit',
     stderr: 'inherit',
   })
-  if (result.exitCode !== 0)
+  if (result.exitCode !== 0) {
+    const bundleIndex = args.indexOf('-resultBundlePath')
+    const bundle = bundleIndex < 0 ? undefined : args[bundleIndex + 1]
+    if (args[0] === 'xcodebuild' && bundle && existsSync(bundle)) {
+      console.log('xcodebuild failed; reporting XCTest diagnostics before fixture cleanup')
+      for (const view of ['summary', 'tests']) {
+        Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', view, '--path', bundle], {
+          cwd, stdout: 'inherit', stderr: 'inherit',
+        })
+      }
+    }
     throw new Error(`${label} exited with ${result.exitCode}`)
+  }
 }
 
 /**
