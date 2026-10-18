@@ -2685,10 +2685,17 @@ private class CraftNativeFlowView: UIStackView {
                     ? max(0, content.height - (style.top ?? 0) - (style.bottom ?? 0))
                     : style.height?.resolve(content.height)
                 (fixedWidth, fixedHeight) = aspectDimensions(style, width: fixedWidth, height: fixedHeight)
-                let measured = CraftNativeFlexLayout.measure(child, width: fixedWidth, height: fixedHeight, maxWidth: content.width, maxHeight: content.height)
-                let x = style.left ?? (style.right.map { content.width - $0 - measured.width } ?? 0)
-                let y = style.top ?? (style.bottom.map { content.height - $0 - measured.height } ?? 0)
-                frames.append((child, CGRect(x: content.minX + x, y: content.minY + y, width: measured.width, height: measured.height)))
+                var measured = CraftNativeFlexLayout.measure(child, width: fixedWidth, height: fixedHeight, maxWidth: content.width, maxHeight: content.height)
+                let boundedWidth = clamp(measured.width, style.minWidth?.resolve(content.width), style.maxWidth?.resolve(content.width))
+                if abs(boundedWidth - measured.width) > 0.0001 {
+                    // A narrower label or container must wrap before its
+                    // height and bottom anchor are resolved.
+                    measured = CraftNativeFlexLayout.measure(child, width: boundedWidth, height: fixedHeight, maxWidth: content.width, maxHeight: content.height)
+                }
+                let boundedHeight = clamp(measured.height, style.minHeight?.resolve(content.height), style.maxHeight?.resolve(content.height))
+                let x = style.left ?? (style.right.map { content.width - $0 - boundedWidth } ?? 0)
+                let y = style.top ?? (style.bottom.map { content.height - $0 - boundedHeight } ?? 0)
+                frames.append((child, CGRect(x: content.minX + x, y: content.minY + y, width: boundedWidth, height: boundedHeight)))
             }
         }
         return (size, frames)

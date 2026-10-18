@@ -562,6 +562,29 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(after.maxX, before.maxX, accuracy: 1, "absolute sibling changed horizontal position")
     }
 
+    func testAbsoluteChildrenHonorSizeBoundsAndKeepTheirInsetAnchors() throws {
+        let controller = screen(box("root", style: ["height": 240], [
+            ["id": "expand", "type": "Button", "props": ["testID": "expand", "title": "+"],
+             "style": ["position": "absolute", "top": 12, "right": 12, "minWidth": 44, "minHeight": 44]],
+            box("bounded", style: ["position": "absolute", "right": 12, "bottom": 12, "width": 300, "height": 120, "maxWidth": "50%", "maxHeight": 60]),
+            text("wrapped", "An absolutely positioned label still wraps at its authored maximum width", style: ["position": "absolute", "left": 12, "top": 12, "maxWidth": 80, "fontSize": 17]),
+        ]))
+        settle(controller)
+        let root = try frame("root", in: controller)
+        let expand = try frame("expand", in: controller)
+        XCTAssertGreaterThanOrEqual(expand.width, 44)
+        XCTAssertEqual(expand.height, 44, accuracy: 0.5, "Floating buttons retain their minimum touch target")
+        XCTAssertEqual(expand.maxX, root.maxX - 12, accuracy: 0.5)
+        let bounded = try frame("bounded", in: controller)
+        XCTAssertEqual(bounded.width, root.width / 2, accuracy: 0.5)
+        XCTAssertEqual(bounded.height, 60, accuracy: 0.5)
+        XCTAssertEqual(bounded.maxX, root.maxX - 12, accuracy: 0.5)
+        XCTAssertEqual(bounded.maxY, root.maxY - 12, accuracy: 0.5)
+        let wrapped = try frame("wrapped", in: controller)
+        XCTAssertEqual(wrapped.width, 80, accuracy: 0.5)
+        XCTAssertGreaterThan(wrapped.height, 44, "Width bounds participate in intrinsic text measurement")
+    }
+
     func testAStyleUpdateIsAppliedInPlaceLayoutIncluded() throws {
         let controller = screen(box("root", style: ["padding": 10], [
             box("grows", style: ["height": 24, "marginHorizontal": 48]),
