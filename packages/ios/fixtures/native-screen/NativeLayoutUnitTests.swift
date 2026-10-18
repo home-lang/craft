@@ -601,7 +601,7 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(after.maxX, before.maxX, accuracy: 1, "absolute sibling changed horizontal position")
     }
 
-    func testAbsoluteChildrenHonorSizeBoundsAndKeepTheirInsetAnchors() throws {
+    func testAbsoluteChildrenHonorSizeBoundsAndKeepTheirInsetAnchors() async throws {
         let controller = screen(box("root", style: ["height": 240], [
             ["id": "expand", "type": "Button", "props": ["testID": "expand", "title": "+"],
              "style": ["position": "absolute", "top": 12, "right": 12, "minWidth": 44, "minHeight": 44]],
@@ -610,7 +610,7 @@ final class NativeLayoutUnitTests: XCTestCase {
             box("tall-ratio", style: ["position": "absolute", "left": 110, "top": 0, "height": 120, "aspectRatio": 2, "maxHeight": 60]),
             text("wrapped", "An absolutely positioned label still wraps at its authored maximum width", style: ["position": "absolute", "left": 12, "top": 12, "maxWidth": 80, "fontSize": 17]),
         ]))
-        settle(controller)
+        await settle(controller)
         let root = try frame("root", in: controller)
         let expand = try frame("expand", in: controller)
         XCTAssertGreaterThanOrEqual(expand.width, 44)
