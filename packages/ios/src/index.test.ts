@@ -192,6 +192,9 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('craft_native_layout_tree_v4')
     expect(nativeSwift).toContain('private static func treeFramesV4(')
     expect(nativeSwift).toContain('input.gridAutoRows = node.gridAutoRows.map')
+      expect(nativeSwift).toContain('craft_native_layout_tree_v5')
+      expect(nativeSwift).toContain('private static func treeFramesV5(')
+      expect(nativeSwift).toContain('input.gridRows = UInt32(max(0, node.gridRows ?? 0))')
     expect(nativeSwift).not.toContain('guard gridAutoRows == nil else { return nil }')
     expect(nativeSwift).toContain('offset.x - parentFrame.x')
     expect(nativeSwift).toContain('let maxContent = label.sizeThatFits(CGSize(width: unbounded, height: unbounded))')
@@ -862,6 +865,7 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('autoRowHeight: gridAutoRows.map { $0.resolve(innerHeight) ?? 0 }')
     expect(source).toContain('if containsGridAutoRows(root)')
     expect(source).toContain('gridAutoRows: nested?.gridAutoRows')
+      expect(source).toContain('gridRows: nested?.gridRows')
   })
 
   it('keeps native scroll views\' sticky headers stuck and scrolls to a target', async () => {
