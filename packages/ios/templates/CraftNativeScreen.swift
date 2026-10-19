@@ -3605,13 +3605,14 @@ private final class CraftNativeImageBackgroundView: UIImageView {
     }
 }
 
-private final class CraftNativeModalView: UIView {
+private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     let contentStack = CraftNativeFlowView()
     private let blocker = UIView()
+    private let backdropTap = UITapGestureRecognizer()
     private var renderedVisible = false
     private var dismissSuppressedByRequest = false
     private var animationGeneration = 0
-    var onRequestClose: (() -> Void)?
+    var onRequestClose: ((String) -> Void)?
 
     var transparent = false {
         didSet { blocker.backgroundColor = transparent ? .clear : UIColor.black.withAlphaComponent(0.32) }
@@ -3622,7 +3623,10 @@ private final class CraftNativeModalView: UIView {
         isUserInteractionEnabled = true
         blocker.isUserInteractionEnabled = true
         blocker.backgroundColor = UIColor.black.withAlphaComponent(0.32)
-        blocker.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(blockerTapped)))
+        backdropTap.addTarget(self, action: #selector(backdropTapped))
+        backdropTap.cancelsTouchesInView = false
+        backdropTap.delegate = self
+        addGestureRecognizer(backdropTap)
         addSubview(blocker)
         contentStack.backgroundColor = .clear
         addSubview(contentStack)
@@ -3699,11 +3703,11 @@ private final class CraftNativeModalView: UIView {
         onRequestClose = nil
     }
 
-    func requestClose() {
+    func requestClose(reason: String = "backdrop") {
         guard let onRequestClose else { return }
         dismissSuppressedByRequest = true
         isUserInteractionEnabled = false
-        onRequestClose()
+        onRequestClose(reason)
     }
 
     func consumeDismissSuppression() -> Bool {
@@ -3714,7 +3718,35 @@ private final class CraftNativeModalView: UIView {
 
     func clearDismissSuppression() { dismissSuppressedByRequest = false }
 
-    @objc private func blockerTapped() { requestClose() }
+    @objc private func backdropTapped() { requestClose(reason: "backdrop") }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard gestureRecognizer === backdropTap else { return true }
+        var candidate = touch.view
+        while let view = candidate, view !== self {
+            if view === blocker { return true }
+            if view is UIControl || !(view.gestureRecognizers?.isEmpty ?? true) { return false }
+            candidate = view.superview
+        }
+        return true
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
+        let contentPoint = contentStack.convert(point, from: self)
+        if contentStack.bounds.contains(contentPoint), let hit = contentStack.hitTest(contentPoint, with: event), hit !== contentStack {
+            // Flow/layout views occupy the modal's entire content rect, but a
+            // blank part of one must still be a scrim tap. Preserve touches
+            // only when the hit view (or one of its ancestors) actually owns
+            // a control or gesture recognizer.
+            var candidate: UIView? = hit
+            while let view = candidate, view !== contentStack {
+                if view is UIControl || !(view.gestureRecognizers?.isEmpty ?? true) { return hit }
+                candidate = view.superview
+            }
+        }
+        return blocker.hitTest(blocker.convert(point, from: self), with: event)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -6934,7 +6966,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if visible, wasVisible != true { positionModals() }
             modal.setVisible(visible, opacity: number(style["opacity"]) ?? 1, animationType: props["animationType"] as? String)
             modal.onRequestClose = nonEmptyHandler(events["onRequestClose"]).map { handler in
-                { [weak self] in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
+                { [weak self] reason in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["reason": reason]]) }
             }
             if visible { modal.clearDismissSuppression() }
             let suppressDismiss = !visible && modal.consumeDismissSuppression()

@@ -455,8 +455,8 @@ function modalDismissed() {
   modalStatus.set('modal dismissed')
 }
 
-function modalRequested() {
-  modalStatus.set('modal requested')
+function modalRequested(event) {
+  modalStatus.set(`modal requested ${event.reason || 'unknown'}`)
   modalVisible.set(false)
 }
 
