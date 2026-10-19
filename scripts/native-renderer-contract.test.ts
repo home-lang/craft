@@ -3165,6 +3165,9 @@ describe('native renderer component contract', () => {
   it('releases native video event bridges with the video view', () => {
     expect(android).toContain('onPictureInPictureChanged = null')
     expect(android).toContain('handlers = JSONObject()')
+    expect(android).toContain('setOnPreparedListener(null)')
+    expect(android).toContain('setOnCompletionListener(null)')
+    expect(android).toContain('setOnErrorListener(null)')
     expect(ios).toContain('playerController.delegate = nil')
     expect(ios).toContain('handlers.removeAll()')
     expect(ios).toContain('emit = nil')

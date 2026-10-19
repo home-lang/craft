@@ -732,6 +732,10 @@ Video teardown releases its event bridge and picture-in-picture callback on both
 hosts as playback stops, so a removed native video cannot retain its screen or
 deliver media events after recycling.
 
+Android also clears `VideoView`'s prepared, completion, and error listeners
+during that stop, preventing a late platform callback from reaching a released
+native node.
+
 Map teardown follows the same rule: iOS releases MapKit delegates, callbacks,
 markers, polylines, and tile overlays before a map leaves a row, then restores
 the delegate when that native view is adopted by a new row.

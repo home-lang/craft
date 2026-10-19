@@ -2998,6 +2998,12 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     fun stop() {
         // Released with its screen: nothing more is told to it.
         emit = null
+        // VideoView otherwise keeps these listener objects until its media
+        // player is replaced. Clear them before stopping so an asynchronous
+        // prepare/completion/error callback cannot outlive the native node.
+        setOnPreparedListener(null)
+        setOnCompletionListener(null)
+        setOnErrorListener(null)
         progressHandler.removeCallbacks(progressTick)
         stopPlayback()
         setPlaying(false)
