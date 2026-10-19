@@ -766,6 +766,8 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     private val tabIconTints = mutableMapOf<String, Int>()
     private val tabIconPulses = mutableSetOf<String>()
     private val selectedSymbols = mutableMapOf<String, String>()
+    /** The page's own symbol for a tab while it says so, in place of the configured one. */
+    private val tabSymbols = mutableMapOf<String, String>()
     private val selectedIconTints = mutableMapOf<String, Int>()
     private val selectedIconPulses = mutableMapOf<String, Boolean>()
     private val tabImageURLs = mutableMapOf<String, String>()
@@ -1000,6 +1002,10 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         if (item.has("iconPulse")) {
             if (item.optBoolean("iconPulse", false)) tabIconPulses.add(id) else tabIconPulses.remove(id)
         }
+        if (item.has("symbol")) {
+            tabSymbols.remove(id)
+            item.optString("symbol").trim().takeUnless { item.isNull("symbol") || it.isBlank() }?.let { tabSymbols[id] = it }
+        }
         if (item.has("selectedSymbol")) {
             selectedSymbols.remove(id)
             item.optString("selectedSymbol").trim().takeUnless { item.isNull("selectedSymbol") || it.isBlank() }?.let { selectedSymbols[id] = it }
@@ -1042,7 +1048,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         val tab = tabs[index]
         val selected = index == selectedTab
         return CraftTabIconAppearance(
-            if (selected) selectedSymbols[tab.id] ?: tab.symbol else tab.symbol,
+            if (selected) selectedSymbols[tab.id] ?: tabSymbols[tab.id] ?: tab.symbol else tabSymbols[tab.id] ?: tab.symbol,
             if (selected) selectedIconTints[tab.id] ?: tabIconTints[tab.id] else tabIconTints[tab.id],
             (if (selected) selectedIconPulses[tab.id] ?: tabIconPulses.contains(tab.id) else tabIconPulses.contains(tab.id)) && motionAllowed,
         )

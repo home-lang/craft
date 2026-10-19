@@ -648,6 +648,9 @@ final class CraftChrome: ObservableObject {
         var titleOverride: String? = nil
         var iconTint: String? = nil
         var iconPulse = false
+        /// The page's own symbol for the tab while it says so (a live
+        /// reading's filled heart), in place of the configured one.
+        var iconSymbol: String? = nil
         var selectedSymbol: String? = nil
         var selectedIconTint: String? = nil
         var selectedIconPulse: Bool? = nil
@@ -658,7 +661,7 @@ final class CraftChrome: ObservableObject {
         }
 
         func iconAppearance(selected: Bool, motionAllowed: Bool) -> (symbol: String, tint: String?, pulse: Bool) {
-            let name = selected ? selectedSymbol ?? symbol : symbol
+            let name = selected ? selectedSymbol ?? iconSymbol ?? symbol : iconSymbol ?? symbol
             let tint = selected ? selectedIconTint ?? iconTint : iconTint
             let pulse = selected ? selectedIconPulse ?? iconPulse : iconPulse
             return (name, tint, pulse && motionAllowed)
@@ -749,6 +752,9 @@ final class CraftChrome: ObservableObject {
         }
         if item.keys.contains("iconPulse") {
             next.iconPulse = item["iconPulse"] as? Bool ?? false
+        }
+        if item.keys.contains("symbol") {
+            next.iconSymbol = Tab.normalizedSelectedSymbol(item["symbol"] as? String)
         }
         if item.keys.contains("selectedSymbol") {
             next.selectedSymbol = Tab.normalizedSelectedSymbol(item["selectedSymbol"] as? String)

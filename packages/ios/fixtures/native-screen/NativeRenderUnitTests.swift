@@ -251,6 +251,33 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(celebration.isRunning, "all decoration is removed after the finite reveal")
     }
 
+    func testALiveReadingFillsTheTabIconSelectedOrNotAndGivesItBack() throws {
+        let chrome = CraftChrome.shared
+        let previous = chrome.tabs
+        let selected = chrome.selected
+        defer { chrome.tabs = previous; chrome.selected = selected }
+        chrome.tabs = [CraftChrome.Tab(id: "/health", title: "Health", symbol: "heart", badge: nil)]
+        chrome.selected = "/m"
+        // A strap's reading: a red, filled, pulsing heart with the bpm, open or not.
+        chrome.updateTab(["id": "/health", "symbol": "heart.fill", "title": "145 bpm", "iconTint": "#ff3b30", "iconPulse": true])
+        for open in [false, true] {
+            let look = chrome.tabs[0].iconAppearance(selected: open, motionAllowed: true)
+            XCTAssertEqual(look.symbol, "heart.fill")
+            XCTAssertEqual(look.tint, "#ff3b30")
+            XCTAssertTrue(look.pulse)
+        }
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "145 bpm")
+        // The reading goes: the configured heart, plain, open or not.
+        chrome.updateTab(["id": "/health", "symbol": NSNull(), "title": NSNull(), "iconTint": NSNull(), "iconPulse": false])
+        for open in [false, true] {
+            let look = chrome.tabs[0].iconAppearance(selected: open, motionAllowed: true)
+            XCTAssertEqual(look.symbol, "heart")
+            XCTAssertNil(look.tint)
+            XCTAssertFalse(look.pulse)
+        }
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "Health")
+    }
+
     func testSelectedTabIconPolicySurvivesLiveCaptionCleanupAndResetsExplicitly() throws {
         let configured = try JSONDecoder().decode(CraftConfig.Tab.self, from: Data(##"{"id":"/health","title":"Health","symbol":"heart","selectedSymbol":"heart.fill","selectedIconTint":"#ff3b30","selectedIconPulse":false}"##.utf8))
         XCTAssertEqual(configured.selectedSymbol, "heart.fill")
