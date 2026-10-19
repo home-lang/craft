@@ -208,8 +208,9 @@ and sends the selected option's `value` plus `index` through `onValueChange` or
 both hosts.
 `DatePicker` keeps the mode, bounds, and minute interval shared across hosts;
 its presentation style is platform-default rather than an iOS-only prop.
-`Checkbox` accepts `checked`/`value`, `indeterminate`, and `disabled`, and
-delivers a boolean `nativeEvent.value` through `onValueChange` or `onChange`.
+`Checkbox` accepts `checked`/`value`, `indeterminate`, and `disabled`; when both
+controlled values are present, `checked` takes precedence. It delivers a
+boolean `nativeEvent.value` through `onValueChange` or `onChange`.
 An indeterminate checkbox is announced as `mixed` and becomes checked or
 unchecked on the next user toggle.
 `ImageBackground` uses the shared image source and load/error lifecycle while

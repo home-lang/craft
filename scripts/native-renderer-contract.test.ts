@@ -203,6 +203,8 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" />')
     expect(androidNavigationTest).toContain('checked should take precedence over value')
     expect(iosNavigationTest).toContain('app.buttons["checkbox-checked-precedence"].value as? String, "0"')
+    expect(guide).toContain('controlled values are present,')
+    expect(guide).toContain('`checked` takes precedence. It delivers')
   })
 
   it('keeps Picker value compatibility aligned with both hosts', () => {
