@@ -198,9 +198,11 @@ hosts implement them.
 Pointer-event routing (`pointerEvents`, `box-none`, and `box-only`) is likewise
 outside the maintained native contract; use explicit native layout and enabled
 state props instead of relying on DOM hit-testing semantics.
-Native `Text` does not advertise selectable-text behavior yet; selection needs a
-shared UIKit and Android control path rather than silently falling back to a
-non-selectable label.
+Native `Text` accepts `selectable`. When true, iOS uses a non-editable
+`UITextView` and Android uses a selectable `TextView`, so the system copy menu
+and selection gestures remain native. The default is false and keeps the
+lightweight label path on both hosts; changing the prop during reconciliation
+replaces the leaf only when the native control kind must change.
 `Picker` renders option children from `<select>`/`<option>` or the native
 primitive, accepts an `items` array or child options plus `value`/`selectedValue`,
 and sends the selected option's `value` plus `index` through `onValueChange` or
@@ -832,7 +834,12 @@ shared screen can keep its accessibility and keyboard contract type-safe before
 it is compiled for either native host.
 
 `craft.navigation.push`, `replace`, and `back` use the platform navigation
-stack. A pushed route receives `craft.route.params`; returning to an earlier
+stack. A pushed route receives `craft.route.params`; `craft.navigation.open`
+also accepts an optional second `props` object for a structured handoff. The
+host keeps it in `craft.route.props`, separate from path/query params, so a
+prop named `id` cannot overwrite a route parameter. Props are delivered with
+the initial route and replaced when an existing route is opened again; they
+are dropped with that route. Returning to an earlier
 route reveals its existing native tree and JavaScript state. Native events are
 delivered only to the top route, and route teardown removes its subscriptions
 and cancels its in-flight requests. On iOS, a back-swipe that starts on a
@@ -969,7 +976,7 @@ all: no `WKWebView` is ever created.
 - Every tab id and the start path must be drawn by a native screen; `init` and
   `build` refuse the config otherwise, because there is no web view to fall
   back to.
-- `craft.navigation.open(path)` opens a tab (switching to it), a native screen
+- `craft.navigation.open(path, props?)` opens a tab (switching to it), a native screen
   (pushed onto the visible tab, or popped back to if it is already in the
   stack), or, for a path no screen draws, the in-app browser
   (`SFSafariViewController`) at that path on the site's origin. A full `http(s)`
@@ -1016,8 +1023,9 @@ it is loaded 1.5 seconds after launch at the latest.
   in order once it has. Without an app script they go to the page as before;
   an all-native app with neither logs and drops them, and answers any
   background work at once.
-- `craft.navigation.open(path)` opens in the shell as above, so
-  `craft.navigation.open('/m/workout/5')` opens that screen in the visible tab
+- `craft.navigation.open(path, props?)` opens in the shell as above, so
+  `craft.navigation.open('/m/workout/5', { workout })` opens that screen in the
+  visible tab and makes the structured value available as `craft.route.props`.
   and a tab path switches tabs. Opens made before the shell exists are held
   for it. `push`, `replace`, `back`, `popToRoot`, `setOptions` and
   `tabBarHidden` do nothing: it has no stack and no bar.

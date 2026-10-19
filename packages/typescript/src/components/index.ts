@@ -494,6 +494,8 @@ export interface RefreshControlProps extends BaseProps {
 export interface TextProps extends BaseProps {
   /** Style object or array */
   style?: StyleValue<TextStyle>
+  /** Allow the user to select and copy the rendered text. */
+  selectable?: boolean
   /** Number of lines before truncation */
   numberOfLines?: number
   /** Ellipsize mode */

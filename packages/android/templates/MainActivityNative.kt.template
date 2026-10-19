@@ -3568,6 +3568,7 @@ class MainActivity : AppCompatActivity() {
     private class Screen(
         val route: String?,
         val params: JSONObject,
+        val props: JSONObject,
         val view: CraftNativeFlexLayout,
         val isolate: JavaScriptIsolate,
         val port: MessagePort?,
@@ -4102,7 +4103,7 @@ class MainActivity : AppCompatActivity() {
      * page on the app's site in the in-app browser. Another site's address
      * opens in the browser too.
      */
-    private fun navigateOpen(target: String, fromLink: Boolean = false, replace: Boolean = false) {
+    private fun navigateOpen(target: String, fromLink: Boolean = false, replace: Boolean = false, props: JSONObject = JSONObject()) {
         val path = routes.appPath(target, urlSchemes)
         if (path == null) {
             openExternal(target)
@@ -4114,7 +4115,7 @@ class MainActivity : AppCompatActivity() {
             val removed = stack.removeAt(stack.lastIndex)
             val previous = stack.lastOrNull()
             closeScreen(removed) {
-                if (screens === stack && stack.lastOrNull() === previous) navigateOpen(path, fromLink)
+                if (screens === stack && stack.lastOrNull() === previous) navigateOpen(path, fromLink, props = props)
             }
             return
         }
@@ -4123,8 +4124,8 @@ class MainActivity : AppCompatActivity() {
             selectTab(routes.tabs.indexOf(tab))
             popToRoot()
             val root = screens.firstOrNull()
-            if (root != null && match != null && match.params.length() > 0) {
-                send(root, "ROUTE_PARAMS", JSONObject().put("params", match.params))
+            if (root != null && match != null && (match.params.length() > 0 || props.length() > 0)) {
+                send(root, "ROUTE_PARAMS", JSONObject().put("params", match.params).put("props", props))
             }
             return
         }
@@ -4146,12 +4147,12 @@ class MainActivity : AppCompatActivity() {
             closeScreens(removed) {
                 if (screens === stack && stack.lastOrNull() === existing) {
                     show(existing)
-                    send(existing, "ROUTE_PARAMS", JSONObject().put("params", match.params))
+                    send(existing, "ROUTE_PARAMS", JSONObject().put("params", match.params).put("props", props))
                 }
             }
             return
         }
-        openScreen(match.screen, match.params)?.path = match.path
+        openScreen(match.screen, match.params, props = props)?.path = match.path
     }
 
     /** A page the app does not draw, in a Custom Tab over the app. */
@@ -4159,7 +4160,7 @@ class MainActivity : AppCompatActivity() {
         services.perform("Browser", "open", JSONArray().put(url), {})
     }
 
-    private fun openScreen(route: String?, params: JSONObject = JSONObject(), headless: Boolean = false, showImmediately: Boolean = true): Screen? {
+    private fun openScreen(route: String?, params: JSONObject = JSONObject(), props: JSONObject = JSONObject(), headless: Boolean = false, showImmediately: Boolean = true): Screen? {
         if (showImmediately && !headless) interruptTabSwipe()
         val engine = sandbox ?: return null
         val isolate = engine.createIsolate()
@@ -4187,7 +4188,7 @@ class MainActivity : AppCompatActivity() {
             })
             null
         }
-        val activeScreen = Screen(route, params, view, isolate, port, headless)
+        val activeScreen = Screen(route, params, props, view, isolate, port, headless)
         activeScreen.view.onLayoutChanged = {
             if (activeScreen.active) emitLayoutEvents(activeScreen)
         }
@@ -4202,6 +4203,7 @@ class MainActivity : AppCompatActivity() {
         val routePrelude = """
             globalThis.__stxNativeRoute = ${route?.let { JSONObject.quote(it) } ?: "undefined"};
             globalThis.__stxNativeParams = ${params};
+            globalThis.__stxNativeProps = ${props};
         """.trimIndent()
         val audioPrelude = """
             (function() {
@@ -4753,7 +4755,9 @@ class MainActivity : AppCompatActivity() {
                     .put("message", "mutation batch could not be applied")
                     .put("version", CRAFT_NATIVE_MUTATION_PROTOCOL_VERSION))
             }
-            "NAVIGATE_OPEN" -> payload.optString("path").takeIf { it.isNotBlank() }?.let(::navigateOpen)
+            "NAVIGATE_OPEN" -> payload.optString("path").takeIf { it.isNotBlank() }?.let {
+                navigateOpen(it, props = payload.optJSONObject("props") ?: JSONObject())
+            }
             "NAVIGATION_SET_OPTIONS" -> {
                 // The app script has no navigation bar of its own. Screen
                 // options remain valid while that screen is off-stack, so
@@ -5011,6 +5015,11 @@ class MainActivity : AppCompatActivity() {
                     else -> null
                 }
                 configureText(this, childText(children), style)
+                val selectable = craftNativeBoolean(props.opt("selectable"))
+                setTextIsSelectable(selectable)
+                isFocusable = selectable
+                isFocusableInTouchMode = selectable
+                isLongClickable = selectable
             }
             "StatusBar" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 screen.statusBarStyle = craftNativeOptionalString(props.opt("barStyle"))

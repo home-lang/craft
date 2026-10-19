@@ -12,7 +12,7 @@ class JSONObject(vararg pairs: Pair<String, Any>) {
     fun put(key: String, value: Any): JSONObject { values[key] = value; return this }
     fun length() = values.size
 }
-data class Screen(val name: String, var path: String? = null, val params: JSONObject = JSONObject())
+data class Screen(val name: String, var path: String? = null, val params: JSONObject = JSONObject(), val props: JSONObject = JSONObject())
 data class Match(val screen: String, val params: JSONObject, val path: String)
 data class Tab(val id: String)
 class Routes {
@@ -40,31 +40,34 @@ class Navigation {
     fun closeScreens(screens: List<Screen>, done: () -> Unit) { disposed.addAll(screens); if (screens.isEmpty()) done() else pending.add(done) }
     fun show(screen: Screen) { shown = screen }
     fun send(screen: Screen, type: String, payload: JSONObject) { received = payload }
-    fun openScreen(name: String, params: JSONObject): Screen = Screen(name, params = params).also { screens.add(it) }
-    fun replace(path: String) = navigateOpen(path, replace = true)
+    fun openScreen(name: String, params: JSONObject, props: JSONObject = JSONObject()): Screen = Screen(name, params = params, props = props).also { screens.add(it) }
+    fun replace(path: String, props: JSONObject = JSONObject()) = navigateOpen(path, replace = true, props = props)
     fun complete() { pending.toList().also { pending.clear() }.forEach { it() } }
 ${method}
 }
 fun main() {
     val path = "/m/claim?kind=club&slug=rappid"
+    val props = JSONObject("membershipId" to "membership-42")
     val fresh = Navigation()
-    fresh.replace(path)
+    fresh.replace(path, props)
     check(fresh.screens.map { it.name } == listOf("Today"))
     check(fresh.pending.size == 1 && fresh.disposed.single().name == "Login")
     fresh.complete()
     check(fresh.screens.map { it.name } == listOf("Today", "Claim"))
     check(fresh.screens.last().path == "/m/claim")
     check(fresh.screens.last().params.values["slug"] == "rappid")
+    check(fresh.screens.last().props === props)
 
     val existing = Navigation()
     val claim = Screen("Claim", "/m/claim")
     existing.screens.add(1, claim)
-    existing.replace(path)
+    existing.replace(path, props)
     check(existing.shown == null && existing.pending.size == 1)
     existing.complete()
     check(existing.screens.map { it.name } == listOf("Today", "Claim"))
     check(existing.shown === claim)
     check((existing.received!!.values["params"] as JSONObject).values["slug"] == "rappid")
+    check(existing.received!!.values["props"] === props)
 
     val interrupted = Navigation()
     interrupted.replace(path)
@@ -74,10 +77,11 @@ fun main() {
 
     val crossTab = Navigation()
     val originalStack = crossTab.screens
-    crossTab.replace("/m/progress")
+    crossTab.replace("/m/progress", props)
     check(crossTab.currentTab == 0 && originalStack.map { it.name } == listOf("Today"))
     crossTab.complete()
     check(crossTab.currentTab == 1 && originalStack.none { it.name == "Login" })
+    check(crossTab.received!!.values["props"] === props)
     println("PASS atomic replacement waits for teardown, reuses canonical screens, preserves parameters and respects a changed stack")
 }
 `)

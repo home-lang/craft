@@ -475,6 +475,9 @@ jobs:
       - name: Test host-neutral native renderer contract
         run: bun test ./scripts/native-renderer-contract.test.ts
 
+      - name: Test multi-window event delivery policy
+        run: bun test ./scripts/multi-window-event-policy.test.ts
+
       - name: Test iOS validation conformance table
         run: bun test ./scripts/ios-validation-conformance.test.ts
 

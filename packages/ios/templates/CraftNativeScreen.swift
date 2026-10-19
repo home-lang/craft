@@ -4448,6 +4448,35 @@ private final class CraftNativeLabel: UILabel {
     }
 }
 
+/// A non-editable text view used when a native Text explicitly opts into
+/// selection. UILabel has no selection model; UITextView supplies UIKit's
+/// standard loupe, menu and copy behavior while remaining a plain text leaf.
+private final class CraftNativeSelectableTextView: UITextView {
+    convenience init() {
+        self.init(frame: .zero, textContainer: nil)
+    }
+
+    override init(frame: CGRect, textContainer: NSTextContainer?) {
+        super.init(frame: frame, textContainer: textContainer)
+        isEditable = false
+        isSelectable = true
+        isScrollEnabled = false
+        backgroundColor = .clear
+        textContainerInset = .zero
+        textContainer.lineFragmentPadding = 0
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        isEditable = false
+        isSelectable = true
+        isScrollEnabled = false
+        backgroundColor = .clear
+        textContainerInset = .zero
+        textContainer.lineFragmentPadding = 0
+    }
+}
+
 /// A one-line TextInput. Its style's padding is where the text and the
 /// placeholder start, as in a web input; UITextField has no padding of its own.
 final class CraftNativeTextField: UITextField {
@@ -4712,6 +4741,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private let config: CraftConfig
     private let routeName: String?
     private(set) var routeParams: [String: Any]
+    private(set) var routeProps: [String: Any]
     private let jsContext = JSContext(virtualMachine: CraftNativeBundle.virtualMachine)!
     private let rootStack = CraftNativeFlowView()
     private var handlers: [ObjectIdentifier: String] = [:]
@@ -4823,10 +4853,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// `DEEP_LINK`; it can open paths but not push, pop or style a bar.
     let isAppScript: Bool
 
-    init(config: CraftConfig, routeName: String? = nil, routeParams: [String: Any] = [:], isAppScript: Bool = false) {
+    init(config: CraftConfig, routeName: String? = nil, routeParams: [String: Any] = [:], routeProps: [String: Any] = [:], isAppScript: Bool = false) {
         self.config = config
         self.routeName = routeName
         self.routeParams = routeParams
+        self.routeProps = routeProps
         self.isAppScript = isAppScript
         super.init(nibName: nil, bundle: nil)
     }
@@ -5001,17 +5032,19 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         send(type: "SCREEN_FOCUS", payload: ["focused": visible])
     }
 
-    /// New params for the screen already showing a path: opened again with
-    /// another query (`/m/messages?person=8`), or a tab's root opened with
-    /// one (`/m/store?coach=5`). The script's `craft.route.params` changes
-    /// and it hears `ROUTE_PARAMS`; before the script has run, it simply
-    /// starts with them.
-    func receiveRouteParams(_ params: [String: Any]) {
+    /// New params or props for the screen already showing a path: opened
+    /// again with another query or a structured handoff. The two namespaces
+    /// stay separate so props cannot collide with path/query params.
+    func receiveRouteParams(_ params: [String: Any], props: [String: Any] = [:]) {
         routeParams = params
+        routeProps = props
         guard isViewLoaded, !runtimeDisposed else { return }
         let context = jsContext
-        CraftNativeScriptThread.run { context.setObject(params as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString) }
-        send(type: "ROUTE_PARAMS", payload: ["params": params])
+        CraftNativeScriptThread.run {
+            context.setObject(params as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString)
+            context.setObject(props as NSDictionary, forKeyedSubscript: "__stxNativeProps" as NSString)
+        }
+        send(type: "ROUTE_PARAMS", payload: ["params": params, "props": props])
     }
 
     private func disposeRuntime() {
@@ -5124,6 +5157,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             jsContext.setObject(routeName, forKeyedSubscript: "__stxNativeRoute" as NSString)
         }
         jsContext.setObject(routeParams as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString)
+        jsContext.setObject(routeProps as NSDictionary, forKeyedSubscript: "__stxNativeProps" as NSString)
         jsContext.exceptionHandler = { [weak self] context, exception in
             // Never stringify an arbitrary JS object here. JavaScriptCore can
             // re-enter this handler while coercing an exception whose
@@ -6403,7 +6437,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             // A path rather than a screen: the hybrid shell opens it, natively
             // or in the web view.
             guard let path = payload["path"] as? String, !path.isEmpty else { return }
-            hybridEvents?.nativeScreen(self, open: path)
+            hybridEvents?.nativeScreen(self, open: path, props: payload["props"] as? [String: Any] ?? [:])
         case "NAVIGATE_BACK":
             if !isAppScript, navigationController?.topViewController === self {
                 navigationController?.popViewController(animated: true)
@@ -6826,6 +6860,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func canReuseView(_ node: [String: Any], previous: RenderedNode) -> Bool {
         let type = canonicalType(node["type"] as? String ?? "View")
         guard previous.type == type else { return false }
+        if type == "Text" {
+            let props = node["props"] as? [String: Any] ?? [:]
+            return (previous.view is CraftNativeSelectableTextView) == (props["selectable"] as? Bool == true)
+        }
         guard type == "TextInput" else { return true }
         let props = node["props"] as? [String: Any] ?? [:]
         return (previous.view is UITextView) == (props["multiline"] as? Bool == true)
@@ -6895,11 +6933,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             result.isHidden = true
             result.isUserInteractionEnabled = false
         case "Text":
-            let label = result as! UILabel
-            label.numberOfLines = max(0, Int(number(props["numberOfLines"]) ?? 0))
-            label.lineBreakMode = textLineBreakMode(props["ellipsizeMode"])
-            (label as? CraftNativeLabel)?.insets = paddingInsets(style)
-            configureText(label, text: children.compactMap { $0 as? String }.joined(), style: style)
+            let text = children.compactMap { $0 as? String }.joined()
+            if let selectable = result as? CraftNativeSelectableTextView {
+                selectable.textContainer.maximumNumberOfLines = max(0, Int(number(props["numberOfLines"]) ?? 0))
+                selectable.textContainer.lineBreakMode = textLineBreakMode(props["ellipsizeMode"])
+                configureSelectableText(selectable, text: text, style: style)
+            } else {
+                let label = result as! UILabel
+                label.numberOfLines = max(0, Int(number(props["numberOfLines"]) ?? 0))
+                label.lineBreakMode = textLineBreakMode(props["ellipsizeMode"])
+                (label as? CraftNativeLabel)?.insets = paddingInsets(style)
+                configureText(label, text: text, style: style)
+            }
         case "Button", "Link":
             let button = result as! UIButton
             let title = props["title"] as? String ?? children.compactMap { $0 as? String }.joined()
@@ -7376,6 +7421,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func makeView(_ type: String, props: [String: Any]) -> UIView {
         switch type {
         case "Text":
+            if props["selectable"] as? Bool == true {
+                return CraftNativeSelectableTextView()
+            }
             let label = CraftNativeLabel()
             label.numberOfLines = 0
             return label
@@ -8371,6 +8419,23 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         label.lineBreakMode = lineBreakMode
     }
 
+    private func configureSelectableText(_ textView: UITextView, text: String, style: [String: Any]) {
+        let label = CraftNativeLabel()
+        label.numberOfLines = 0
+        configureText(label, text: text, style: style)
+        textView.attributedText = label.attributedText
+        if label.attributedText == nil { textView.text = label.text }
+        textView.font = label.font
+        textView.textColor = label.textColor
+        textView.textAlignment = label.textAlignment
+        textView.textContainerInset = paddingInsets(style)
+        textView.textContainer.lineFragmentPadding = 0
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isScrollEnabled = false
+        textView.backgroundColor = .clear
+    }
+
     private func textLineBreakMode(_ value: Any?) -> NSLineBreakMode {
         switch value as? String {
         case "head": return .byTruncatingHead
@@ -8888,7 +8953,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     @objc private func buttonPressed(_ sender: UIButton) {
         let focused = firstResponder(in: rootStack) ?? lastFocusedInput
         if let target = linkTargets[ObjectIdentifier(sender)] {
-            hybridEvents?.nativeScreen(self, open: target)
+        hybridEvents?.nativeScreen(self, open: target, props: [:])
             return
         }
         guard let handler = handlers[ObjectIdentifier(sender)] else { return }
@@ -9179,7 +9244,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard let view = sender.view else { return }
         let id = ObjectIdentifier(view)
         if let target = linkTargets[id] {
-            hybridEvents?.nativeScreen(self, open: target)
+        hybridEvents?.nativeScreen(self, open: target, props: [:])
             return
         }
         guard let handler = handlers[id] else { return }

@@ -1523,12 +1523,18 @@ describe('native renderer component contract', () => {
     expect(android).not.toContain('pointerEvents')
   })
 
-  it('does not advertise unsupported native text selection', () => {
+  it('keeps native Text selection aligned across hosts', () => {
     const textProps = componentTypes.match(/export interface TextProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(textProps).toContain('numberOfLines?: number')
-    expect(textProps).not.toContain('selectable?: boolean')
-    expect(ios).not.toContain('selectable')
-    expect(android).not.toContain('selectable')
+    expect(textProps).toContain('selectable?: boolean')
+    expect(ios).toContain('CraftNativeSelectableTextView')
+    expect(ios).toContain('isSelectable = true')
+    expect(android).toContain('setTextIsSelectable(selectable)')
+    expect(android).toContain('isFocusableInTouchMode = selectable')
+    expect(navigationHome).toContain('testID="selectable-native-text" selectable')
+    expect(iosNavigationUnitTests).toContain('testSelectableTextUsesNativeSelectionControl')
+    expect(androidNavigationTest).toContain('selectableTextUsesNativeTextSelection')
+    expect(guide).toContain('Native `Text` accepts `selectable`')
   })
 
   it('delivers Pressable press-in and press-out callbacks on both hosts', () => {
@@ -3156,7 +3162,7 @@ describe('native renderer component contract', () => {
   it('routes authored links through both native hosts', () => {
     expect(navigationHome).toContain('<a testID="native-route-link" href="/linked-details">')
     expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')
-    expect(ios).toContain('hybridEvents?.nativeScreen(self, open: target)')
+    expect(ios).toContain('hybridEvents?.nativeScreen(self, open: target, props: [:])')
     expect(android).toContain('val linkTargets = mutableMapOf<View, String>()')
     expect(android).toContain('navigateOpen(target)')
     expect(iosNavigationTest).toContain('func testNativeLinkOpensRoute()')
@@ -3170,6 +3176,19 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"NAVIGATE_POP_TO_ROOT" -> if (visibleScreen === screen) popToRoot()')
     expect(android).toContain('if (screen !== appScreen) {\n                    payload.keys().forEach')
     expect(android).not.toContain('if (screens.lastOrNull() !== screen && screen !== appScreen) return')
+  })
+
+  it('keeps navigation.open props separate from route params on both native hosts', () => {
+    expect(ios).toContain('private(set) var routeProps: [String: Any]')
+    expect(ios).toContain('__stxNativeProps')
+    expect(ios).toContain('nativeScreen(self, open: path, props: payload["props"] as? [String: Any] ?? [:])')
+    expect(iosHybrid).toContain('routeProps: props')
+    expect(android).toContain('val props: JSONObject')
+    expect(android).toContain('globalThis.__stxNativeProps = ${props};')
+    expect(android).toContain('navigateOpen(it, props = payload.optJSONObject("props") ?: JSONObject())')
+    expect(android).toContain('.put("props", props)')
+    expect(guide).toContain('craft.navigation.open(path, props?)')
+    expect(guide).toContain('craft.route.props')
   })
 
   it('exercises Android native button, link, and retained-screen state paths', () => {

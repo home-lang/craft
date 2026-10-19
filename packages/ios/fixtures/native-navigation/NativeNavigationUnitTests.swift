@@ -221,6 +221,30 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(link.gestureRecognizers?.filter { $0 is UITapGestureRecognizer }.count, 1)
     }
 
+    func testSelectableTextUsesNativeSelectionControl() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render([
+            "type": "View",
+            "children": [[
+                "type": "Text",
+                "props": ["testID": "selectable-text", "selectable": true],
+                "children": ["Copy me"],
+            ]],
+        ])
+        controller.view.layoutIfNeeded()
+
+        func find(_ view: UIView) -> UIView? {
+            if view.accessibilityIdentifier == "selectable-text" { return view }
+            return view.subviews.lazy.compactMap { find($0) }.first
+        }
+
+        let text = try XCTUnwrap(find(controller.view) as? UITextView)
+        XCTAssertTrue(text.isSelectable)
+        XCTAssertFalse(text.isEditable)
+        XCTAssertFalse(text.isScrollEnabled)
+    }
+
     func testRepeatedSelectorsRetainDistinctProtocolViewsAcrossReorders() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         window.rootViewController = controller
