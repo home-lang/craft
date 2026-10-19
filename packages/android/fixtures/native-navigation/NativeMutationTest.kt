@@ -101,6 +101,33 @@ class NativeMutationTest {
     }
 
     @Test
+    fun reparentingRetainsThePopupSubtreeAndAuthoredKeys() {
+        val document = CraftNativeMutationDocument()
+        document.replace(JSONObject("""
+            {"id":"root","type":"View","children":[
+              {"id":"source","type":"ScrollView","children":[
+                {"id":"popup","type":"View","key":"popup-key","children":[
+                  {"id":"field","type":"TextInput","key":"field-key","props":{"value":"draft"}}
+                ]}
+              ]},
+              {"id":"destination","type":"Modal","children":[]}
+            ]}
+        """.trimIndent()))
+
+        val result = document.apply(batch(1, """
+            [{"op":"reparentChild","parentId":"destination","childId":"popup","index":0}]
+        """.trimIndent(), base = 0))
+
+        assertEquals(true, result.requiresFullRender)
+        val popup = document.node("destination")?.getJSONArray("children")?.getJSONObject(0)
+        assertEquals("popup-key", popup?.getString("key"))
+        val field = popup?.getJSONArray("children")?.getJSONObject(0)
+        assertEquals("field", field?.getString("id"))
+        assertEquals("field-key", field?.getString("key"))
+        assertEquals("draft", field?.getJSONObject("props")?.getString("value"))
+    }
+
+    @Test
     fun rejectsWholeBatchWithDeterministicFailure() {
         val document = CraftNativeMutationDocument()
         try {
