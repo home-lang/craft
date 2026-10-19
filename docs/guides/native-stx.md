@@ -1134,6 +1134,7 @@ one of these argument shapes:
 await nativeCall('View', 'focus', [{ nodeId, mode: 'keyboard' }])
 await nativeCall('View', 'focus', [{ nodeId, mode: 'accessibility' }])
 const box = await nativeCall('View', 'measure', [{ nodeId }])
+const offset = await nativeCall('View', 'scrollTo', [{ nodeId, x: 0, y: 240, animated: true }])
 ```
 
 `focus` resolves to `true`. Keyboard focus is supported for mounted text
@@ -1148,11 +1149,19 @@ Coordinates therefore move as a scroll view moves, include the screen's safe
 area and exclude any window chrome outside the native screen root. Calls made
 after reconciliation but before layout settle on the host's main/UI thread.
 
+`scrollTo` targets a mounted native `ScrollView`. Its `x` and `y` values are
+optional logical offsets (`points` on iOS and density-independent `dp` on
+Android); omitted axes retain their current offset. The host clamps requested
+offsets to the scrollable content range and resolves to the resulting
+`{ x, y, unit }`. `animated` defaults to `false`.
+
 Unknown or removed node ids reject with `VIEW_NOT_FOUND`; detached nodes reject
 with `VIEW_NOT_MOUNTED`; unsupported focus targets reject with
-`UNSUPPORTED_TARGET`. The `viewFocus` and `viewMeasure` capability flags are
-advertised independently so shared components can gate these operations on
-older Craft hosts.
+`UNSUPPORTED_TARGET`. `scrollTo` rejects non-scroll-view targets with the same
+code and rejects non-finite coordinates with `INVALID_ARGUMENT`. The
+`viewFocus`, `viewMeasure`, and `viewScroll` capability flags are advertised
+independently so shared components can gate these operations on older Craft
+hosts.
 
 // Native iOS passkeys (capability `passkeys`). The server still creates and
 // verifies the WebAuthn challenge; Craft presents Apple's credential sheet and

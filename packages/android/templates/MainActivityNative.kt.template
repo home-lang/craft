@@ -2162,6 +2162,21 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         horizontal.isNestedScrollingEnabled = value
     }
 
+    fun scrollTo(x: Int?, y: Int?, animated: Boolean): Pair<Int, Int> {
+        val scroller: View = if (horizontalMode == true) horizontal else vertical
+        val maxX = max(0, content.width - horizontal.width)
+        val maxY = max(0, content.height - vertical.height)
+        val targetX = (x ?: scroller.scrollX).coerceIn(0, maxX)
+        val targetY = (y ?: scroller.scrollY).coerceIn(0, maxY)
+        if (animated) {
+            if (scroller is HorizontalScrollView) scroller.smoothScrollTo(targetX, targetY)
+            else (scroller as ScrollView).smoothScrollTo(targetX, targetY)
+        } else {
+            scroller.scrollTo(targetX, targetY)
+        }
+        return targetX to targetY
+    }
+
     fun setScrollEnabled(value: Boolean) {
         vertical.isEnabled = value
         horizontal.isEnabled = value
@@ -4553,6 +4568,7 @@ class MainActivity : AppCompatActivity() {
         services.names().forEach { name -> put(name) }
         put("viewFocus")
         put("viewMeasure")
+        put("viewScroll")
     }
 
     private fun appVersion(): Pair<String, String> = runCatching {
@@ -6917,6 +6933,31 @@ class MainActivity : AppCompatActivity() {
                     .put("viewportHeight", screen.view.height / density)
                     .put("unit", "dp")
                     .put("coordinateSpace", "screenViewport")))
+            }
+            "scrollTo" -> {
+                val scroll = target as? CraftNativeScrollView
+                if (scroll == null) {
+                    completion(CraftNativeCapabilityResult(code = "UNSUPPORTED_TARGET", message = "View.scrollTo is supported only for scroll views"))
+                    return
+                }
+                val rawX = options?.opt("x")
+                val rawY = options?.opt("y")
+                val x = (rawX as? Number)?.toDouble()?.takeIf { it.isFinite() }
+                val y = (rawY as? Number)?.toDouble()?.takeIf { it.isFinite() }
+                if ((options?.has("x") == true && x == null) || (options?.has("y") == true && y == null)) {
+                    completion(CraftNativeCapabilityResult(code = "INVALID_ARGUMENT", message = "View.scrollTo coordinates must be finite numbers"))
+                    return
+                }
+                val density = resources.displayMetrics.density.coerceAtLeast(0.1f)
+                val position = scroll.scrollTo(
+                    x?.times(density)?.roundToInt(),
+                    y?.times(density)?.roundToInt(),
+                    options?.optBoolean("animated", false) == true,
+                )
+                completion(CraftNativeCapabilityResult(data = JSONObject()
+                    .put("x", position.first / density)
+                    .put("y", position.second / density)
+                    .put("unit", "dp")))
             }
             else -> completion(CraftNativeCapabilityResult(code = "UNKNOWN_ACTION", message = "Unsupported View operation"))
         }

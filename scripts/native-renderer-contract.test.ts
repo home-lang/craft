@@ -53,6 +53,7 @@ const hybridNavigationTest = readFileSync(join(root, 'packages/ios/fixtures/hybr
 const hybridNavigationUnitTest = readFileSync(join(root, 'packages/ios/fixtures/hybrid-navigation/HybridNavigationUnitTests.swift'), 'utf8')
 const androidNavigationScript = readFileSync(join(root, 'packages/android/scripts/test-native-navigation.ts'), 'utf8')
 const iosNativeUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeRenderUnitTests.swift'), 'utf8')
+const iosNativeScreenUITests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeRenderUITests.swift'), 'utf8')
 const iosMutation = readFileSync(join(root, 'packages/ios/templates/CraftNativeMutation.swift'), 'utf8')
 const iosLayoutUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeLayoutUnitTests.swift'), 'utf8')
 const guide = readFileSync(join(root, 'docs/guides/native-stx.md'), 'utf8')
@@ -1382,6 +1383,9 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('testUncontrolledSwitchKeepsItsNativeValueAcrossReconciliation')
     expect(iosNativeUnitTests).toContain('testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges')
     expect(iosNativeUnitTests).toContain('testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles')
+    expect(iosNativeScreenUITests).toContain('testSwitchTapChangesUIKitStateAndDeliversValueChange')
+    expect(readFileSync(join(root, 'packages/ios/fixtures/native-screen/Screen.stx'), 'utf8')).toContain('<Switch testID="native-switch" onValueChange={changeSwitch} />')
+    expect(readFileSync(join(root, 'packages/ios/fixtures/native-screen/render-test.js'), 'utf8')).toContain("events: { onValueChange: 'changeSwitch' }")
   })
 
   it('keeps DatePicker values and change events aligned across hosts', () => {
@@ -1687,6 +1691,17 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('"unit": "points"')
     expect(android).toContain('TYPE_VIEW_FOCUSED')
     expect(android).toContain('"unit", "dp"')
+  })
+
+  it('exposes screen-owned scrolling for mounted native scroll views', () => {
+    expect(ios).toContain('case ("View", "scrollTo"):')
+    expect(ios).toContain('scrollView.setContentOffset(target, animated: options?["animated"] as? Bool ?? false)')
+    expect(android).toContain('"scrollTo" -> {')
+    expect(android).toContain('scroll.scrollTo(')
+    expect(iosActions).toContain('values.append("viewScroll")')
+    expect(android).toContain('put("viewScroll")')
+    expect(guide).toContain("nativeCall('View', 'scrollTo'")
+    expect(guide).toContain('viewScroll')
   })
 
   it('restores a modal opener only while it remains mounted', () => {

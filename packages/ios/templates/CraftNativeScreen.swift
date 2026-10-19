@@ -6570,6 +6570,57 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 "coordinateSpace": "screenViewport",
             ]))
             return true
+        case ("View", "scrollTo"):
+            let options = args.first as? [String: Any]
+            let nodeId = options?["nodeId"] as? String ?? (args.first as? String) ?? ""
+            guard !nodeId.isEmpty else {
+                reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "View.scrollTo needs a nodeId")))
+                return true
+            }
+            guard let node = renderedNode(nodeId) else {
+                reply(.failure(CraftNativeActionError(code: "VIEW_NOT_FOUND", message: "View.scrollTo could not find mounted node \(nodeId)")))
+                return true
+            }
+            guard node.view.window != nil else {
+                reply(.failure(CraftNativeActionError(code: "VIEW_NOT_MOUNTED", message: "View.scrollTo requires a mounted node")))
+                return true
+            }
+            guard let scrollView = node.view as? UIScrollView else {
+                reply(.failure(CraftNativeActionError(code: "UNSUPPORTED_TARGET", message: "View.scrollTo is supported only for scroll views")))
+                return true
+            }
+            let x: Double
+            if let raw = options?["x"] {
+                guard let number = craftNativeNumber(raw), number.doubleValue.isFinite else {
+                    reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "View.scrollTo coordinates must be finite numbers")))
+                    return true
+                }
+                x = number.doubleValue
+            } else {
+                x = scrollView.contentOffset.x
+            }
+            let y: Double
+            if let raw = options?["y"] {
+                guard let number = craftNativeNumber(raw), number.doubleValue.isFinite else {
+                    reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "View.scrollTo coordinates must be finite numbers")))
+                    return true
+                }
+                y = number.doubleValue
+            } else {
+                y = scrollView.contentOffset.y
+            }
+            guard x.isFinite, y.isFinite else {
+                reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "View.scrollTo coordinates must be finite numbers")))
+                return true
+            }
+            let minX = -scrollView.adjustedContentInset.left
+            let minY = -scrollView.adjustedContentInset.top
+            let maxX = max(minX, scrollView.contentSize.width - scrollView.bounds.width + scrollView.adjustedContentInset.right)
+            let maxY = max(minY, scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom)
+            let target = CGPoint(x: min(max(x, minX), maxX), y: min(max(y, minY), maxY))
+            scrollView.setContentOffset(target, animated: options?["animated"] as? Bool ?? false)
+            reply(.success(["x": target.x, "y": target.y, "unit": "points"]))
+            return true
         case ("Network", "stream"):
             let options = args.first as? [String: Any] ?? [:]
             let streamId = options["id"] as? String ?? ""
