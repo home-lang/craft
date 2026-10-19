@@ -135,6 +135,7 @@ describe('Component System', () => {
       },
       fitToBounds: true,
       mapType: 'standard',
+      pitchEnabled: true,
       onMarkerPress: event => expect(event.nativeEvent.id).toBe('trailhead'),
     }
     // The shared public contract only exposes map styles both hosts implement.

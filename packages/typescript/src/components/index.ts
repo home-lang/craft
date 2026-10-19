@@ -634,6 +634,8 @@ export interface MapProps extends BaseProps {
   mapType?: 'standard' | 'satellite' | 'hybrid'
   showsCompass?: boolean
   showsScale?: boolean
+  /** Allow tilt gestures and camera pitch updates on the native map. */
+  pitchEnabled?: boolean
   /** Requested tilt in degrees; the platform may lower it for the current altitude or map type. */
   cameraPitch?: number
   cameraHeading?: number
