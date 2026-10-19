@@ -316,6 +316,13 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('testFlatListRetainsAHorizontalViewportAcrossInvertedMoves')
   })
 
+  it('keeps Android non-scrolling list measurements observable after async layout', () => {
+    expect(androidFlatList).toContain('private var lastReportedContentHeight = Int.MIN_VALUE')
+    expect(androidFlatList).toContain('if (!scrollEnabled && !horizontal) reportContentSizeChanged()')
+    expect(androidFlatList).toContain('post { onContentSizeChanged?.invoke() }')
+    expect(androidFlatListTest).toContain('nonScrollingListMeasuresItsFullContentHeight')
+  })
+
   it('keeps DatePicker presentation platform-neutral', () => {
     const datePickerProps = componentTypes.match(/export interface DatePickerProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(datePickerProps).toContain("mode?: 'date' | 'time' | 'datetime' | 'datetime-local' | 'countdown'")
@@ -3034,6 +3041,11 @@ describe('native renderer component contract', () => {
     expect(androidFlatList).toContain('var onContentSizeChanged: (() -> Unit)? = null')
     expect(android).toContain('CraftNativeFlexLayout.invalidateMeasurementAncestors(list.parent)')
     expect(androidFlatListTest).toContain('nonScrollingListMeasuresItsFullContentHeight')
+  })
+
+  it('pins Android sticky headers below the authored ScrollView inset', () => {
+    expect(android).toContain('var pinnedBottom = content.paddingTop')
+    expect(androidNavigationTest).toContain('ScrollView sticky header did not remain pinned')
   })
 
   it('keeps FlatList paging enabled through both native hosts', () => {

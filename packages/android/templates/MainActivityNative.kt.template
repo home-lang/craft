@@ -2287,7 +2287,10 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
             return
         }
         val scrollY = vertical.scrollY
-        var pinnedBottom = 0
+        // Keep sticky content below the ScrollView's authored top inset,
+        // matching the native content viewport instead of pinning it to the
+        // raw window edge.
+        var pinnedBottom = content.paddingTop
         stickyIndices.forEachIndexed { position, index ->
             val header = content.getChildAt(index)
             if (header == null || header.visibility != View.VISIBLE || header.height <= 0) return@forEachIndexed
