@@ -1409,6 +1409,8 @@ describe('Craft iOS builder', () => {
       expect(source).not.toContain('if let title = options["title"] as? String, !title.isEmpty { items.append(title) }')
     }
     expect(services).toContain('CraftPresenter.present(sheet, from: nil, anchor: CraftPresenter.rect(options["anchor"]))')
+    expect(ui).toContain('CFGetTypeID(number) != CFBooleanGetTypeID()')
+    expect(ui).toContain('return value.isFinite ? value : nil')
   })
 
   it('makes the web view feel like the app: no previews, no zoom, no keyboard bar, an app user agent', async () => {

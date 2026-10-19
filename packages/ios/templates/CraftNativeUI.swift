@@ -1,4 +1,5 @@
 import AuthenticationServices
+import CoreFoundation
 import SafariServices
 import UIKit
 import WebKit
@@ -54,7 +55,12 @@ enum CraftPresenter {
     /// view's points, as a rect. Nil when it is not one.
     static func rect(_ value: Any?) -> CGRect? {
         guard let value = value as? [String: Any] else { return nil }
-        func number(_ key: String) -> CGFloat? { (value[key] as? NSNumber).map { CGFloat(truncating: $0) } }
+        func number(_ key: String) -> CGFloat? {
+            guard let number = value[key] as? NSNumber,
+                  CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+            let value = CGFloat(truncating: number)
+            return value.isFinite ? value : nil
+        }
         guard let x = number("x"), let y = number("y") else { return nil }
         return CGRect(x: x, y: y, width: max(0, number("width") ?? 0), height: max(0, number("height") ?? 0))
     }

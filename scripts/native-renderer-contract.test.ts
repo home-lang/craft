@@ -1869,6 +1869,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('keyboardVerticalOffset = pixelOffset.roundToInt()')
   })
 
+  it('rejects boolean and non-finite iOS presenter anchor geometry', () => {
+    expect(ios).toContain('import CoreFoundation')
+    expect(readFileSync(join(root, 'packages/ios/templates/CraftNativeUI.swift'), 'utf8')).toContain('CFGetTypeID(number) != CFBooleanGetTypeID()')
+    expect(iosNativeUnitTests).toContain('testPresenterRectRejectsBooleanCoordinatesAndNonFiniteNumbers')
+  })
+
   it('keeps native iOS passkeys capability-gated and domain-bound', () => {
     expect(iosActions).toContain('case ("Passkeys", "isAvailable"):')
     expect(iosActions).toContain('case ("Passkeys", "create"), ("Passkeys", "get"):')

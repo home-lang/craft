@@ -19,6 +19,14 @@ private final class UnitLocationManager: CLLocationManager {
 
 @MainActor
 final class NativeRenderUnitTests: XCTestCase {
+    func testPresenterRectRejectsBooleanCoordinatesAndNonFiniteNumbers() {
+        XCTAssertNil(CraftPresenter.rect(["x": true, "y": 20, "width": 30, "height": 40]))
+        XCTAssertNil(CraftPresenter.rect(["x": 10, "y": false, "width": 30, "height": 40]))
+        XCTAssertNil(CraftPresenter.rect(["x": Double.nan, "y": 20, "width": 30, "height": 40]))
+        XCTAssertEqual(CraftPresenter.rect(["x": 10, "y": 20, "width": 30, "height": 40]), CGRect(x: 10, y: 20, width: 30, height: 40))
+        XCTAssertEqual(CraftPresenter.rect(["x": 10, "y": 20, "width": true, "height": false]), CGRect(x: 10, y: 20, width: 0, height: 0))
+    }
+
     func testOneShotLocationWaitsForPermissionBeforeStartingItsFixAndTimeout() throws {
         var config = CraftConfig()
         config.enableGeolocation = true
