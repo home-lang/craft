@@ -736,6 +736,10 @@ Map teardown follows the same rule: iOS releases MapKit delegates, callbacks,
 markers, polylines, and tile overlays before a map leaves a row, then restores
 the delegate when that native view is adopted by a new row.
 
+Android date pickers clear their value-change bridge during teardown as well, so
+the platform picker cannot retain a screen callback after its native view is
+released.
+
 ## Events, accessibility, and navigation
 
 `defaultValue` initializes an uncontrolled `TextInput` once; controlled

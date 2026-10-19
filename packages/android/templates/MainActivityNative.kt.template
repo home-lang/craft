@@ -2703,6 +2703,11 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
         return JSONObject().put("value", value).put("iso", iso).put("timestamp", current.timeInMillis)
     }
 
+    fun resetForTeardown() {
+        suppressChanges = true
+        onValueChanged = null
+    }
+
     private fun changed() {
         if (suppressChanges) return
         // A date-only picker has no time half to snap, but its change is
@@ -7212,6 +7217,7 @@ class MainActivity : AppCompatActivity() {
             releaseFlatList(screen, it, preservingInputDrafts)
         }
         released.filterIsInstance<CraftNativeModalView>().forEach { it.resetForTeardown() }
+        released.filterIsInstance<CraftNativeDatePickerView>().forEach { it.resetForTeardown() }
         released.filterIsInstance<CraftNativeVideoView>().forEach { it.stop() }
         released.filterIsInstance<CraftNativeMapView>().forEach { it.destroy() }
         released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }

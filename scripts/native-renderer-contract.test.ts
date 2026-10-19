@@ -3151,6 +3151,12 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('delegate = self\n        onMarkerTap = markerHandler')
   })
 
+  it('releases Android date-picker event bridges with the picker view', () => {
+    expect(android).toContain('fun resetForTeardown()')
+    expect(android).toContain('suppressChanges = true\n        onValueChanged = null')
+    expect(android).toContain('released.filterIsInstance<CraftNativeDatePickerView>().forEach { it.resetForTeardown() }')
+  })
+
   it('prefers authored keys over compiler ids when reconciling native rows', () => {
     expect(ios).toContain('let direct = [node["key"], props["key"]]')
     expect(ios).toContain('[node["id"], props["testID"]]')
