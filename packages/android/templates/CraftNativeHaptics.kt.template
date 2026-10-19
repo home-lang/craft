@@ -1,0 +1,124 @@
+package {{PACKAGE_NAME}}
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.view.HapticFeedbackConstants
+import android.view.View
+
+/**
+ * A native screen's haptics, in the names iOS plays (CraftNativeActions.swift,
+ * `CraftHaptics.play`): an impact weight (`light`, `medium`, `heavy`, `soft`,
+ * `rigid`), a notification type (`success`, `warning`, `error`) or
+ * `selection`. Anything else plays a medium impact, as an unknown style does
+ * on iOS.
+ *
+ * The screen's own haptic feedback comes first. It needs no VIBRATE
+ * permission and follows the system's touch-feedback setting, the way UIKit's
+ * feedback generators follow System Haptics, so a person who turned haptics
+ * off feels nothing. A style with no feedback constant on the device's API
+ * level (a warning on every version, success and error before Android 11)
+ * goes to the vibrator: a predefined effect from Android 10, timings before.
+ */
+internal object CraftNativeHaptics {
+    val impactStyles = setOf("light", "medium", "heavy", "soft", "rigid")
+    val notificationTypes = setOf("success", "warning", "error")
+
+    // Lazy, so the pure mappings load in a JVM unit test with no main looper.
+    private val main by lazy { Handler(Looper.getMainLooper()) }
+
+    /**
+     * The style a `Haptics.<method>(args[0])` call plays, or null for a method
+     * that plays nothing (`prepare`; Android has no engine to warm). `impact`
+     * takes any style, as iOS's does: stx's bridge sends every kind through it.
+     */
+    fun style(method: String, argument: String?): String? = when (method) {
+        "impact" -> argument?.takeIf { it.isNotBlank() } ?: "medium"
+        "notification" -> argument?.takeIf { it in notificationTypes } ?: "success"
+        "selection" -> "selection"
+        else -> null
+    }
+
+    /** The view feedback constant for `style` on API level `sdk`, or null when there is none. */
+    @SuppressLint("InlinedApi")
+    fun feedbackConstant(style: String, sdk: Int): Int? = when (style) {
+        "light" -> HapticFeedbackConstants.KEYBOARD_TAP
+        "medium" -> HapticFeedbackConstants.VIRTUAL_KEY
+        "heavy" -> HapticFeedbackConstants.LONG_PRESS
+        "soft" -> if (sdk >= 27) HapticFeedbackConstants.TEXT_HANDLE_MOVE else HapticFeedbackConstants.CLOCK_TICK
+        "rigid" -> HapticFeedbackConstants.CONTEXT_CLICK
+        "selection" -> if (sdk >= 34) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
+        "success" -> if (sdk >= 30) HapticFeedbackConstants.CONFIRM else null
+        "error" -> if (sdk >= 30) HapticFeedbackConstants.REJECT else null
+        "warning" -> null
+        else -> HapticFeedbackConstants.VIRTUAL_KEY
+    }
+
+    /** The predefined `VibrationEffect.EFFECT_*` for `style`, Android 10 and later. */
+    @SuppressLint("InlinedApi")
+    fun predefinedEffect(style: String): Int = when (style) {
+        "light", "soft", "selection" -> VibrationEffect.EFFECT_TICK
+        "heavy", "error" -> VibrationEffect.EFFECT_HEAVY_CLICK
+        "success", "warning" -> VibrationEffect.EFFECT_DOUBLE_CLICK
+        else -> VibrationEffect.EFFECT_CLICK
+    }
+
+    /**
+     * Before Android 10: one duration for a one-shot, or a waveform
+     * `[wait, vibrate, wait, vibrate]`. The weights the WebView bridge and the
+     * Zig runtime already play (bridge_android_haptics.zig's effectForStyle).
+     */
+    fun timings(style: String): LongArray = when (style) {
+        "light" -> longArrayOf(10)
+        "soft" -> longArrayOf(8)
+        "selection" -> longArrayOf(5)
+        "rigid" -> longArrayOf(25)
+        "heavy" -> longArrayOf(50)
+        "success" -> longArrayOf(0, 30, 50, 30)
+        "warning" -> longArrayOf(0, 50, 100, 50)
+        "error" -> longArrayOf(0, 100, 50, 100)
+        else -> longArrayOf(20)
+    }
+
+    /**
+     * Play `style`: true when the screen or the vibrator took it. False is
+     * "nothing played" (touch feedback off, no vibrator, no permission), never
+     * an error, because haptics decorate a flow rather than carry it.
+     */
+    fun play(context: Context, view: View?, style: String): Boolean {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            main.post { play(context, view, style) }
+            return true
+        }
+        val constant = feedbackConstant(style, Build.VERSION.SDK_INT)
+        if (constant != null && view != null && view.isAttachedToWindow)
+            return view.performHapticFeedback(constant)
+        val vibrator = vibrator(context) ?: return false
+        if (!vibrator.hasVibrator()) return false
+        return runCatching {
+            vibrator.vibrate(effect(style))
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun effect(style: String): VibrationEffect {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return VibrationEffect.createPredefined(predefinedEffect(style))
+        val timings = timings(style)
+        return if (timings.size == 1) VibrationEffect.createOneShot(timings[0], VibrationEffect.DEFAULT_AMPLITUDE)
+        else VibrationEffect.createWaveform(timings, -1)
+    }
+
+    private fun vibrator(context: Context): Vibrator? = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+    }.getOrNull()
+}

@@ -40,8 +40,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.VibrationEffect
-import android.os.Vibrator
 import android.provider.Settings
 import android.text.Editable
 import android.text.InputFilter
@@ -6801,12 +6799,14 @@ class MainActivity : AppCompatActivity() {
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 CraftNativeCapabilityResult(data = clipboard.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString() ?: "")
             }
-            "Haptics" to "impact" -> if (!hapticsEnabled) {
+            // The iOS names (CraftNativeActions.swift): an impact weight, a
+            // notification type or selection, through CraftNativeHaptics.
+            // `prepare` warms nothing here, so it answers true at once.
+            "Haptics" to "impact", "Haptics" to "notification", "Haptics" to "selection", "Haptics" to "prepare" -> if (!hapticsEnabled) {
                 CraftNativeCapabilityResult(code = "CAPABILITY_DISABLED", message = "Haptics are disabled")
             } else {
-                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                vibrator.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
-                CraftNativeCapabilityResult(data = true)
+                val style = CraftNativeHaptics.style(method, args.opt(0) as? String)
+                CraftNativeCapabilityResult(data = style == null || CraftNativeHaptics.play(this, window?.decorView, style))
             }
             else -> CraftNativeCapabilityResult(code = "UNKNOWN_ACTION", message = "Unsupported native API")
         }

@@ -594,6 +594,32 @@ describe('Craft Android builder', () => {
     finally { rmSync(root, { recursive: true, force: true }) }
   })
 
+  it('plays every iOS haptic name on native screens, through view feedback first', async () => {
+    const output = createTempDir('craft-android-native-haptics-')
+    await init({ name: 'NativeHaptics', packageName: 'org.example.nativehaptics', output, runtimeDir: null, config: { renderer: 'native', enableHaptics: true } })
+    const dir = join(output, 'app/src/main/java/org/example/nativehaptics')
+    const native = readFileSync(join(dir, 'MainActivity.kt'), 'utf8')
+    expect(native).toContain('"Haptics" to "impact", "Haptics" to "notification", "Haptics" to "selection", "Haptics" to "prepare" -> if (!hapticsEnabled) {')
+    expect(native).toContain('val style = CraftNativeHaptics.style(method, args.opt(0) as? String)')
+    expect(native).toContain('CraftNativeHaptics.play(this, window?.decorView, style)')
+    // The fixed 30 ms buzz for every style is gone.
+    expect(native).not.toContain('VibrationEffect.createOneShot(30')
+    const haptics = readFileSync(join(dir, 'CraftNativeHaptics.kt'), 'utf8')
+    expect(haptics).toContain('package org.example.nativehaptics')
+    for (const style of ['"light"', '"medium"', '"heavy"', '"soft"', '"rigid"', '"success"', '"warning"', '"error"', '"selection"'])
+      expect(haptics).toContain(style)
+    expect(haptics).toContain('"success" -> if (sdk >= 30) HapticFeedbackConstants.CONFIRM else null')
+    expect(haptics).toContain('"error" -> if (sdk >= 30) HapticFeedbackConstants.REJECT else null')
+    expect(haptics).toContain('"selection" -> if (sdk >= 34) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK')
+    expect(haptics).toContain('if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return VibrationEffect.createPredefined(predefinedEffect(style))')
+    expect(haptics).toContain('if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {')
+    expect(haptics).toContain('return view.performHapticFeedback(constant)')
+
+    const web = createTempDir('craft-android-web-haptics-')
+    await init({ name: 'WebHaptics', packageName: 'org.example.webhaptics', output: web, runtimeDir: null, config: { enableHaptics: true } })
+    expect(existsSync(join(web, 'app/src/main/java/org/example/webhaptics/CraftNativeHaptics.kt'))).toBe(false)
+  })
+
   it('keeps native route teardown and missing-bundle fallback explicit', async () => {
     const output = createTempDir('craft-android-native-lifecycle-')
     await init({ name: 'NativeLifecycle', packageName: 'org.example.nativelifecycle', output, runtimeDir: null, config: { renderer: 'native' } })
