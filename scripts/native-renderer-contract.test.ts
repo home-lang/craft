@@ -1690,6 +1690,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('events["onLayout"]')
     expect(ios).toContain('lastLayoutFrames[id] != frame')
     expect(ios).toContain('private func layoutFrame(of view: UIView) -> CGRect')
+    expect(ios).toContain('view.craftLayoutStyle = .empty\n        // Detaching a retained child must invalidate')
+    expect(ios).toContain('invalidateMeasurements()\n    }\n\n    /// Forgets measured sizes')
     expect(ios).toContain('guard !view.transform.isIdentity else { return view.frame }')
     expect(ios).toContain('let frame = layoutFrame(of: node.view)')
     expect(ios).toContain('if !applied.isEmpty {')

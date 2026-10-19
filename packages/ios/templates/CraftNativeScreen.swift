@@ -2450,6 +2450,11 @@ private class CraftNativeFlowView: UIStackView {
 
     func removeLayoutStyle(for view: UIView) {
         view.craftLayoutStyle = .empty
+        // Detaching a retained child must invalidate the parent's cached
+        // intrinsic measurements too. The normal arranged-subview path does
+        // this after removal, but callers that clear a style before deciding
+        // whether to detach must not leave the old dimensions memoized.
+        invalidateMeasurements()
     }
 
     /// Forgets measured sizes and lays out again on the next pass.

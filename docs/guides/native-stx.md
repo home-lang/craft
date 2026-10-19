@@ -1244,7 +1244,8 @@ capability persistence across relaunch, and notification cancellation.
 
 When a style or color prop is removed during reconciliation, reused native
 controls reset that value to the platform default instead of retaining stale
-state.
+state. Detaching a retained iOS child also clears its cached layout style and
+invalidates the parent measurement cache before the next responsive pass.
 
 ## The browser service host
 
