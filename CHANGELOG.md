@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.246...v0.0.247)
+
+## 🚀 Features
+
+- **android**: Bluetooth heart-rate straps, and WorkManager keep fixes ([9c87b41](https://github.com/craft-native/craft/commit/9c87b41)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.245...v0.0.246)
 
 ## ⚡ Performance Improvements

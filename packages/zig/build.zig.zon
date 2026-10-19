@@ -1,7 +1,7 @@
 .{
     .fingerprint = 0xf45c4a848bf58c1c,
     .name = .craft,
-    .version = "0.0.246",
+    .version = "0.0.247",
     .minimum_zig_version = "0.18.0-dev.146+35accc06e",
     .dependencies = .{
         // First-party, and the engine craft's own JavaScript runs on — see
