@@ -165,6 +165,25 @@ final class NativeNavigationUnitTests: XCTestCase {
         CraftChrome.shared.selected = "/"
     }
 
+    func testVerticalNativeScrollDoesNotPreventTheHorizontalTabGesture() throws {
+        _ = shell.tabTapped("/details", reselect: false)
+        let details = try XCTUnwrap(stack("/details"))
+        details.view.layoutIfNeeded()
+        func scroll(in view: UIView) -> UIScrollView? {
+            if view.accessibilityIdentifier == "people-list" { return view as? UIScrollView }
+            return view.subviews.lazy.compactMap { scroll(in: $0) }.first
+        }
+        let people = try XCTUnwrap(scroll(in: details.view))
+        let tabPan = try XCTUnwrap(shell.view.gestureRecognizers?.compactMap { $0 as? UIPanGestureRecognizer }.first)
+        XCTAssertFalse(people.alwaysBounceHorizontal)
+        XCTAssertLessThanOrEqual(people.contentSize.width, people.bounds.width + 1)
+        XCTAssertTrue(shell.gestureRecognizer(tabPan, shouldRecognizeSimultaneouslyWith: people.panGestureRecognizer),
+                      "the vertical list's pan must not win the horizontal tab gesture")
+        people.alwaysBounceHorizontal = true
+        XCTAssertFalse(shell.gestureRecognizer(tabPan, shouldRecognizeSimultaneouslyWith: people.panGestureRecognizer),
+                       "a horizontal scroller must keep its own gesture")
+    }
+
     func testNativeLinkRetainsItsTapRecognizerAcrossUnrelatedUpdates() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
