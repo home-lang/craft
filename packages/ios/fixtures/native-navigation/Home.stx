@@ -31,6 +31,7 @@ const invalidControlStyleStatus = state('')
 const dateEventStatus = state('date event pending')
 const modalVisible = state(false)
 const modalStatus = state('')
+const modalRequestStatus = state('')
 const modalOpacity = state(1)
 const sliderValue = state(0.5)
 const indicatorSize = state('small')
@@ -448,6 +449,7 @@ function toggleModal() {
 }
 
 function modalShown() {
+  modalRequestStatus.set('')
   modalStatus.set('modal shown')
 }
 
@@ -456,7 +458,7 @@ function modalDismissed() {
 }
 
 function modalRequested(event) {
-  modalStatus.set(`modal requested ${event.reason || 'unknown'}`)
+  modalRequestStatus.set(`modal requested ${event.reason || 'unknown'}`)
   modalVisible.set(false)
 }
 
@@ -846,6 +848,7 @@ function openDetailsThenUpdateBackground() {
       <Button testID="close-modal" @click="toggleModal()">Close modal</Button>
     </Modal>
     <Text testID="modal-status" :text="modalStatus" />
+    <Text testID="modal-request-status" :text="modalRequestStatus" />
     <Slider testID="native-slider" minimumValue={0} maximumValue={1} step={0.1} value={sliderValue} minimumTrackTintColor={invalidSliderColors ? "not-a-color" : "#22c55e"} maximumTrackTintColor={invalidSliderColors ? "not-a-color" : "#64748b"} thumbTintColor={invalidSliderColors ? "not-a-color" : "#16a34a"} @value-change="moveSlider($event)" @sliding-complete="finishSlider()" />
     <Slider testID="boolean-slider" minimumValue={true} maximumValue={2} value={1} />
     <Text testID="slider-value" :text="sliderValue" />

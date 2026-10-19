@@ -570,7 +570,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('if (childView.parent !== layout)')
       expect(nativeActivity).toContain('desired.forEach(layout::bringChildToFront)')
       expect(nativeActivity).toContain('val modal = screen.modalVisibility.entries.lastOrNull')
-      expect(nativeActivity).toContain('val suppressDismiss = !visible && consumeDismissSuppression()')
+      expect(nativeActivity).toContain('if (!lifecycleHandler.isNullOrBlank()) {')
+      expect(nativeActivity).not.toContain('consumeDismissSuppression')
       expect(nativeActivity).toContain('(modal.key as? CraftNativeModalView)?.requestClose(reason = "back")')
       expect(nativeActivity).toContain('override fun onBackPressed()')
       expect(nativeActivity).toContain('view.requestLayout()')
@@ -1516,9 +1517,16 @@ describe('Craft Android builder', () => {
     const shell = readFileSync(join(output, 'app/src/main/java/dev/craft/media/CraftNativeShell.kt'), 'utf8')
     const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
     expect(gradle).toContain('androidx.work:work-runtime-ktx')
-    // Join pending callers; an explicit retry after an answer runs immediately.
+    // Join running and fresh queued work; an explicit retry replaces failed backoff.
     expect(shell).toContain('internal class CraftNativeMediaWorker(')
-    expect(shell).toContain('work.enqueueUniqueWork(workName(address, wifiOnly), if (joined) androidx.work.ExistingWorkPolicy.KEEP else androidx.work.ExistingWorkPolicy.REPLACE, request)')
+    expect(shell).toContain('(it.state == androidx.work.WorkInfo.State.ENQUEUED && it.runAttemptCount == 0)')
+    expect(shell).toContain('"$TAG:generation:$started" in it.tags &&')
+    expect(shell).toContain('val matching = pending.filter { it.generation == started }')
+    expect(shell).toContain('work.enqueueUniqueWork(name, if (pending) androidx.work.ExistingWorkPolicy.KEEP else androidx.work.ExistingWorkPolicy.REPLACE, request).result.get()')
+    // A prune never stops the transfer a keep still waits on; a 206 nobody asked for is refused.
+    expect(shell).toContain('owner !in active && (owner !in wanted || stale)')
+    expect(shell).toContain('if (status == 416 || (status == 206 && !resumed))')
+    expect(shell).toContain('return if (have > 0) Fetched.Restart else Fetched.Refused(status)')
     expect(shell).toContain('if (wifiOnly) androidx.work.NetworkType.UNMETERED else androidx.work.NetworkType.CONNECTED')
     // Resumed from the part file an earlier attempt left.
     expect(shell).toContain('connection.setRequestProperty("Range", "bytes=$have-")')

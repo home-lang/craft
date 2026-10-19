@@ -251,6 +251,33 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(celebration.isRunning, "all decoration is removed after the finite reveal")
     }
 
+    func testALiveReadingFillsTheTabIconSelectedOrNotAndGivesItBack() throws {
+        let chrome = CraftChrome.shared
+        let previous = chrome.tabs
+        let selected = chrome.selected
+        defer { chrome.tabs = previous; chrome.selected = selected }
+        chrome.tabs = [CraftChrome.Tab(id: "/health", title: "Health", symbol: "heart", badge: nil)]
+        chrome.selected = "/m"
+        // A strap's reading: a red, filled, pulsing heart with the bpm, open or not.
+        chrome.updateTab(["id": "/health", "symbol": "heart.fill", "title": "145 bpm", "iconTint": "#ff3b30", "iconPulse": true])
+        for open in [false, true] {
+            let look = chrome.tabs[0].iconAppearance(selected: open, motionAllowed: true)
+            XCTAssertEqual(look.symbol, "heart.fill")
+            XCTAssertEqual(look.tint, "#ff3b30")
+            XCTAssertTrue(look.pulse)
+        }
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "145 bpm")
+        // The reading goes: the configured heart, plain, open or not.
+        chrome.updateTab(["id": "/health", "symbol": NSNull(), "title": NSNull(), "iconTint": NSNull(), "iconPulse": false])
+        for open in [false, true] {
+            let look = chrome.tabs[0].iconAppearance(selected: open, motionAllowed: true)
+            XCTAssertEqual(look.symbol, "heart")
+            XCTAssertNil(look.tint)
+            XCTAssertFalse(look.pulse)
+        }
+        XCTAssertEqual(chrome.tabs[0].displayTitle, "Health")
+    }
+
     func testSelectedTabIconPolicySurvivesLiveCaptionCleanupAndResetsExplicitly() throws {
         let configured = try JSONDecoder().decode(CraftConfig.Tab.self, from: Data(##"{"id":"/health","title":"Health","symbol":"heart","selectedSymbol":"heart.fill","selectedIconTint":"#ff3b30","selectedIconPulse":false}"##.utf8))
         XCTAssertEqual(configured.selectedSymbol, "heart.fill")
@@ -2163,6 +2190,45 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(disabled.accessibilityTraits.contains(.notEnabled))
     }
 
+    func testModalCloseRequestAndDismissAreIndependentVisibilityEvents() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.evaluateScript("globalThis.__modalEvents = []; globalThis.__stxNativeCallback = function(json) { const message = JSON.parse(json); if (message.type === 'EVENT') { const p = message.payload; __modalEvents.push(p.handlerName + (p.nativeEvent.reason ? ':' + p.nativeEvent.reason : '')); } };")
+        controller.render(document([[
+            "id": "modal-node", "type": "Modal",
+            "props": ["key": "modal", "visible": false, "animationType": "none"],
+            "events": ["onShow": "shown", "onRequestClose": "requested", "onDismiss": "dismissed"],
+        ]]))
+        XCTAssertEqual(controller.evaluateScript("__modalEvents.join('|')")?.toString(), "")
+        _ = try controller.applyMutation(batch(1, [
+            ["op": "updateNode", "id": "modal-node", "patch": ["props": ["visible": true]]],
+        ]))
+        let modal = try XCTUnwrap(find(UIView.self, key: "modal", below: controller.view))
+        XCTAssertTrue(modal.isUserInteractionEnabled)
+        let backdropAction = NSSelectorFromString("backdropTapped")
+        XCTAssertTrue(modal.responds(to: backdropAction))
+        modal.perform(backdropAction)
+        XCTAssertEqual(controller.evaluateScript("__modalEvents.join('|')")?.toString(), "shown|requested:backdrop")
+        XCTAssertFalse(modal.isHidden, "A close request waits for the owner's visibility update")
+        _ = try controller.applyMutation(batch(2, [
+            ["op": "updateNode", "id": "modal-node", "patch": ["props": ["visible": false]]],
+        ]))
+        XCTAssertTrue(modal.isHidden)
+        XCTAssertEqual(controller.evaluateScript("__modalEvents.join('|')")?.toString(), "shown|requested:backdrop|dismissed")
+        _ = try controller.applyMutation(batch(3, [
+            ["op": "updateNode", "id": "modal-node", "patch": ["props": ["visible": false]]],
+        ]))
+        XCTAssertEqual(controller.evaluateScript("__modalEvents.length")?.toInt32(), 3, "An unchanged hidden state does not dismiss twice")
+        _ = try controller.applyMutation(batch(4, [
+            ["op": "updateNode", "id": "modal-node", "patch": ["props": ["visible": true]]],
+        ]))
+        XCTAssertTrue(modal.isUserInteractionEnabled)
+        _ = try controller.applyMutation(batch(5, [
+            ["op": "updateNode", "id": "modal-node", "patch": ["props": ["visible": false]]],
+        ]))
+        XCTAssertEqual(controller.evaluateScript("__modalEvents.join('|')")?.toString(), "shown|requested:backdrop|dismissed|shown|dismissed")
+    }
+
     func testHidingAModalDismissesItsKeyboardWithoutRestoringHiddenInputFocus() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
@@ -2244,7 +2310,7 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(CraftNativeScreenController.sliderEventValue(7, step: 1), 7)
     }
 
-    func testAScrollDragCanCancelButtonsWhileOtherControlsKeepTracking() throws {
+    func testAScrollDragCanCancelButtonsAndFieldsWhileValueControlsKeepTracking() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
         controller.render(document([[
@@ -2264,7 +2330,9 @@ final class NativeRenderUnitTests: XCTestCase {
             let button = try XCTUnwrap(find(UIButton.self, key: key, below: scroll))
             XCTAssertTrue(scroll.touchesShouldCancel(in: button), "\(key) must yield to a scroll drag")
         }
-        for key in ["slider", "switch", "field", "date"] {
+        let field = try XCTUnwrap(find(UITextField.self, key: "field", below: scroll))
+        XCTAssertTrue(scroll.touchesShouldCancel(in: field), "a drag over a row's field must scroll its page")
+        for key in ["slider", "switch", "date"] {
             let control = try XCTUnwrap(find(UIControl.self, key: key, below: scroll))
             XCTAssertFalse(scroll.touchesShouldCancel(in: control), "\(key) retains its tracking gesture")
         }

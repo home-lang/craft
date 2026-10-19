@@ -3788,7 +3788,6 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     private let blocker = UIView()
     private let backdropTap = UITapGestureRecognizer()
     private var renderedVisible = false
-    private var dismissSuppressedByRequest = false
     private var animationGeneration = 0
     var onRequestClose: ((String) -> Void)?
 
@@ -3877,24 +3876,14 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
         transform = .identity
         alpha = 0
         isUserInteractionEnabled = true
-        dismissSuppressedByRequest = false
         onRequestClose = nil
     }
 
     func requestClose(reason: String = "backdrop") {
         guard let onRequestClose else { return }
-        dismissSuppressedByRequest = true
         isUserInteractionEnabled = false
         onRequestClose(reason)
     }
-
-    func consumeDismissSuppression() -> Bool {
-        let suppressed = dismissSuppressedByRequest
-        dismissSuppressedByRequest = false
-        return suppressed
-    }
-
-    func clearDismissSuppression() { dismissSuppressedByRequest = false }
 
     @objc private func backdropTapped() { requestClose(reason: "backdrop") }
 
@@ -4010,9 +3999,10 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
     required init?(coder: NSCoder) { nil }
 
     override func touchesShouldCancel(in view: UIView) -> Bool {
-        // A drag beginning on a button scrolls; lifting without dragging
-        // remains a tap. Sliders, switches and text fields keep tracking.
-        if view is UIButton { return true }
+        // Buttons and text fields yield once a scroll drag begins; an
+        // ordinary tap still reaches them immediately. Value controls such
+        // as sliders, switches and date pickers keep their tracking gesture.
+        if view is UIButton || view is UITextField { return true }
         if view is UIControl { return false }
         return super.touchesShouldCancel(in: view)
     }
@@ -5148,6 +5138,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// sees, not a tab prepared behind it.
     private var isShownOnScreen: Bool {
         guard let window = view.window else { return false }
+        if let shell = navigationController?.parent as? CraftHybridController,
+           !shell.isFocusedScreen(self) { return false }
         var candidate: UIView? = view
         while let current = candidate, current !== window {
             if current.isHidden { return false }
@@ -7366,11 +7358,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             modal.onRequestClose = nonEmptyHandler(events["onRequestClose"]).map { handler in
                 { [weak self] reason in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["reason": reason]]) }
             }
-            if visible { modal.clearDismissSuppression() }
-            let suppressDismiss = !visible && modal.consumeDismissSuppression()
             if wasVisible != visible, visible || wasVisible == true {
                 let lifecycleHandler = visible ? events["onShow"] : events["onDismiss"]
-                if let lifecycleHandler = nonEmptyHandler(lifecycleHandler), !suppressDismiss {
+                if let lifecycleHandler = nonEmptyHandler(lifecycleHandler) {
                     send(type: "EVENT", payload: ["handlerName": lifecycleHandler, "nativeEvent": [:]])
                 }
             }
@@ -7448,10 +7438,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 // already-stopped view changes hidesWhenStopped to false.
                 // Android applies the requested visibility on every render;
                 // keep the two hosts in lockstep for dynamic prop changes.
-                indicator.isHidden = indicator.hidesWhenStopped
+                indicator.isHidden = style["display"] as? String == "none" || indicator.hidesWhenStopped
             } else {
                 indicator.startAnimating()
-                indicator.isHidden = false
+                indicator.isHidden = style["display"] as? String == "none"
             }
         case "Svg":
             let drawing = result as! CraftNativeSvgView

@@ -263,9 +263,18 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertTrue(input === find("navigation-input-b", in: screen.view))
         let button = try XCTUnwrap(find("navigation-select-b", in: screen.view) as? UIButton)
         let scroll = try XCTUnwrap(find("native-root-scroll", in: screen.view) as? UIScrollView)
-        screen.view.layoutIfNeeded()
+        // Becoming first responder animates the scroll view's bounds. During
+        // that transition UIKit legitimately keeps the scroll view as the hit
+        // target. Sample the retained button after the native geometry settles.
+        await displayWait("keyed row keyboard geometry settled", diagnostic: {
+            "bounds=\(scroll.bounds), animations=\(scroll.layer.animationKeys() ?? [])"
+        }) {
+            screen.view.layoutIfNeeded()
+            return scroll.layer.animationKeys()?.isEmpty ?? true
+        }
         scroll.scrollRectToVisible(button.convert(button.bounds, to: scroll), animated: false)
         window.layoutIfNeeded()
+        await renderFrames()
         let point = button.convert(CGPoint(x: button.bounds.midX, y: button.bounds.midY), to: window)
         let hit = window.hitTest(point, with: nil)
         XCTAssertTrue(hit === button || hit?.isDescendant(of: button) == true,
@@ -364,10 +373,14 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(screen.evaluateScript("craft.navigation.isFocused()")?.toBool(), false)
         XCTAssertEqual(home.viewControllers.count, 1, "preparation must not push Login's equivalent over Home")
         XCTAssertEqual(guarded.viewControllers.count, 1)
-        XCTAssertEqual(CraftChrome.shared.selected, "/")
+        // The tab indicator previews the destination while the native Home
+        // stack still owns focus and navigation until the swipe commits.
+        XCTAssertEqual(CraftChrome.shared.selected, coldSwipe ? "/guarded" : "/")
         if coldSwipe {
             drag(-150, phase: .cancelled)
             await settle()
+            XCTAssertEqual(CraftChrome.shared.selected, "/")
+            XCTAssertEqual(screen.evaluateScript("craft.navigation.isFocused()")?.toBool(), false)
         }
         XCTAssertTrue(shell.tabTapped("/guarded", reselect: false))
         await displayWait("the guard navigates only when its tab is shown") {

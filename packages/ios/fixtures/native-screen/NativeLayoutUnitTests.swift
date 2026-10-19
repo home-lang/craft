@@ -203,6 +203,30 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(indicator.transform.tx, 0, accuracy: 0.001)
     }
 
+    func testActivityIndicatorDisplayNoneWinsOverAnimationAndStoppedVisibility() throws {
+        func document(hidden: Bool, animating: Bool = true, hidesWhenStopped: Bool = true) -> [String: Any] {
+            ["type": "ActivityIndicator", "props": ["key": "indicator", "animating": animating, "hidesWhenStopped": hidesWhenStopped],
+             "style": hidden ? ["display": "none"] : [:]]
+        }
+        let controller = screen(document(hidden: true))
+        let indicator = try XCTUnwrap(find("indicator", below: controller.view) as? UIActivityIndicatorView)
+        XCTAssertTrue(indicator.isAnimating)
+        XCTAssertTrue(indicator.isHidden, "starting animation must not override authored display:none")
+        controller.render(document(hidden: false))
+        XCTAssertTrue(find("indicator", below: controller.view) === indicator)
+        XCTAssertFalse(indicator.isHidden)
+        controller.render(document(hidden: true, animating: false, hidesWhenStopped: false))
+        XCTAssertFalse(indicator.isAnimating)
+        XCTAssertTrue(indicator.isHidden, "display:none also wins over a stopped indicator that normally stays visible")
+        controller.render(document(hidden: false, animating: false, hidesWhenStopped: false))
+        XCTAssertFalse(indicator.isHidden)
+        controller.render(document(hidden: false, animating: false))
+        XCTAssertTrue(indicator.isHidden)
+        controller.render(document(hidden: false))
+        XCTAssertFalse(indicator.isHidden)
+        XCTAssertTrue(indicator.isAnimating)
+    }
+
     private func settle(_ controller: CraftNativeScreenController) async {
         // These fixtures measure committed geometry, not main-queue timer
         // latency. Lay out the containing window/navigation bar before the

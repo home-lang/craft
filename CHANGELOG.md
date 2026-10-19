@@ -1,5 +1,31 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.248...v0.0.249)
+
+## 🚀 Features
+
+- **native**: a page can change a tab's symbol while it says so ([e5490bc](https://github.com/craft-native/craft/commit/e5490bc)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **ios**: keep swipe previews outside committed screen focus ([b626e5f](https://github.com/craft-native/craft/commit/b626e5f)) _(by Chris Breuer)_
+- **ios**: preserve native picker accessibility wheels ([82c752b](https://github.com/craft-native/craft/commit/82c752b)) _(by Chris Breuer)_
+- **ios**: let button drags scroll their native container ([21c7053](https://github.com/craft-native/craft/commit/21c7053)) _(by Chris Breuer)_
+- **ios**: establish hidden focus before mounting tab roots ([1c4dfe8](https://github.com/craft-native/craft/commit/1c4dfe8)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: align accessibility contracts with native picker wheels ([c8a6727](https://github.com/craft-native/craft/commit/c8a6727)) _(by Chris Breuer)_
+- **ios**: identify retained keyed row actions explicitly ([8c5e660](https://github.com/craft-native/craft/commit/8c5e660)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- adopt qualified-source release guard ([6c9d44c](https://github.com/craft-native/craft/commit/6c9d44c)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.247...v0.0.248)
 
 ## 🚀 Features
