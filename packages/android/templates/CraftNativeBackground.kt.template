@@ -206,7 +206,8 @@ internal class CraftNativeHeadlessApp(
                 colorScheme: 'light',
                 appURL: ${JSONObject.quote(config.optString("devServerURL"))},
                 appVersion: '',
-                appBuild: ''
+                appBuild: '',
+                sessionTokenKey: ${JSONObject.quote(CraftNativePrelude.sessionTokenKey(config))}
             """.trimIndent()
             val prelude = CraftNativePrelude.script(
                 bridgeFields,

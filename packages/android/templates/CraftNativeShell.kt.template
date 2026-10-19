@@ -418,6 +418,13 @@ internal class CraftNativeStores private constructor(context: Context, private v
  * to the host in this isolate (a message port or the console).
  */
 internal object CraftNativePrelude {
+    /**
+     * The secure-storage key the signed-in account's token lives under
+     * (`sessionTokenKey` in craft.config.json, `auth.token` by default):
+     * `craft.session` follows it, and a change of it is `SESSION_CHANGED`.
+     */
+    fun sessionTokenKey(config: JSONObject): String = config.optString("sessionTokenKey").ifBlank { "auth.token" }
+
     fun script(
         bridgeFields: String,
         post: String,
@@ -509,6 +516,7 @@ internal object CraftNativePrelude {
               var payload = message.payload || {};
               var bucket = sync[payload.store];
               if (!bucket) return;
+              var sessionBefore = payload.store === 'secure' ? sessionToken() : null;
               if (payload.clear) {
                 Object.keys(bucket).forEach(function(key) {
                   if (!(payload.keep || []).includes(key)) {
@@ -516,11 +524,13 @@ internal object CraftNativePrelude {
                     if (payload.store === 'snapshots') emit({ type: 'SNAPSHOT_CHANGED', payload: { name: key } });
                   }
                 });
+                if (payload.store === 'secure') sessionMoved(sessionBefore);
                 return;
               }
               if (payload.value === null || payload.value === undefined) delete bucket[payload.key];
               else bucket[payload.key] = payload.value;
               if (payload.store === 'snapshots') emit({ type: 'SNAPSHOT_CHANGED', payload: { name: payload.key } });
+              if (payload.store === 'secure') sessionMoved(sessionBefore);
               return;
             }
             if (message && message.type === 'TIMER_FIRE') {
@@ -550,6 +560,29 @@ internal object CraftNativePrelude {
               return;
             }
             emit(raw);
+          }
+          // The signed-in account: the token under `sessionTokenKey` in the
+          // secure store. Every isolate hears every secure write (SYNC_UPDATE,
+          // the writer's too), so a change of the token, whoever made it, is
+          // one `SESSION_CHANGED { key, token, previous }` here, after the
+          // store holds it, then the `craft.session.onChange` listeners.
+          var sessionListeners = [];
+          function sessionKey() {
+            var bridge = globalThis.__stxNativeBridge;
+            return bridge && typeof bridge.sessionTokenKey === 'string' && bridge.sessionTokenKey ? bridge.sessionTokenKey : 'auth.token';
+          }
+          function sessionToken() {
+            var value = sync.secure[sessionKey()];
+            return typeof value === 'string' && value !== '' ? value : null;
+          }
+          function sessionMoved(before) {
+            var token = sessionToken();
+            if (token === before) return;
+            var change = { key: sessionKey(), token: token, previous: before };
+            emit({ type: 'SESSION_CHANGED', payload: change });
+            sessionListeners.slice().forEach(function(callback) {
+              try { callback(token, before); } catch (error) { console.error('[session] ' + (error && error.stack || error)); }
+            });
           }
           function wait(type, payload) {
             return new Promise(function(resolve, reject) {
@@ -621,6 +654,18 @@ internal object CraftNativePrelude {
             getSync: function(key) {
               var value = sync.secure[String(key)];
               return value === undefined ? null : value;
+            }
+          });
+          keep('session', {
+            key: sessionKey(),
+            token: sessionToken,
+            onChange: function(callback) {
+              if (typeof callback !== 'function') throw new TypeError('craft.session.onChange needs a function');
+              sessionListeners.push(callback);
+              return function() {
+                var index = sessionListeners.indexOf(callback);
+                if (index >= 0) sessionListeners.splice(index, 1);
+              };
             }
           });
           // Older native bundles call the page-shaped `craft.dialog` API

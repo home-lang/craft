@@ -202,6 +202,12 @@ export interface CraftAndroidConfig {
     selectedIconPulse?: boolean
   }>
   nativeApp?: string
+  /**
+   * The secure-storage key the signed-in account's token lives under
+   * (default `auth.token`). `craft.session` follows it on every native
+   * screen, and a change of it is `SESSION_CHANGED { key, token, previous }`.
+   */
+  sessionTokenKey?: string
   /** Wake the app script every so often (`craftBackgroundRefresh`), through WorkManager. */
   backgroundRefresh?: { enabled?: boolean, minimumIntervalMinutes?: number }
   /**

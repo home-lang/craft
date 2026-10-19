@@ -4328,7 +4328,8 @@ class MainActivity : AppCompatActivity() {
             appearance: ${appearance()},
             appURL: ${JSONObject.quote(config.optString("devServerURL"))},
             appVersion: ${JSONObject.quote(appVersion().first)},
-            appBuild: ${JSONObject.quote(appVersion().second)}
+            appBuild: ${JSONObject.quote(appVersion().second)},
+            sessionTokenKey: ${JSONObject.quote(CraftNativePrelude.sessionTokenKey(config))}
         """.trimIndent()
         // The stores can run to megabytes: read and laid out off the main
         // thread, then handed to the isolate.

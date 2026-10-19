@@ -620,6 +620,17 @@ describe('Craft Android builder', () => {
     expect(existsSync(join(web, 'app/src/main/java/org/example/webhaptics/CraftNativeHaptics.kt'))).toBe(false)
   })
 
+  it('names the session token key to every native isolate', async () => {
+    const output = createTempDir('craft-android-native-session-')
+    await init({ name: 'NativeSession', packageName: 'org.example.nativesession', output, runtimeDir: null, config: { renderer: 'native', enableSecureStorage: true } })
+    const dir = join(output, 'app/src/main/java/org/example/nativesession')
+    expect(readFileSync(join(dir, 'MainActivity.kt'), 'utf8')).toContain('sessionTokenKey: ${JSONObject.quote(CraftNativePrelude.sessionTokenKey(config))}')
+    expect(readFileSync(join(dir, 'CraftNativeBackground.kt'), 'utf8')).toContain('sessionTokenKey: ${JSONObject.quote(CraftNativePrelude.sessionTokenKey(config))}')
+    const shell = readFileSync(join(dir, 'CraftNativeShell.kt'), 'utf8')
+    expect(shell).toContain('fun sessionTokenKey(config: JSONObject): String = config.optString("sessionTokenKey").ifBlank { "auth.token" }')
+    expect(shell).toContain("emit({ type: 'SESSION_CHANGED', payload: change });")
+  })
+
   it('keeps native route teardown and missing-bundle fallback explicit', async () => {
     const output = createTempDir('craft-android-native-lifecycle-')
     await init({ name: 'NativeLifecycle', packageName: 'org.example.nativelifecycle', output, runtimeDir: null, config: { renderer: 'native' } })

@@ -11,14 +11,14 @@ afterAll(removeAllTempDirs)
 const templates = join(import.meta.dir, '../templates')
 
 /** The prelude every isolate runs (CraftNativeShell.kt's CraftNativePrelude), with its Kotlin holes filled. */
-function prelude(stores: Record<string, Record<string, string>>, capabilities: string[] = []): string {
+function prelude(stores: Record<string, Record<string, string>>, capabilities: string[] = [], fields = ''): string {
   const source = readFileSync(join(templates, 'CraftNativeShell.kt.template'), 'utf8')
   const start = source.indexOf('): String = """') + '): String = """'.length
   const end = source.indexOf('""".trimIndent()', start)
   return source.slice(start, end)
     .replace('$routePrelude', 'globalThis.__stxNativeRoute = "Today";')
     .replace('$STORES', JSON.stringify(stores))
-    .replace('$bridgeFields', `platform: 'android', capabilityProtocolVersion: 1, capabilities: ${JSON.stringify(capabilities)}`)
+    .replace('$bridgeFields', `platform: 'android', capabilityProtocolVersion: 1, capabilities: ${JSON.stringify(capabilities)}${fields}`)
     .replace('$post', 'globalThis.__posted.push(JSON.parse(value));')
     .replace('$receiveSetup', 'globalThis.__deliver = deliver;')
 }
@@ -30,10 +30,10 @@ interface Isolate {
   deliver: (message: unknown) => void
 }
 
-function isolate(stores: Record<string, Record<string, string>> = {}, capabilities: string[] = []): Isolate {
+function isolate(stores: Record<string, Record<string, string>> = {}, capabilities: string[] = [], fields = ''): Isolate {
   const context: Record<string, any> = { __posted: [], console: { error() {}, log() {} } }
   vm.createContext(context)
-  vm.runInContext(prelude({ storage: {}, secure: {}, snapshots: {}, ...stores }, capabilities), context)
+  vm.runInContext(prelude({ storage: {}, secure: {}, snapshots: {}, ...stores }, capabilities, fields), context)
   const heard: any[] = []
   context.__stxNativeBridge.onMessage((raw: string) => heard.push(JSON.parse(raw)))
   return { posted: context.__posted, heard, context, deliver: message => context.__deliver(JSON.stringify(message)) }
@@ -80,6 +80,40 @@ describe('the native shell prelude (JavaScriptSandbox has no synchronous host ca
     expect(app.context.craft.secureStorage.getSync('auth.token')).toBeNull()
     app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'snapshots', clear: true, keep: [] } })
     expect(app.context.craft.snapshots.get('header')).toBeNull()
+  })
+
+  it('reports each change of the sign-in token once, as SESSION_CHANGED and to craft.session', () => {
+    const app = isolate({ secure: { 'auth.token': 'ava', 'other': 'x' } })
+    const session = app.context.craft.session
+    expect(session.key).toBe('auth.token')
+    expect(session.token()).toBe('ava')
+    const heard: unknown[] = []
+    const stop = session.onChange((token: string | null, previous: string | null) => heard.push([token, previous, app.context.craft.secureStorage.getSync('auth.token')]))
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'secure', key: 'other', value: 'y' } })
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'secure', key: 'auth.token', value: 'ava' } })
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'secure', key: 'auth.token', value: 'ben' } })
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'secure', clear: true } })
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'secure', key: 'auth.token', value: '' } })
+    stop()
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'secure', key: 'auth.token', value: 'cy' } })
+    expect(heard).toEqual([['ben', 'ava', 'ben'], [null, 'ben', null]])
+    expect(app.heard.filter(message => message.type === 'SESSION_CHANGED')).toEqual([
+      { type: 'SESSION_CHANGED', payload: { key: 'auth.token', token: 'ben', previous: 'ava' } },
+      { type: 'SESSION_CHANGED', payload: { key: 'auth.token', token: null, previous: 'ben' } },
+      { type: 'SESSION_CHANGED', payload: { key: 'auth.token', token: 'cy', previous: null } },
+    ])
+  })
+
+  it('follows the configured token key and keeps craft.session when the runtime assigns its own', () => {
+    const app = isolate({ secure: { 'auth.token': 'ignored', 'hq.session': 'ava' } }, [], `, sessionTokenKey: 'hq.session'`)
+    expect(app.context.craft.session.token()).toBe('ava')
+    app.context.craft.session = { extra: true }
+    expect(app.context.craft.session.extra).toBe(true)
+    expect(app.context.craft.session.key).toBe('hq.session')
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'secure', key: 'auth.token', value: 'other' } })
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'secure', key: 'hq.session', value: 'ben' } })
+    expect(app.heard.filter(message => message.type === 'SESSION_CHANGED').map(message => message.payload))
+      .toEqual([{ key: 'hq.session', token: 'ben', previous: 'ava' }])
   })
 
   it('gives the isolate timers and frames from the host', () => {
