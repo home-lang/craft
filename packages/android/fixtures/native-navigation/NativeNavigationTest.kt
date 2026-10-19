@@ -1685,8 +1685,8 @@ class NativeNavigationTest {
                 "absolute child ignored its trailing insets",
                 absolute.right <= wrapped.width - (8 * density).toInt() && absolute.bottom <= wrapped.height - (8 * density).toInt()
             )
-            assertEquals("absolute aspect ratio should resolve from anchored width", 156.0 * density, absoluteRatio.width.toFloat(), 1.0f)
-            assertEquals("absolute aspect ratio should remeasure from anchored width", 39.0 * density, absoluteRatio.height.toFloat(), 1.0f)
+            assertEquals("absolute aspect ratio should resolve from anchored width", 156.0 * density, absoluteRatio.width.toDouble(), 1.0)
+            assertEquals("absolute aspect ratio should remeasure from anchored width", 39.0 * density, absoluteRatio.height.toDouble(), 1.0)
             assertTrue("wrapped child did not wrap", bounded.top < awaitView(activity, "layout-stretch").top)
             val scroll = awaitView(activity, "native-scroll")
             val image = awaitView(activity, "native-image")
