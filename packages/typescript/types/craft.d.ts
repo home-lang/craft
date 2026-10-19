@@ -1566,11 +1566,11 @@ export interface CraftHealth {
 }
 
 export interface CraftWallet {
-  /** Whether this device can present Apple Wallet passes. */
+  /** Whether this device can hand a pass to its platform wallet. */
   isAvailable(): Promise<boolean>;
-  /** Whether a pass with this serial number is already present. */
+  /** Whether a pass with this serial number is already present (iOS). */
   has(serialNumber: string): Promise<boolean>;
-  /** Presents Apple's add-pass sheet for base64 `.pkpass` data or an HTTPS URL. */
+  /** Presents a pass: iOS accepts base64 `.pkpass` data or an HTTPS URL; Android accepts an HTTPS Google Wallet save URL. */
   add(source: { data: string } | { url: string }): Promise<boolean>;
 }
 
