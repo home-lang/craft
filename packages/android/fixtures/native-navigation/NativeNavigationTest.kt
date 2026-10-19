@@ -70,6 +70,12 @@ class NativeNavigationTest {
         }
     }
 
+    private fun screenTop(view: View): Int {
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        return location[1]
+    }
+
     private fun containsType(view: View, type: Class<out View>): Boolean {
         if (type.isInstance(view)) return true
         if (view is ViewGroup) {
@@ -1793,6 +1799,16 @@ class NativeNavigationTest {
             awaitText(activity, "people-count", "People: 40; events: 1")
             val peopleHeader = awaitView(activity, "people-header") as TextView
             assertTrue("ScrollView contentContainerStyle did not add top padding", peopleHeader.top >= people.top + (8 * density).toInt())
+            val peopleContent = people.getChildAt(0)
+            assertTrue("people ScrollView did not lay out overflowing content", peopleContent != null && peopleContent.height > people.height)
+            instrumentation.runOnMainSync {
+                people.scrollTo(0, (peopleContent?.height ?: 0) - people.height)
+            }
+            SystemClock.sleep(150)
+            assertTrue(
+                "ScrollView sticky header did not remain pinned",
+                screenTop(peopleHeader) >= screenTop(people) + (8 * density).toInt() - 1,
+            )
             val peopleLayouts = awaitView(activity, "people-layout-status") as TextView
             val initialRowLayouts = peopleLayouts.text.toString().substringAfterLast(": ").toInt()
             assertTrue("ScrollView rows did not report layout", initialRowLayouts > 0)

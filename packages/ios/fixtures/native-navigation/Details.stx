@@ -69,6 +69,7 @@ globalThis.craft.navigation.setOptions({
     <Text testID="people-count" :text="'People: ' + people().length + '; events: ' + listEvents" />
     <ScrollView
       testID="people-list"
+      :stickyHeaderIndices="[0]"
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{"paddingTop":8}}

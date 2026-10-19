@@ -2650,6 +2650,7 @@ describe('native renderer component contract', () => {
     expect(iosLayoutUnitTests).toContain('absolute sibling followed scroll content')
     expect(navigationDetails).toContain('<ScrollView')
     expect(navigationDetails).toContain(':for="(item, index) in people"')
+    expect(navigationDetails).toContain(':stickyHeaderIndices="[0]"')
     expect(navigationDetails).toContain(':key="item.id"')
     expect(navigationDetails).toContain(':text="\'People: \' + people().length + \'; events: \' + listEvents"')
     expect(navigationDetails).toContain('testID="load-more-people"')
