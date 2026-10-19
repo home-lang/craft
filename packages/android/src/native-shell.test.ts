@@ -40,6 +40,18 @@ function isolate(stores: Record<string, Record<string, string>> = {}, capabiliti
 }
 
 describe('the native shell prelude (JavaScriptSandbox has no synchronous host calls)', () => {
+  it('names browser URL globals that are intentionally unavailable on native screens', () => {
+    const app = isolate()
+    for (const expression of [
+      'new URLSearchParams()',
+      'new URL("/leaderboard")',
+      'new TextEncoder()',
+    ]) {
+      expect(() => vm.runInContext(expression, app.context)).toThrow(/not available on a native screen/)
+    }
+    expect(() => vm.runInContext('new URLSearchParams()', app.context)).toThrow(/encodeURIComponent/)
+  })
+
   it('answers storage, snapshots and secure storage synchronously from the preloaded copies', () => {
     const app = isolate({
       storage: { units: '"metric"' },

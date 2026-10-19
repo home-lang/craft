@@ -1434,6 +1434,15 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('private final class CraftNativeMapView: MKMapView, MKMapViewDelegate')
   })
 
+  it('names browser URL globals that are intentionally unavailable on native screens', async () => {
+    const output = createTempDir('craft-ios-native-web-apis-')
+    await init({ runtimeDir: null, name: 'NativeWebAPIs', bundleId: 'org.example.nativewebapis', output, config: { renderer: 'native' } as any })
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    expect(screen).toContain('private static let nativeWebAPICompatibilityPrelude')
+    expect(screen).toContain("globalThis.URLSearchParams = unavailable('URLSearchParams'")
+    expect(screen).toContain("globalThis.TextEncoder = unavailable('TextEncoder'")
+  })
+
   it('keeps generated iOS media limits strict and finite', async () => {
     const output = createTempDir('craft-ios-native-media-numbers-')
     await init({ runtimeDir: null, name: 'NativeMediaNumbers', bundleId: 'org.example.nativemedianumbers', output })

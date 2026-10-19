@@ -5175,6 +5175,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 onMessage: function(callback) { globalThis.__stxNativeCallback = callback; }
             };
         """)
+        jsContext.evaluateScript(Self.nativeWebAPICompatibilityPrelude)
         installHostAPIs()
         jsContext.evaluateScript("""
             if (typeof globalThis.setTimeout !== 'function') {
@@ -5230,6 +5231,25 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
         """)
     }
+
+    /// JavaScriptCore has the language core but not browser URL/encoding
+    /// globals. Keep their absence actionable for shared modules instead of
+    /// surfacing an opaque ReferenceError from an unrelated load path. Full
+    /// implementations belong to the shared STX runtime.
+    private static let nativeWebAPICompatibilityPrelude = """
+        (function() {
+          function unavailable(name, hint) {
+            var failure = function() {
+              throw new ReferenceError(name + ' is not available on a native screen — ' + hint);
+            };
+            failure.prototype.constructor = failure;
+            return failure;
+          }
+          if (typeof globalThis.URL === 'undefined') globalThis.URL = unavailable('URL', 'use an absolute URL or build the path with encodeURIComponent');
+          if (typeof globalThis.URLSearchParams === 'undefined') globalThis.URLSearchParams = unavailable('URLSearchParams', 'build query strings with encodeURIComponent');
+          if (typeof globalThis.TextEncoder === 'undefined') globalThis.TextEncoder = unavailable('TextEncoder', 'use a native-supported encoding helper');
+        })();
+    """
 
     /// `value` as a JavaScript string literal (JSON), quotes and all.
     static func jsonString(_ value: String) -> String {
