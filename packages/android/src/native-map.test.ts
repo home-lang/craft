@@ -2,11 +2,35 @@ import { afterAll, describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { init } from './index'
+import { runKotlinFixture } from './testing'
 import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
 
 afterAll(removeAllTempDirs)
 
 describe('native Android map provider generation', () => {
+  it('keys native Google map overlays by their typed coordinates', async () => {
+    const template = readFileSync(join(import.meta.dir, '../templates/CraftNativeMapGoogle.kt.template'), 'utf8')
+    const polygon = template.match(/    private data class PolygonValue[^\n]+/)?.[0]
+    const key = template.match(/    private fun overlayKey\([\s\S]*?\n    \}/)?.[0]
+    if (!polygon || !key) throw new Error('Native Google map overlay declarations are missing')
+    await runKotlinFixture(`
+data class LatLng(val latitude: Double, val longitude: Double)
+${polygon}
+${key}
+fun main() {
+    val markers = mapOf("b" to Pair(LatLng(3.0, 4.0), null), "a" to Pair(LatLng(1.0, 2.0), "label"))
+    val lines = mapOf("p" to Triple(listOf(LatLng(5.0, 6.0), LatLng(7.0, 8.0)), 1, 2f))
+    val areas = mapOf("g" to PolygonValue(listOf(LatLng(9.0, 10.0), LatLng(11.0, 12.0), LatLng(13.0, 14.0)), 1, 2, 3f))
+    val original = overlayKey(markers, lines, areas)
+    check(original == "m[a:1.0,2.0|b:3.0,4.0]p[p:5.0,6.0;7.0,8.0]g[g:9.0,10.0;11.0,12.0;13.0,14.0]") { original }
+    check(overlayKey(markers, lines + ("p" to Triple(listOf(LatLng(15.0, 16.0)), 1, 2f)), areas) != original)
+    check(overlayKey(markers, lines, areas + ("g" to PolygonValue(listOf(LatLng(17.0, 18.0)), 1, 2, 3f))) != original)
+    check(overlayKey(markers, lines + ("p" to lines.getValue("p").copy(second = 9, third = 10f)), areas) == original)
+    println("PASS native Google map overlay identity follows geometry without reframing for line styling")
+}
+`)
+  }, 180_000)
+
   it('builds a MapLibre host without a Google map SDK dependency or key', async () => {
     const output = createTempDir('craft-native-maplibre-')
     await init({ name: 'Native maps', packageName: 'com.craft.native', output, runtimeDir: null, config: { renderer: 'native', mapProvider: 'maplibre', enableGeolocation: true } })
