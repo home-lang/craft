@@ -52,6 +52,13 @@ describe('the native shell prelude (JavaScriptSandbox has no synchronous host ca
     expect(() => vm.runInContext('new URLSearchParams()', app.context)).toThrow(/encodeURIComponent/)
   })
 
+  it('reports every unsupported browser global with the same native-screen wording', () => {
+    const app = isolate()
+    for (const name of ['URL', 'URLSearchParams', 'TextEncoder']) {
+      expect(() => vm.runInContext(`new ${name}()`, app.context)).toThrow(new RegExp(`${name} is not available on a native screen`))
+    }
+  })
+
   it('answers storage, snapshots and secure storage synchronously from the preloaded copies', () => {
     const app = isolate({
       storage: { units: '"metric"' },

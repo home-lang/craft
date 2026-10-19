@@ -58,6 +58,18 @@ blocks; bindings update native controls through the mutation protocol. Native
 scripts also receive the `globalThis.craft` route, navigation, storage, and
 capability APIs from the host.
 
+Native screens do not run in a browser context. The host supplies the language
+runtime, `globalThis.craft`, `fetch`, timers, and the enabled capability APIs,
+but it does not provide browser URL or encoding globals. `URL`,
+`URLSearchParams`, and `TextEncoder` are installed as named failures when they
+are otherwise absent, so a shared helper fails with an actionable message
+instead of an unrelated `ReferenceError` after a screen has already started
+loading. Use an absolute URL or `encodeURIComponent` for request paths and
+query strings, and use a native-supported encoding helper for byte conversion.
+This behavior is identical on iOS JavaScriptCore and Android
+JavaScriptSandbox; it is not a capability gate and does not change the web
+renderer.
+
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
