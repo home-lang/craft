@@ -1105,9 +1105,9 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val rowHeights = if (gridRows != null) {
             val count = max(gridRows ?: 0, naturalRowHeights.size)
             while (rows.size < count) rows.add(mutableListOf())
-            val available = max(0, height - paddingTop - paddingBottom - max(0, count - 1) * rowGap).toFloat()
+            val available = max(0f, (height - paddingTop - paddingBottom).toFloat() - max(0, count - 1) * rowGap)
             val equal = available / max(1, count).toFloat()
-            naturalRowHeights + List(count - naturalRowHeights.size) { equal }
+            (naturalRowHeights + List(count - naturalRowHeights.size) { 0f })
                 .map { max(it, equal) }
         } else naturalRowHeights
         return GridLayout(rows, absolute, cellWidth, rowHeights)

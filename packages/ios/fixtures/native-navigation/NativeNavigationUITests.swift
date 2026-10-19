@@ -618,7 +618,7 @@ final class NativeNavigationUITests: XCTestCase {
         let templateThird = app.otherElements["grid-template-rows-third"]
         XCTAssertTrue(templateRows.waitForExistence(timeout: 5) && templateFirst.exists && templateThird.exists)
         XCTAssertEqual(templateFirst.frame.height, templateThird.frame.height, accuracy: 2, "explicit grid rows did not use equal tracks")
-        XCTAssertGreaterThan(templateThird.frame.minY, templateFirst.frame.minY + 30, "explicit grid rows did not fill the definite height")
+        XCTAssertEqual(templateThird.frame.minY - templateFirst.frame.minY, 44, accuracy: 1, "explicit grid rows did not fill the definite height")
         let fractionalGrid = app.otherElements["grid-fractional-wrap"]
         let fractionalFirst = app.otherElements["grid-fractional-first"]
         let fractionalSecond = app.otherElements["grid-fractional-second"]

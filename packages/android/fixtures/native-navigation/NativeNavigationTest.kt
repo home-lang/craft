@@ -1123,7 +1123,7 @@ class NativeNavigationTest {
             val templateFirst = awaitView(activity, "grid-template-rows-first")
             val templateThird = awaitView(activity, "grid-template-rows-third")
             assertEquals(templateFirst.height, templateThird.height)
-            assertTrue("explicit grid rows did not fill the definite height", templateThird.top - templateFirst.top > (30 * density).toInt())
+            assertEquals("explicit grid rows did not fill the definite height", 44.0 * density, (templateThird.top - templateFirst.top).toDouble(), 1.0)
             val fractionalGrid = awaitView(activity, "grid-fractional-wrap")
             val fractionalFirst = awaitView(activity, "grid-fractional-first")
             val fractionalSecond = awaitView(activity, "grid-fractional-second")
