@@ -1191,91 +1191,155 @@ internal object CraftNativeSymbols {
  * Video and audio kept on the phone for offline (`craft.media`), the iOS
  * host's CraftNativeMedia: `files/craft-media/<sha256 of the address>.<ext>`.
  * A native Video given an address with a copy here plays the copy.
+ *
+ * Each download is a WorkManager job named by its address
+ * (CraftNativeMediaWorker), so it carries on when Android stops the app and
+ * runs when its network is there: any connection, or an unmetered one for a
+ * Wi-Fi-only keep. A part file is kept between attempts and resumed with a
+ * Range request. A keep the phone cannot fetch now (no connection, or only
+ * a metered one for a Wi-Fi-only keep) answers at once with `{ ok: false,
+ * reason: "offline" | "cellular", queued: true }`, as iOS does, and the
+ * transfer finishes on its own; the next keep answers from the copy.
  */
 internal object CraftNativeMedia {
-    private data class Flight(val id: String, val waiting: MutableList<(CraftNativeCapabilityResult) -> Unit>)
-    private val inFlight = HashMap<String, Flight>()
-    private val executor = Executors.newFixedThreadPool(2)
+    private const val TAG = "craft-media"
+    private const val PREFS = "craft.media"
+    private val lock = Any()
+    /** Keeps waiting in this process for an address's transfer. */
+    private val waiting = HashMap<String, MutableList<(CraftNativeCapabilityResult) -> Unit>>()
+    /** One transfer writes an address's part file at a time. */
+    private val writers = ConcurrentHashMap<String, Any>()
+    private val background = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
 
     private fun root(context: Context) = File(context.applicationContext.filesDir, "craft-media")
 
+    fun digest(address: String): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(address.toByteArray()).joinToString("") { "%02x".format(it) }
+
     fun file(context: Context, address: String): File {
-        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(address.toByteArray()).joinToString("") { "%02x".format(it) }
         val ext = runCatching { Uri.parse(address).lastPathSegment?.substringAfterLast('.', "")?.lowercase() }.getOrNull().orEmpty()
         val safe = if (Regex("^[a-z0-9]{1,5}$").matches(ext)) ext else "bin"
-        return File(root(context), "$digest.$safe")
+        return File(root(context), "${digest(address)}.$safe")
     }
+
+    /** Where an address's transfer writes until the file is whole; kept between attempts to resume. */
+    fun part(context: Context, address: String): File = File(root(context), "${file(context, address).name}.part")
 
     fun local(context: Context, address: String): File? =
         address.takeIf { it.isNotBlank() }?.let { file(context, it) }?.takeIf { it.isFile && it.length() > 0 }
 
     private fun describe(address: String, file: File) = JSONObject().put("ok", true).put("url", address).put("path", file.absolutePath).put("size", file.length())
 
-    /**
-     * `cellular = false` keeps it off a metered connection (mobile data, a
-     * hotspot): nothing is fetched and the answer is `{ ok: false, reason:
-     * "cellular" }`, so the screen can say it is waiting for Wi-Fi. A copy
-     * already kept still answers, whatever the connection.
-     */
+    private fun prefs(context: Context): SharedPreferences = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    /** How many times the cache was cleared; a transfer started before the last clear does not land. */
+    fun generation(context: Context): Int = prefs(context).getInt("generation", 0)
+
+    /** The unique job for an address and connection rule: `any` or `wifi`. */
+    private fun workName(address: String, wifiOnly: Boolean) = "$TAG:${digest(address)}:${if (wifiOnly) "wifi" else "any"}"
+
     fun keep(context: Context, address: String, headers: JSONObject, cellular: Boolean, done: (CraftNativeCapabilityResult) -> Unit) {
         val uri = runCatching { Uri.parse(address) }.getOrNull()
         if (uri == null || uri.scheme?.lowercase() !in setOf("http", "https") || uri.host.isNullOrBlank()) {
             return done(CraftNativeCapabilityResult(code = "INVALID_ARGUMENT", message = "media.keep needs an absolute http or https URL"))
         }
         local(context, address)?.let { return done(CraftNativeCapabilityResult(data = describe(address, it))) }
-        if (!cellular && metered(context)) {
-            return done(CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("reason", "cellular")))
+        val app = context.applicationContext
+        synchronized(lock) { waiting.getOrPut(address) { mutableListOf() }.add(done) }
+        val wifiOnly = !cellular
+        val work = androidx.work.WorkManager.getInstance(app)
+        // The same address under the other rule gives way; its part file is resumed.
+        work.cancelUniqueWork(workName(address, !wifiOnly))
+        val request = androidx.work.OneTimeWorkRequestBuilder<CraftNativeMediaWorker>()
+            .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(if (wifiOnly) androidx.work.NetworkType.UNMETERED else androidx.work.NetworkType.CONNECTED).build())
+            .setInputData(androidx.work.workDataOf("address" to address, "headers" to headers.toString(), "generation" to generation(app)))
+            .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, java.util.concurrent.TimeUnit.SECONDS)
+            .addTag(TAG)
+            .addTag("$TAG:${digest(address)}")
+            .build()
+        // KEEP: a transfer already queued or running for this address is joined, not started again.
+        work.enqueueUniqueWork(workName(address, wifiOnly), androidx.work.ExistingWorkPolicy.KEEP, request)
+        val reason = when {
+            !online(app) -> "offline"
+            wifiOnly && metered(app) -> "cellular"
+            else -> null
         }
-        val flight = synchronized(inFlight) {
-            inFlight[address]?.let { waiting ->
-                waiting.waiting.add(done)
-                return
-            }
-            Flight(java.util.UUID.randomUUID().toString(), mutableListOf(done)).also { inFlight[address] = it }
+        if (reason != null) deliver(address, queued(address, reason))
+    }
+
+    private fun queued(address: String, reason: String) =
+        CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("reason", reason).put("queued", true))
+
+    /** Answers every keep waiting for `address`. */
+    fun deliver(address: String, result: CraftNativeCapabilityResult) {
+        val answered = synchronized(lock) { waiting.remove(address).orEmpty() }
+        if (answered.isNotEmpty()) main.post { answered.forEach { it(result) } }
+    }
+
+    enum class Outcome { DONE, RETRY }
+
+    /**
+     * One attempt at an address's transfer, run by its job: resumes the part
+     * file where it stopped, moves it into place whole, and answers whoever
+     * waits. RETRY leaves the part file for the next attempt.
+     */
+    fun transfer(context: Context, address: String, headers: JSONObject, started: Int, attempt: Int, stopped: () -> Boolean): Outcome {
+        if (generation(context) != started) {
+            deliver(address, CraftNativeCapabilityResult(code = "CANCELLED", message = "The video cache was cleared"))
+            return Outcome.DONE
         }
-        executor.execute {
-            val result = runCatching {
-                val connection = java.net.URL(address).openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout = 30_000
-                connection.readTimeout = 60_000
-                headers.keys().forEach { name -> connection.setRequestProperty(name, headers.optString(name)) }
-                try {
-                    val status = connection.responseCode
-                    if (status != 200) return@runCatching CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("status", status))
-                    val target = file(context, address)
-                    target.parentFile?.mkdirs()
-                    // Written aside and moved into place, so a half-written file is never played.
-                    val staging = File(target.parentFile, "${target.name}.${flight.id}.part")
-                    try {
-                        val size = connection.inputStream.use { input -> staging.outputStream().use { input.copyTo(it) } }
-                        val expected = connection.contentLengthLong
-                        if (size <= 0 || (expected >= 0 && size != expected)) {
-                            return@runCatching CraftNativeCapabilityResult(code = "NETWORK_ERROR", message = "media.keep received an incomplete file")
-                        }
-                        synchronized(inFlight) {
-                            if (inFlight[address]?.id != flight.id) {
-                                return@runCatching CraftNativeCapabilityResult(code = "CANCELLED", message = "The video cache was cleared")
-                            }
-                            if (!staging.renameTo(target)) {
-                                return@runCatching CraftNativeCapabilityResult(code = "IO_ERROR", message = "media.keep could not store the file")
-                            }
-                        }
-                    } finally {
-                        staging.delete()
-                    }
-                    CraftNativeCapabilityResult(data = describe(address, target))
-                } finally {
-                    connection.disconnect()
-                }
-            }.getOrElse { error ->
-                val full = generateSequence(error) { it.cause }.take(16).any {
+        local(context, address)?.let {
+            deliver(address, CraftNativeCapabilityResult(data = describe(address, it)))
+            return Outcome.DONE
+        }
+        val writer = writers.getOrPut(address) { Any() }
+        synchronized(writer) {
+            val target = file(context, address)
+            val staging = part(context, address)
+            target.parentFile?.mkdirs()
+            val fetched = try {
+                CraftResumableDownload().fetch(address, headers.keys().asSequence().associateWith { headers.optString(it) }, staging, stopped)
+            } catch (error: Exception) {
+                val full = generateSequence<Throwable>(error) { it.cause }.take(16).any {
                     it is android.system.ErrnoException && it.errno == android.system.OsConstants.ENOSPC
                 }
-                CraftNativeCapabilityResult(code = if (full) "NO_SPACE" else if (error is java.net.SocketTimeoutException) "TIMEOUT" else "NETWORK_ERROR", message = error.message ?: "media.keep failed")
+                if (full) {
+                    staging.delete()
+                    deliver(address, CraftNativeCapabilityResult(code = "NO_SPACE", message = error.message ?: "The phone is out of space"))
+                    return Outcome.DONE
+                }
+                if (stopped()) return Outcome.RETRY
+                // Lost the connection part way: the part waits for the next attempt.
+                deliver(address, if (!online(context)) queued(address, "offline") else CraftNativeCapabilityResult(code = if (error is java.net.SocketTimeoutException) "TIMEOUT" else "NETWORK_ERROR", message = error.message ?: "media.keep failed"))
+                return if (attempt < 8) Outcome.RETRY else Outcome.DONE.also { staging.delete() }
             }
-            val waiting = synchronized(inFlight) { if (inFlight[address]?.id == flight.id) inFlight.remove(address)?.waiting.orEmpty() else emptyList() }
-            main.post { waiting.forEach { it(result) } }
+            when (fetched) {
+                is CraftResumableDownload.Fetched.Stopped, is CraftResumableDownload.Fetched.Restart -> return Outcome.RETRY
+                is CraftResumableDownload.Fetched.Refused -> {
+                    deliver(address, CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("status", fetched.status)))
+                    return Outcome.DONE
+                }
+                is CraftResumableDownload.Fetched.Incomplete -> {
+                    deliver(address, CraftNativeCapabilityResult(code = "NETWORK_ERROR", message = "media.keep received an incomplete file"))
+                    return if (attempt < 8) Outcome.RETRY else Outcome.DONE.also { staging.delete() }
+                }
+                is CraftResumableDownload.Fetched.Complete -> Unit
+            }
+            synchronized(lock) {
+                if (generation(context) != started) {
+                    staging.delete()
+                    deliver(address, CraftNativeCapabilityResult(code = "CANCELLED", message = "The video cache was cleared"))
+                    return Outcome.DONE
+                }
+                target.delete()
+                if (!staging.renameTo(target)) {
+                    deliver(address, CraftNativeCapabilityResult(code = "IO_ERROR", message = "media.keep could not store the file"))
+                    return Outcome.DONE
+                }
+            }
+            deliver(address, CraftNativeCapabilityResult(data = describe(address, target)))
+            return Outcome.DONE
         }
     }
 
@@ -1285,36 +1349,55 @@ internal object CraftNativeMedia {
         connectivity.isActiveNetworkMetered
     }.getOrDefault(false)
 
-    /** Removes every copy whose address is not in `keep`; answers how many. */
+    /** Whether there is a connection to the internet at all. */
+    private fun online(context: Context): Boolean = runCatching {
+        val connectivity = context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
+        capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }.getOrDefault(true)
+
+    /** Removes every copy whose address is not in `keep`, and stops their transfers; answers how many files went. */
     fun prune(context: Context, keep: List<String>): Int {
-        val wanted = keep.map { file(context, it).name }.toSet()
+        val wanted = keep.map { digest(it) }.toSet()
         var removed = 0
-        synchronized(inFlight) {
-            // A concurrent keep owns its target and staging file until it finishes.
-            val active = inFlight.flatMap { (address, flight) ->
-                val name = file(context, address).name
-                listOf(name, "$name.${flight.id}.part")
-            }.toSet()
+        synchronized(lock) {
+            // A keep still waiting owns its address's files until it is answered.
+            val active = waiting.keys.map { digest(it) }.toSet()
             root(context).listFiles()?.forEach { file ->
-                if (file.name !in active && file.name !in wanted && file.delete()) removed++
+                val owner = file.name.substringBefore('.')
+                // Part files from before transfers resumed (`<sha>.<ext>.<id>.part`) are never picked up again.
+                val stale = file.name.endsWith(".part") && file.name.count { it == '.' } > 2
+                if (owner !in active && (owner !in wanted || stale) && file.delete()) removed++
+            }
+        }
+        val app = context.applicationContext
+        background.execute {
+            runCatching {
+                androidx.work.WorkManager.getInstance(app).getWorkInfosByTag(TAG).get()
+                    .filter { !it.state.isFinished }
+                    .filter { info -> info.tags.none { it.startsWith("$TAG:") && it.removePrefix("$TAG:") in wanted } }
+                    .forEach { androidx.work.WorkManager.getInstance(app).cancelWorkById(it.id) }
             }
         }
         return removed
     }
 
-    /** Invalidates old transfers before deleting files; a later keep starts afresh. */
+    /** Stops every transfer and deletes every copy; none started before this lands after it. */
     fun clear(context: Context): Int {
         var removed = 0
         var failure: java.io.IOException? = null
-        val waiting = synchronized(inFlight) {
-            val callbacks = inFlight.values.flatMap { it.waiting }
-            inFlight.clear()
+        val answered = synchronized(lock) {
+            // Persisted before the files go: a transfer that outlives the process checks it too.
+            prefs(context).edit().putInt("generation", generation(context) + 1).commit()
+            val callbacks = waiting.values.flatten()
+            waiting.clear()
             root(context).listFiles()?.forEach { file ->
                 if (file.delete()) removed++ else failure = java.io.IOException("The video cache could not be cleared")
             }
             callbacks
         }
-        main.post { waiting.forEach { it(CraftNativeCapabilityResult(code = "CANCELLED", message = "The video cache was cleared")) } }
+        androidx.work.WorkManager.getInstance(context.applicationContext).cancelAllWorkByTag(TAG)
+        main.post { answered.forEach { it(CraftNativeCapabilityResult(code = "CANCELLED", message = "The video cache was cleared")) } }
         failure?.let { throw it }
         return removed
     }
@@ -1322,6 +1405,88 @@ internal object CraftNativeMedia {
     fun usage(context: Context): JSONObject {
         val kept = root(context).listFiles()?.filter { !it.name.endsWith(".part") }.orEmpty()
         return JSONObject().put("files", kept.size).put("bytes", kept.sumOf { it.length() })
+    }
+}
+
+/**
+ * One attempt at fetching a file into `part`, resuming what an earlier
+ * attempt left there with a Range request. Plain Java I/O, so the JVM tests
+ * run it against a local server. A part that no longer lines up with the
+ * file (416, or a range that starts elsewhere) is dropped and the attempt
+ * says Restart; a server that ignores Range sends the whole file again.
+ */
+internal class CraftResumableDownload(
+    private val open: (String) -> java.net.HttpURLConnection = { java.net.URL(it).openConnection() as java.net.HttpURLConnection },
+) {
+    sealed class Fetched {
+        data class Complete(val size: Long) : Fetched()
+        data class Refused(val status: Int) : Fetched()
+        object Incomplete : Fetched()
+        object Restart : Fetched()
+        object Stopped : Fetched()
+    }
+
+    fun fetch(address: String, headers: Map<String, String>, part: File, stopped: () -> Boolean): Fetched {
+        val have = if (part.isFile) part.length() else 0L
+        val connection = open(address)
+        connection.connectTimeout = 30_000
+        connection.readTimeout = 60_000
+        headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
+        if (have > 0) connection.setRequestProperty("Range", "bytes=$have-")
+        try {
+            val status = connection.responseCode
+            val resumed = status == 206 && have > 0 && rangeStart(connection.getHeaderField("Content-Range")) == have
+            if (status == 416 || (status == 206 && !resumed)) {
+                part.delete()
+                return Fetched.Restart
+            }
+            if (status != 200 && !resumed) {
+                part.delete()
+                return Fetched.Refused(status)
+            }
+            val total = if (resumed) rangeTotal(connection.getHeaderField("Content-Range")) else connection.contentLengthLong
+            part.parentFile?.mkdirs()
+            connection.inputStream.use { input ->
+                java.io.FileOutputStream(part, resumed).use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        if (stopped()) return Fetched.Stopped
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        output.write(buffer, 0, read)
+                    }
+                }
+            }
+            val size = part.length()
+            // HttpURLConnection inflates gzip itself; a Content-Length is then the compressed size.
+            val encoded = connection.getHeaderField("Content-Encoding") != null
+            if (size <= 0 || (!encoded && total >= 0 && size != total)) {
+                // Longer than the file says it is: nothing to resume from.
+                if (total in 0 until size) part.delete()
+                return Fetched.Incomplete
+            }
+            return Fetched.Complete(size)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    companion object {
+        /** `bytes 100-199/1000` → 100; -1 when it does not say. */
+        fun rangeStart(header: String?): Long = Regex("^bytes (\\d+)-\\d+/(\\d+|\\*)$").find(header?.trim().orEmpty())?.groupValues?.get(1)?.toLongOrNull() ?: -1L
+
+        /** `bytes 100-199/1000` → 1000; -1 when the total is not known. */
+        fun rangeTotal(header: String?): Long = Regex("^bytes \\d+-\\d+/(\\d+)$").find(header?.trim().orEmpty())?.groupValues?.get(1)?.toLongOrNull() ?: -1L
+    }
+}
+
+/** One `craft.media.keep` transfer, run by WorkManager when its network is there (CraftNativeMedia). */
+internal class CraftNativeMediaWorker(context: Context, parameters: androidx.work.WorkerParameters) : androidx.work.Worker(context, parameters) {
+    override fun doWork(): Result {
+        val address = inputData.getString("address") ?: return Result.failure()
+        val headers = runCatching { JSONObject(inputData.getString("headers") ?: "{}") }.getOrDefault(JSONObject())
+        val outcome = CraftNativeMedia.transfer(applicationContext, address, headers, inputData.getInt("generation", 0), runAttemptCount) { isStopped }
+        return if (outcome == CraftNativeMedia.Outcome.RETRY) Result.retry() else Result.success()
     }
 }
 

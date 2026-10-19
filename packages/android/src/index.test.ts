@@ -1476,6 +1476,25 @@ describe('Craft Android builder', () => {
     expect(manifest).toContain('android:foregroundServiceType="location"')
   })
 
+  it('keeps offline media on WorkManager, resumed, queued and stopped at sign-out', async () => {
+    const output = createTempDir('craft-android-media-')
+    await init({ name: 'Glyph', packageName: 'dev.craft.media', output, config: { renderer: 'native', nativeScreens: {} } })
+    const shell = readFileSync(join(output, 'app/src/main/java/dev/craft/media/CraftNativeShell.kt'), 'utf8')
+    const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
+    expect(gradle).toContain('androidx.work:work-runtime-ktx')
+    // A job per address and connection rule, joined rather than started twice, run when its network is there.
+    expect(shell).toContain('internal class CraftNativeMediaWorker(')
+    expect(shell).toContain('work.enqueueUniqueWork(workName(address, wifiOnly), androidx.work.ExistingWorkPolicy.KEEP, request)')
+    expect(shell).toContain('if (wifiOnly) androidx.work.NetworkType.UNMETERED else androidx.work.NetworkType.CONNECTED')
+    // Resumed from the part file an earlier attempt left.
+    expect(shell).toContain('connection.setRequestProperty("Range", "bytes=$have-")')
+    // Answered at once when it cannot run now, in the shape iOS answers.
+    expect(shell).toContain('.put("reason", reason).put("queued", true)')
+    // A clear (sign-out) is persisted before the files go, and stops every job.
+    expect(shell).toContain('prefs(context).edit().putInt("generation", generation(context) + 1).commit()')
+    expect(shell).toContain('cancelAllWorkByTag(TAG)')
+  })
+
   it('gives every notification a white glyph instead of the launcher icon', async () => {
     const root = createTempDir('craft-android-notification-icon-')
     const googleServicesFile = join(root, 'google-services.json')
