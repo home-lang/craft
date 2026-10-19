@@ -1915,6 +1915,42 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(proof.font?.pointSize, 22)
     }
 
+    func testRetainedRowButtonStillDispatchesAfterItsPreviousSiblingIsRemoved() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.evaluateScript("globalThis.__rowPress = ''; globalThis.__stxNativeCallback = function(json) { const message = JSON.parse(json); if (message.type === 'EVENT') globalThis.__rowPress = message.payload.handlerName; };")
+        func row(_ id: String) -> [String: Any] {
+            ["id": "row-\(id)", "type": "View", "props": ["key": id], "children": [
+                ["id": "input-\(id)", "type": "TextInput", "props": ["key": "input-\(id)", "defaultValue": "Draft"]],
+                ["id": "button-\(id)", "type": "Button", "props": ["key": "button-\(id)", "title": "Select row"], "events": ["onPress": "select-\(id)"]],
+            ]]
+        }
+        controller.render(document([row("a"), row("b")]))
+        let button = try XCTUnwrap(find(UIButton.self, key: "button-b", below: controller.view))
+        controller.render(document([row("b"), row("c")]))
+        XCTAssertTrue(button === find(UIButton.self, key: "button-b", below: controller.view))
+        button.sendActions(for: .touchUpInside)
+        XCTAssertEqual(controller.evaluateScript("__rowPress")?.toString(), "select-b")
+    }
+
+    func testScrollCanCancelButtonTrackingWithoutTakingSliderOrInputTracking() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([[
+            "type": "ScrollView", "props": ["key": "form"], "style": ["height": 300], "children": [
+                ["type": "Button", "props": ["key": "action", "title": "Save"]],
+                ["type": "Slider", "props": ["key": "position", "value": 0.5]],
+                ["type": "Switch", "props": ["key": "toggle", "value": false]],
+                ["type": "TextInput", "props": ["key": "draft", "value": "Draft"]],
+            ],
+        ]]))
+        let form = try XCTUnwrap(find(UIScrollView.self, key: "form", below: controller.view))
+        XCTAssertTrue(form.touchesShouldCancel(in: try XCTUnwrap(find(UIButton.self, key: "action", below: controller.view))))
+        XCTAssertFalse(form.touchesShouldCancel(in: try XCTUnwrap(find(UISlider.self, key: "position", below: controller.view))))
+        XCTAssertFalse(form.touchesShouldCancel(in: try XCTUnwrap(find(UISwitch.self, key: "toggle", below: controller.view))))
+        XCTAssertFalse(form.touchesShouldCancel(in: try XCTUnwrap(find(UITextField.self, key: "draft", below: controller.view))))
+    }
+
     func testScrollKeyboardTapPreservesTextAreaFocusAndSelectionButDismissesBackground() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()

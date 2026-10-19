@@ -4010,6 +4010,10 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
     required init?(coder: NSCoder) { nil }
 
     override func touchesShouldCancel(in view: UIView) -> Bool {
+        // A button tracks its tap immediately, but a drag that starts there
+        // still belongs to the list. Keep direct manipulation controls (a
+        // slider, switch or text field) on their native tracking path.
+        if view is UIButton { return true }
         if view is UIControl { return false }
         return super.touchesShouldCancel(in: view)
     }

@@ -158,6 +158,21 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(home.frame.minX, baseline.minX, accuracy: 1)
     }
 
+    func testDraggingFromAButtonScrollsWithoutActivatingIt() {
+        let app = XCUIApplication()
+        app.launch()
+        let scroll = app.scrollViews["native-root-scroll"]
+        let button = app.buttons["toggle-safe-area"]
+        let marker = app.staticTexts["home-title"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+        XCTAssertTrue(button.waitForExistence(timeout: 10))
+        let baseline = marker.frame.minY
+        let start = button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -120)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertLessThan(marker.frame.minY, baseline - 30, "A drag that starts on a button must scroll the list")
+        XCTAssertEqual(app.staticTexts["safe-area-status"].label, "Safe edges: top,bottom", "Scrolling must cancel the button's tap")
+    }
+
     func testMultilineInputKeepsKeyboardFocusWhenTapped() {
         let app = XCUIApplication()
         app.launch()
@@ -463,7 +478,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(beaInput.value as? String, "draft")
         beaInput.typeText("!")
         XCTAssertEqual(beaInput.value as? String, "draft!")
-        app.buttons.matching(NSPredicate(format: "label == %@", "Select row")).firstMatch.tap()
+        app.buttons["navigation-select-b"].tap()
         XCTAssertTrue(waitForLabel(status, "Selected: b"))
         XCTAssertTrue(scroll.exists, "keyed reconciliation replaced the list scroll host")
     }
@@ -544,7 +559,7 @@ final class NativeNavigationUITests: XCTestCase {
         let indeterminateCheckbox = app.buttons["native-checkbox-indeterminate"]
         XCTAssertTrue(indeterminateCheckbox.waitForExistence(timeout: 5))
         XCTAssertEqual(indeterminateCheckbox.value as? String, "mixed")
-        XCTAssertEqual(app.buttons["checkbox-checked-precedence"].value as? String, "0")
+        XCTAssertEqual(app.buttons["checkbox-checked-precedence"].value as? String, "unchecked")
         XCTAssertTrue(app.buttons["disabled-button"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["disabled-button"].isEnabled)
         XCTAssertEqual(image.label, "Native pixel")
@@ -744,7 +759,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(panel.isEnabled, "clearing accessibilityState.disabled should restore a generic pressable")
         panel.tap()
         XCTAssertTrue(app.staticTexts["panel pressed"].waitForExistence(timeout: 5))
-        let pressable = app.otherElements["native-pressable"]
+        let pressable = app.buttons["native-pressable"]
         reveal(pressable, in: rootScroll)
         // Earlier reveal drags may start on the pressable and legitimately
         // deliver a cancelled press-in/out pair. Assert this tap's delta.
@@ -757,7 +772,7 @@ final class NativeNavigationUITests: XCTestCase {
         pressable.tap()
         XCTAssertTrue(app.staticTexts["pressable pressed"].waitForExistence(timeout: 5))
         XCTAssertEqual(lifecycle.label, "Press lifecycle: \(pressesIn + 1)/\(pressesOut + 1)")
-        let disabledPressable = app.otherElements["disabled-pressable"]
+        let disabledPressable = app.buttons["disabled-pressable"]
         XCTAssertTrue(disabledPressable.waitForExistence(timeout: 5))
         XCTAssertFalse(disabledPressable.isEnabled)
         let longPressPanel = app.otherElements["long-press-panel"]

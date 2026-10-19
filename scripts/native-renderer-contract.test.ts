@@ -263,7 +263,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('checkboxChecked is Boolean -> checkboxChecked')
     expect(navigationHome).toContain('<Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" />')
     expect(androidNavigationTest).toContain('checked should take precedence over value')
-    expect(iosNavigationTest).toContain('app.buttons["checkbox-checked-precedence"].value as? String, "0"')
+    expect(iosNavigationTest).toContain('app.buttons["checkbox-checked-precedence"].value as? String, "unchecked"')
     expect(guide).toContain('controlled values are present,')
     expect(guide).toContain('`checked` takes precedence. It delivers')
   })
