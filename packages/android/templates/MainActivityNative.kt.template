@@ -7218,6 +7218,7 @@ class MainActivity : AppCompatActivity() {
         }
         released.filterIsInstance<CraftNativeModalView>().forEach { it.resetForTeardown() }
         released.filterIsInstance<CraftNativeDatePickerView>().forEach { it.resetForTeardown() }
+        released.filterIsInstance<CraftNativeRefreshableFlatList>().forEach { it.resetForTeardown() }
         released.filterIsInstance<CraftNativeVideoView>().forEach { it.stop() }
         released.filterIsInstance<CraftNativeMapView>().forEach { it.destroy() }
         released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }

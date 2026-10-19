@@ -3157,6 +3157,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('released.filterIsInstance<CraftNativeDatePickerView>().forEach { it.resetForTeardown() }')
   })
 
+  it('releases the Android refreshable FlatList wrapper before its recycler', () => {
+    expect(androidRefreshableFlatList).toContain('fun resetForTeardown()')
+    expect(androidRefreshableFlatList).toContain('refreshHandler = null')
+    expect(android).toContain('released.filterIsInstance<CraftNativeRefreshableFlatList>().forEach { it.resetForTeardown() }')
+  })
+
   it('prefers authored keys over compiler ids when reconciling native rows', () => {
     expect(ios).toContain('let direct = [node["key"], props["key"]]')
     expect(ios).toContain('[node["id"], props["testID"]]')

@@ -740,6 +740,10 @@ Android date pickers clear their value-change bridge during teardown as well, so
 the platform picker cannot retain a screen callback after its native view is
 released.
 
+The Android refreshable `FlatList` wrapper clears its refresh closure before
+the inner recycler is released, keeping a keyed reconciliation from retaining
+the previous screen through the outer swipe host.
+
 ## Events, accessibility, and navigation
 
 `defaultValue` initializes an uncontrolled `TextInput` once; controlled

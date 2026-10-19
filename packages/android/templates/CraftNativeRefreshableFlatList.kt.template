@@ -22,6 +22,12 @@ internal class CraftNativeRefreshableFlatList(context: Context) : SwipeRefreshLa
         if (handler == null) isRefreshing = false
     }
 
+    fun resetForTeardown() {
+        refreshHandler = null
+        isRefreshing = false
+        isEnabled = false
+    }
+
     fun setRefreshAppearance(props: JSONObject, fallback: Int) {
         val tint = props.optString("tintColor").takeIf { it.isNotBlank() }
         val resolved = tint?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: fallback
@@ -29,8 +35,7 @@ internal class CraftNativeRefreshableFlatList(context: Context) : SwipeRefreshLa
     }
 
     override fun onDetachedFromWindow() {
-        refreshHandler = null
-        isRefreshing = false
+        resetForTeardown()
         super.onDetachedFromWindow()
     }
 }
