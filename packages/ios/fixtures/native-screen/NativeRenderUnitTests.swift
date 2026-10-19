@@ -2337,7 +2337,10 @@ final class NativeRenderUnitTests: XCTestCase {
         let date = try XCTUnwrap(find(UIDatePicker.self, key: "date", below: controller.view))
         XCTAssertEqual(toggle.accessibilityTraits, UISwitch().accessibilityTraits)
         XCTAssertTrue(slider.accessibilityTraits.contains(.adjustable))
-        XCTAssertTrue(picker.accessibilityTraits.contains(.adjustable))
+        let referencePicker = UIPickerView()
+        XCTAssertEqual(picker.isAccessibilityElement, referencePicker.isAccessibilityElement)
+        XCTAssertEqual(picker.accessibilityTraits, referencePicker.accessibilityTraits)
+        XCTAssertEqual(picker.accessibilityContainerType, referencePicker.accessibilityContainerType)
         XCTAssertTrue(date.accessibilityTraits.contains(.adjustable))
     }
 

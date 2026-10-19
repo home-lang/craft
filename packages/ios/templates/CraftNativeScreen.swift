@@ -9102,7 +9102,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // A video with its system controls is a group too: VoiceOver reaches
         // play, the scrubber, skipping and full screen inside it.
         let controlledVideo = type == "Video" && (props["controls"] as? Bool) == true
-        let container = ["ScrollView", "FlatList", "SectionList"].contains(type)
+        // UIPickerView exposes adjustable component wheels. Making the
+        // picker itself a leaf hides those wheels and their selected values.
+        let container = ["ScrollView", "FlatList", "SectionList", "Picker"].contains(type)
             || ["tablist", "radiogroup", "list", "menu", "menubar", "toolbar"].contains(role ?? "")
             || controlledVideo
         view.isAccessibilityElement = !container && role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "DatePicker", "Switch", "Slider"].contains(type))
@@ -9113,7 +9115,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // screen omits redundant accessibility metadata.
         var traits: UIAccessibilityTraits = []
         switch type {
-        case "Slider", "Picker", "DatePicker": traits.insert(.adjustable)
+        case "Slider", "DatePicker": traits.insert(.adjustable)
         default: break
         }
         switch role ?? type.lowercased() {
