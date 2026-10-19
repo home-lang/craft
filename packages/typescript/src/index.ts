@@ -233,6 +233,7 @@ export type {
   MapRegion,
   MapProps,
   MapPolylineProps,
+  MapPolygonProps,
   MapMarkerProps,
   ScrollViewProps,
   PressableProps,

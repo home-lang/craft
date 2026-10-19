@@ -31,6 +31,7 @@ import type {
   PickerProps,
   MapProps,
   MapMarkerProps,
+  MapPolygonProps,
   SvgProps,
   SvgTextProps,
   MapPolylineProps,
@@ -197,6 +198,9 @@ describe('Component System', () => {
     expect(map.initialRegion?.span.longitudeDelta).toBe(0.75)
     expect(map.fitToBounds).toBe(true)
     expect(route.geometry).toHaveLength(4)
+    const territory: MapPolygonProps = { geometry: [47, 11, 47.1, 11.2, 47.2, 11.1], fillColor: '#24724b', strokeWidth: 2 }
+    expect(territory.geometry).toHaveLength(6)
+    expect(territory.fillColor).toBe('#24724b')
     expect(marker.id).toBe('trailhead')
     expect(picker.selectedValue).toBe(1)
     expect(childPicker.value).toBe('Two')

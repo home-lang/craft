@@ -652,6 +652,14 @@ export interface MapPolylineProps extends BaseProps {
   strokeWidth?: number
 }
 
+export interface MapPolygonProps extends BaseProps {
+  /** Flat latitude/longitude pairs; the host closes the ring for drawing. */
+  geometry: number[]
+  fillColor?: string
+  strokeColor?: string
+  strokeWidth?: number
+}
+
 export interface MapMarkerProps extends BaseProps {
   geometry: number[]
   id: string
