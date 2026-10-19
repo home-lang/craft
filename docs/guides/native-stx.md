@@ -116,7 +116,9 @@ Wrapped flows use the same boundary when both axes use independent row/column ga
 resolve against the parent content box before entering the shared ABI. Reverse
 main-axis flows use the versioned v2 boundary when available, and wrap-reverse
 flows use v3; grids with resolved `gridAutoRows` use v4, which appends the
-resolved minimum without changing the older payloads. Absolute children,
+resolved minimum without changing the older payloads. Grids with explicit
+`gridTemplateRows` use v5, which appends the equal-track count while retaining
+the v4 fields. Absolute children,
 missing runtimes, and any malformed ABI result stay on the local compatibility
 algorithms. Hosts still measure each grid child locally, but the shared core now
 owns the final auto-row minimum and row placement. The iOS root also keeps

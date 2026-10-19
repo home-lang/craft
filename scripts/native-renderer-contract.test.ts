@@ -126,9 +126,14 @@ describe('native renderer component contract', () => {
 
   it('keeps grid-auto-rows on the shared ABI when a grid is nested', () => {
     expect(nativeLayout).toContain('test "v4 tree layout carries auto rows through nested grids"')
+    expect(nativeLayout).toContain('test "v5 tree layout carries explicit equal grid rows through the shared ABI"')
+    expect(nativeLayout).toContain('craft_native_layout_tree_v5')
     expect(iosLayoutUnitTests).toContain('testNestedGridAutoRowsStayOnTheSharedTreePath')
     expect(ios).toContain('if containsGridAutoRows(root)')
     expect(android).toContain('val autoRowsAware = nodes.any { it.gridAutoRows != null }')
+    expect(android).toContain('val explicitRowsAware = nodes.any { it.gridRows != null }')
+    expect(android).toContain('CraftNative.layoutTreeV5(width.toFloat(), height.toFloat(), nodeData, treeMeta)')
+    expect(androidDispatch).toContain('nativeLayoutTreeV5')
   })
 
   it('exposes the implemented native gradient style controls', () => {

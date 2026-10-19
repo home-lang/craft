@@ -360,6 +360,12 @@ object CraftNative {
         nodeData: FloatArray,
         treeMeta: FloatArray,
     ): FloatArray?
+    private external fun nativeLayoutTreeV5(
+        width: Float,
+        height: Float,
+        nodeData: FloatArray,
+        treeMeta: FloatArray,
+    ): FloatArray?
     private external fun nativeClipboardRead(activity: Activity): String?
     private external fun nativeClipboardWrite(activity: Activity, text: String): Boolean
     private external fun nativeOpenUrl(activity: Activity, url: String): Boolean
@@ -654,6 +660,17 @@ object CraftNative {
         if (!isAvailable || nodeData.isEmpty() || treeMeta.isEmpty()) return null
         return try {
             nativeLayoutTreeV4(width, height, nodeData, treeMeta)
+                ?.takeIf { it.size >= treeMeta.size / 2 * 4 && it.all { value -> value.isFinite() } }
+        } catch (e: UnsatisfiedLinkError) {
+            null
+        }
+    }
+
+    /** Resolve a tree with shared auto rows and explicit equal grid rows. */
+    fun layoutTreeV5(width: Float, height: Float, nodeData: FloatArray, treeMeta: FloatArray): FloatArray? {
+        if (!isAvailable || nodeData.isEmpty() || treeMeta.isEmpty()) return null
+        return try {
+            nativeLayoutTreeV5(width, height, nodeData, treeMeta)
                 ?.takeIf { it.size >= treeMeta.size / 2 * 4 && it.all { value -> value.isFinite() } }
         } catch (e: UnsatisfiedLinkError) {
             null
