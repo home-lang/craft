@@ -6500,6 +6500,73 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         let id = args.first as? String ?? ""
         switch (module, method) {
+        case ("View", "focus"):
+            let options = args.first as? [String: Any]
+            let nodeId = options?["nodeId"] as? String ?? (args.first as? String) ?? ""
+            let mode = options?["mode"] as? String ?? (args.count > 1 ? args[1] as? String : nil) ?? "keyboard"
+            guard !nodeId.isEmpty else {
+                reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "View.focus needs a nodeId")))
+                return true
+            }
+            guard let node = renderedNode(nodeId) else {
+                reply(.failure(CraftNativeActionError(code: "VIEW_NOT_FOUND", message: "View.focus could not find mounted node \(nodeId)")))
+                return true
+            }
+            guard node.view.window != nil else {
+                reply(.failure(CraftNativeActionError(code: "VIEW_NOT_MOUNTED", message: "View.focus requires a mounted node")))
+                return true
+            }
+            switch mode {
+            case "keyboard":
+                guard node.view is UITextField || node.view is UITextView else {
+                    reply(.failure(CraftNativeActionError(code: "UNSUPPORTED_TARGET", message: "Keyboard focus is supported only for text inputs")))
+                    return true
+                }
+                guard node.view.becomeFirstResponder() else {
+                    reply(.failure(CraftNativeActionError(code: "FOCUS_FAILED", message: "The mounted view refused keyboard focus")))
+                    return true
+                }
+                lastFocusedInput = node.view
+                reply(.success(true))
+            case "accessibility":
+                UIAccessibility.post(notification: .layoutChanged, argument: node.view)
+                reply(.success(true))
+            default:
+                reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "View.focus mode must be keyboard or accessibility")))
+            }
+            return true
+        case ("View", "measure"):
+            let options = args.first as? [String: Any]
+            let nodeId = options?["nodeId"] as? String ?? (args.first as? String) ?? ""
+            guard !nodeId.isEmpty else {
+                reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "View.measure needs a nodeId")))
+                return true
+            }
+            guard let node = renderedNode(nodeId) else {
+                reply(.failure(CraftNativeActionError(code: "VIEW_NOT_FOUND", message: "View.measure could not find mounted node \(nodeId)")))
+                return true
+            }
+            guard node.view.window != nil else {
+                reply(.failure(CraftNativeActionError(code: "VIEW_NOT_MOUNTED", message: "View.measure requires a mounted node")))
+                return true
+            }
+            view.layoutIfNeeded()
+            let bounds = node.view.convert(node.view.bounds, to: view)
+            guard bounds.origin.x.isFinite, bounds.origin.y.isFinite, bounds.width.isFinite, bounds.height.isFinite else {
+                reply(.failure(CraftNativeActionError(code: "MEASURE_FAILED", message: "The mounted view has no finite layout")))
+                return true
+            }
+            reply(.success([
+                "x": bounds.origin.x,
+                "y": bounds.origin.y,
+                "width": bounds.width,
+                "height": bounds.height,
+                "viewportWidth": view.bounds.width,
+                "viewportHeight": view.bounds.height,
+                "unit": "points",
+                "coordinateSpace": "screenViewport",
+            ]))
+            return true
         case ("Network", "stream"):
             let options = args.first as? [String: Any] ?? [:]
             let streamId = options["id"] as? String ?? ""
