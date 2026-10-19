@@ -526,6 +526,18 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         pendingScrollTarget = nil
     }
 
+    /// Releases callbacks and UIKit ownership that belong to a permanently
+    /// removed list node. Recycled rows intentionally use `discardAll()` only:
+    /// the same list can be rebound during the next reconciliation.
+    func resetForTeardown() {
+        setRefreshHandler(nil, refreshing: false)
+        discardAll()
+        onFittingHeightChanged = nil
+        delegate = nil
+        nativeRefreshControl.removeTarget(self, action: nil, for: .allEvents)
+        removeGestureRecognizer(keyboardTapGesture)
+    }
+
     func refreshThemeDefaults() {
         if isApplyingSnapshot {
             pendingThemeRefresh = true

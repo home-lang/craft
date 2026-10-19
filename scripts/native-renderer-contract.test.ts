@@ -1695,6 +1695,14 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('(node.view as? UIControl)?.removeTarget(self, action: nil, for: .allEvents)')
   })
 
+  it('keeps iOS FlatList recycle cleanup separate from permanent teardown', () => {
+    expect(iosFlatList).toContain('func resetForTeardown()')
+    expect(iosFlatList).toContain('onFittingHeightChanged = nil')
+    expect(iosFlatList).toContain('delegate = nil')
+    expect(iosFlatList).toContain('nativeRefreshControl.removeTarget(self, action: nil, for: .allEvents)')
+    expect(ios).toContain('if !preservingInputDrafts { list.resetForTeardown() }')
+  })
+
   it('keeps responsive layout events aligned across hosts', () => {
     expect(ios).toContain('events["onLayout"]')
     expect(ios).toContain('lastLayoutFrames[id] != frame')
