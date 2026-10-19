@@ -470,7 +470,9 @@ extension CraftSignInWithApple: ASAuthorizationControllerDelegate, ASAuthorizati
 /// show the same glyph the system's own controls use.
 enum CraftSymbols {
     static func image(named name: String, options: [String: Any]) -> String? {
-        let pointSize = (options["pointSize"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 17
+        let pointSize = craftNativeNumber(options["pointSize"])
+            .map { CGFloat(truncating: $0) }
+            .flatMap { $0.isFinite ? $0 : nil } ?? 17
         let weight: UIImage.SymbolWeight
         switch options["weight"] as? String {
         case "ultraLight": weight = .ultraLight

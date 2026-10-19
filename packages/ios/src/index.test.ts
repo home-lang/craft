@@ -1413,6 +1413,18 @@ describe('Craft iOS builder', () => {
     expect(ui).toContain('return value.isFinite ? value : nil')
   })
 
+  it('keeps generated iOS native service numbers strict at the bridge boundary', async () => {
+    const output = createTempDir('craft-ios-native-service-numbers-')
+    await init({ runtimeDir: null, name: 'NativeServiceNumbers', bundleId: 'org.example.nativeservicenumbers', output })
+    const ui = readFileSync(join(output, 'Sources', 'CraftNativeUI.swift'), 'utf8')
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const services = readFileSync(join(output, 'Sources', 'CraftNativeServices.swift'), 'utf8')
+    expect(ui).toContain('craftNativeNumber(options["pointSize"])')
+    expect(actions).toContain('craftNativeNumber(options["rate"]).map { $0.doubleValue }')
+    expect(actions).toContain('craftNativeNumber(value["badge"])')
+    expect(services).toContain('craftNativeNumber(options["volume"]).map { $0.doubleValue }')
+  })
+
   it('makes the web view feel like the app: no previews, no zoom, no keyboard bar, an app user agent', async () => {
     const output = createTempDir('craft-ios-feel-')
     await init({ runtimeDir: null, name: 'HQ.training', bundleId: 'training.hq.app', output })

@@ -1875,6 +1875,15 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('testPresenterRectRejectsBooleanCoordinatesAndNonFiniteNumbers')
   })
 
+  it('keeps iOS native service numbers strict at the bridge boundary', () => {
+    expect(iosActions).toContain('guard let level = craftNativeNumber(args.first)?.doubleValue, level.isFinite')
+    expect(iosActions).toContain('guard let value = craftNativeNumber(args.first),')
+    expect(iosActions).toContain('if let badge = craftNativeNumber(value["badge"])')
+    expect(iosActions).toContain('let delay = craftNativeNumber(value["delay"]).map { $0.doubleValue }')
+    expect(readFileSync(join(root, 'packages/ios/templates/CraftNativeServices.swift'), 'utf8')).toContain('craftNativeNumber(options["volume"]).map { $0.doubleValue }')
+    expect(readFileSync(join(root, 'packages/ios/templates/CraftNativeUI.swift'), 'utf8')).toContain('craftNativeNumber(options["pointSize"])')
+  })
+
   it('keeps native iOS passkeys capability-gated and domain-bound', () => {
     expect(iosActions).toContain('case ("Passkeys", "isAvailable"):')
     expect(iosActions).toContain('case ("Passkeys", "create"), ("Passkeys", "get"):')

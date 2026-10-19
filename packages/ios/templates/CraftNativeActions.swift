@@ -392,7 +392,7 @@ enum CraftNativeActions {
         case ("Brightness", "set"):
             // The device's backlight, system-wide: a screen that dims it reads
             // it first and puts it back, as @stacksjs/mobile's brightness does.
-            guard let level = (args.first as? NSNumber)?.doubleValue, level.isFinite else {
+            guard let level = craftNativeNumber(args.first)?.doubleValue, level.isFinite else {
                 complete(requestToken, failure("INVALID_ARGUMENT", "Brightness.set needs a level from 0 to 1"), completion)
                 return
             }
@@ -517,9 +517,9 @@ enum CraftNativeActions {
                 CraftNativeSpeech.shared.speak(
                     text,
                     language: options["language"] as? String,
-                    rate: (options["rate"] as? NSNumber)?.doubleValue,
-                    pitch: (options["pitch"] as? NSNumber)?.doubleValue,
-                    preDelay: (options["preDelay"] as? NSNumber)?.doubleValue,
+                    rate: craftNativeNumber(options["rate"]).map { $0.doubleValue }.flatMap { $0.isFinite ? $0 : nil },
+                    pitch: craftNativeNumber(options["pitch"]).map { $0.doubleValue }.flatMap { $0.isFinite ? $0 : nil },
+                    preDelay: craftNativeNumber(options["preDelay"]).map { $0.doubleValue }.flatMap { $0.isFinite ? $0 : nil },
                     interrupt: options["interrupt"] as? Bool ?? true
                 ) { spoken in complete(requestToken, .success(spoken), completion) }
             }
@@ -570,7 +570,7 @@ enum CraftNativeActions {
             }
             return
         case ("Badge", "set"):
-            guard let value = args.first as? NSNumber,
+            guard let value = craftNativeNumber(args.first),
                   value.doubleValue.isFinite,
                   value.doubleValue >= 0,
                   value.doubleValue.rounded() == value.doubleValue else {
@@ -1117,9 +1117,14 @@ enum CraftNativeActions {
                 content.body = value["body"] as? String ?? ""
                 content.sound = .default
                 if let data = value["data"] as? [String: Any] { content.userInfo = data }
-                if let badge = value["badge"] as? NSNumber { content.badge = badge }
+                if let badge = craftNativeNumber(value["badge"]),
+                   badge.doubleValue.isFinite,
+                   badge.doubleValue >= 0,
+                   badge.doubleValue.rounded() == badge.doubleValue {
+                    content.badge = badge
+                }
                 let id = (value["id"] as? String).flatMap { validKey($0) } ?? UUID().uuidString
-                let delay = (value["delay"] as? NSNumber)?.doubleValue
+                let delay = craftNativeNumber(value["delay"]).map { $0.doubleValue }.flatMap { $0.isFinite ? $0 : nil }
                 let trigger = delay.map { UNTimeIntervalNotificationTrigger(timeInterval: max($0 / 1_000, 1), repeats: false) }
                 center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger)) { addError in
                     if let addError = addError {
