@@ -7190,7 +7190,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let key = explicitKey(node, props: node["props"] as? [String: Any] ?? [:])
             // Keys are local to a parent. Ambiguous sibling keys fall back to
             // position so a move never attaches the wrong live control.
-            let identity = key.flatMap { counts[$0] == 1 ? "key:\($0)" : nil } ?? "index:\(index)"
+            let localIdentity = key.flatMap { counts[$0] == 1 ? "key:\($0)" : nil } ?? "index:\(index)"
+            let identity = parent.identity.hasPrefix("list:")
+                ? "\(parent.identity)/\(localIdentity)"
+                : localIdentity
             let child = reconcile(node, identity: identity, path: "\(path).\(index)", previous: old[identity])
             next.append(child)
         }
@@ -7321,6 +7324,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 var recycled = self.flatListRecycled[listKey, default: [:]]
                 if recycled.count >= 64, let oldest = recycled.keys.first { recycled.removeValue(forKey: oldest) }
                 recycled[ObjectIdentifier(row.view)] = row
+                self.flatListRecycled[listKey] = recycled
+            },
+            removeItem: { [weak self] identity in
+                guard let self else { return }
+                let scopedIdentity = "list:\(identity)"
+                if let row = self.flatListRows[listKey]?.removeValue(forKey: identity) {
+                    self.forgetHandlers(row)
+                }
+                guard var recycled = self.flatListRecycled[listKey] else { return }
+                let staleViewIDs = recycled.compactMap { viewID, row in
+                    row.identity == scopedIdentity ? viewID : nil
+                }
+                for viewID in staleViewIDs {
+                    if let row = recycled.removeValue(forKey: viewID) { self.forgetHandlers(row) }
+                }
                 self.flatListRecycled[listKey] = recycled
             },
             endReached: nonEmptyHandler(events["onEndReached"]).map { [weak self] handler in

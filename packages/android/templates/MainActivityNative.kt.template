@@ -5955,6 +5955,10 @@ class MainActivity : AppCompatActivity() {
                 val controls = screen.flatListRows[list]?.remove(itemIdentity).orEmpty()
                 releaseViewState(screen, controls.values.toList(), preservingInputDrafts = true)
             },
+            removeItem = { itemIdentity ->
+                val controls = screen.flatListRows[list]?.remove(itemIdentity).orEmpty()
+                releaseViewState(screen, controls.values.toList(), preservingInputDrafts = false)
+            },
             endReached = craftNativeEventName(events, "onEndReached").takeIf { it.isNotBlank() }?.let { handler ->
                 { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
             },

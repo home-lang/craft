@@ -145,6 +145,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     private var itemsByIdentity: [String: Item] = [:]
     private var renderItem: RenderItem?
     private var recycleItem: ((String) -> Void)?
+    private var removeItem: ((String) -> Void)?
     private var endReached: (() -> Void)?
     var onScrollEvent: ((UIScrollView) -> Void)?
     /// Called as the visible rows move, for a screen that lays out around them.
@@ -408,6 +409,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         endReachedThreshold: Double,
         renderItem: @escaping RenderItem,
         recycleItem: @escaping (String) -> Void,
+        removeItem: @escaping (String) -> Void,
         endReached: (() -> Void)?
     ) {
         if isApplyingSnapshot {
@@ -420,6 +422,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
                     endReachedThreshold: endReachedThreshold,
                     renderItem: renderItem,
                     recycleItem: recycleItem,
+                    removeItem: removeItem,
                     endReached: endReached
                 )
             }
@@ -429,6 +432,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
 
         self.renderItem = renderItem
         self.recycleItem = recycleItem
+        self.removeItem = removeItem
         self.endReached = endReached
         self.endReachedThreshold = max(0, endReachedThreshold)
         self.columns = max(1, columns)
@@ -459,7 +463,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         flowLayout.invalidateLayout()
 
         let nextIds = Set(itemsByIdentity.keys)
-        for identity in oldItems.keys where !nextIds.contains(identity) { recycleItem(identity) }
+        for identity in oldItems.keys where !nextIds.contains(identity) { removeItem(identity) }
         let changed = next.compactMap { item -> String? in
             guard let old = oldItems[item.identity], old.signature != item.signature else { return nil }
             return item.identity
@@ -508,6 +512,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         itemsByIdentity = [:]
         renderItem = nil
         recycleItem = nil
+        removeItem = nil
         endReached = nil
         dataContentSignature = ""
         onScrollEvent = nil

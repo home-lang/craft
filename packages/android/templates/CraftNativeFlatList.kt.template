@@ -96,6 +96,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
 
     private var renderItem: CraftNativeRenderItem? = null
     private var recycleItem: ((String) -> Unit)? = null
+    private var removeItem: ((String) -> Unit)? = null
     private var endReached: (() -> Unit)? = null
     private var threshold = 0.1
     private var endReachedSignature: String? = null
@@ -302,10 +303,12 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         endReachedThreshold: Double,
         renderItem: CraftNativeRenderItem,
         recycleItem: (String) -> Unit,
+        removeItem: (String) -> Unit,
         endReached: (() -> Unit)?,
     ) {
         this.renderItem = renderItem
         this.recycleItem = recycleItem
+        this.removeItem = removeItem
         this.endReached = endReached
         threshold = endReachedThreshold.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.1
 
@@ -332,7 +335,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
 
         val oldIds = listAdapter.currentList.mapTo(mutableSetOf()) { it.identity }
         val nextIds = next.mapTo(mutableSetOf()) { it.identity }
-        (oldIds - nextIds).forEach(recycleItem)
+        (oldIds - nextIds).forEach(removeItem)
         val dataItems = next.filterNot { it.chrome }
         val contentSignature = dataItems.joinToString("") {
             "${it.identity.length}:${it.identity}${it.signature.length}:${it.signature}"
@@ -397,6 +400,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         }
         renderItem = null
         recycleItem = null
+        removeItem = null
         endReached = null
         setPagingEnabled(false)
         scrollTargetKey = null

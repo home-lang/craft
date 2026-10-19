@@ -3103,6 +3103,21 @@ describe('native renderer component contract', () => {
     expect(android).toContain('releaseViewState(screen, controls.values.toList(), preservingInputDrafts = true)')
   })
 
+  it('clears drafts when FlatList identities are permanently removed', () => {
+    expect(iosFlatList).toContain('private var removeItem: ((String) -> Void)?')
+    expect(iosFlatList).toContain('for identity in oldItems.keys where !nextIds.contains(identity) { removeItem(identity) }')
+    expect(androidFlatList).toContain('private var removeItem: ((String) -> Unit)? = null')
+    expect(androidFlatList).toContain('(oldIds - nextIds).forEach(removeItem)')
+    expect(ios).toContain('let scopedIdentity = "list:\\(identity)"')
+    expect(ios).toContain('self.forgetHandlers(row)')
+    expect(android).toContain('releaseViewState(screen, controls.values.toList(), preservingInputDrafts = false)')
+  })
+
+  it('scopes iOS FlatList descendants to their row identity', () => {
+    expect(ios).toContain('let identity = parent.identity.hasPrefix("list:")')
+    expect(ios).toContain('"\\(parent.identity)/\\(localIdentity)"')
+  })
+
   it('detaches Android listeners before recycled rows can change identity', () => {
     expect(android).toContain('released.forEach {\n            it.setOnClickListener(null)')
     expect(android).toContain('it.setOnTouchListener(null)')
