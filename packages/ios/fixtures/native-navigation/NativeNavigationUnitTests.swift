@@ -314,10 +314,14 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(screen.evaluateScript("craft.navigation.isFocused()")?.toBool(), false)
         XCTAssertEqual(home.viewControllers.count, 1, "preparation must not push Login's equivalent over Home")
         XCTAssertEqual(guarded.viewControllers.count, 1)
-        XCTAssertEqual(CraftChrome.shared.selected, "/")
+        // The tab indicator previews the destination while the native Home
+        // stack still owns focus and navigation until the swipe commits.
+        XCTAssertEqual(CraftChrome.shared.selected, coldSwipe ? "/guarded" : "/")
         if coldSwipe {
             drag(-150, phase: .cancelled)
             await settle()
+            XCTAssertEqual(CraftChrome.shared.selected, "/")
+            XCTAssertEqual(screen.evaluateScript("craft.navigation.isFocused()")?.toBool(), false)
         }
         XCTAssertTrue(shell.tabTapped("/guarded", reselect: false))
         await displayWait("the guard navigates only when its tab is shown") {

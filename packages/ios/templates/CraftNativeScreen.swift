@@ -5146,6 +5146,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// sees, not a tab prepared behind it.
     private var isShownOnScreen: Bool {
         guard let window = view.window else { return false }
+        if let shell = navigationController?.parent as? CraftHybridController,
+           !shell.isFocusedScreen(self) { return false }
         var candidate: UIView? = view
         while let current = candidate, current !== window {
             if current.isHidden { return false }

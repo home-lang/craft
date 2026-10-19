@@ -1545,6 +1545,12 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     private var visibleStack: UINavigationController? { stacks[currentTab] }
 
+    /// A swipe preview can be visible without owning navigation or focus.
+    /// UIKit appearance callbacks must follow the committed native stack.
+    func isFocusedScreen(_ screen: CraftNativeScreenController) -> Bool {
+        visibleStack?.topViewController === screen
+    }
+
     var webIsVisible: Bool {
         guard let webHost, let slot = visibleStack?.topViewController as? CraftHybridWebSlot else { return false }
         return webHost.view.superview === slot.view
