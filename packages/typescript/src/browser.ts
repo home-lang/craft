@@ -28,6 +28,17 @@ type Options = Record<string, unknown>
 const object = (value: unknown): Options => value !== null && typeof value === 'object' ? value as Options : {}
 const unsupported = (module: string, method: string): never => { throw Object.assign(new Error(`${module}.${method} is not available in this browser`), { code: 'UNSUPPORTED' }) }
 
+/** Vibration API timings for a Haptics call, in the native hosts' weights. */
+export function browserHapticPattern(method: string, style: unknown): number | number[] | null {
+  if (method === 'prepare') return null
+  if (method === 'selection' || style === 'selection') return 5
+  const name = method === 'notification' ? String(style ?? 'success') : String(style ?? 'medium')
+  if (name === 'success') return [10, 30, 10]
+  if (name === 'warning') return [30, 30, 30]
+  if (name === 'error') return [50, 50, 50, 50, 50]
+  return ({ light: 10, medium: 20, heavy: 30, soft: 8, rigid: 25 } as Record<string, number>)[name] ?? 20
+}
+
 /** Real browser counterparts for the portable Craft services. Device-only APIs remain absent. */
 export async function createBrowserPlatform(options: BrowserPlatformOptions = {}): Promise<BrowserPlatform> {
   const namespace = options.namespace ?? 'craft'
@@ -164,7 +175,15 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
       if (module === 'Crypto' && method === 'randomUUID') return secureUUID()
       if (module === 'Dialog') return showBrowserDialog(method, first as BrowserDialogOptions, signal)
       if (module === 'Device' && method === 'getInfo') return { platform: 'web', userAgent: navigator.userAgent, language: navigator.language, native: false }
-      if (module === 'Haptics') { if (typeof navigator.vibrate !== 'function') return unsupported(module, method); navigator.vibrate(method === 'selection' ? 5 : 10); return true }
+      // Haptics decorate a flow, so a browser without the Vibration API (every
+      // desktop browser, Safari) resolves false, "nothing played", instead of
+      // rejecting the way a missing capability does.
+      if (module === 'Haptics') {
+        const pattern = browserHapticPattern(method, args[0])
+        if (pattern === null || typeof navigator.vibrate !== 'function') return false
+        try { return navigator.vibrate(pattern) === true }
+        catch { return false }
+      }
       if (module === 'Clipboard') { if (!navigator.clipboard) return unsupported(module, method); if (method === 'write') { await navigator.clipboard.writeText(String(args[0])); return true } if (method === 'read') return navigator.clipboard.readText() }
       if (module === 'Linking') { const url = new URL(String(args[0]), location.href); const allowed = protocols.has(url.protocol); if (method === 'canOpenURL') return allowed; if (method === 'openURL' && allowed) { navigate(url.href); return true } return false }
       if (module === 'Browser' && method === 'open') { const url = new URL(String(args[0]), location.href); if (!['https:', 'http:'].includes(url.protocol)) throw new TypeError('Browser URLs must use HTTP or HTTPS'); const popup = window.open('about:blank', '_blank'); if (!popup) throw Object.assign(new Error('Allow popups to open this page'), { code: 'POPUP_BLOCKED' }); popup.opener = null; popup.location.replace(url.href); return { opened: true } }
