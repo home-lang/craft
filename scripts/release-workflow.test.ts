@@ -14,7 +14,7 @@ type Job = {
   if?: string
   uses?: string
   with?: { enforce_high?: boolean, 'release-draft'?: string, release?: string, version?: string }
-  steps?: { name?: string, run?: string, uses?: string, env?: Record<string, string>, with?: { 'version'?: string, 'bun-version'?: string, 'publish'?: string, 'release-draft'?: string, release?: string, 'package-dir'?: string, install?: string } }[]
+  steps?: { name?: string, run?: string, uses?: string, 'working-directory'?: string, env?: Record<string, string>, with?: { 'version'?: string, 'bun-version'?: string, 'publish'?: string, 'release-draft'?: string, release?: string, 'package-dir'?: string, install?: string } }[]
   strategy?: { 'fail-fast'?: boolean, matrix: { platform: { name: string, os: string }[] } }
 }
 const release = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/release.yml'), 'utf8')) as { jobs: Record<string, Job> }
@@ -78,6 +78,11 @@ test('mobile device jobs use the same pinned stx compiler', () => {
   expect(compilerCheckouts).toHaveLength(4)
   for (const step of compilerCheckouts)
     expect((step.with as Record<string, string>).ref).toBe(stxCompilerCommit)
+  const compilerInstalls = Object.values(workflow.jobs).flatMap(job => job.steps ?? [])
+    .filter(step => step['working-directory'] === '.stx-compiler')
+  expect(compilerInstalls).toHaveLength(4)
+  for (const step of compilerInstalls)
+    expect(step.run).toBe('bun install --frozen-lockfile')
 })
 
 test('native iOS suites and protocol checks have independent required jobs', () => {
@@ -138,6 +143,20 @@ test('jobs that only run Bun get Bun alone, not the pinned Zig they cannot alway
   // has no Intel-Mac download once ziglang.org prunes it, which failed v0.0.114
   // in two jobs that compile nothing.
   const bunVersion = String((Bun.YAML.parse(readFileSync(join(import.meta.dir, '../deps.yaml'), 'utf8')) as { dependencies: Record<string, string> }).dependencies['bun.sh'])
+  const pantry = Bun.JSONC.parse(readFileSync(join(import.meta.dir, '../pantry.jsonc'), 'utf8'))
+  expect(pantry.dependencies['bun.sh']).toBe(bunVersion)
+  const lock = JSON.parse(readFileSync(join(import.meta.dir, '../pantry.lock'), 'utf8'))
+  expect(lock.workspaces[''].system['bun.sh']).toBe(bunVersion)
+  expect(lock.packages[`bun.sh@${bunVersion}`].version).toBe(bunVersion)
+  for (const file of ['mobile-e2e.yml', 'native-lifecycle.yml', 'release.yml', 'sbom.yml', 'media-cache.yml']) {
+    const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows', file), 'utf8')) as { jobs: Record<string, Job> }
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      for (const step of job.steps ?? []) {
+        if (step.uses === 'oven-sh/setup-bun@v2')
+          expect(step.with?.['bun-version'], `${file} ${name} must pin the declared Bun toolchain`).toBe(bunVersion)
+      }
+    }
+  }
   const lifecycle = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/native-lifecycle.yml'), 'utf8')) as { jobs: Record<string, Job> }
   for (const [file, job] of [['release.yml verify-macos-downloads', release.jobs['verify-macos-downloads']], ['native-lifecycle.yml lifecycle', lifecycle.jobs.lifecycle]] as const) {
     const uses = (job.steps ?? []).map(step => step.uses ?? '')

@@ -1,10 +1,8 @@
 {
   "dependencies": {
-    // Pinned exactly, and deliberately not "latest": 1.4.x writes
-    // `lockfileVersion: 2`, which 1.3.x cannot parse, so "latest" would break
-    // every 1.3-based checkout and CI job the day 1.4.0 publishes. Keep this in
-    // step with deps.yaml.
-    "bun.sh": "1.3.14",
+    // Pin the compiler toolchain exactly. This version reads both Craft's and
+    // the pinned STX compiler's lockfiles. Keep this in step with deps.yaml.
+    "bun.sh": "1.4.3",
     // This exact upstream revision fixes iOS Threaded-I/O descriptor storage.
     // Pantry mirrors its native archives. Keep deps.yaml and pantry.lock in step.
     "ziglang.org": "0.18.0-dev.146+35accc06e"
