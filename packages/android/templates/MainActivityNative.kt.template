@@ -4630,6 +4630,7 @@ class MainActivity : AppCompatActivity() {
         put("viewFocus")
         put("viewMeasure")
         put("viewScroll")
+        put("viewReparent")
     }
 
     private fun appVersion(): Pair<String, String> = runCatching {

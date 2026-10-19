@@ -426,6 +426,8 @@ describe('native renderer component contract', () => {
     expect(iosMutation).toContain('throw CraftNativeMutationFailure("SAME_PARENT"')
     expect(ios).toContain('private var previousNodesByProtocolID: [String: RenderedNode] = [:]')
     expect(ios).toContain('indexPreviousNodes(previous)')
+    expect(iosActions).toContain('"viewReparent"')
+    expect(android).toContain('put("viewReparent")')
     expect(ios).toContain('guard let target = drawnTarget(id) else { return false }')
     expect(iosNativeUnitTests).toContain('func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace()')
     expect(iosNativeUnitTests).toContain('func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot()')
@@ -2218,7 +2220,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps native iOS badges permission-free and capability-advertised', () => {
-    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure"]')
+    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]')
     expect(iosActions).toContain('case ("Badge", "set"):')
     expect(iosActions).toContain('case ("Badge", "clear"):')
     expect(iosActions).toContain('without requesting notification authorization')
