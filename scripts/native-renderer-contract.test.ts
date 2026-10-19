@@ -162,6 +162,17 @@ describe('native renderer component contract', () => {
     expect(android).toContain('drawing.optJSONObject("props")?.optJSONArray("viewBox")')
   })
 
+  it('keeps grouped SVG text exercised by the native fixture and both hosts', () => {
+    expect(navigationHome).toContain('<g stroke="#2563eb">')
+    expect(navigationHome).toContain('<text x="12" y="21"')
+    expect(navigationHome).toContain('<g font-weight="500">')
+    expect(ios).toContain('case "G":')
+    expect(ios).toContain('case "SvgText":')
+    expect(android).toContain('"G" -> drawNodes')
+    expect(android).toContain('"SvgText" -> drawText')
+    expect(iosNativeUnitTests).toContain('func testSvgGroupsAndTextDrawIntoTheNativeView()')
+  })
+
   it('types ordinary native text weights the hosts accept', () => {
     expect(componentTypes).toContain("fontWeight?: number | 'normal' | 'bold'")
     expect(guide).toContain('`fontWeight` accepts `normal`, `bold`, and numeric `100`–`900` values')

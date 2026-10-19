@@ -1205,6 +1205,43 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertLessThanOrEqual(svg.frame.height, 1, "Boolean SVG viewBox values were treated as numeric")
     }
 
+    func testSvgGroupsAndTextDrawIntoTheNativeView() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        controller.render([
+            "type": "Svg",
+            "props": ["key": "svg-text", "viewBox": [0, 0, 24, 24]],
+            "style": ["width": 120, "height": 80],
+            "children": [[
+                "type": "G",
+                "props": ["fill": "#2563eb"],
+                "children": [[
+                    "type": "SvgText",
+                    "props": ["x": 12, "y": 14, "textAnchor": "middle", "fontSize": 8],
+                    "children": ["STX"],
+                ]],
+            ]],
+        ])
+        controller.view.layoutIfNeeded()
+        let svg = try XCTUnwrap(find(UIView.self, key: "svg-text", below: controller.view))
+        let image = UIGraphicsImageRenderer(size: svg.bounds.size).image { context in
+            svg.layer.render(in: context.cgContext)
+        }
+        let cgImage = try XCTUnwrap(image.cgImage)
+        var pixels = [UInt8](repeating: 0, count: cgImage.width * cgImage.height * 4)
+        try pixels.withUnsafeMutableBytes { bytes in
+            let context = try XCTUnwrap(CGContext(data: bytes.baseAddress, width: cgImage.width, height: cgImage.height,
+                bitsPerComponent: 8, bytesPerRow: cgImage.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+        }
+        let bluePixels = stride(from: 0, to: pixels.count, by: 4).filter { offset in
+            pixels[offset + 3] > 20 && pixels[offset + 2] > pixels[offset] + 20
+        }
+        XCTAssertGreaterThan(bluePixels.count, 5, "SVG group/text did not draw its inherited fill")
+    }
+
     func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace() throws {
         // A chart behind an `:if` (stx): the drawing and its shapes arrive in
         // one batch after the first paint. The shapes were refused as
