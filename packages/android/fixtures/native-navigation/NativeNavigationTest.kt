@@ -804,6 +804,8 @@ class NativeNavigationTest {
             assertEquals("Toggle safe edges", toggle.text.toString())
             assertEquals("link", node("native-linked-pressable").extras
                 .getCharSequence("AccessibilityNodeInfo.roleDescription")?.toString())
+            assertEquals("button", node("native-raw-pressable").extras
+                .getCharSequence("AccessibilityNodeInfo.roleDescription")?.toString())
             assertTrue("The identified native button did not accept its accessibility click",
                 toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK))
             awaitText(activity, "safe-area-status", "Safe edges: bottom")
