@@ -911,6 +911,9 @@ describe('Mobile native UI', () => {
 
   it('hands calls to the shell and settles a failure with the fallback', async () => {
     const calls: unknown[][] = []
+    const warnings: unknown[][] = []
+    const originalWarn = console.warn
+    console.warn = (...args: unknown[]) => { warnings.push(args) }
     const craft = {
       dialog: {
         confirm: async (...args: unknown[]) => { calls.push(['confirm', ...args]); return true },
@@ -919,20 +922,28 @@ describe('Mobile native UI', () => {
       browser: { open: async (...args: unknown[]) => { calls.push(['open', ...args]); return { url: 'hqtraining://done?code=1', cancelled: false } } },
       haptics: { prepare: async (...args: unknown[]) => { calls.push(['prepare', ...args]) } },
     }
-    await withWindow({ craft }, async () => {
-      const { dialog, browser, haptics } = await import('../api/mobile')
-      expect(dialog.isAvailable()).toBe(true)
-      expect(await dialog.confirm({ title: 'Delete?', destructive: true })).toBe(true)
-      expect(await dialog.actionSheet({ actions: [] })).toBeNull()
-      expect(await browser.open('https://auth.example.com', { mode: 'auth', callbackScheme: 'hqtraining' }))
-        .toEqual({ url: 'hqtraining://done?code=1', cancelled: false })
-      await haptics.prepare('selection')
-    })
+    try {
+      await withWindow({ craft }, async () => {
+        const { dialog, browser, haptics } = await import('../api/mobile')
+        expect(dialog.isAvailable()).toBe(true)
+        expect(await dialog.confirm({ title: 'Delete?', destructive: true })).toBe(true)
+        expect(await dialog.actionSheet({ actions: [] })).toBeNull()
+        expect(await browser.open('https://auth.example.com', { mode: 'auth', callbackScheme: 'hqtraining' }))
+          .toEqual({ url: 'hqtraining://done?code=1', cancelled: false })
+        await haptics.prepare('selection')
+      })
+    }
+    finally {
+      console.warn = originalWarn
+    }
     expect(calls).toEqual([
       ['confirm', { title: 'Delete?', destructive: true }],
       ['open', 'https://auth.example.com', { mode: 'auth', callbackScheme: 'hqtraining' }],
       ['prepare', 'selection'],
     ])
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]?.[0]).toBe('[craft] Native dialog.actionSheet failed; using its fallback value.')
+    expect(warnings[0]?.[1]).toBeInstanceOf(Error)
   })
 
   it('opens a tab for the in-app browser on the web, and cannot sign in there', async () => {
