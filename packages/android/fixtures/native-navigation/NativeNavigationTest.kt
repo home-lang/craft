@@ -1693,13 +1693,16 @@ class NativeNavigationTest {
             val bounded = awaitView(activity, "layout-min")
             val absolute = awaitView(activity, "layout-absolute")
             val absoluteRatio = awaitView(activity, "layout-absolute-ratio")
+            val absoluteHeightRatio = awaitView(activity, "layout-absolute-height-ratio")
             assertEquals("constrained width should snap to the nearest physical pixel", 140.0 * density.toDouble(), bounded.width.toDouble(), 0.500001)
             assertTrue(
                 "absolute child ignored its trailing insets",
                 absolute.right <= wrapped.width - (8 * density).toInt() && absolute.bottom <= wrapped.height - (8 * density).toInt()
             )
-            assertEquals("absolute aspect ratio should resolve from anchored width", 156.0 * density, absoluteRatio.width.toFloat(), 1.0f)
-            assertEquals("absolute aspect ratio should remeasure from anchored width", 39.0 * density, absoluteRatio.height.toFloat(), 1.0f)
+            assertEquals("absolute aspect ratio should resolve from anchored width", 156.0 * density, absoluteRatio.width.toDouble(), 1.0)
+            assertEquals("absolute aspect ratio should remeasure from anchored width", 39.0 * density, absoluteRatio.height.toDouble(), 1.0)
+            assertEquals("absolute aspect ratio should derive width from authored height", 40.0 * density, absoluteHeightRatio.width.toDouble(), 1.0)
+            assertEquals("absolute authored height should remain fixed", 20.0 * density, absoluteHeightRatio.height.toDouble(), 1.0)
             assertTrue("wrapped child did not wrap", bounded.top < awaitView(activity, "layout-stretch").top)
             val scroll = awaitView(activity, "native-scroll")
             val image = awaitView(activity, "native-image")

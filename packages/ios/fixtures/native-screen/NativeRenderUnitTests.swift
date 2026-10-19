@@ -854,6 +854,38 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(scroll === find(UIScrollView.self, key: "scroll", below: controller.view))
     }
 
+    func testReparentedInputKeepsNativeIdentityAndSelection() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render([
+            "id": "root-node", "type": "View", "children": [
+                ["id": "source-node", "type": "ScrollView", "style": ["height": 80], "children": [
+                    ["id": "popup-node", "type": "View", "props": ["testID": "popup"], "children": [
+                        ["id": "popup-field", "type": "TextInput", "props": ["testID": "popup-field"], "children": []],
+                    ]],
+                ]],
+                ["id": "destination-node", "type": "View", "props": ["testID": "destination"], "children": []],
+            ],
+        ])
+        let field = try XCTUnwrap(find(UITextField.self, key: "popup-field", below: controller.view))
+        field.text = "draft"
+        let caret = try XCTUnwrap(field.position(from: field.beginningOfDocument, offset: 3))
+        field.selectedTextRange = field.textRange(from: caret, to: caret)
+
+        let result = try controller.applyMutation(batch(1, [
+            ["op": "reparentChild", "parentId": "destination-node", "childId": "popup-node", "index": 0],
+        ]))
+        XCTAssertTrue(result.requiresFullRender)
+
+        let retained = try XCTUnwrap(find(UITextField.self, key: "popup-field", below: controller.view))
+        XCTAssertTrue(field === retained)
+        XCTAssertEqual(retained.text, "draft")
+        let selection = try XCTUnwrap(retained.selectedTextRange)
+        XCTAssertEqual(retained.offset(from: retained.beginningOfDocument, to: selection.start), 3)
+        let destination = try XCTUnwrap(find(UIView.self, key: "destination", below: controller.view))
+        XCTAssertTrue(try XCTUnwrap(find(UIView.self, key: "popup", below: controller.view)).superview === destination)
+    }
+
     func testMutationPreservesAuthoredKeysAcrossImportCreationUpdatesAndMoves() throws {
         let document = CraftNativeMutationDocument()
         document.replace(with: [
@@ -874,6 +906,27 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(children[0]["key"] as? String, "created-key")
         XCTAssertEqual(children[1]["key"] as? String, "draft-key")
         XCTAssertEqual((document.node("existing")?["props"] as? [String: Any])?["value"] as? String, "edited")
+    }
+
+    func testReparentChildMovesAcrossParentsAtomically() throws {
+        let document = CraftNativeMutationDocument()
+        _ = try document.apply(batch(1, [
+            ["op": "createNode", "id": "root", "root": true, "node": ["type": "View"]],
+            ["op": "createNode", "id": "source", "node": ["type": "View"]],
+            ["op": "createNode", "id": "destination", "node": ["type": "View"]],
+            ["op": "createNode", "id": "popup", "node": ["type": "TextInput", "key": "popup"]],
+            ["op": "insertChild", "parentId": "root", "childId": "source", "index": 0],
+            ["op": "insertChild", "parentId": "root", "childId": "destination", "index": 1],
+            ["op": "insertChild", "parentId": "source", "childId": "popup", "index": 0],
+        ]))
+        let result = try document.apply(batch(2, [
+            ["op": "reparentChild", "parentId": "destination", "childId": "popup", "index": 0],
+        ]))
+        XCTAssertEqual(document.parentId(of: "popup"), "destination")
+        XCTAssertEqual(result.affectedNodeIds, ["destination", "source"])
+        XCTAssertTrue(result.requiresFullRender)
+        let child = try XCTUnwrap((document.node("destination")?["children"] as? [[String: Any]])?.first)
+        XCTAssertEqual(child["id"] as? String, "popup")
     }
 
     func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot() throws {

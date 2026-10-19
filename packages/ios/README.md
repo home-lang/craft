@@ -330,6 +330,7 @@ Edit `craft.config.json` in your iOS project:
   "enableBluetooth": true,
   "enableNFC": true,
   "enableHealthKit": false,
+  "enableWallet": true,
   "enableAppleMusic": false,
   "enableHeartRate": false,
   "enableBackgroundAudio": false,

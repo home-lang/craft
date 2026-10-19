@@ -78,6 +78,29 @@ class NativeMutationTest {
     }
 
     @Test
+    fun reparentsChildAcrossParentsAtomically() {
+        val document = CraftNativeMutationDocument()
+        document.apply(batch(1, """
+            [
+              {"op":"createNode","id":"root","root":true,"node":{"type":"View"}},
+              {"op":"createNode","id":"source","node":{"type":"View"}},
+              {"op":"createNode","id":"destination","node":{"type":"View"}},
+              {"op":"createNode","id":"popup","node":{"type":"TextInput","key":"popup"}},
+              {"op":"insertChild","parentId":"root","childId":"source","index":0},
+              {"op":"insertChild","parentId":"root","childId":"destination","index":1},
+              {"op":"insertChild","parentId":"source","childId":"popup","index":0}
+            ]
+        """.trimIndent()))
+        val result = document.apply(batch(2, """
+            [{"op":"reparentChild","parentId":"destination","childId":"popup","index":0}]
+        """.trimIndent()))
+        assertEquals("destination", document.parentId("popup"))
+        assertEquals(listOf("destination", "source"), result.affectedNodeIds)
+        assertEquals(true, result.requiresFullRender)
+        assertEquals("popup", document.node("destination")?.getJSONArray("children")?.getJSONObject(0)?.getString("id"))
+    }
+
+    @Test
     fun rejectsWholeBatchWithDeterministicFailure() {
         val document = CraftNativeMutationDocument()
         try {

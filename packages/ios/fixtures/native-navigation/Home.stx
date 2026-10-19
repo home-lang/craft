@@ -865,6 +865,7 @@ function openDetailsThenUpdateBackground() {
       <Text testID="layout-stretch" style={{"width":100,"height":24,"alignSelf":"stretch"}}>wrapped</Text>
       <View testID="layout-absolute" style={{"position":"absolute","right":8,"bottom":8,"width":12,"height":12,"backgroundColor":"#abcdef"}} />
       <View testID="layout-absolute-ratio" style={{"position":"absolute","left":8,"right":8,"top":8,"aspectRatio":4,"backgroundColor":"#fedcba"}} />
+      <View testID="layout-absolute-height-ratio" style={{"position":"absolute","right":8,"bottom":8,"height":20,"aspectRatio":2,"backgroundColor":"#cbaefe"}} />
     </View>
     <View testID="layout-transform" @layout="captureTransformedLayout($event)" style={{"width":100,"height":20,"transform":[{"scale":2}],"backgroundColor":"#334455"}} />
     <View testID="percent-wrap" style={{"width":240,"height":28,"backgroundColor":"#2f4050"}}>

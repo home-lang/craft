@@ -61,6 +61,7 @@ const migrationGuide = readFileSync(join(root, 'docs/guides/migration/react-nati
 const runtimeCompatibility = readFileSync(join(root, 'docs/api/mobile/runtime-compatibility.md'), 'utf8')
 const iosValidationConformance = readFileSync(join(root, 'docs/api/mobile/ios-validation-conformance.md'), 'utf8')
 const nativeLayout = readFileSync(join(root, 'packages/zig/src/native_layout.zig'), 'utf8')
+const iosConfig = readFileSync(join(root, 'packages/zig/src/ios_config.zig'), 'utf8')
 const zigMain = readFileSync(join(root, 'packages/zig/src/main.zig'), 'utf8')
 const componentTypes = readFileSync(join(root, 'packages/typescript/src/components/index.ts'), 'utf8')
 const iosReadme = readFileSync(join(root, 'packages/ios/README.md'), 'utf8')
@@ -114,8 +115,18 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private fun absoluteSize(entry: Entry, contentWidth: Int, contentHeight: Int): Pair<Int, Int>')
     expect(android).toContain('anchoredWidth && style.aspectRatio != null && style.aspectRatio > 0')
     expect(androidNavigationTest).toContain('absolute aspect ratio should remeasure from anchored width')
+    expect(androidNavigationTest).toContain('absolute aspect ratio should derive width from authored height')
     expect(navigationHome).toContain('testID="layout-absolute-ratio"')
+    expect(navigationHome).toContain('testID="layout-absolute-height-ratio"')
     expect(iosNavigationTest).toContain('absolute aspect ratio was not resolved from anchored width')
+    expect(iosNavigationTest).toContain('absolute aspect ratio did not derive width from authored height')
+  })
+
+  it('keeps the iOS wallet configuration gate mirrored in Zig', () => {
+    expect(iosConfig).toContain('wallet,')
+    expect(iosConfig).toContain('.wallet => "enableWallet"')
+    expect(iosConfig).toContain('Feature.wallet.jsonKey()')
+    expect(iosReadme).toContain('"enableWallet": true')
   })
 
   it('keeps browser-safe capability bridges reachable in DOM-free hosts', () => {
@@ -411,13 +422,24 @@ describe('native renderer component contract', () => {
     // A node the batch created is drawn by its nearest drawn ancestor, not by
     // reconciling the whole screen again.
     expect(iosMutation).toContain('func parentId(of id: String) -> String?')
+    expect(iosMutation).toContain('case "reparentChild":')
+    expect(iosMutation).toContain('throw CraftNativeMutationFailure("SAME_PARENT"')
+    expect(ios).toContain('private var previousNodesByProtocolID: [String: RenderedNode] = [:]')
+    expect(ios).toContain('indexPreviousNodes(previous)')
+    expect(iosActions).toContain('"viewReparent"')
+    expect(android).toContain('put("viewReparent")')
     expect(ios).toContain('guard let target = drawnTarget(id) else { return false }')
     expect(iosNativeUnitTests).toContain('func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace()')
     expect(iosNativeUnitTests).toContain('func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot()')
     expect(iosNativeUnitTests).toContain('func testMapOverlayMutationStaysAddressableToItsMap()')
+    expect(iosNativeUnitTests).toContain('func testReparentChildMovesAcrossParentsAtomically()')
+    expect(iosNativeUnitTests).toContain('func testReparentedInputKeepsNativeIdentityAndSelection()')
     expect(androidMutationTest).toContain('fun keepsMapOverlayParentsAddressableForTargetedUpdates()')
+    expect(androidMutationTest).toContain('fun reparentsChildAcrossParentsAtomically()')
     expect(iosMutation).toContain('"Fragment", "Svg", "G", "Map"')
     expect(androidMutation).toContain('"Fragment", "Svg", "G", "Map"')
+    expect(androidMutation).toContain('"reparentChild" -> {')
+    expect(android).toContain('val identity = protocolId?.let { "id:$it" }')
   })
 
   it('exports the flat flex ABI for mobile hosts', () => {
@@ -2200,7 +2222,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps native iOS badges permission-free and capability-advertised', () => {
-    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure"]')
+    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]')
     expect(iosActions).toContain('case ("Badge", "set"):')
     expect(iosActions).toContain('case ("Badge", "clear"):')
     expect(iosActions).toContain('without requesting notification authorization')

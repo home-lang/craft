@@ -56,6 +56,19 @@ test('shared native layout changes trigger mobile acceptance for pushes and pull
   }
 })
 
+test.each(['ci.yml', 'mobile-e2e.yml'])('%s lets Main acceptance finish while superseding pull request runs', (file) => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows', file), 'utf8')) as {
+    concurrency: { 'group': string, 'cancel-in-progress': boolean | string, 'queue'?: string }
+  }
+  const policy = workflow.concurrency
+  const expression = String(policy['cancel-in-progress']).replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+  for (const [event, cancel] of [['push', false], ['workflow_dispatch', false], ['pull_request', true]] as const)
+    expect(runInNewContext(expression, { github: { event_name: event } }), `${file}: ${event}`).toBe(cancel)
+  // Keep one active run and GitHub's single pending slot, without adding runners.
+  expect(policy.group).toContain('github.ref')
+  expect(policy.queue ?? 'single').toBe('single')
+})
+
 test('mobile device jobs use the same pinned stx compiler', () => {
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
   const compilerCheckouts = Object.values(workflow.jobs).flatMap(job => job.steps ?? []).filter((step) => {

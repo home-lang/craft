@@ -108,6 +108,13 @@ final class CraftNativeMutationDocument {
                 case "moveChild":
                     try moveChild(operation, nodes: &candidateNodes)
                     if let id = operation["parentId"] as? String { appendUnique(id, to: &affectedNodeIds) }
+                case "reparentChild":
+                    let previousParent = try reparentChild(operation, nodes: &candidateNodes)
+                    if let id = operation["parentId"] as? String { appendUnique(id, to: &affectedNodeIds) }
+                    appendUnique(previousParent, to: &affectedNodeIds)
+                    // A child crossing parents needs the committed tree to be
+                    // reconciled so the host can move its existing native view.
+                    requiresFullRender = true
                 case "removeNode":
                     if let id = operation["id"] as? String, let parent = candidateNodes[id]?.parent {
                         appendUnique(parent, to: &affectedNodeIds)
@@ -249,6 +256,35 @@ final class CraftNativeMutationDocument {
         let index = try insertionIndex(operation, count: parent.children.count)
         parent.children.insert(childId, at: index)
         nodes[parentId] = parent
+    }
+
+    private func reparentChild(_ operation: [String: Any], nodes: inout [String: Node]) throws -> String {
+        let parentId = try requiredId(operation, field: "parentId", name: "reparentChild")
+        let childId = try requiredId(operation, field: "childId", name: "reparentChild")
+        guard var parent = nodes[parentId] else {
+            throw CraftNativeMutationFailure("UNKNOWN_PARENT", "node \(parentId) does not exist")
+        }
+        guard var child = nodes[childId], let previousParentId = child.parent,
+              var previousParent = nodes[previousParentId] else {
+            throw CraftNativeMutationFailure("NOT_ATTACHED", "node \(childId) is not attached to a parent")
+        }
+        guard acceptsChildren(parent.type) else {
+            throw CraftNativeMutationFailure("INVALID_PARENT", "node \(parentId) cannot contain child nodes")
+        }
+        guard parentId != childId, !descendants(of: childId, nodes: nodes).contains(parentId) else {
+            throw CraftNativeMutationFailure("CYCLE", "reparenting node \(childId) would create a cycle")
+        }
+        guard parentId != previousParentId else {
+            throw CraftNativeMutationFailure("SAME_PARENT", "node \(childId) is already a child of \(parentId)")
+        }
+        let index = try insertionIndex(operation, count: parent.children.count)
+        previousParent.children.removeAll { $0 == childId }
+        parent.children.insert(childId, at: index)
+        child.parent = parentId
+        nodes[previousParentId] = previousParent
+        nodes[parentId] = parent
+        nodes[childId] = child
+        return previousParentId
     }
 
     private func removeNode(

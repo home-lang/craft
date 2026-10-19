@@ -111,6 +111,14 @@ class CraftNativeMutationDocument {
                         moveChild(operation, candidateNodes)
                         operation.optString("parentId").takeIf { it !in affectedNodeIds }?.let { affectedNodeIds.add(it) }
                     }
+                    "reparentChild" -> {
+                        val previousParent = reparentChild(operation, candidateNodes)
+                        operation.optString("parentId").takeIf { it !in affectedNodeIds }?.let { affectedNodeIds.add(it) }
+                        previousParent.takeIf { it !in affectedNodeIds }?.let { affectedNodeIds.add(it) }
+                        // A child crossing parents needs the committed tree to
+                        // be reconciled so the host can move its existing view.
+                        requiresFullRender = true
+                    }
                     "removeNode" -> {
                         val parent = candidateNodes[operation.optString("id")]?.parent
                         if (parent == null) requiresFullRender = true
@@ -223,6 +231,27 @@ class CraftNativeMutationDocument {
         }
         parent.children.removeAt(oldIndex)
         parent.children.add(insertionIndex(operation, parent.children.size), childId)
+    }
+
+    private fun reparentChild(operation: JSONObject, nodes: MutableMap<String, Node>): String {
+        val parentId = requiredId(operation, "parentId", "reparentChild")
+        val childId = requiredId(operation, "childId", "reparentChild")
+        val parent = nodes[parentId] ?: fail("UNKNOWN_PARENT", "node $parentId does not exist")
+        val child = nodes[childId] ?: fail("UNKNOWN_NODE", "node $childId does not exist")
+        val previousParentId = child.parent
+            ?: fail("NOT_ATTACHED", "node $childId is not attached to a parent")
+        val previousParent = nodes[previousParentId]
+            ?: fail("INVALID_TREE", "node $childId has a missing parent")
+        if (!acceptsChildren(parent.type)) fail("INVALID_PARENT", "node $parentId cannot contain child nodes")
+        if (parentId == childId || parentId in descendants(childId, nodes)) {
+            fail("CYCLE", "reparenting node $childId would create a cycle")
+        }
+        if (parentId == previousParentId) fail("SAME_PARENT", "node $childId is already a child of $parentId")
+        val index = insertionIndex(operation, parent.children.size)
+        previousParent.children.remove(childId)
+        parent.children.add(index, childId)
+        child.parent = parentId
+        return previousParentId
     }
 
     private fun removeNode(

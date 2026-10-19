@@ -382,7 +382,7 @@ describe('Craft iOS builder', () => {
     expect(actionsSwift).toContain('ASAuthorizationPlatformPublicKeyCredentialProvider')
     expect(actionsSwift).toContain('import Security')
     // fetch: a URLSession task per request token, cancelled with the request.
-    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure"]')
+    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]')
     expect(actionsSwift).toContain('case ("Network", "fetch"):')
     expect(actionsSwift).toContain('let craftNativeFetchTimeoutSeconds: TimeInterval = 30')
     expect(actionsSwift).toContain('fetchTasks[requestToken] = task')
@@ -1821,7 +1821,7 @@ describe('Craft iOS builder', () => {
     const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
 
-    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure"]')
+    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]')
     expect(actions).toContain('if config.enablePushNotifications { values.append("push") }')
     expect(actions).toContain('if config.enableShare { values.append("share") }')
     for (const call of ['case ("Speech", "speak"):', 'case ("Push", _):', 'case ("Linking", "openURL"), ("Linking", "canOpenURL"):', 'case ("Share", "share"):'])
@@ -2386,7 +2386,7 @@ describe('Craft iOS builder', () => {
     await init({ name: 'NativeBadge', bundleId: 'org.example.nativebadge', output, config: { renderer: 'native' } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const badge = actions.slice(actions.indexOf('private static func setBadgeCount('))
-    expect(actions).toContain('"linking", "badge", "animation", "viewFocus", "viewMeasure"]')
+    expect(actions).toContain('"linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]')
     expect(actions).toContain('case ("Badge", "set"):')
     expect(actions).toContain('case ("Badge", "clear"):')
     expect(badge).toContain('UNUserNotificationCenter.current().setBadgeCount(count)')
