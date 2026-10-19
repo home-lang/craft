@@ -167,7 +167,13 @@ final class NativeNavigationUITests: XCTestCase {
         reveal(notes, in: root)
         notes.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "The scroll container dismissed the text area's keyboard")
-        notes.typeText(" edited")
+        // A native tap can place the caret anywhere. Exercise the review edit
+        // interaction explicitly instead of assuming insertion is at the end.
+        notes.press(forDuration: 1)
+        let selectAll = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Select All")).firstMatch
+        XCTAssertTrue(selectAll.waitForExistence(timeout: 5), "The text area must retain its native selection menu")
+        selectAll.tap()
+        notes.typeText("Draft edited")
         XCTAssertEqual(notes.value as? String, "Draft edited")
         notes.tap()
         XCTAssertTrue(app.keyboards.firstMatch.exists, "Tapping the text area again must preserve editing")
