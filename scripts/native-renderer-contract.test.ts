@@ -193,6 +193,14 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`value` is null, and `value` takes precedence')
   })
 
+  it('keeps Picker value compatibility aligned with both hosts', () => {
+    expect(componentTypes).toContain('value?: string | number')
+    expect(ios).toContain('craftNativePickerValue(props["selectedValue"]) ?? craftNativePickerValue(props["value"])')
+    expect(android).toContain('craftNativePickerValue(props.opt("selectedValue"))')
+    expect(android).toContain('craftNativePickerValue(props.opt("value"))')
+    expect(guide).toContain('accepts an `items` array or child options plus `value`/`selectedValue`')
+  })
+
   it('keeps composed native styles recursively flattenable', () => {
     expect(componentTypes).toContain('export type StyleValue<T> =')
     expect(componentTypes).toContain('in any component\'s `style` prop')

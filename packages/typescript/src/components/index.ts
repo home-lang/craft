@@ -908,6 +908,8 @@ export interface PickerProps extends BaseProps {
   style?: StyleValue<ViewStyle>
   /** Typed options; child options remain supported when omitted. */
   items?: PickerOption[]
+  /** Controlled selection alias; `selectedValue` takes precedence when set. */
+  value?: string | number
   selectedValue?: string | number
   onValueChange?: (value: string | number, index: number) => void
   onChange?: (value: string | number, index: number) => void

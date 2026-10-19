@@ -151,8 +151,8 @@ describe('Component System', () => {
     expect(androidOnlyMap).toBeDefined()
     const route: MapPolylineProps = { geometry: [47, 11, 47.1, 11.2], strokeWidth: 3 }
     const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], pinColor: '#24724b', onPress: () => {} }
-    const picker: PickerProps = { items: [{ label: 'One', value: 1 }], selectedValue: 1, onChange: () => {} }
-    const childPicker: PickerProps = { children: ['One', 'Two'], selectedValue: 'Two' }
+    const picker: PickerProps = { items: [{ label: 'One', value: 1 }], value: 1, selectedValue: 1, onChange: () => {} }
+    const childPicker: PickerProps = { children: ['One', 'Two'], value: 'Two' }
     const statusBar: StatusBarProps = { barStyle: 'dark-content', hidden: false }
     const refresh: RefreshControlProps = { refreshing: true, tintColor: '#2563eb', onRefresh: () => {} }
     // Host-specific refresh presentation stays out of the shared contract.
@@ -196,6 +196,7 @@ describe('Component System', () => {
     expect(route.geometry).toHaveLength(4)
     expect(marker.id).toBe('trailhead')
     expect(picker.selectedValue).toBe(1)
+    expect(childPicker.value).toBe('Two')
     expect(childPicker.items).toBeUndefined()
     expect(statusBar.barStyle).toBe('dark-content')
     expect(refresh.tintColor).toBe('#2563eb')
