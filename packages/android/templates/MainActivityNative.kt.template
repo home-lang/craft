@@ -5015,6 +5015,11 @@ class MainActivity : AppCompatActivity() {
                     else -> null
                 }
                 configureText(this, childText(children), style)
+                val selectable = craftNativeBoolean(props.opt("selectable"))
+                setTextIsSelectable(selectable)
+                isFocusable = selectable
+                isFocusableInTouchMode = selectable
+                isLongClickable = selectable
             }
             "StatusBar" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 screen.statusBarStyle = craftNativeOptionalString(props.opt("barStyle"))

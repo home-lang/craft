@@ -1523,12 +1523,14 @@ describe('native renderer component contract', () => {
     expect(android).not.toContain('pointerEvents')
   })
 
-  it('does not advertise unsupported native text selection', () => {
+  it('keeps native Text selection aligned across hosts', () => {
     const textProps = componentTypes.match(/export interface TextProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(textProps).toContain('numberOfLines?: number')
-    expect(textProps).not.toContain('selectable?: boolean')
-    expect(ios).not.toContain('selectable')
-    expect(android).not.toContain('selectable')
+    expect(textProps).toContain('selectable?: boolean')
+    expect(ios).toContain('CraftNativeSelectableTextView')
+    expect(ios).toContain('isSelectable = true')
+    expect(android).toContain('setTextIsSelectable(selectable)')
+    expect(android).toContain('isFocusableInTouchMode = selectable')
   })
 
   it('delivers Pressable press-in and press-out callbacks on both hosts', () => {

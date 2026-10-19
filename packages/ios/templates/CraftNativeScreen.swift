@@ -4446,6 +4446,35 @@ private final class CraftNativeLabel: UILabel {
     }
 }
 
+/// A non-editable text view used when a native Text explicitly opts into
+/// selection. UILabel has no selection model; UITextView supplies UIKit's
+/// standard loupe, menu and copy behavior while remaining a plain text leaf.
+private final class CraftNativeSelectableTextView: UITextView {
+    convenience init() {
+        self.init(frame: .zero, textContainer: nil)
+    }
+
+    override init(frame: CGRect, textContainer: NSTextContainer?) {
+        super.init(frame: frame, textContainer: textContainer)
+        isEditable = false
+        isSelectable = true
+        isScrollEnabled = false
+        backgroundColor = .clear
+        textContainerInset = .zero
+        textContainer.lineFragmentPadding = 0
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        isEditable = false
+        isSelectable = true
+        isScrollEnabled = false
+        backgroundColor = .clear
+        textContainerInset = .zero
+        textContainer.lineFragmentPadding = 0
+    }
+}
+
 /// A one-line TextInput. Its style's padding is where the text and the
 /// placeholder start, as in a web input; UITextField has no padding of its own.
 final class CraftNativeTextField: UITextField {
@@ -6829,6 +6858,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func canReuseView(_ node: [String: Any], previous: RenderedNode) -> Bool {
         let type = canonicalType(node["type"] as? String ?? "View")
         guard previous.type == type else { return false }
+        if type == "Text" {
+            let props = node["props"] as? [String: Any] ?? [:]
+            return (previous.view is CraftNativeSelectableTextView) == (props["selectable"] as? Bool == true)
+        }
         guard type == "TextInput" else { return true }
         let props = node["props"] as? [String: Any] ?? [:]
         return (previous.view is UITextView) == (props["multiline"] as? Bool == true)
@@ -6898,11 +6931,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             result.isHidden = true
             result.isUserInteractionEnabled = false
         case "Text":
-            let label = result as! UILabel
-            label.numberOfLines = max(0, Int(number(props["numberOfLines"]) ?? 0))
-            label.lineBreakMode = textLineBreakMode(props["ellipsizeMode"])
-            (label as? CraftNativeLabel)?.insets = paddingInsets(style)
-            configureText(label, text: children.compactMap { $0 as? String }.joined(), style: style)
+            let text = children.compactMap { $0 as? String }.joined()
+            if let selectable = result as? CraftNativeSelectableTextView {
+                selectable.textContainer.maximumNumberOfLines = max(0, Int(number(props["numberOfLines"]) ?? 0))
+                selectable.textContainer.lineBreakMode = textLineBreakMode(props["ellipsizeMode"])
+                configureSelectableText(selectable, text: text, style: style)
+            } else {
+                let label = result as! UILabel
+                label.numberOfLines = max(0, Int(number(props["numberOfLines"]) ?? 0))
+                label.lineBreakMode = textLineBreakMode(props["ellipsizeMode"])
+                (label as? CraftNativeLabel)?.insets = paddingInsets(style)
+                configureText(label, text: text, style: style)
+            }
         case "Button", "Link":
             let button = result as! UIButton
             let title = props["title"] as? String ?? children.compactMap { $0 as? String }.joined()
@@ -7379,6 +7419,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func makeView(_ type: String, props: [String: Any]) -> UIView {
         switch type {
         case "Text":
+            if props["selectable"] as? Bool == true {
+                return CraftNativeSelectableTextView()
+            }
             let label = CraftNativeLabel()
             label.numberOfLines = 0
             return label
@@ -8372,6 +8415,23 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // label's alignment and truncation; set them again over the whole text.
         label.textAlignment = alignment
         label.lineBreakMode = lineBreakMode
+    }
+
+    private func configureSelectableText(_ textView: UITextView, text: String, style: [String: Any]) {
+        let label = CraftNativeLabel()
+        label.numberOfLines = 0
+        configureText(label, text: text, style: style)
+        textView.attributedText = label.attributedText
+        if label.attributedText == nil { textView.text = label.text }
+        textView.font = label.font
+        textView.textColor = label.textColor
+        textView.textAlignment = label.textAlignment
+        textView.textContainerInset = paddingInsets(style)
+        textView.textContainer.lineFragmentPadding = 0
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isScrollEnabled = false
+        textView.backgroundColor = .clear
     }
 
     private func textLineBreakMode(_ value: Any?) -> NSLineBreakMode {
