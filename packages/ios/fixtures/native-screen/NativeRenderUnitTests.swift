@@ -876,6 +876,27 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual((document.node("existing")?["props"] as? [String: Any])?["value"] as? String, "edited")
     }
 
+    func testReparentChildMovesAcrossParentsAtomically() throws {
+        let document = CraftNativeMutationDocument()
+        _ = try document.apply(batch(1, [
+            ["op": "createNode", "id": "root", "root": true, "node": ["type": "View"]],
+            ["op": "createNode", "id": "source", "node": ["type": "View"]],
+            ["op": "createNode", "id": "destination", "node": ["type": "View"]],
+            ["op": "createNode", "id": "popup", "node": ["type": "TextInput", "key": "popup"]],
+            ["op": "insertChild", "parentId": "root", "childId": "source", "index": 0],
+            ["op": "insertChild", "parentId": "root", "childId": "destination", "index": 1],
+            ["op": "insertChild", "parentId": "source", "childId": "popup", "index": 0],
+        ]))
+        let result = try document.apply(batch(2, [
+            ["op": "reparentChild", "parentId": "destination", "childId": "popup", "index": 0],
+        ]))
+        XCTAssertEqual(document.parentId(of: "popup"), "destination")
+        XCTAssertEqual(result.affectedNodeIds, ["destination", "source"])
+        XCTAssertTrue(result.requiresFullRender)
+        let child = try XCTUnwrap((document.node("destination")?["children"] as? [[String: Any]])?.first)
+        XCTAssertEqual(child["id"] as? String, "popup")
+    }
+
     func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot() throws {
         for type in CraftNativeMutationDocument.containerTypes.sorted() + ["svg", "pressable"] {
             let document = CraftNativeMutationDocument()
