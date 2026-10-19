@@ -1960,7 +1960,7 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(controller.evaluateScript("__rowPress")?.toString(), "select-b")
     }
 
-    func testScrollCanCancelButtonTrackingWithoutTakingSliderOrInputTracking() throws {
+    func testScrollCanCancelButtonAndFieldTrackingWithoutTakingValueControls() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
         controller.render(document([[
@@ -1975,7 +1975,7 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(form.touchesShouldCancel(in: try XCTUnwrap(find(UIButton.self, key: "action", below: controller.view))))
         XCTAssertFalse(form.touchesShouldCancel(in: try XCTUnwrap(find(UISlider.self, key: "position", below: controller.view))))
         XCTAssertFalse(form.touchesShouldCancel(in: try XCTUnwrap(find(UISwitch.self, key: "toggle", below: controller.view))))
-        XCTAssertFalse(form.touchesShouldCancel(in: try XCTUnwrap(find(UITextField.self, key: "draft", below: controller.view))))
+        XCTAssertTrue(form.touchesShouldCancel(in: try XCTUnwrap(find(UITextField.self, key: "draft", below: controller.view))))
     }
 
     func testScrollKeyboardTapPreservesTextAreaFocusAndSelectionButDismissesBackground() throws {
