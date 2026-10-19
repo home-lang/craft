@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 export function pinnedZigVersion(root: string): string {
   const lock = JSON.parse(readFileSync(join(root, 'pantry.lock'), 'utf8'))
   const version = lock.workspaces?.['']?.system?.['ziglang.org']
-  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+(?:-dev\.\d+_[a-f0-9]+)?$/.test(version))
+  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+(?:-dev\.\d+[+_][a-f0-9]+)?$/.test(version))
     throw new Error('pantry.lock must contain an exact Zig version in the root workspace system dependencies')
   return version.replace('_', '+')
 }

@@ -78,6 +78,11 @@ test('mobile device jobs use the same pinned stx compiler', () => {
   expect(compilerCheckouts).toHaveLength(4)
   for (const step of compilerCheckouts)
     expect((step.with as Record<string, string>).ref).toBe(stxCompilerCommit)
+  const compilerInstalls = Object.values(workflow.jobs).flatMap(job => job.steps ?? [])
+    .filter(step => step['working-directory'] === '.stx-compiler')
+  expect(compilerInstalls).toHaveLength(4)
+  for (const step of compilerInstalls)
+    expect(step.run).toBe('bun install --frozen-lockfile')
 })
 
 test('native compiler jobs use a supported Bun and preserve its frozen lockfile', () => {
@@ -85,7 +90,7 @@ test('native compiler jobs use a supported Bun and preserve its frozen lockfile'
   for (const name of ['ios-native', 'ios-simulator', 'android-emulator', 'android-navigation']) {
     const job = workflow.jobs[name]
     const jobSteps = job.steps ?? []
-    const tool = jobSteps.findIndex(step => step.uses === 'oven-sh/setup-bun@v2' && step.with?.['bun-version'] === '1.4.2')
+    const tool = jobSteps.findIndex(step => step.uses === 'oven-sh/setup-bun@v2' && step.with?.['bun-version'] === '1.4.3')
     const install = jobSteps.findIndex(step => step['working-directory'] === '.stx-compiler')
     expect(tool).toBeGreaterThanOrEqual(0)
     expect(install).toBeGreaterThan(tool)
@@ -164,8 +169,8 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
     for (const [name, job] of Object.entries(workflow.jobs)) {
       for (const step of job.steps ?? []) {
         if (step.uses?.startsWith('pantry-pm/pantry/packages/action@')) {
-          expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe('0.11.94')
-          expect(step.uses, `${file} ${name} must pin the matching action source`).toBe('pantry-pm/pantry/packages/action@da17bb9317e8f8c247618fb176fe97269f15bfe4')
+          expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe('0.11.99')
+          expect(step.uses, `${file} ${name} must pin the matching action source`).toBe('pantry-pm/pantry/packages/action@3436eff9cc46cad165a564f30d458963e148294c')
         }
       }
     }
@@ -177,6 +182,20 @@ test('jobs that only run Bun get Bun alone, not the pinned Zig they cannot alway
   // has no Intel-Mac download once ziglang.org prunes it, which failed v0.0.114
   // in two jobs that compile nothing.
   const bunVersion = String((Bun.YAML.parse(readFileSync(join(import.meta.dir, '../deps.yaml'), 'utf8')) as { dependencies: Record<string, string> }).dependencies['bun.sh'])
+  const pantry = Bun.JSONC.parse(readFileSync(join(import.meta.dir, '../pantry.jsonc'), 'utf8'))
+  expect(pantry.dependencies['bun.sh']).toBe(bunVersion)
+  const lock = JSON.parse(readFileSync(join(import.meta.dir, '../pantry.lock'), 'utf8'))
+  expect(lock.workspaces[''].system['bun.sh']).toBe(bunVersion)
+  expect(lock.packages[`bun.sh@${bunVersion}`].version).toBe(bunVersion)
+  for (const file of ['mobile-e2e.yml', 'native-lifecycle.yml', 'release.yml', 'sbom.yml', 'media-cache.yml']) {
+    const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows', file), 'utf8')) as { jobs: Record<string, Job> }
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      for (const step of job.steps ?? []) {
+        if (step.uses === 'oven-sh/setup-bun@v2')
+          expect(step.with?.['bun-version'], `${file} ${name} must pin the declared Bun toolchain`).toBe(bunVersion)
+      }
+    }
+  }
   const lifecycle = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/native-lifecycle.yml'), 'utf8')) as { jobs: Record<string, Job> }
   for (const [file, job] of [['release.yml verify-macos-downloads', release.jobs['verify-macos-downloads']], ['native-lifecycle.yml lifecycle', lifecycle.jobs.lifecycle]] as const) {
     const uses = (job.steps ?? []).map(step => step.uses ?? '')
@@ -350,7 +369,7 @@ test('a failed native leg cannot publish a partial GitHub, Zig, or npm release',
   expect(release.jobs.npm.if).toContain("needs.prepare-npm.result == 'success'")
   expect(release.jobs.npm.if).toContain("needs.publish-release.result == 'success'")
   const zigPublish = registry.steps!.find(step => step.name === 'Publish Zig package')
-  expect(zigPublish?.with).toMatchObject({ version: '0.11.94', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
+  expect(zigPublish?.with).toMatchObject({ version: '0.11.99', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
   expect(zigPublish?.with?.release).toBeUndefined()
   expect(Object.entries(release.jobs).flatMap(([name, job]) =>
     (job.steps ?? []).filter(step => step.with?.publish === 'zig').map(() => name))).toEqual(['publish-pantry'])

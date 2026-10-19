@@ -761,6 +761,8 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["panel pressed"].waitForExistence(timeout: 5))
         let pressable = app.buttons["native-pressable"]
         reveal(pressable, in: rootScroll)
+        XCTAssertTrue(app.links["native-linked-pressable"].exists, "a destination-bearing Pressable must expose the link role")
+        XCTAssertTrue(app.buttons["native-raw-pressable"].exists, "an unlinked Pressable must expose the button role")
         // Earlier reveal drags may start on the pressable and legitimately
         // deliver a cancelled press-in/out pair. Assert this tap's delta.
         let lifecycle = app.staticTexts["pressable-lifecycle"]

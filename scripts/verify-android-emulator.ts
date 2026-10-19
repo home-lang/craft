@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve, sep } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { createAndroidEmulator } from '../packages/android/src/emulator'
+import { managedJavaHome } from './managed-java-home'
 
 if (process.platform !== 'linux' || process.arch !== 'x64')
   throw new Error('The software emulator verification requires a Linux x86_64 host')
@@ -26,7 +27,7 @@ function tool(name: string): string {
 
 const sdkmanager = tool('sdkmanager')
 const avdmanager = tool('avdmanager')
-const javaHome = dirname(dirname(tool('javac')))
+const javaHome = managedJavaHome(managed)
 const artifacts = resolve(diagnostic ? 'artifacts/android-software-cold-provisioning' : 'artifacts/android-software-emulator')
 const owned = mkdtempSync(join(tmpdir(), 'craft-emulator-source-'))
 mkdirSync(artifacts, { recursive: true })
