@@ -802,7 +802,7 @@ function openDetailsThenUpdateBackground() {
       <option value="three">Three</option>
     </select>
     <Text testID="picker-value" :text="pickerValue" />
-    <select testID="native-items-picker" :items="pickerItems" :value="itemsPickerValue" @change="chooseItemsPicker($event)"></select>
+    <select testID="native-items-picker" :items="pickerItems" :selectedValue="itemsPickerValue" :value="'two'" @change="chooseItemsPicker($event)"></select>
     <Text testID="items-picker-value" :text="itemsPickerValue" />
     <DatePicker testID="native-date-picker" value="2026-10-12" minimumDate="2026-10-01" maximumDate="2026-12-31" @value-change="chooseDate($event)" />
     <Text testID="date-value" :text="dateValue" />

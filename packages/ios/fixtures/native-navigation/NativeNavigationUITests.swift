@@ -761,6 +761,7 @@ final class NativeNavigationUITests: XCTestCase {
         let itemsPicker = app.pickers["native-items-picker"]
         XCTAssertTrue(itemsPicker.waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["items-picker-value"].label, "one")
+        XCTAssertEqual(itemsPicker.value as? String, "One item")
         let modalToggle = app.buttons["toggle-modal"]
         reveal(modalToggle, in: rootScroll)
         modalToggle.tap()

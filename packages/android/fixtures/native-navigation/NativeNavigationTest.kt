@@ -1467,6 +1467,7 @@ class NativeNavigationTest {
             instrumentation.waitForIdleSync()
             awaitText(activity, "items-picker-value", "one")
             assertEquals("reconciling another picker must not emit onChange", "picker two", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            assertEquals("selectedValue should take precedence over value", 0, (itemsPicker as Spinner).selectedItemPosition)
             instrumentation.runOnMainSync { (itemsPicker as Spinner).setSelection(1) }
             // Both native hosts serialize a numeric option through Double.
             awaitText(activity, "items-picker-value", "2.0")

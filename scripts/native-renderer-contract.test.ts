@@ -211,6 +211,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('craftNativePickerValue(props.opt("selectedValue"))')
     expect(android).toContain('craftNativePickerValue(props.opt("value"))')
     expect(guide).toContain('accepts an `items` array or child options plus `value`/`selectedValue`')
+    expect(navigationHome).toContain(':selectedValue="itemsPickerValue" :value="\'two\'"')
+    expect(androidNavigationTest).toContain('selectedValue should take precedence over value')
+    expect(iosNavigationTest).toContain('itemsPicker.value as? String, "One item"')
   })
 
   it('keeps composed native styles recursively flattenable', () => {
