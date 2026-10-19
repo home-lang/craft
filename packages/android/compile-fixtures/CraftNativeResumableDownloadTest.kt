@@ -101,6 +101,15 @@ class CraftNativeResumableDownloadTest {
     }
 
     @Test
+    fun refusesAPartNobodyAskedFor() = part { file ->
+        serve(status = 206) { address, seen ->
+            assertEquals(CraftResumableDownload.Fetched.Refused(206), CraftResumableDownload().fetch(address, emptyMap(), file) { false })
+            assertEquals(listOf<String?>(null), seen)
+            assertFalse(file.exists())
+        }
+    }
+
+    @Test
     fun keepsWhatItHasWhenStopped() = part { file ->
         serve { address, _ ->
             assertEquals(CraftResumableDownload.Fetched.Stopped, CraftResumableDownload().fetch(address, emptyMap(), file) { true })

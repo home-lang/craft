@@ -1482,9 +1482,12 @@ describe('Craft Android builder', () => {
     const shell = readFileSync(join(output, 'app/src/main/java/dev/craft/media/CraftNativeShell.kt'), 'utf8')
     const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
     expect(gradle).toContain('androidx.work:work-runtime-ktx')
-    // A job per address and connection rule, joined rather than started twice, run when its network is there.
+    // A job per address and connection rule: a running one is joined, one waiting (or in a retry's backoff) runs now.
     expect(shell).toContain('internal class CraftNativeMediaWorker(')
-    expect(shell).toContain('work.enqueueUniqueWork(workName(address, wifiOnly), androidx.work.ExistingWorkPolicy.KEEP, request)')
+    expect(shell).toContain('work.enqueueUniqueWork(name, if (running) androidx.work.ExistingWorkPolicy.KEEP else androidx.work.ExistingWorkPolicy.REPLACE, request)')
+    // A prune never stops the transfer a keep still waits on; a 206 nobody asked for is refused.
+    expect(shell).toContain('owner in wanted || owner in active')
+    expect(shell).toContain('if (status == 206 && have == 0L) return Fetched.Refused(status)')
     expect(shell).toContain('if (wifiOnly) androidx.work.NetworkType.UNMETERED else androidx.work.NetworkType.CONNECTED')
     // Resumed from the part file an earlier attempt left.
     expect(shell).toContain('connection.setRequestProperty("Range", "bytes=$have-")')
