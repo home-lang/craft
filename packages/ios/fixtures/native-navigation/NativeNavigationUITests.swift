@@ -801,7 +801,7 @@ final class NativeNavigationUITests: XCTestCase {
         // The scrim reports why it requested the close; the visible modal
         // then reconciles away and emits its ordinary dismiss lifecycle.
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
-        XCTAssertTrue(app.staticTexts["modal requested backdrop"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForLabel(app.staticTexts["modal-request-status"], "modal requested backdrop"))
         XCTAssertTrue(app.staticTexts["modal dismissed"].waitForExistence(timeout: 5))
 
         let slider = app.sliders["native-slider"]
@@ -1126,7 +1126,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["modal shown"].waitForExistence(timeout: 5))
 
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
-        XCTAssertTrue(app.staticTexts["modal requested backdrop"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForLabel(app.staticTexts["modal-request-status"], "modal requested backdrop"))
         XCTAssertTrue(app.staticTexts["modal dismissed"].waitForExistence(timeout: 5))
     }
 }

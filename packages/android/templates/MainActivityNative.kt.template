@@ -2557,7 +2557,6 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     val content = CraftNativeFlexLayout(context)
     private val blocker = View(context)
     private var renderedVisible = false
-    private var dismissSuppressedByRequest = false
     private var animationGeneration = 0
     var focusToRestore: View? = null
     var onRequestClose: ((String) -> Unit)? = null
@@ -2582,20 +2581,9 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
 
     fun requestClose(reason: String = "backdrop") {
         val handler = onRequestClose ?: return
-        dismissSuppressedByRequest = true
         isClickable = false
         blocker.isEnabled = false
         handler(reason)
-    }
-
-    fun consumeDismissSuppression(): Boolean {
-        val suppressed = dismissSuppressedByRequest
-        dismissSuppressedByRequest = false
-        return suppressed
-    }
-
-    fun clearDismissSuppression() {
-        dismissSuppressedByRequest = false
     }
 
     fun setVisible(visible: Boolean, opacity: Float, animationType: String?) {
@@ -2656,7 +2644,6 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
         alpha = 0f
         isClickable = true
         blocker.isEnabled = true
-        dismissSuppressedByRequest = false
         onRequestClose = null
     }
 }
@@ -5410,15 +5397,13 @@ class MainActivity : AppCompatActivity() {
                         if (restore.isAttachedToWindow) restore.requestFocus()
                     }
                 }
-                if (visible) clearDismissSuppression()
-                val suppressDismiss = !visible && consumeDismissSuppression()
                 if (wasVisible != visible && (visible || wasVisible == true)) {
                     val lifecycleHandler = if (visible) {
                         craftNativeOptionalString(events.opt("onShow"))
                     } else {
                         craftNativeOptionalString(events.opt("onDismiss"))
                     }
-                    if (!lifecycleHandler.isNullOrBlank() && !suppressDismiss) {
+                    if (!lifecycleHandler.isNullOrBlank()) {
                         // Deliver lifecycle callbacks after reconciliation returns to
                         // the queue; the handler may immediately schedule another
                         // render against this native view.

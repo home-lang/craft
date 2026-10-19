@@ -3788,7 +3788,6 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     private let blocker = UIView()
     private let backdropTap = UITapGestureRecognizer()
     private var renderedVisible = false
-    private var dismissSuppressedByRequest = false
     private var animationGeneration = 0
     var onRequestClose: ((String) -> Void)?
 
@@ -3877,24 +3876,14 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
         transform = .identity
         alpha = 0
         isUserInteractionEnabled = true
-        dismissSuppressedByRequest = false
         onRequestClose = nil
     }
 
     func requestClose(reason: String = "backdrop") {
         guard let onRequestClose else { return }
-        dismissSuppressedByRequest = true
         isUserInteractionEnabled = false
         onRequestClose(reason)
     }
-
-    func consumeDismissSuppression() -> Bool {
-        let suppressed = dismissSuppressedByRequest
-        dismissSuppressedByRequest = false
-        return suppressed
-    }
-
-    func clearDismissSuppression() { dismissSuppressedByRequest = false }
 
     @objc private func backdropTapped() { requestClose(reason: "backdrop") }
 
@@ -7367,11 +7356,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             modal.onRequestClose = nonEmptyHandler(events["onRequestClose"]).map { handler in
                 { [weak self] reason in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["reason": reason]]) }
             }
-            if visible { modal.clearDismissSuppression() }
-            let suppressDismiss = !visible && modal.consumeDismissSuppression()
             if wasVisible != visible, visible || wasVisible == true {
                 let lifecycleHandler = visible ? events["onShow"] : events["onDismiss"]
-                if let lifecycleHandler = nonEmptyHandler(lifecycleHandler), !suppressDismiss {
+                if let lifecycleHandler = nonEmptyHandler(lifecycleHandler) {
                     send(type: "EVENT", payload: ["handlerName": lifecycleHandler, "nativeEvent": [:]])
                 }
             }
