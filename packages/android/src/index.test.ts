@@ -1482,9 +1482,9 @@ describe('Craft Android builder', () => {
     const shell = readFileSync(join(output, 'app/src/main/java/dev/craft/media/CraftNativeShell.kt'), 'utf8')
     const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
     expect(gradle).toContain('androidx.work:work-runtime-ktx')
-    // A job per address and connection rule, joined rather than started twice, run when its network is there.
+    // Serialize each address's requests under its connection rule; cached successors do not fetch again.
     expect(shell).toContain('internal class CraftNativeMediaWorker(')
-    expect(shell).toContain('work.enqueueUniqueWork(workName(address, wifiOnly), androidx.work.ExistingWorkPolicy.KEEP, request)')
+    expect(shell).toContain('work.enqueueUniqueWork(workName(address, wifiOnly), androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE, request)')
     expect(shell).toContain('if (wifiOnly) androidx.work.NetworkType.UNMETERED else androidx.work.NetworkType.CONNECTED')
     // Resumed from the part file an earlier attempt left.
     expect(shell).toContain('connection.setRequestProperty("Range", "bytes=$have-")')

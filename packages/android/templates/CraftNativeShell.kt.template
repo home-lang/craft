@@ -1272,8 +1272,10 @@ internal object CraftNativeMedia {
             .addTag(TAG)
             .addTag("$TAG:${digest(address)}")
             .build()
-        // KEEP: a transfer already queued or running for this address is joined, not started again.
-        work.enqueueUniqueWork(workName(address, wifiOnly), androidx.work.ExistingWorkPolicy.KEEP, request)
+        // Serialize requests, including one arriving after a terminal answer but
+        // before WorkManager marks that attempt complete. Each successor checks
+        // the cache before fetching, so concurrent callers still share one copy.
+        work.enqueueUniqueWork(workName(address, wifiOnly), androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE, request)
         val reason = when {
             !online(app) -> "offline"
             wifiOnly && metered(app) -> "cellular"
@@ -1370,7 +1372,7 @@ internal object CraftNativeMedia {
         capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     }.getOrDefault(true)
 
-    /** Removes every copy whose address is not in `keep`, and stops their transfers; answers how many files went. */
+    /** Removes idle copies outside `keep` and cancels their jobs; pending keeps retain ownership. */
     fun prune(context: Context, keep: List<String>): Int {
         val wanted = keep.map { digest(it) }.toSet()
         var removed = 0
@@ -1389,8 +1391,16 @@ internal object CraftNativeMedia {
             runCatching {
                 androidx.work.WorkManager.getInstance(app).getWorkInfosByTag(TAG).get()
                     .filter { !it.state.isFinished }
-                    .filter { info -> info.tags.none { it.startsWith("$TAG:") && it.removePrefix("$TAG:") in wanted } }
-                    .forEach { androidx.work.WorkManager.getInstance(app).cancelWorkById(it.id) }
+                    .forEach { info ->
+                        synchronized(lock) {
+                            // The query runs asynchronously: a new keep may now
+                            // own an address that was idle when prune was called.
+                            val active = waiting.keys.map { digest(it) }.toSet()
+                            if (info.tags.none { it.startsWith("$TAG:") && it.removePrefix("$TAG:") in wanted + active }) {
+                                androidx.work.WorkManager.getInstance(app).cancelWorkById(info.id)
+                            }
+                        }
+                    }
             }
         }
         return removed
