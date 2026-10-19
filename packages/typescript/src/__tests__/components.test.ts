@@ -82,7 +82,6 @@ describe('Component System', () => {
       onScroll: event => expect(event.nativeEvent.contentOffset.x).toBe(0),
       onScrollBeginDrag: () => {},
       onScrollEndDrag: () => {},
-      inverted: true,
       stickyHeaderIndices: [0, 2],
       scrollTarget: { id: 'today', animated: false, key: 'today-v2' },
       refreshControl: { refreshing: false, tintColor: '#2563eb' },
@@ -93,6 +92,8 @@ describe('Component System', () => {
     expect(scroll.onScroll).toBeDefined()
     expect(scroll.scrollTarget).toMatchObject({ id: 'today', animated: false })
     expect(scroll.refreshControl?.tintColor).toBe('#2563eb')
+    const list: FlatListProps<string> = { data: ['today'], renderItem: ({ item }) => item, inverted: true }
+    expect(list.inverted).toBe(true)
   })
 
   it('types the native renderer component contract', () => {

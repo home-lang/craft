@@ -220,7 +220,10 @@ describe('native renderer component contract', () => {
   it('types the implemented native scroll targeting controls', () => {
     expect(componentTypes).toContain('stickyHeaderIndices?: number[]')
     expect(componentTypes).toContain('scrollTarget?: string | { id: string; animated?: boolean; key?: string } | null')
-    expect(componentTypes).toContain('inverted?: boolean')
+    const scrollViewProps = componentTypes.match(/export interface ScrollViewProps extends ViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(scrollViewProps).not.toContain('inverted?: boolean')
+    expect(flatListProps).toContain('inverted?: boolean')
     expect(ios).toContain('scroll.setStickyHeaderIndices(props["stickyHeaderIndices"])')
     expect(ios).toContain('scroll.setScrollTarget(props["scrollTarget"])')
     expect(android).toContain('setStickyHeaderIndices(props.optJSONArray("stickyHeaderIndices"))')

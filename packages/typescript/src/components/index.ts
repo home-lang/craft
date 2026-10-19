@@ -759,8 +759,6 @@ export interface ScrollViewProps extends ViewProps {
   stickyHeaderIndices?: number[]
   /** Scroll a child into view when this target changes. */
   scrollTarget?: string | { id: string; animated?: boolean; key?: string } | null
-  /** Render content in reverse order along the scroll axis. */
-  inverted?: boolean
   /** Controlled native pull-to-refresh component. */
   refreshControl?: RefreshControlProps
 }
@@ -948,6 +946,8 @@ export interface FlatListProps<T> extends ScrollViewProps {
   keyExtractor?: (item: T, index: number) => string
   /** Number of columns */
   numColumns?: number
+  /** Render rows in reverse order along the scroll axis. */
+  inverted?: boolean
   /** End reached handler */
   onEndReached?: () => void
   /** End reached threshold */
