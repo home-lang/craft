@@ -1858,10 +1858,16 @@ class NativeNavigationTest {
                 people.scrollTo(0, (peopleContent?.height ?: 0) - people.height)
             }
             SystemClock.sleep(150)
-            assertTrue(
-                "ScrollView sticky header did not remain pinned",
-                screenTop(peopleHeader) >= screenTop(people) + (8 * density).toInt() - 1,
-            )
+            instrumentation.runOnMainSync {
+                // Content padding scrolls away; a sticky header pins to the
+                // viewport edge, matching the iOS native scroll host.
+                val headerTop = screenTop(peopleHeader)
+                val viewportTop = screenTop(people)
+                assertTrue(
+                    "ScrollView sticky header did not remain pinned: header=$headerTop viewport=$viewportTop",
+                    kotlin.math.abs(headerTop - viewportTop) <= 1,
+                )
+            }
             val peopleLayouts = awaitView(activity, "people-layout-status") as TextView
             val initialRowLayouts = peopleLayouts.text.toString().substringAfterLast(": ").toInt()
             assertTrue("ScrollView rows did not report layout", initialRowLayouts > 0)

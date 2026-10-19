@@ -217,11 +217,15 @@ class NativeFlatListTest {
             list.apply(nodes, true, 1, true, 0.1, renderer(context, renders), { _ -> }, { _ -> }, null)
         }
         awaitCount(list, 9)
-        val horizontal = list.layoutManager as LinearLayoutManager
-        assertEquals(LinearLayoutManager.HORIZONTAL, horizontal.orientation)
-        val invertedIdentities = list.visibleItemIdentities
-        assertEquals("row-7", invertedIdentities.first())
-        assertEquals("mounted identities must stay in adapter order", invertedIdentities, invertedIdentities.sortedBy { it.substringAfter('-').toInt() })
+        instrumentation.runOnMainSync {
+            attach(list)
+            val horizontal = list.layoutManager as LinearLayoutManager
+            assertEquals(LinearLayoutManager.HORIZONTAL, horizontal.orientation)
+            val invertedIdentities = list.visibleItemIdentities
+            assertEquals("row-7", invertedIdentities.first())
+            val adapterOrder = nodes.reversed().map { it.getString("id") }
+            assertEquals("mounted identities must stay in adapter order", adapterOrder.filter { it in invertedIdentities }, invertedIdentities)
+        }
 
         instrumentation.runOnMainSync {
             list.apply(nodes, false, 3, false, 0.1, renderer(context, renders), { _ -> }, { _ -> }, null)
@@ -284,29 +288,33 @@ class NativeFlatListTest {
 
     @Test
     fun nonScrollingListMeasuresItsFullContentHeight() {
-        val context = instrumentation.targetContext
-        val list = CraftNativeFlatList(context)
+        val (scenario, list) = launchHost()
+        val context = list.context
         val rows = (0 until 3).map(::row)
         val contentSizeChanges = AtomicInteger()
-        instrumentation.runOnMainSync {
-            list.setScrollEnabled(false)
-            list.onContentSizeChanged = { contentSizeChanges.incrementAndGet() }
-            list.apply(rows, false, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, { _ -> }, null)
+        try {
+            instrumentation.runOnMainSync {
+                list.setScrollEnabled(false)
+                list.onContentSizeChanged = { contentSizeChanges.incrementAndGet() }
+                list.apply(rows, false, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, { _ -> }, null)
+            }
+            awaitCount(list, rows.size)
+            instrumentation.runOnMainSync {
+                list.measure(
+                    View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(1_000, View.MeasureSpec.AT_MOST),
+                )
+                list.layout(0, 0, list.measuredWidth, list.measuredHeight)
+                assertTrue("non-scrolling FlatList should include every row", list.measuredHeight >= rows.size * 44)
+            }
+            repeat(100) {
+                if (contentSizeChanges.get() > 0) return@repeat
+                SystemClock.sleep(10)
+            }
+            assertTrue("non-scrolling FlatList should report content-size changes", contentSizeChanges.get() > 0)
+        } finally {
+            scenario.close()
         }
-        awaitCount(list, rows.size)
-        instrumentation.runOnMainSync {
-            list.measure(
-                View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(1_000, View.MeasureSpec.AT_MOST),
-            )
-            list.layout(0, 0, list.measuredWidth, list.measuredHeight)
-        }
-        assertTrue("non-scrolling FlatList should include every row", list.measuredHeight >= rows.size * 44)
-        repeat(100) {
-            if (contentSizeChanges.get() > 0) return@repeat
-            SystemClock.sleep(10)
-        }
-        assertTrue("non-scrolling FlatList should report content-size changes", contentSizeChanges.get() > 0)
     }
 
     @Test
