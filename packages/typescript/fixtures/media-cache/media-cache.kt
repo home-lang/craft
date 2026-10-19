@@ -180,7 +180,11 @@ class DownloadProbe : android.app.Instrumentation() {
                     work.enqueueUniqueWork(lateName, androidx.work.ExistingWorkPolicy.KEEP, lateRequest).result.get()
                     check(work.getWorkInfoById(lateRequest.id).get()!!.state == androidx.work.WorkInfo.State.ENQUEUED, "the obsolete queued request lands after clear")
                     check(keep(late), "a new generation replaces obsolete queued work")
-                    check(work.getWorkInfoById(lateRequest.id).get()!!.state == androidx.work.WorkInfo.State.CANCELLED, "obsolete queued work is never joined by the current generation")
+                    val currentWork = work.getWorkInfosForUniqueWork(lateName).get()
+                    check(currentWork.size == 1 && currentWork.single().id != lateRequest.id &&
+                        "craft-media:generation:${CraftNativeMedia.generation(targetContext)}" in currentWork.single().tags &&
+                        currentWork.single().state != androidx.work.WorkInfo.State.CANCELLED,
+                        "obsolete queued work is replaced by a current-generation work identity")
                     check(!keep("$base/partial.mp4"), "unsolicited partial response is refused")
                     check(!keep("$base/empty.mp4"), "empty file is refused")
                     val slow = "$base/slow.mp4"
