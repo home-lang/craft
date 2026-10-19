@@ -1,5 +1,162 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.247...v0.0.248)
+
+## 🚀 Features
+
+- **sdk**: expose live workout controls ([252ae30](https://github.com/craft-native/craft/commit/252ae30)) _(by glennmichael123)_
+- **ios**: add live workout session lifecycle ([f48f116](https://github.com/craft-native/craft/commit/f48f116)) _(by glennmichael123)_
+- **native**: advertise view reparent capability ([8004313](https://github.com/craft-native/craft/commit/8004313)) _(by glennmichael123)_
+- **native**: add atomic cross-parent reparent mutations ([38fa17a](https://github.com/craft-native/craft/commit/38fa17a)) _(by glennmichael123)_
+- **android**: hand wallet passes to Google Wallet ([395e99a](https://github.com/craft-native/craft/commit/395e99a)) _(by glennmichael123)_
+- **ios**: add native wallet pass capability ([6748820](https://github.com/craft-native/craft/commit/6748820)) _(by glennmichael123)_
+- **ios**: route explicit grid rows through shared layout ([c2a0eb6](https://github.com/craft-native/craft/commit/c2a0eb6)) _(by glennmichael123)_
+- **android**: route explicit grid rows through shared layout ([f79c548](https://github.com/craft-native/craft/commit/f79c548)) _(by glennmichael123)_
+- **layout**: carry explicit grid rows through shared ABI ([a1cce01](https://github.com/craft-native/craft/commit/a1cce01)) _(by glennmichael123)_
+- **native**: support equal grid row tracks ([0b378c3](https://github.com/craft-native/craft/commit/0b378c3)) _(by glennmichael123)_
+- **native**: support selectable text ([daceeb8](https://github.com/craft-native/craft/commit/daceeb8)) _(by glennmichael123)_
+- **native**: carry route props through navigation ([4a128a5](https://github.com/craft-native/craft/commit/4a128a5)) _(by glennmichael123)_
+- **native**: expose mounted view scrolling ([611cdac](https://github.com/craft-native/craft/commit/611cdac)) _(by glennmichael123)_
+- **native**: expose mounted-view operations ([5c18c1f](https://github.com/craft-native/craft/commit/5c18c1f)) _(by glennmichael123)_
+- **ios**: expose native view focus and measurement ([1c71095](https://github.com/craft-native/craft/commit/1c71095)) _(by glennmichael123)_
+- **android**: report native modal dismissal reasons ([f1d2368](https://github.com/craft-native/craft/commit/f1d2368)) _(by glennmichael123)_
+- **ios**: report native modal dismissal reasons ([95521bf](https://github.com/craft-native/craft/commit/95521bf)) _(by glennmichael123)_
+- **android**: reconcile data-driven map overlays ([8e84945](https://github.com/craft-native/craft/commit/8e84945)) _(by glennmichael123)_
+- **native**: accept data-driven map overlays ([f5c2bda](https://github.com/craft-native/craft/commit/f5c2bda)) _(by glennmichael123)_
+- **types**: expose native map polygons ([b4455e7](https://github.com/craft-native/craft/commit/b4455e7)) _(by glennmichael123)_
+- **native**: add map polygon overlays ([9f172be](https://github.com/craft-native/craft/commit/9f172be)) _(by glennmichael123)_
+- **android**: size static FlatLists to content ([81cad67](https://github.com/craft-native/craft/commit/81cad67)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **ios**: tell a screen prepared out of sight that it is hidden ([fb80008](https://github.com/craft-native/craft/commit/fb80008)) _(by Chris)_
+- **build**: accept upstream exact Zig revision pins ([03217cb](https://github.com/craft-native/craft/commit/03217cb)) _(by Chris Breuer)_
+- **ci**: freeze compiler installs with compatible Bun ([3dabdcb](https://github.com/craft-native/craft/commit/3dabdcb)) _(by Chris Breuer)_
+- **android**: align bundled R8 with Kotlin metadata ([2f6d175](https://github.com/craft-native/craft/commit/2f6d175)) _(by Chris Breuer)_
+- **ci**: preserve the provisioned Android JDK ([9702f4c](https://github.com/craft-native/craft/commit/9702f4c)) _(by Chris Breuer)_
+- **android**: round authored padding to physical pixels ([d70cef3](https://github.com/craft-native/craft/commit/d70cef3)) _(by Chris Breuer)_
+- **native**: infer link and button roles for touchable controls ([da420b5](https://github.com/craft-native/craft/commit/da420b5)) _(by Chris Breuer)_
+- **android**: retain keyed replacements alongside reparented views ([781b4aa](https://github.com/craft-native/craft/commit/781b4aa)) _(by Chris Breuer)_
+- **ios**: type live workout bridge events ([3ff64b1](https://github.com/craft-native/craft/commit/3ff64b1)) _(by glennmichael123)_
+- **android**: read typed Google overlay coordinates ([32d4426](https://github.com/craft-native/craft/commit/32d4426)) _(by Chris Breuer)_
+- **native**: retain views when popups change parents ([c0a26c7](https://github.com/craft-native/craft/commit/c0a26c7)) _(by glennmichael123)_
+- **ci**: let Main acceptance finish before queued revisions ([0386bf3](https://github.com/craft-native/craft/commit/0386bf3)) _(by Chris Breuer)_
+- **ios**: mirror wallet config in Zig ([5c83563](https://github.com/craft-native/craft/commit/5c83563)) _(by glennmichael123)_
+- **native**: derive absolute ratio width from height ([db608a4](https://github.com/craft-native/craft/commit/db608a4)) _(by glennmichael123)_
+- **native**: remeasure anchored absolute children ([09a3d61](https://github.com/craft-native/craft/commit/09a3d61)) _(by glennmichael123)_
+- **ios**: qualify text container access ([8c1f0bb](https://github.com/craft-native/craft/commit/8c1f0bb)) _(by glennmichael123)_
+- **ios**: preserve control taps inside native scroll views ([dc2ed05](https://github.com/craft-native/craft/commit/dc2ed05)) _(by glennmichael123)_
+- **android**: allocate explicit grid rows with fractional spacing ([95db435](https://github.com/craft-native/craft/commit/95db435)) _(by Chris Breuer)_
+- **android**: clamp mounted view scroll offsets ([07e4926](https://github.com/craft-native/craft/commit/07e4926)) _(by glennmichael123)_
+- **native**: restore focus after modal dismissal ([31e22b6](https://github.com/craft-native/craft/commit/31e22b6)) _(by glennmichael123)_
+- **ios**: invalidate map fits for polygon changes ([6322912](https://github.com/craft-native/craft/commit/6322912)) _(by glennmichael123)_
+- **native**: diagnose missing browser globals ([808ee52](https://github.com/craft-native/craft/commit/808ee52)) _(by glennmichael123)_
+- **native**: resolve app-relative image sources ([7c07a18](https://github.com/craft-native/craft/commit/7c07a18)) _(by glennmichael123)_
+- **android**: preserve uncontrolled switch state ([994c4d7](https://github.com/craft-native/craft/commit/994c4d7)) _(by glennmichael123)_
+- **ios**: preserve uncontrolled switch state ([5467d07](https://github.com/craft-native/craft/commit/5467d07)) _(by glennmichael123)_
+- **android**: marshal MapLibre updates to main ([397640f](https://github.com/craft-native/craft/commit/397640f)) _(by glennmichael123)_
+- **android**: stabilize list measurement and sticky headers ([c7de020](https://github.com/craft-native/craft/commit/c7de020)) _(by glennmichael123)_
+- **android**: detach picker listeners safely ([af44630](https://github.com/craft-native/craft/commit/af44630)) _(by glennmichael123)_
+- **android**: align native fixture contracts ([b1be20b](https://github.com/craft-native/craft/commit/b1be20b)) _(by glennmichael123)_
+- **android**: read mounted flatlist children correctly ([1d35b65](https://github.com/craft-native/craft/commit/1d35b65)) _(by glennmichael123)_
+- **mobile**: surface native action sheet failures ([4e05659](https://github.com/craft-native/craft/commit/4e05659)) _(by glennmichael123)_
+- **android**: refresh map overlays for appearance traits ([3e90325](https://github.com/craft-native/craft/commit/3e90325)) _(by glennmichael123)_
+- **ios**: refresh map markers for appearance traits ([3b4b1ad](https://github.com/craft-native/craft/commit/3b4b1ad)) _(by glennmichael123)_
+- **native**: restore stopped indicator visibility ([563af89](https://github.com/craft-native/craft/commit/563af89)) _(by glennmichael123)_
+- **android**: refresh retained safe area insets ([3daaaf7](https://github.com/craft-native/craft/commit/3daaaf7)) _(by glennmichael123)_
+- **android**: preserve MapLibre stroke width density ([1daf6ce](https://github.com/craft-native/craft/commit/1daf6ce)) _(by glennmichael123)_
+- **android**: refresh map chrome for dark mode ([5d27432](https://github.com/craft-native/craft/commit/5d27432)) _(by glennmichael123)_
+- **ios**: refresh map attribution for appearance traits ([811f0ad](https://github.com/craft-native/craft/commit/811f0ad)) _(by glennmichael123)_
+- **native**: align linked pressable accessibility roles ([b752b01](https://github.com/craft-native/craft/commit/b752b01)) _(by glennmichael123)_
+- **native**: rebind dialogs after bundle startup ([cc4dad9](https://github.com/craft-native/craft/commit/cc4dad9)) _(by glennmichael123)_
+- **native**: prefer native dialogs over DOM fallbacks ([8976e14](https://github.com/craft-native/craft/commit/8976e14)) _(by glennmichael123)_
+- **android**: invalidate static FlatList parents ([09c5086](https://github.com/craft-native/craft/commit/09c5086)) _(by glennmichael123)_
+- **android**: clear video listeners on teardown ([a9534a7](https://github.com/craft-native/craft/commit/a9534a7)) _(by glennmichael123)_
+- **android**: tear down FlatList scroll listeners ([4aa0418](https://github.com/craft-native/craft/commit/4aa0418)) _(by glennmichael123)_
+- **android**: sweep text watchers during screen close ([58f03dd](https://github.com/craft-native/craft/commit/58f03dd)) _(by glennmichael123)_
+- **android**: detach text watchers on native release ([23b79fd](https://github.com/craft-native/craft/commit/23b79fd)) _(by glennmichael123)_
+- **ios**: release recycled rows on runtime disposal ([a4f792d](https://github.com/craft-native/craft/commit/a4f792d)) _(by glennmichael123)_
+- **ios**: tear down native FlatList callbacks ([d6e97e9](https://github.com/craft-native/craft/commit/d6e97e9)) _(by glennmichael123)_
+- **ios**: release UIKit hooks on native disposal ([669fafa](https://github.com/craft-native/craft/commit/669fafa)) _(by glennmichael123)_
+- **android**: detach control listeners on release ([278c22e](https://github.com/craft-native/craft/commit/278c22e)) _(by glennmichael123)_
+- **android**: release refreshable list callbacks ([d102471](https://github.com/craft-native/craft/commit/d102471)) _(by glennmichael123)_
+- **android**: release date picker callbacks ([b5583ea](https://github.com/craft-native/craft/commit/b5583ea)) _(by glennmichael123)_
+- **ios**: release map resources on teardown ([5cc56e7](https://github.com/craft-native/craft/commit/5cc56e7)) _(by glennmichael123)_
+- **native**: release video event bridges ([828d663](https://github.com/craft-native/craft/commit/828d663)) _(by glennmichael123)_
+- **android**: tear down recycled scroll callbacks ([558236a](https://github.com/craft-native/craft/commit/558236a)) _(by glennmichael123)_
+- **ios**: scope keyed row descendants ([5598381](https://github.com/craft-native/craft/commit/5598381)) _(by glennmichael123)_
+- **native**: clear deleted FlatList row state ([f6de49b](https://github.com/craft-native/craft/commit/f6de49b)) _(by glennmichael123)_
+- **android**: detach listeners from recycled rows ([99780c4](https://github.com/craft-native/craft/commit/99780c4)) _(by glennmichael123)_
+- **ios**: invalidate layout after clearing retained styles ([f0b4edd](https://github.com/craft-native/craft/commit/f0b4edd)) _(by glennmichael123)_
+- **ios**: recompute image clipping on resize changes ([49271fb](https://github.com/craft-native/craft/commit/49271fb)) _(by glennmichael123)_
+- **native**: expose picker value compatibility ([78d620b](https://github.com/craft-native/craft/commit/78d620b)) _(by glennmichael123)_
+- **native**: expose switch checked compatibility ([0820541](https://github.com/craft-native/craft/commit/0820541)) _(by glennmichael123)_
+- **types**: keep sticky headers on scroll views ([11b7200](https://github.com/craft-native/craft/commit/11b7200)) _(by glennmichael123)_
+- **types**: scope inverted to flat lists ([3db5ae8](https://github.com/craft-native/craft/commit/3db5ae8)) _(by glennmichael123)_
+- **types**: expose native map pitch control ([b4d5fd8](https://github.com/craft-native/craft/commit/b4d5fd8)) _(by glennmichael123)_
+- **types**: expose native map marker colors ([b0d05eb](https://github.com/craft-native/craft/commit/b0d05eb)) _(by glennmichael123)_
+- **ios**: validate heart rate filters ([28102ef](https://github.com/craft-native/craft/commit/28102ef)) _(by glennmichael123)_
+- **ios**: validate live activity numbers ([daa7180](https://github.com/craft-native/craft/commit/daa7180)) _(by glennmichael123)_
+- **ios**: validate native media limits ([4604e28](https://github.com/craft-native/craft/commit/4604e28)) _(by glennmichael123)_
+- **ios**: validate native service numbers ([9906114](https://github.com/craft-native/craft/commit/9906114)) _(by glennmichael123)_
+- **native**: reject boolean presenter geometry ([4cfcae9](https://github.com/craft-native/craft/commit/4cfcae9)) _(by glennmichael123)_
+- **ios**: mirror script-thread validation and current native contracts ([128d7bf](https://github.com/craft-native/craft/commit/128d7bf)) _(by Chris Breuer)_
+- **ios**: trigger universal links after the test host finishes launching ([ce707c7](https://github.com/craft-native/craft/commit/ce707c7)) _(by Chris Breuer)_
+- **ios**: an unlabelled icon is decoration to VoiceOver ([3f36489](https://github.com/craft-native/craft/commit/3f36489)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- **macos**: document pointer lock limitation ([565abc3](https://github.com/craft-native/craft/commit/565abc3)) _(by glennmichael123)_
+- define multi-window event delivery policy ([6bdcc02](https://github.com/craft-native/craft/commit/6bdcc02)) _(by glennmichael123)_
+- **native**: document dynamic map colors ([39fd35e](https://github.com/craft-native/craft/commit/39fd35e)) _(by glennmichael123)_
+- **native**: document checkbox precedence ([fda1fb3](https://github.com/craft-native/craft/commit/fda1fb3)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **ios**: run a native screen on the script thread ([25b4aa9](https://github.com/craft-native/craft/commit/25b4aa9)) _(by Chris Breuer)_
+- **ios**: require native touchable accessibility roles ([95a4893](https://github.com/craft-native/craft/commit/95a4893)) _(by Chris Breuer)_
+- **android**: assert nearest-pixel authored padding ([357cc8d](https://github.com/craft-native/craft/commit/357cc8d)) _(by Chris Breuer)_
+- **native**: forward modal close events in the navigation fixture ([3b734b2](https://github.com/craft-native/craft/commit/3b734b2)) _(by Chris Breuer)_
+- **native**: cover clipped popup reparent retention ([ca20f1c](https://github.com/craft-native/craft/commit/ca20f1c)) _(by glennmichael123)_
+- **ios**: cover live workout completion callbacks ([2ff7e13](https://github.com/craft-native/craft/commit/2ff7e13)) _(by Chris Breuer)_
+- **ios**: verify reparented control identity ([28a3ec7](https://github.com/craft-native/craft/commit/28a3ec7)) _(by glennmichael123)_
+- **android**: use consistent precision for anchored layout assertions ([0c9c1c8](https://github.com/craft-native/craft/commit/0c9c1c8)) _(by Chris Breuer)_
+- **native**: cover explicit grid row tracks ([14cab56](https://github.com/craft-native/craft/commit/14cab56)) _(by glennmichael123)_
+- **native**: document browser-global diagnostics ([0072aca](https://github.com/craft-native/craft/commit/0072aca)) _(by glennmichael123)_
+- **android**: verify route props through navigation replacement ([7d4cd10](https://github.com/craft-native/craft/commit/7d4cd10)) _(by Chris Breuer)_
+- **native**: cover selectable text fixtures ([87816fb](https://github.com/craft-native/craft/commit/87816fb)) _(by glennmichael123)_
+- **native**: document route prop handoffs ([1ba3551](https://github.com/craft-native/craft/commit/1ba3551)) _(by glennmichael123)_
+- **ios**: cover native switch interactions ([b83e451](https://github.com/craft-native/craft/commit/b83e451)) _(by glennmichael123)_
+- **android**: align generated switch assertion with native state preservation ([c046426](https://github.com/craft-native/craft/commit/c046426)) _(by Chris Breuer)_
+- **android**: attach native list fixtures and read maps on main ([ae0d807](https://github.com/craft-native/craft/commit/ae0d807)) _(by Chris Breuer)_
+- **android**: supply required FlatList removal callbacks ([ec56982](https://github.com/craft-native/craft/commit/ec56982)) _(by Chris Breuer)_
+- **android**: rasterize grouped svg fixtures ([9791f0c](https://github.com/craft-native/craft/commit/9791f0c)) _(by glennmichael123)_
+- **native**: cover grouped svg text rendering ([71b069e](https://github.com/craft-native/craft/commit/71b069e)) _(by glennmichael123)_
+- **ios**: restore native FlatList fixture callback contract ([a6b8ecb](https://github.com/craft-native/craft/commit/a6b8ecb)) _(by glennmichael123)_
+- **ios**: cover solid navigation bar trait refresh ([e91d562](https://github.com/craft-native/craft/commit/e91d562)) _(by glennmichael123)_
+- **ios**: verify accessibility state restoration ([4bde6fa](https://github.com/craft-native/craft/commit/4bde6fa)) _(by glennmichael123)_
+- **native**: exercise dynamic image resize reconciliation ([a28cd7b](https://github.com/craft-native/craft/commit/a28cd7b)) _(by glennmichael123)_
+- **native**: cover picker value precedence ([0090596](https://github.com/craft-native/craft/commit/0090596)) _(by glennmichael123)_
+- **native**: cover checkbox prop precedence ([2cd2ca5](https://github.com/craft-native/craft/commit/2cd2ca5)) _(by glennmichael123)_
+- **native**: cover switch prop precedence ([e3c6df0](https://github.com/craft-native/craft/commit/e3c6df0)) _(by glennmichael123)_
+- **native**: cover sticky scroll headers ([42ae9a9](https://github.com/craft-native/craft/commit/42ae9a9)) _(by glennmichael123)_
+- **android**: verify inverted flat list order ([d235690](https://github.com/craft-native/craft/commit/d235690)) _(by glennmichael123)_
+- **native**: include Map in host parity contract ([b8188f3](https://github.com/craft-native/craft/commit/b8188f3)) _(by glennmichael123)_
+
+## 🤖 Continuous Integration
+
+- pin the qualified Pantry provisioning cohort ([245d98a](https://github.com/craft-native/craft/commit/245d98a)) _(by Chris Breuer)_
+- qualify native touchable roles with the matching compiler ([1727372](https://github.com/craft-native/craft/commit/1727372)) _(by Chris Breuer)_
+- qualify exact native button labels with the corrected compiler ([ec25b38](https://github.com/craft-native/craft/commit/ec25b38)) _(by Chris Breuer)_
+- qualify native compiler with explicit grid rows ([2f6d58e](https://github.com/craft-native/craft/commit/2f6d58e)) _(by Chris Breuer)_
+- test shared layout changes on mobile ([a3f43b5](https://github.com/craft-native/craft/commit/a3f43b5)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.246...v0.0.247)
 
 ## 🚀 Features

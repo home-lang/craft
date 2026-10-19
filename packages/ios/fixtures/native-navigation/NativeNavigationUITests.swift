@@ -496,6 +496,8 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(beaInput.value as? String, "draft")
         beaInput.typeText("!")
         XCTAssertEqual(beaInput.value as? String, "draft!")
+        XCTAssertLessThan(app.staticTexts["Bea row updated"].frame.minY, app.staticTexts["Cy row"].frame.minY,
+                          "the keyed rows must retain their new visual order")
         app.buttons["navigation-select-b"].tap()
         XCTAssertTrue(waitForLabel(status, "Selected: b"))
         XCTAssertTrue(scroll.exists, "keyed reconciliation replaced the list scroll host")
@@ -577,7 +579,9 @@ final class NativeNavigationUITests: XCTestCase {
         let indeterminateCheckbox = app.buttons["native-checkbox-indeterminate"]
         XCTAssertTrue(indeterminateCheckbox.waitForExistence(timeout: 5))
         XCTAssertEqual(indeterminateCheckbox.value as? String, "mixed")
-        XCTAssertEqual(app.buttons["checkbox-checked-precedence"].value as? String, "unchecked")
+        let uncheckedCheckbox = app.buttons["checkbox-checked-precedence"]
+        XCTAssertFalse(uncheckedCheckbox.isSelected)
+        XCTAssertEqual(uncheckedCheckbox.value as? String, "unchecked")
         XCTAssertTrue(app.buttons["disabled-button"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["disabled-button"].isEnabled)
         XCTAssertEqual(image.label, "Native pixel")
@@ -835,7 +839,9 @@ final class NativeNavigationUITests: XCTestCase {
         let itemsPicker = app.pickers["native-items-picker"]
         XCTAssertTrue(itemsPicker.waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["items-picker-value"].label, "one")
-        XCTAssertEqual(itemsPicker.value as? String, "One item")
+        let selectedWheel = itemsPicker.pickerWheels.firstMatch
+        XCTAssertTrue(selectedWheel.exists)
+        XCTAssertEqual(selectedWheel.value as? String, "One item")
         let modalToggle = app.buttons["toggle-modal"]
         reveal(modalToggle, in: rootScroll)
         modalToggle.tap()

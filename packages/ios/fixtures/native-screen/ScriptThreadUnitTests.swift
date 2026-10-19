@@ -68,6 +68,26 @@ final class ScriptThreadUnitTests: XCTestCase {
         XCTAssertEqual(scriptOnMain, false)
     }
 
+    func testInitialFocusIsCapturedBeforeLaterMainThreadVisibilityChanges() throws {
+        let started = DispatchSemaphore(value: 0)
+        let resume = DispatchSemaphore(value: 0)
+        CraftNativeScriptThread.queue.async {
+            started.signal()
+            resume.wait()
+        }
+        XCTAssertEqual(started.wait(timeout: .now() + 10), .success)
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.screenVisibilityChanged(false)
+        controller.loadViewIfNeeded()
+        // The mount is queued with hidden initial focus. A later appearance
+        // must be delivered after mounting rather than changing that snapshot.
+        controller.screenVisibilityChanged(true)
+        resume.signal()
+        until("the captured initial focus") {
+            controller.evaluateScript("String(globalThis.__stxNativeFocused)")?.toString() == "false"
+        }
+    }
+
     func testATapAndTypingReachTheScriptAndItsUpdatesComeBack() throws {
         let controller = mounted()
         until("the first render") { find(UIButton.self, key: "increment", below: controller.view) != nil }

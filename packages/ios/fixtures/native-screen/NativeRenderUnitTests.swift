@@ -2244,6 +2244,32 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(CraftNativeScreenController.sliderEventValue(7, step: 1), 7)
     }
 
+    func testAScrollDragCanCancelButtonsWhileOtherControlsKeepTracking() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([[
+            "type": "ScrollView", "props": ["key": "page"], "style": ["height": 120],
+            "children": [
+                ["type": "Button", "props": ["key": "button"], "children": ["Tap or drag"]],
+                ["type": "Checkbox", "props": ["key": "checkbox"]],
+                ["type": "Slider", "props": ["key": "slider"]],
+                ["type": "Switch", "props": ["key": "switch"]],
+                ["type": "TextInput", "props": ["key": "field"]],
+                ["type": "DatePicker", "props": ["key": "date"]],
+            ],
+        ]]))
+        let scroll = try XCTUnwrap(find(UIScrollView.self, key: "page", below: controller.view))
+        XCTAssertFalse(scroll.delaysContentTouches, "ordinary taps still reach controls immediately")
+        for key in ["button", "checkbox"] {
+            let button = try XCTUnwrap(find(UIButton.self, key: key, below: scroll))
+            XCTAssertTrue(scroll.touchesShouldCancel(in: button), "\(key) must yield to a scroll drag")
+        }
+        for key in ["slider", "switch", "field", "date"] {
+            let control = try XCTUnwrap(find(UIControl.self, key: key, below: scroll))
+            XCTAssertFalse(scroll.touchesShouldCancel(in: control), "\(key) retains its tracking gesture")
+        }
+    }
+
     func testANestedScrollViewsDragDoesNotScrollItsParent() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
@@ -2377,7 +2403,10 @@ final class NativeRenderUnitTests: XCTestCase {
         let date = try XCTUnwrap(find(UIDatePicker.self, key: "date", below: controller.view))
         XCTAssertEqual(toggle.accessibilityTraits, UISwitch().accessibilityTraits)
         XCTAssertTrue(slider.accessibilityTraits.contains(.adjustable))
-        XCTAssertTrue(picker.accessibilityTraits.contains(.adjustable))
+        let referencePicker = UIPickerView()
+        XCTAssertEqual(picker.isAccessibilityElement, referencePicker.isAccessibilityElement)
+        XCTAssertEqual(picker.accessibilityTraits, referencePicker.accessibilityTraits)
+        XCTAssertEqual(picker.accessibilityContainerType, referencePicker.accessibilityContainerType)
         XCTAssertTrue(date.accessibilityTraits.contains(.adjustable))
     }
 
@@ -2460,6 +2489,31 @@ final class NativeRenderUnitTests: XCTestCase {
         controller.screenVisibilityChanged(true)
         controller.screenVisibilityChanged(true)
         XCTAssertEqual(controller.evaluateScript("__heard.join('|')")?.toString(), "ROUTE_PARAMS:8|SCREEN_FOCUS:false|SCREEN_FOCUS:true")
+    }
+
+    /// The shell prepares an adjacent tab hidden, ahead of a swipe. That
+    /// screen's script must not take itself to be in front: a prepared Record
+    /// tab's sign-in guard pushed Login over the Feed at launch.
+    func testAScreenPreparedHiddenIsToldSoAndItsFirstShowingIsNews() throws {
+        let listen = "globalThis.__heard = []; globalThis.__stxNativeCallback = function(json) { var m = JSON.parse(json); if (m.type === 'SCREEN_FOCUS') __heard.push(String(m.payload.focused)); };"
+
+        // Hidden before its script ran: the script reads it as it starts.
+        let early = CraftNativeScreenController(config: CraftConfig(), routeName: "Record")
+        early.screenVisibilityChanged(false)
+        early.loadViewIfNeeded()
+        XCTAssertEqual(early.evaluateScript("String(globalThis.__stxNativeFocused)")?.toString(), "false")
+        early.evaluateScript(listen)
+        early.screenVisibilityChanged(true)
+        XCTAssertEqual(early.evaluateScript("__heard.join('|')")?.toString(), "true")
+
+        // Hidden after its script ran: it hears so, then hears the showing.
+        let prepared = CraftNativeScreenController(config: CraftConfig(), routeName: "Menu")
+        prepared.loadViewIfNeeded()
+        XCTAssertEqual(prepared.evaluateScript("String(globalThis.__stxNativeFocused)")?.toString(), "undefined")
+        prepared.evaluateScript(listen)
+        prepared.screenVisibilityChanged(false)
+        prepared.screenVisibilityChanged(true)
+        XCTAssertEqual(prepared.evaluateScript("__heard.join('|')")?.toString(), "false|true")
     }
 
     func testAVideoTakesItsSourceFromSrcToo() throws {
