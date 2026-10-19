@@ -5,6 +5,7 @@
   let count = 0
   let name = ''
   let notes = ''
+  let switchResult = 'Switch off'
   let nextMessage = 0
   let revision = 0
 
@@ -54,6 +55,8 @@
             { id: 'name', type: 'Text', props: { key: 'name' }, children: [`Hello ${name}`] },
             { id: 'notes-input', type: 'TextInput', props: { key: 'notes-input', multiline: true, placeholder: 'Notes' }, style: { height: 80 }, events: { onChange: 'changeNotes' } },
             { id: 'notes', type: 'Text', props: { key: 'notes' }, children: [`Notes: ${notes}`] },
+            { id: 'native-switch', type: 'Switch', props: { key: 'native-switch' }, events: { onValueChange: 'changeSwitch' } },
+            { id: 'switch-result', type: 'Text', props: { key: 'switch-result' }, children: [switchResult] },
           ],
         },
       },
@@ -74,6 +77,10 @@
     if (message.payload.handlerName === 'changeName') {
       name = message.payload.nativeEvent.text
       mutate([{ op: 'updateNode', id: 'name', patch: { children: [`Hello ${name}`] } }])
+    }
+    if (message.payload.handlerName === 'changeSwitch') {
+      switchResult = message.payload.nativeEvent.value ? 'Switch on' : 'Switch off'
+      mutate([{ op: 'updateNode', id: 'switch-result', patch: { children: [switchResult] } }])
     }
   })
   render()

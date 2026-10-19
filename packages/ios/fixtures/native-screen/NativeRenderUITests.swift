@@ -41,4 +41,15 @@ final class NativeRenderUITests: XCTestCase {
         notes.typeText("Easy run")
         XCTAssertEqual(app.staticTexts["notes"].label, "Notes: Easy run")
     }
+
+    func testSwitchTapChangesUIKitStateAndDeliversValueChange() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let toggle = app.switches["native-switch"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 15))
+        XCTAssertEqual(toggle.value as? String, "0")
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "1")
+        XCTAssertEqual(app.staticTexts["switch-result"].label, "Switch on")
+    }
 }

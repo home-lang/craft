@@ -53,6 +53,7 @@ const hybridNavigationTest = readFileSync(join(root, 'packages/ios/fixtures/hybr
 const hybridNavigationUnitTest = readFileSync(join(root, 'packages/ios/fixtures/hybrid-navigation/HybridNavigationUnitTests.swift'), 'utf8')
 const androidNavigationScript = readFileSync(join(root, 'packages/android/scripts/test-native-navigation.ts'), 'utf8')
 const iosNativeUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeRenderUnitTests.swift'), 'utf8')
+const iosNativeScreenUITests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeRenderUITests.swift'), 'utf8')
 const iosMutation = readFileSync(join(root, 'packages/ios/templates/CraftNativeMutation.swift'), 'utf8')
 const iosLayoutUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeLayoutUnitTests.swift'), 'utf8')
 const guide = readFileSync(join(root, 'docs/guides/native-stx.md'), 'utf8')
@@ -1382,6 +1383,9 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('testUncontrolledSwitchKeepsItsNativeValueAcrossReconciliation')
     expect(iosNativeUnitTests).toContain('testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges')
     expect(iosNativeUnitTests).toContain('testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles')
+    expect(iosNativeScreenUITests).toContain('testSwitchTapChangesUIKitStateAndDeliversValueChange')
+    expect(readFileSync(join(root, 'packages/ios/fixtures/native-screen/Screen.stx'), 'utf8')).toContain('<Switch testID="native-switch" onValueChange={changeSwitch} />')
+    expect(readFileSync(join(root, 'packages/ios/fixtures/native-screen/render-test.js'), 'utf8')).toContain("events: { onValueChange: 'changeSwitch' }")
   })
 
   it('keeps DatePicker values and change events aligned across hosts', () => {
