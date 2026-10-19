@@ -73,10 +73,12 @@ renderer.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
-The current pair is pinned to `f7d2964e1e24b14460d01d9099a34708c2a985e0`,
+The current pair is pinned to `e6091ec5e02d3c6816ca5ee867c9a4b571c3cb4c`,
 which preserves authored reconciliation keys and explicit grid row tracks in
 static and reactive native styles, and keeps template indentation out of native
-leaf button labels. The native fixtures qualify its compiled
+leaf button labels. Touchable primitives preserve authored accessibility roles
+and let the hosts infer link or button semantics from their current destination.
+The native fixtures qualify its compiled
 properties and mutation metadata together with both native models. Application
 releases consume the normally published compiler after qualification.
 
