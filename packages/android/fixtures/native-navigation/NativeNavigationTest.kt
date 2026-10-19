@@ -49,6 +49,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @RunWith(AndroidJUnit4::class)
 class NativeNavigationTest {
@@ -982,7 +983,7 @@ class NativeNavigationTest {
             val name = awaitView(activity, "name-input")
             val root = awaitView(activity, "root")
             assertTrue("View did not render as LinearLayout", root is LinearLayout)
-            val authoredRootPadding = (16 * activity.resources.displayMetrics.density).toInt()
+            val authoredRootPadding = (16 * activity.resources.displayMetrics.density).roundToInt()
             val initialRootTop = root.paddingTop
             val initialRootBottom = root.paddingBottom
             assertTrue("SafeAreaView did not retain its authored top padding", initialRootTop >= authoredRootPadding)
@@ -995,7 +996,7 @@ class NativeNavigationTest {
             awaitText(activity, "safe-area-status", "Safe edges: top,bottom")
             assertEquals("Restoring the top edge changed the original native safe-area padding", initialRootTop, root.paddingTop)
             val retained = awaitView(activity, "retained-safe-area")
-            val retainedAuthoredPadding = (4 * activity.resources.displayMetrics.density).toInt()
+            val retainedAuthoredPadding = (4 * activity.resources.displayMetrics.density).roundToInt()
             val plainRetainedPadding = retained.paddingTop
             assertEquals("plain retained container did not keep its authored padding", retainedAuthoredPadding, plainRetainedPadding)
             click(activity, "toggle-retained-safe-area")
@@ -1081,8 +1082,8 @@ class NativeNavigationTest {
             val density = activity.resources.displayMetrics.density
             assertEquals(LinearLayout.HORIZONTAL, styled.orientation)
             assertTrue(styled.indexOfChild(styledSecond) < styled.indexOfChild(styledFirst))
-            assertEquals((10 * density).toInt(), styled.paddingLeft)
-            assertEquals((5 * density).toInt(), styled.paddingTop)
+            assertEquals((10 * density).roundToInt(), styled.paddingLeft)
+            assertEquals((5 * density).roundToInt(), styled.paddingTop)
             assertEquals(0.75f, styled.alpha)
             assertEquals("transform translateX was not applied", (4 * density), styled.translationX, 1f)
             assertEquals("transform scaleX was not applied", 0.9f, styled.scaleX, 0.01f)
