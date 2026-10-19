@@ -1,8 +1,12 @@
 package {{PACKAGE_NAME}}
 
-import com.sun.net.httpserver.HttpServer
 import java.io.File
-import java.net.InetSocketAddress
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.util.Collections
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import java.nio.file.Files
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -21,30 +25,52 @@ class CraftNativeResumableDownloadTest {
 
     /** Serves `body`, honouring `Range: bytes=N-` when `ranges` is on; records each request's Range. */
     private fun serve(ranges: Boolean = true, status: Int = 200, check: (String, MutableList<String?>) -> Unit) {
-        val seen = mutableListOf<String?>()
-        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        server.createContext("/") { exchange ->
-            val range = exchange.requestHeaders.getFirst("Range")
-            seen.add(range)
-            val start = Regex("^bytes=(\\d+)-$").find(range.orEmpty())?.groupValues?.get(1)?.toInt()
-            when {
-                status != 200 -> exchange.sendResponseHeaders(status, -1)
-                ranges && start != null && start >= body.size -> exchange.sendResponseHeaders(416, -1)
-                ranges && start != null -> {
-                    exchange.responseHeaders.add("Content-Range", "bytes $start-${body.size - 1}/${body.size}")
-                    exchange.sendResponseHeaders(206, (body.size - start).toLong())
-                    exchange.responseBody.use { it.write(body, start, body.size - start) }
+        val seen = Collections.synchronizedList(mutableListOf<String?>())
+        val server = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        server.soTimeout = 5000
+        val served = CompletableFuture<Unit>()
+        val worker = thread(name = "craft-media-http-fixture") {
+            try {
+                server.accept().use { socket ->
+                    socket.soTimeout = 5000
+                    val reader = socket.getInputStream().bufferedReader(Charsets.US_ASCII)
+                    checkNotNull(reader.readLine()) { "Missing HTTP request" }
+                    var range: String? = null
+                    while (true) {
+                        val header = reader.readLine() ?: break
+                        if (header.isEmpty()) break
+                        if (header.startsWith("Range:", ignoreCase = true)) range = header.substringAfter(':').trim()
+                    }
+                    seen.add(range)
+                    val start = Regex("^bytes=(\\d+)-$").find(range.orEmpty())?.groupValues?.get(1)?.toInt()
+                    val code = when {
+                        status != 200 -> status
+                        ranges && start != null && start >= body.size -> 416
+                        ranges && start != null -> 206
+                        else -> 200
+                    }
+                    val bytes = when (code) {
+                        206 -> body.copyOfRange(start!!, body.size)
+                        200 -> body
+                        else -> byteArrayOf()
+                    }
+                    val contentRange = if (code == 206) "Content-Range: bytes $start-${body.size - 1}/${body.size}\r\n" else ""
+                    val headers = "HTTP/1.1 $code Test\r\nContent-Length: ${bytes.size}\r\n${contentRange}Connection: close\r\n\r\n"
+                    socket.getOutputStream().write(headers.toByteArray(Charsets.US_ASCII) + bytes)
                 }
-                else -> {
-                    exchange.sendResponseHeaders(200, body.size.toLong())
-                    exchange.responseBody.use { it.write(body) }
-                }
+                served.complete(Unit)
+            } catch (error: Throwable) {
+                served.completeExceptionally(error)
             }
-            exchange.close()
         }
-        server.start()
-        try { check("http://127.0.0.1:${server.address.port}/clip.mp4", seen) }
-        finally { server.stop(0) }
+        try {
+            check("http://127.0.0.1:${server.localPort}/clip.mp4", seen)
+            served.get(5, TimeUnit.SECONDS)
+        } finally {
+            server.close()
+            worker.join(5000)
+            assertFalse("The local HTTP fixture must stop after each transfer", worker.isAlive)
+        }
     }
 
     private fun part(check: (File) -> Unit) {
