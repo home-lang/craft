@@ -297,6 +297,11 @@ const natives = [_]jni.JNINativeMethod{
         .fnPtr = @ptrCast(&nativeLayoutTreeV4),
     },
     .{
+        .name = "nativeLayoutTreeV5",
+        .signature = "(FF[F[F)[F",
+        .fnPtr = @ptrCast(&nativeLayoutTreeV5),
+    },
+    .{
         .name = "nativeFlexLineBreaks",
         .signature = "(FFI[F[F)[F",
         .fnPtr = @ptrCast(&nativeFlexLineBreaks),
@@ -1133,6 +1138,51 @@ fn nativeLayoutTreeV4(
         flattened[offset + 3] = frame.height;
     }
     return j.newFloatArray(flattened) catch |err| fellThrough("layoutTreeV4", err, @as(jni.jobject, null));
+}
+
+/// `nativeLayoutTreeV5(...)` — v4's auto-row payload plus an explicit
+/// grid-template-rows count used by the shared equal-track implementation.
+fn nativeLayoutTreeV5(
+    env: jni.JNIEnv,
+    _: jni.jobject,
+    width: jni.jfloat,
+    height: jni.jfloat,
+    node_data_array: jni.jobject,
+    tree_meta_array: jni.jobject,
+) callconv(.c) jni.jobject {
+    const j = Jni.init(env);
+    var arena = std.heap.ArenaAllocator.init(backing);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const node_data = j.floatArrayToOwned(allocator, node_data_array) catch |err| return fellThrough("layoutTreeV5", err, @as(jni.jobject, null));
+    const tree_meta = j.floatArrayToOwned(allocator, tree_meta_array) catch |err| return fellThrough("layoutTreeV5", err, @as(jni.jobject, null));
+    const style_float_count = @sizeOf(native_layout.LayoutStyleInputV5) / @sizeOf(jni.jfloat);
+    if (style_float_count != 35 or tree_meta.len == 0 or tree_meta.len % 2 != 0 or node_data.len != (tree_meta.len / 2) * style_float_count) {
+        return fellThrough("layoutTreeV5", error.InvalidArgument, @as(jni.jobject, null));
+    }
+    const count = tree_meta.len / 2;
+    const nodes = allocator.alloc(native_layout.LayoutNodeInputV5, count) catch |err| return fellThrough("layoutTreeV5", err, @as(jni.jobject, null));
+    for (nodes, 0..) |*node, index| {
+        var style = std.mem.zeroes(native_layout.LayoutStyleInputV5);
+        const style_bytes = std.mem.bytesAsSlice(jni.jfloat, std.mem.asBytes(&style));
+        const start = index * style_float_count;
+        @memcpy(style_bytes, node_data[start .. start + style_float_count]);
+        const first = nativeLayoutIndex(tree_meta[index * 2], count) orelse return fellThrough("layoutTreeV5", error.InvalidArgument, @as(jni.jobject, null));
+        const children = nativeLayoutIndex(tree_meta[index * 2 + 1], count) orelse return fellThrough("layoutTreeV5", error.InvalidArgument, @as(jni.jobject, null));
+        node.* = .{ .style = style, .first_child = first, .child_count = children };
+    }
+    const frames = allocator.alloc(native_layout.Frame, count) catch |err| return fellThrough("layoutTreeV5", err, @as(jni.jobject, null));
+    if (native_layout.craft_native_layout_tree_v5(width, height, nodes.ptr, count, frames.ptr, count) != 0) return null;
+    const flattened = allocator.alloc(jni.jfloat, count * 4) catch |err| return fellThrough("layoutTreeV5", err, @as(jni.jobject, null));
+    for (frames, 0..) |frame, index| {
+        const offset = index * 4;
+        flattened[offset] = frame.x;
+        flattened[offset + 1] = frame.y;
+        flattened[offset + 2] = frame.width;
+        flattened[offset + 3] = frame.height;
+    }
+    return j.newFloatArray(flattened) catch |err| fellThrough("layoutTreeV5", err, @as(jni.jobject, null));
 }
 
 fn nativeLayoutIndex(value: jni.jfloat, limit: usize) ?u32 {

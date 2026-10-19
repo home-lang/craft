@@ -131,6 +131,9 @@ describe('native renderer component contract', () => {
     expect(iosLayoutUnitTests).toContain('testNestedGridAutoRowsStayOnTheSharedTreePath')
     expect(ios).toContain('if containsGridAutoRows(root)')
     expect(android).toContain('val autoRowsAware = nodes.any { it.gridAutoRows != null }')
+    expect(android).toContain('val explicitRowsAware = nodes.any { it.gridRows != null }')
+    expect(android).toContain('CraftNative.layoutTreeV5(width.toFloat(), height.toFloat(), nodeData, treeMeta)')
+    expect(androidDispatch).toContain('nativeLayoutTreeV5')
   })
 
   it('exposes the implemented native gradient style controls', () => {

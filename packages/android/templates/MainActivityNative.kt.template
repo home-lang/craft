@@ -1259,6 +1259,7 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val grid: Boolean,
         val gridColumns: Int,
         val gridAutoRows: CraftNativeLength?,
+        val gridRows: Int?,
         val reverse: Boolean,
         val wrapReverse: Boolean,
         val children: List<SharedTreeNode>,
@@ -1310,6 +1311,7 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             grid = nested?.grid ?: false,
             gridColumns = nested?.gridColumns ?: 1,
             gridAutoRows = nested?.gridAutoRows,
+            gridRows = nested?.gridRows,
             reverse = nested?.reverse ?: false,
             wrapReverse = nested?.wrapReverse ?: false,
             children = children.map { child -> sharedTreeNode(child) ?: return null },
@@ -1338,6 +1340,7 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             grid = grid,
             gridColumns = gridColumns,
             gridAutoRows = gridAutoRows,
+            gridRows = gridRows,
             reverse = reverse,
             wrapReverse = wrapReverse,
             children = children,
@@ -1354,7 +1357,9 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val reverseAware = nodes.any { it.reverse || it.wrapReverse }
         val wrapReverseAware = nodes.any { it.wrapReverse }
         val autoRowsAware = nodes.any { it.gridAutoRows != null }
+        val explicitRowsAware = nodes.any { it.gridRows != null }
         val fields = when {
+            explicitRowsAware -> 35
             autoRowsAware -> 34
             reverseAware -> 33
             else -> 32
@@ -1407,13 +1412,16 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             put(base, 31, node.columnGap)
             if (fields >= 33) putEnum(base, 32, (if (node.reverse) 1 else 0) or (if (node.wrapReverse) 2 else 0))
             if (autoRowsAware) put(base, 33, sharedLength(node.gridAutoRows, contentHeight))
+            if (explicitRowsAware) put(base, 34, (node.gridRows ?: 0).toFloat())
             val firstChild = cursor
             node.children.forEach { child -> write(child, contentWidth, contentHeight, false, node.direction) }
             treeMeta[index * 2] = firstChild.toFloat()
             treeMeta[index * 2 + 1] = (cursor - firstChild).toFloat()
         }
         write(root, width, height, true, root.direction)
-        val frames = (if (autoRowsAware) {
+        val frames = (if (explicitRowsAware) {
+            CraftNative.layoutTreeV5(width.toFloat(), height.toFloat(), nodeData, treeMeta)
+        } else if (autoRowsAware) {
             CraftNative.layoutTreeV4(width.toFloat(), height.toFloat(), nodeData, treeMeta)
         } else if (wrapReverseAware) {
             CraftNative.layoutTreeV3(width.toFloat(), height.toFloat(), nodeData, treeMeta)

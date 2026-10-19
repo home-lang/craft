@@ -203,6 +203,8 @@ describe('Craft Android builder', () => {
       const craftNative = readFileSync(join(native, 'app/src/main/java/com/craft/runtime/CraftNative.kt'), 'utf8')
       expect(craftNative).toContain('private external fun nativeLayoutTreeV4(')
       expect(craftNative).toContain('fun layoutTreeV4(width: Float, height: Float, nodeData: FloatArray, treeMeta: FloatArray)')
+      expect(craftNative).toContain('private external fun nativeLayoutTreeV5(')
+      expect(craftNative).toContain('fun layoutTreeV5(width: Float, height: Float, nodeData: FloatArray, treeMeta: FloatArray)')
       expect(nativeActivity).toContain('private fun fallbackFlexWidths(line: Line, available: Int, gap: Float): IntArray')
       expect(nativeActivity).toContain('var bounded = raw')
       expect(nativeActivity).toContain('entry.style.alignSelf ?: alignItems')
