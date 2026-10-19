@@ -980,9 +980,29 @@ addEventListener('craftSilentPush', async (event) => {
 ### What every screen knows of the app
 
 `__stxNativeBridge` carries `appURL` (the `devServerURL`, or `""`),
-`appVersion` (`CFBundleShortVersionString`) and `appBuild`
-(`CFBundleVersion`), beside `platform`, `capabilities`, `initialAppState` and
-`colorScheme`.
+`appVersion` (`CFBundleShortVersionString`), `appBuild`
+(`CFBundleVersion`) and `sessionTokenKey` (the config's, or `auth.token`),
+beside `platform`, `capabilities`, `initialAppState` and `colorScheme`.
+
+### The signed-in account
+
+`craft.session.token()` (sync) reads the sign-in token under `sessionTokenKey`;
+`craft.session.onChange((token, previous) => ...)` hears each change of it,
+whoever made it: this screen, another screen, the app script, a sign-out's
+`secureStorage.clear()`, or the page's own sign-in through a `shareStorage`
+key. Each change also reaches every screen as
+`SESSION_CHANGED { key, token, previous }`, after secure storage holds the new
+token. Like the snapshot functions, the host's `craft.session` survives the
+runtime assigning its own. See the [Session API](../api/mobile/session.md).
+
+```js
+let account = craft.session.token()
+craft.session.onChange((token) => {
+  if (token === account) return
+  account = token
+  resetScreen()
+})
+```
 
 ### Snapshots
 

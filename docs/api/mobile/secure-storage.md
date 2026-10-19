@@ -14,6 +14,10 @@ over the typed JavaScriptCore or JavaScriptSandbox bridge. Set
 and are persisted in the iOS Keychain or Android encrypted preferences; a
 missing key resolves to `null`.
 
+The sign-in token (`sessionTokenKey`, `auth.token` by default) is also the
+account: each change of it is reported to every screen and the page. See the
+[Session API](./session.md).
+
 ## Methods
 
 ### secureStorage.set(key, value, options?)

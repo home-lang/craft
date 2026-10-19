@@ -25,6 +25,8 @@ complete native message surface, see the [Bridge API](../BRIDGE_API.md).
 - [Permissions API](./mobile/permissions.md) - Permission management
 - [Biometrics API](./mobile/biometrics.md) - Face ID, Touch ID, fingerprint
 - [Secure Storage API](./mobile/secure-storage.md) - Keychain/Keystore storage
+- [Session API](./mobile/session.md) - The signed-in account and its changes (`craft.session`)
+- [Background API](./mobile/background.md) - Silent pushes, scheduled refresh and `complete(ok, id)`
 
 ## Platform-Specific APIs
 

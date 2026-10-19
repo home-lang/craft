@@ -206,12 +206,50 @@ async function onRefreshComplete(success: boolean) {
 
 ## Platform Differences
 
-| Feature | iOS | Android | macOS |
-|---------|-----|---------|-------|
-| Impact styles | All 5 styles | 3 styles (light/medium/heavy) | `heavy` plays LevelChange, the rest Generic |
-| Notification types | All 3 types | Mapped to vibration patterns | `error` plays LevelChange, the rest Generic |
-| Selection | Yes | Yes | Alignment |
-| Custom patterns | Limited | Full support | One tap if the pattern fires at all |
+| Feature | iOS | Android | macOS | Browser |
+|---------|-----|---------|-------|---------|
+| Impact styles | All 5 styles | All 5 on native screens; 3 timed weights in a WebView | `heavy` plays LevelChange, the rest Generic | Vibration API timings |
+| Notification types | All 3 types | All 3 on native screens; vibration patterns in a WebView | `error` plays LevelChange, the rest Generic | Vibration API patterns |
+| Selection | Yes | Yes | Alignment | 5 ms |
+| Custom patterns | Limited | Full support | One tap if the pattern fires at all | `navigator.vibrate` |
+| Without support | Resolves | Resolves | Resolves | Resolves (`false`) |
+
+### Android native screens
+
+A native screen (`renderer: 'native'`, or the stx native bundle) plays the same
+names iOS does, so `Haptics.impact`, `Haptics.notification`,
+`Haptics.selection` and `Haptics.prepare` reach `CraftNativeHaptics`. Like
+iOS, `impact` accepts any of the nine names, so a runtime that sends everything
+through `impact` still plays a notification as one.
+
+The screen's own haptic feedback plays first. It needs no `VIBRATE` permission
+and follows the system's touch-feedback setting, the way UIKit's generators
+follow System Haptics, so a person who turned haptics off feels nothing and the
+call answers `false`.
+
+| Style | View feedback (`HapticFeedbackConstants`) | Vibrator fallback (API 29+ / 26-28) |
+|-------|--------------------------------------------|-------------------------------------|
+| `light` | `KEYBOARD_TAP` | `EFFECT_TICK` / 10 ms |
+| `medium`, unknown | `VIRTUAL_KEY` | `EFFECT_CLICK` / 20 ms |
+| `heavy` | `LONG_PRESS` | `EFFECT_HEAVY_CLICK` / 50 ms |
+| `soft` | `TEXT_HANDLE_MOVE` (API 27+), else `CLOCK_TICK` | `EFFECT_TICK` / 8 ms |
+| `rigid` | `CONTEXT_CLICK` | `EFFECT_CLICK` / 25 ms |
+| `selection` | `SEGMENT_TICK` (API 34+), else `CLOCK_TICK` | `EFFECT_TICK` / 5 ms |
+| `success` | `CONFIRM` (API 30+) | `EFFECT_DOUBLE_CLICK` / 30-50-30 |
+| `warning` | none | `EFFECT_DOUBLE_CLICK` / 50-100-50 |
+| `error` | `REJECT` (API 30+) | `EFFECT_HEAVY_CLICK` / 100-50-100 |
+
+The vibrator plays only a style with no feedback constant on the device's API
+level, or when the screen is not attached. `prepare` warms nothing on Android
+and answers `true`. With `enableHaptics` off, each call answers
+`CAPABILITY_DISABLED`, which the helpers swallow.
+
+### Browser host
+
+`craft-native/browser` (stx native screens running in a browser tab) plays
+through `navigator.vibrate`. Desktop browsers and Safari have no Vibration API,
+so the call resolves `false` rather than rejecting with `UNSUPPORTED`: haptics
+are feedback and never fail a flow.
 
 A Mac trackpad has three feedback patterns (Generic, Alignment, LevelChange)
 and no intensity or duration, which is why the styles fold onto them. Linux
