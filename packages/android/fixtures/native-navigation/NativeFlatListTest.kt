@@ -285,8 +285,10 @@ class NativeFlatListTest {
         val context = instrumentation.targetContext
         val list = CraftNativeFlatList(context)
         val rows = (0 until 3).map(::row)
+        val contentSizeChanges = AtomicInteger()
         instrumentation.runOnMainSync {
             list.setScrollEnabled(false)
+            list.onContentSizeChanged = { contentSizeChanges.incrementAndGet() }
             list.apply(rows, false, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, null)
         }
         awaitCount(list, rows.size)
@@ -298,6 +300,11 @@ class NativeFlatListTest {
             list.layout(0, 0, list.measuredWidth, list.measuredHeight)
         }
         assertTrue("non-scrolling FlatList should include every row", list.measuredHeight >= rows.size * 44)
+        repeat(100) {
+            if (contentSizeChanges.get() > 0) return@repeat
+            SystemClock.sleep(10)
+        }
+        assertTrue("non-scrolling FlatList should report content-size changes", contentSizeChanges.get() > 0)
     }
 
     @Test

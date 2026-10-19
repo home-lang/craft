@@ -2947,6 +2947,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('list.onFittingHeightChanged = { [weak list] in')
     expect(androidFlatList).toContain('if (!scrollEnabled && !horizontal && heightMode != MeasureSpec.EXACTLY)')
     expect(androidFlatList).toContain('computeVerticalScrollRange()')
+    expect(androidFlatList).toContain('var onContentSizeChanged: (() -> Unit)? = null')
+    expect(android).toContain('CraftNativeFlexLayout.invalidateMeasurementAncestors(list.parent)')
     expect(androidFlatListTest).toContain('nonScrollingListMeasuresItsFullContentHeight')
   })
 

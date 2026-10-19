@@ -5944,6 +5944,9 @@ class MainActivity : AppCompatActivity() {
         list.onLayoutChanged = {
             if (screen.active) emitLayoutEvents(screen)
         }
+        list.onContentSizeChanged = {
+            if (screen.active) CraftNativeFlexLayout.invalidateMeasurementAncestors(list.parent)
+        }
         val nodes = (0 until children.length()).mapNotNull { children.optJSONObject(it) }
         nodes.forEach { registerFlatListOwnership(screen, it, owner) }
         list.onScrollEvent = craftNativeEventName(events, "onScroll").takeIf { it.isNotBlank() }?.let { handler ->

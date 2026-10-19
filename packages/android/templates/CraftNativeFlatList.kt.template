@@ -122,6 +122,8 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     var onMomentumScrollBegin: (() -> Unit)? = null
     var onMomentumScrollEnd: (() -> Unit)? = null
     var onLayoutChanged: (() -> Unit)? = null
+    var onContentSizeChanged: (() -> Unit)? = null
+    private var lastIntrinsicHeight = Int.MIN_VALUE
 
     private val scrollListener = object : OnScrollListener() {
         private var dragging = false
@@ -176,6 +178,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     fun setScrollEnabled(enabled: Boolean) {
         if (scrollEnabled == enabled) return
         scrollEnabled = enabled
+        lastIntrinsicHeight = Int.MIN_VALUE
         requestLayout()
     }
 
@@ -225,12 +228,17 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
             // nested in an outer native ScrollView.
             super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
             val contentHeight = max(measuredHeight, computeVerticalScrollRange())
+            val resolvedHeight = resolveSize(contentHeight, heightMeasureSpec)
+            val contentChanged = resolvedHeight != lastIntrinsicHeight
+            lastIntrinsicHeight = resolvedHeight
             setMeasuredDimension(
                 resolveSize(measuredWidth, widthMeasureSpec),
-                resolveSize(contentHeight, heightMeasureSpec),
+                resolvedHeight,
             )
+            if (contentChanged) post { onContentSizeChanged?.invoke() }
             return
         }
+        lastIntrinsicHeight = Int.MIN_VALUE
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 
@@ -435,6 +443,8 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         onMomentumScrollBegin = null
         onMomentumScrollEnd = null
         onLayoutChanged = null
+        onContentSizeChanged = null
+        lastIntrinsicHeight = Int.MIN_VALUE
     }
 
     /** Releases callbacks owned by a permanently removed native list node. */
