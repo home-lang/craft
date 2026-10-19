@@ -812,6 +812,13 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(booleanIndicator.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(booleanIndicator.frame.width, 12, "Boolean ActivityIndicator size was treated as numeric")
         XCTAssertTrue(app.activityIndicators["stopped-indicator"].waitForExistence(timeout: 5))
+        let stoppedIndicator = app.activityIndicators["stopped-indicator"]
+        let toggleIndicatorHide = app.buttons["toggle-indicator-hide"]
+        reveal(toggleIndicatorHide, in: rootScroll)
+        toggleIndicatorHide.tap()
+        XCTAssertFalse(stoppedIndicator.isHittable, "a stopped indicator should hide when the prop changes dynamically")
+        toggleIndicatorHide.tap()
+        XCTAssertTrue(stoppedIndicator.isHittable, "a stopped indicator should reappear when hidesWhenStopped is cleared")
         XCTAssertFalse(app.activityIndicators["hidden-indicator"].isHittable)
         // display:none hides the view, and a hidden view is not in the
         // accessibility tree at all (Android checks View.GONE instead).

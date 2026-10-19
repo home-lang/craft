@@ -6883,8 +6883,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             indicator.hidesWhenStopped = props["hidesWhenStopped"] as? Bool ?? true
             if props["animating"] as? Bool == false {
                 indicator.stopAnimating()
+                // UIKit does not retroactively reveal an indicator when an
+                // already-stopped view changes hidesWhenStopped to false.
+                // Android applies the requested visibility on every render;
+                // keep the two hosts in lockstep for dynamic prop changes.
+                indicator.isHidden = indicator.hidesWhenStopped
             } else {
                 indicator.startAnimating()
+                indicator.isHidden = false
             }
         case "Svg":
             let drawing = result as! CraftNativeSvgView

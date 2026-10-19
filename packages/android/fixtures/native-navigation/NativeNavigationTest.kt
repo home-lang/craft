@@ -1621,6 +1621,10 @@ class NativeNavigationTest {
             assertTrue("stopped indicator should not animate", !stoppedIndicator.isIndeterminate)
             assertEquals(0.75f, stoppedIndicator.scaleX)
             assertEquals(0.75f, stoppedIndicator.scaleY)
+            click(activity, "toggle-indicator-hide")
+            awaitProgressBar(activity, "stopped-indicator", "hidden after dynamic prop change") { it.visibility == View.GONE }
+            click(activity, "toggle-indicator-hide")
+            awaitProgressBar(activity, "stopped-indicator", "visible after clearing hide prop") { it.isShown && !it.isIndeterminate }
             click(activity, "toggle-indicator-size")
             val enlargedIndicator = awaitProgressBar(activity, "stopped-indicator", "large size") { it.scaleX == 1.35f }
             assertEquals(1.35f, enlargedIndicator.scaleY)

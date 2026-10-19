@@ -2520,6 +2520,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('isIndeterminate = animating')
     expect(ios).toContain('scale = value.isFinite ? max(0.5, value) : 1')
     expect(android).toContain('takeIf { it.isFinite() }?.toFloat()?.coerceAtLeast(0.5f) ?: 1f')
+    expect(ios).toContain('indicator.isHidden = indicator.hidesWhenStopped')
+    expect(ios).toContain('indicator.isHidden = false')
+    expect(navigationHome).toContain('testID="toggle-indicator-hide"')
+    expect(iosNavigationTest).toContain('a stopped indicator should reappear when hidesWhenStopped is cleared')
+    expect(androidNavigationTest).toContain('hidden after dynamic prop change')
   })
 
   it('keeps account navigation buttons compatible with the release SDK', () => {

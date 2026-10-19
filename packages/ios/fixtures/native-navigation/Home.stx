@@ -34,6 +34,7 @@ const modalStatus = state('')
 const modalOpacity = state(1)
 const sliderValue = state(0.5)
 const indicatorSize = state('small')
+const indicatorHidesWhenStopped = state(false)
 const sliderCompletions = state(0)
 const invalidSliderColors = state(false)
 const invalidSliderStyleStatus = state('')
@@ -846,8 +847,9 @@ function openDetailsThenUpdateBackground() {
     <Text testID="invalid-slider-style-status" :text="invalidSliderStyleStatus" />
     <ActivityIndicator testID="native-indicator" color={invalidControlColors ? "not-a-color" : "#22c55e"} size="large" />
     <ActivityIndicator testID="boolean-indicator" size={true} />
-    <ActivityIndicator testID="stopped-indicator" color="#ef4444" :size="indicatorSize" :animating="false" :hides-when-stopped="false" />
+    <ActivityIndicator testID="stopped-indicator" color="#ef4444" :size="indicatorSize" :animating="false" :hides-when-stopped="indicatorHidesWhenStopped" />
     <Button testID="toggle-indicator-size" @click="indicatorSize.set(indicatorSize() === 'small' ? 'large' : 'small')">Toggle indicator size</Button>
+    <Button testID="toggle-indicator-hide" @click="indicatorHidesWhenStopped.set(!indicatorHidesWhenStopped())">Toggle stopped indicator visibility</Button>
     <ActivityIndicator testID="scaled-indicator" size={48} style={{"transform":[{"scale":0.5}]}} />
     <ActivityIndicator testID="hidden-indicator" color="#ef4444" size="small" :animating="false" hidesWhenStopped />
     <ActivityIndicator testID="display-none-indicator" style={{"display":"none"}} />
