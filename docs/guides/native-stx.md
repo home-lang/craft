@@ -1138,7 +1138,9 @@ const box = await nativeCall('View', 'measure', [{ nodeId }])
 
 `focus` resolves to `true`. Keyboard focus is supported for mounted text
 inputs; accessibility focus posts the platform's layout-change notification
-for the mounted node. `measure` resolves to `{ x, y, width, height,
+for the mounted node. When a modal becomes visible, its host captures the
+currently focused opener before modal content can autofocus; closing it
+restores that opener only if it is still mounted. `measure` resolves to `{ x, y, width, height,
 viewportWidth, viewportHeight, unit, coordinateSpace }`. The coordinate space
 is the native screen viewport, with an origin at its top-left and values in
 logical units (`points` on iOS and density-independent `dp` on Android).

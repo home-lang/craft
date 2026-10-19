@@ -1689,6 +1689,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"unit", "dp"')
   })
 
+  it('restores a modal opener only while it remains mounted', () => {
+    expect(ios).toContain('private var modalFocusRestore: [ObjectIdentifier: UIView] = [:]')
+    expect(ios).toContain('restore.isDescendant(of: self.view)')
+    expect(android).toContain('var focusToRestore: View? = null')
+    expect(android).toContain('if (restore.isAttachedToWindow) restore.requestFocus()')
+  })
+
   it('detaches Android picker callbacks without calling AdapterView click APIs', () => {
     expect(android).toContain('if (it !is android.widget.AdapterView<*>) it.setOnClickListener(null)')
     expect(android).toContain('released.filterIsInstance<Spinner>().forEach { it.onItemSelectedListener = null }')

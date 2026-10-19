@@ -4734,6 +4734,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var sliderSteps: [ObjectIdentifier: Float] = [:]
     private var pickerOptions: [ObjectIdentifier: [(value: String, label: String)]] = [:]
     private var modalVisibility: [ObjectIdentifier: Bool] = [:]
+    private var modalFocusRestore: [ObjectIdentifier: UIView] = [:]
     private var layoutHandlers: [ObjectIdentifier: String] = [:]
     private var lastLayoutFrames: [ObjectIdentifier: CGRect] = [:]
     private var tapRecognizers: [ObjectIdentifier: UITapGestureRecognizer] = [:]
@@ -7016,6 +7017,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: picker)
         case "Modal":
             let modal = result as! CraftNativeModalView
+            let focusBeforeContent = firstResponder(in: rootStack) ?? lastFocusedInput
             modal.transparent = props["transparent"] as? Bool == true
             let visible: Bool
             if let propVisible = props["visible"] as? Bool {
@@ -7030,8 +7032,20 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let modalID = ObjectIdentifier(modal)
             let wasVisible = modalVisibility[modalID]
             modalVisibility[modalID] = visible
+            if visible, wasVisible != true, let focusBeforeContent,
+               !focusBeforeContent.isDescendant(of: modal) {
+                modalFocusRestore[modalID] = focusBeforeContent
+            }
             if visible, wasVisible != true { positionModals() }
             modal.setVisible(visible, opacity: number(style["opacity"]) ?? 1, animationType: props["animationType"] as? String)
+            if !visible, wasVisible == true {
+                let restore = modalFocusRestore.removeValue(forKey: modalID)
+                DispatchQueue.main.async { [weak self, weak restore] in
+                    guard let self, let restore, restore.window != nil, restore.isDescendant(of: self.view) else { return }
+                    self.lastFocusedInput = restore
+                    _ = restore.becomeFirstResponder()
+                }
+            }
             modal.onRequestClose = nonEmptyHandler(events["onRequestClose"]).map { handler in
                 { [weak self] reason in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["reason": reason]]) }
             }

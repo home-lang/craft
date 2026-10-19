@@ -2485,6 +2485,7 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     private var renderedVisible = false
     private var dismissSuppressedByRequest = false
     private var animationGeneration = 0
+    var focusToRestore: View? = null
     var onRequestClose: ((String) -> Unit)? = null
 
     var transparent: Boolean = false
@@ -5285,6 +5286,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             "Modal" -> (previous as? CraftNativeModalView ?: CraftNativeModalView(this)).apply {
+                val focusBeforeContent = screen.view.findFocus()
                 transparent = craftNativeBoolean(props.opt("transparent"))
                 content.configure(style, resources.displayMetrics.density)
                 reconcileChildren(screen, content, children, identity, next, style, previousControls)
@@ -5300,6 +5302,9 @@ class MainActivity : AppCompatActivity() {
                 }
                 val wasVisible = screen.modalVisibility[this]
                 screen.modalVisibility[this] = visible
+                if (visible && wasVisible != true && focusBeforeContent != null && focusBeforeContent !is CraftNativeModalView) {
+                    focusToRestore = focusBeforeContent
+                }
                 val requestClose = craftNativeOptionalString(events.opt("onRequestClose")).orEmpty()
                 if (requestClose.isNotBlank()) screen.modalCloseHandlers[this] = requestClose else screen.modalCloseHandlers.remove(this)
                 onRequestClose = if (requestClose.isNotBlank()) {
@@ -5308,6 +5313,13 @@ class MainActivity : AppCompatActivity() {
                     null
                 }
                 setVisible(visible, craftNativeFiniteFloat(style, "opacity", 1f), craftNativeOptionalString(props.opt("animationType")))
+                if (!visible && wasVisible == true) {
+                    val restore = focusToRestore
+                    focusToRestore = null
+                    restore?.post {
+                        if (restore.isAttachedToWindow) restore.requestFocus()
+                    }
+                }
                 if (visible) clearDismissSuppression()
                 val suppressDismiss = !visible && consumeDismissSuppression()
                 if (wasVisible != visible && (visible || wasVisible == true)) {
