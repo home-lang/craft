@@ -219,6 +219,7 @@ class NativeFlatListTest {
         awaitCount(list, 9)
         val horizontal = list.layoutManager as LinearLayoutManager
         assertEquals(LinearLayoutManager.HORIZONTAL, horizontal.orientation)
+        assertEquals("row-7", list.visibleItemIdentities.first())
 
         instrumentation.runOnMainSync {
             list.apply(nodes, false, 3, false, 0.1, renderer(context, renders), { _ -> }, null)

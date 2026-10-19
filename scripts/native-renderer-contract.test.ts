@@ -257,6 +257,12 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('listRole="header"')
   })
 
+  it('verifies Android inverted FlatList order through mounted identities', () => {
+    expect(androidFlatList).toContain('val visibleItemIdentities: List<String>')
+    expect(androidFlatListTest).toContain('assertEquals("row-7", list.visibleItemIdentities.first())')
+    expect(iosNativeUnitTests).toContain('testFlatListRetainsAHorizontalViewportAcrossInvertedMoves')
+  })
+
   it('keeps DatePicker presentation platform-neutral', () => {
     const datePickerProps = componentTypes.match(/export interface DatePickerProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(datePickerProps).toContain("mode?: 'date' | 'time' | 'datetime' | 'datetime-local' | 'countdown'")

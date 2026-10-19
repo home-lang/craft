@@ -151,6 +151,17 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     val isScrollTargetPendingForTest: Boolean
         get() = pendingScrollTarget != null
 
+    /** Stable identities currently mounted, in their adapter order. */
+    val visibleItemIdentities: List<String>
+        get() = (0 until childCount)
+            .mapNotNull { child ->
+                val position = getChildAdapterPosition(child)
+                if (position == RecyclerView.NO_POSITION) return@mapNotNull null
+                (getChildViewHolder(child) as? Holder)?.identity?.let { position to it }
+            }
+            .sortedBy { it.first }
+            .map { it.second }
+
     override fun onInterceptTouchEvent(event: android.view.MotionEvent): Boolean {
         if (!scrollEnabled) return false
         return super.onInterceptTouchEvent(event)
