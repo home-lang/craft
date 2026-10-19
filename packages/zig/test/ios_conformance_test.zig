@@ -197,7 +197,11 @@ const dispatch_end = "func webView(";
 /// Both call the shared CraftLiveActivities ActivityKit owner, also used by
 /// WebView-free native screens. No existing Zig action was removed; these
 /// are new Swift APIs, following the same policy as the additions above.
-const max_not_yet_migrated: usize = 54;
+/// 58 when the live HealthKit workout controls were added. HKWorkoutSession
+/// and HKLiveWorkoutBuilder are owned by CraftHealth.swift, including their
+/// delegate callbacks and iOS 26 availability; the actions remain on the
+/// Swift shim until the Zig bridge has an equivalent lifecycle channel.
+const max_not_yet_migrated: usize = 58;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.
@@ -435,6 +439,14 @@ const deliberate_deferrals = [_]Deferral{
     // is: serving the action would mean depending on Swift to keep posting a
     // name the spec is free to change.
     .{ .action = "registerPush", .reason = "the device token lands on a SwiftUI-owned app delegate; Zig could only observe a notification Swift posts" },
+
+    // HKWorkoutSession and HKLiveWorkoutBuilder are Swift-owned, including
+    // their delegate callbacks and iOS 26 availability. Keep these actions on
+    // the shim until Zig can provide the same lifecycle and event channel.
+    .{ .action = "startHealthWorkout", .reason = "HKWorkoutSession and HKLiveWorkoutBuilder are Swift-owned and require a lifecycle event channel" },
+    .{ .action = "pauseHealthWorkout", .reason = "HKWorkoutSession state changes are delivered through the Swift HealthKit delegate" },
+    .{ .action = "resumeHealthWorkout", .reason = "HKWorkoutSession state changes are delivered through the Swift HealthKit delegate" },
+    .{ .action = "endHealthWorkout", .reason = "HKLiveWorkoutBuilder finalization is Swift-owned and requires its completion lifecycle" },
 
     // VisionKit's `DataScannerViewController` is Swift-only: the framework's
     // Objective-C headers carry DocumentCamera and nothing else, and the

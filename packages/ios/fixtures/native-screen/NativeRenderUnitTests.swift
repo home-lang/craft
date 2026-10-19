@@ -860,13 +860,15 @@ final class NativeRenderUnitTests: XCTestCase {
         controller.render([
             "id": "root-node", "type": "View", "children": [
                 ["id": "source-node", "type": "ScrollView", "style": ["height": 80], "children": [
-                    ["id": "popup-node", "type": "View", "props": ["testID": "popup"], "children": [
+                    ["id": "popup-node", "type": "View", "props": ["testID": "popup"], "style": ["height": 160], "children": [
                         ["id": "popup-field", "type": "TextInput", "props": ["testID": "popup-field"], "children": []],
                     ]],
                 ]],
                 ["id": "destination-node", "type": "View", "props": ["testID": "destination"], "children": []],
             ],
         ])
+        let scroll = try XCTUnwrap(find(UIScrollView.self, key: "source-node", below: controller.view))
+        scroll.contentOffset = CGPoint(x: 0, y: 40)
         let field = try XCTUnwrap(find(UITextField.self, key: "popup-field", below: controller.view))
         field.text = "draft"
         let caret = try XCTUnwrap(field.position(from: field.beginningOfDocument, offset: 3))
@@ -882,6 +884,7 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(retained.text, "draft")
         let selection = try XCTUnwrap(retained.selectedTextRange)
         XCTAssertEqual(retained.offset(from: retained.beginningOfDocument, to: selection.start), 3)
+        XCTAssertEqual(scroll.contentOffset.y, 40)
         let destination = try XCTUnwrap(find(UIView.self, key: "destination", below: controller.view))
         XCTAssertTrue(try XCTUnwrap(find(UIView.self, key: "popup", below: controller.view)).superview === destination)
     }

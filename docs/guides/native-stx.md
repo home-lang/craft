@@ -73,10 +73,11 @@ renderer.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
-The current pair is pinned to `0d85afbab4b569ac2f09113a6c9a5d11d926145f`,
-which preserves authored reconciliation keys in created and cloned native nodes.
-This is the normally published STX `0.2.573` compiler. The native fixtures
-qualify its mutation metadata together with both native models.
+The current pair is pinned to `4937102a321f7f7391e718218aff7d0919629b2e`,
+which preserves authored reconciliation keys and explicit grid row tracks in
+static and reactive native styles. The native fixtures qualify its compiled
+properties and mutation metadata together with both native models. Application
+releases consume the normally published compiler after qualification.
 
 The host-neutral layout contract lives in Craft's Zig runtime at
 `packages/zig/src/native_layout.zig`. It defines the shared row/column flex
