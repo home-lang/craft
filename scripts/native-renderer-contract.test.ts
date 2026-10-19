@@ -1996,7 +1996,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('setRefreshAppearance(refreshProps, resources.displayMetrics.density, refreshTintFallback(screen))')
     expect(android).toContain('background?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: Color.TRANSPARENT')
     expect(android).toContain('setRefreshHandler(refreshHandler, craftNativeBoolean(refreshProps.opt("refreshing"), craftNativeBoolean(props.opt("refreshing"))))')
-    expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }')
+    expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach {\n            it.setRefreshHandler(null, false)')
     const scrollStart = android.indexOf('private class CraftNativeScrollView')
     const scrollEnd = android.indexOf('private class CraftNativeFlexSpacer', scrollStart)
     const scroll = android.slice(scrollStart, scrollEnd)
@@ -3124,6 +3124,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('it.setOnLongClickListener(null)')
     expect(android).toContain('it.setOnFocusChangeListener(null)')
     expect(android).toContain('released.filterIsInstance<EditText>().forEach { it.setOnEditorActionListener(null) }')
+  })
+
+  it('invalidates Android scroll callbacks when a native scroll host is released', () => {
+    expect(android).toContain('private var scrollListenerGeneration = 0')
+    expect(android).toContain('val generation = ++scrollListenerGeneration')
+    expect(android).toContain('if (generation != scrollListenerGeneration || !momentumActive) return')
+    expect(android).toContain('fun clearScrollListeners()')
+    expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach {\n            it.setRefreshHandler(null, false)\n            it.clearScrollListeners()')
   })
 
   it('prefers authored keys over compiler ids when reconciling native rows', () => {

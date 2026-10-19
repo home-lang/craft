@@ -724,6 +724,10 @@ rows rendered in an ordinary `ScrollView`. Two rows can therefore use the same
 child `testID` or local key without sharing uncontrolled input drafts or retained
 native state.
 
+Android scroll hosts also invalidate their callback generation when released, so
+queued momentum polling and touch callbacks cannot report events through a
+previous screen after the host is recycled.
+
 ## Events, accessibility, and navigation
 
 `defaultValue` initializes an uncontrolled `TextInput` once; controlled

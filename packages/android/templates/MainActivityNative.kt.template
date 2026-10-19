@@ -2015,6 +2015,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
     private var stickyIndices = emptyList<Int>()
     private var scrollTargetKey: String? = null
     private var pendingScrollTarget: Pair<String, Boolean>? = null
+    private var scrollListenerGeneration = 0
 
     init {
         vertical.isNestedScrollingEnabled = true
@@ -2362,6 +2363,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         keyboardDismissMode: String,
         dismissKeyboard: (() -> Unit)?,
     ) {
+        val generation = ++scrollListenerGeneration
         fun attach(scroller: View) {
             var dismissed = false
             var moved = false
@@ -2370,7 +2372,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
             var lastY = 0
 
             fun pollMomentum() {
-                if (!momentumActive) return
+                if (generation != scrollListenerGeneration || !momentumActive) return
                 val x = scroller.scrollX
                 val y = scroller.scrollY
                 if (x == lastX && y == lastY) {
@@ -2425,6 +2427,14 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         }
         attach(vertical)
         attach(horizontal)
+    }
+
+    fun clearScrollListeners() {
+        scrollListenerGeneration += 1
+        vertical.setOnScrollChangeListener(null)
+        vertical.setOnTouchListener(null)
+        horizontal.setOnScrollChangeListener(null)
+        horizontal.setOnTouchListener(null)
     }
 }
 
@@ -7204,7 +7214,10 @@ class MainActivity : AppCompatActivity() {
         released.filterIsInstance<CraftNativeMapView>().forEach { it.destroy() }
         released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }
         released.filterIsInstance<CraftNativeKeyboardAvoidingView>().forEach { it.content.onLayoutChanged = null }
-        released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }
+        released.filterIsInstance<CraftNativeScrollView>().forEach {
+            it.setRefreshHandler(null, false)
+            it.clearScrollListeners()
+        }
         releaseImages(released)
         // Clearing the handler maps is not enough: Android Views retain the
         // listener objects themselves. Detach every interaction callback from
