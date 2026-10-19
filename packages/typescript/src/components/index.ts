@@ -191,6 +191,8 @@ export interface LayoutStyle {
   display?: 'flex' | 'none' | 'grid'
   /** Equal-width grid track count or CSS-shaped `repeat(N, 1fr)` tracks. */
   gridTemplateColumns?: number | string
+  /** Equal-height grid track count or CSS-shaped `repeat(N, 1fr)` tracks. */
+  gridTemplateRows?: number | string
   /** Legacy numeric alias for the grid track count. */
   gridColumns?: number
   /** Intrinsic or fixed height for automatically-created grid rows. */
