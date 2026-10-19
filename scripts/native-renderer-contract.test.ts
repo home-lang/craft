@@ -3150,6 +3150,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val inputWatchers = mutableMapOf<EditText, TextWatcher>()')
     expect(android).toContain('if (screen.inputWatchers[this] == null) {\n                    val watcher = object : TextWatcher')
     expect(android).toContain('screen.inputWatchers.remove(it)?.let(it::removeTextChangedListener)')
+    expect(android).toContain('screen.inputWatchers.forEach { (input, watcher) -> input.removeTextChangedListener(watcher) }')
     expect(guide).toContain('Text-input watchers are detached too.')
   })
 

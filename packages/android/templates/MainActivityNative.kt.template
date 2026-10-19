@@ -7318,6 +7318,8 @@ class MainActivity : AppCompatActivity() {
         screen.pendingCapabilities.forEach(capabilities::cancel)
         screen.pendingCapabilities.clear()
         releaseViewState(screen, retainedViews(screen).toList())
+        screen.inputWatchers.forEach { (input, watcher) -> input.removeTextChangedListener(watcher) }
+        screen.inputWatchers.clear()
         screen.controls.clear()
         screen.nodeViews.clear()
         screen.nodePaths.clear()
