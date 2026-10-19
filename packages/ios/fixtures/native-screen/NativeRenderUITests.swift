@@ -39,7 +39,14 @@ final class NativeRenderUITests: XCTestCase {
         notes.tap()
         XCTAssertTrue(keyboardIsVisible(app))
         notes.typeText("Easy run")
-        XCTAssertEqual(app.staticTexts["notes"].label, "Notes: Easy run")
+        // Read the original acknowledgement first: inspecting other UIKit
+        // elements must not hide a delayed bridge update from this assertion.
+        let acknowledgement = app.staticTexts["notes"].label
+        let typedValue = notes.value as? String
+        let keyboardVisible = app.keyboards.firstMatch.exists
+        XCTAssertEqual(typedValue, "Easy run", "the native text view lost typed characters")
+        XCTAssertTrue(keyboardVisible, "typing dismissed the native keyboard")
+        XCTAssertEqual(acknowledgement, "Notes: Easy run", "native value: \(typedValue ?? "nil"), keyboard visible: \(keyboardVisible)")
     }
 
     func testSwitchTapChangesUIKitStateAndDeliversValueChange() throws {
