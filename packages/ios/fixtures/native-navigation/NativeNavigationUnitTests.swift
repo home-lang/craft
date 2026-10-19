@@ -282,6 +282,83 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(CraftChrome.shared.selected, "/")
     }
 
+    private func checkPreparedGuard(background: Bool, coldSwipe: Bool) async throws {
+        let originalBackground = CraftNativeScriptThread.isBackground
+        CraftNativeScriptThread.isBackground = background
+        defer {
+            CraftChrome.shared.configure(tabs: CraftHybrid.shared.config.tabs ?? [], selected: "/", splash: false)
+            CraftNativeScriptThread.queue.sync {}
+            CraftNativeScriptThread.isBackground = originalBackground
+        }
+        CraftChrome.shared.configure(tabs: [
+            CraftConfig.Tab(id: "/", title: "Home"),
+            CraftConfig.Tab(id: "/guarded", title: "Guarded"),
+        ], selected: "/", splash: false)
+        shell = CraftHybridController(config: CraftHybrid.shared.config)
+        window.rootViewController = shell
+        shell.view.frame = window.bounds
+        shell.view.layoutIfNeeded()
+        let home = try XCTUnwrap(stack("/"))
+        if coldSwipe {
+            XCTAssertNil(stack("/guarded"))
+            drag(-150)
+        } else {
+            await displayWait("guarded tab prepared while idle") { self.stack("/guarded") != nil }
+        }
+        let guarded = try XCTUnwrap(stack("/guarded"))
+        let screen = try XCTUnwrap(guarded.viewControllers.first as? CraftNativeScreenController)
+        await displayWait("compiled hidden guard mounted") {
+            screen.evaluateScript("typeof globalThis.__detailsFocusAtMount")?.toString() == "boolean"
+        }
+        XCTAssertEqual(screen.evaluateScript("__detailsFocusAtMount")?.toBool(), false)
+        XCTAssertEqual(screen.evaluateScript("craft.navigation.isFocused()")?.toBool(), false)
+        XCTAssertEqual(home.viewControllers.count, 1, "preparation must not push Login's equivalent over Home")
+        XCTAssertEqual(guarded.viewControllers.count, 1)
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
+        if coldSwipe {
+            drag(-150, phase: .cancelled)
+            await settle()
+        }
+        XCTAssertTrue(shell.tabTapped("/guarded", reselect: false))
+        await displayWait("the guard navigates only when its tab is shown") {
+            (guarded.topViewController as? CraftNativeScreenController)?.evaluateScript("craft.route.name")?.toString() == "summary"
+        }
+        XCTAssertEqual(home.viewControllers.count, 1)
+        XCTAssertEqual(guarded.viewControllers.count, 2)
+    }
+
+    func testIdlePreparedGuardWaitsForFocusOnMainThread() async throws {
+        try await checkPreparedGuard(background: false, coldSwipe: false)
+    }
+
+    func testIdlePreparedGuardWaitsForFocusOnScriptThread() async throws {
+        try await checkPreparedGuard(background: true, coldSwipe: false)
+    }
+
+    func testColdSwipeGuardWaitsForFocusOnMainThread() async throws {
+        try await checkPreparedGuard(background: false, coldSwipe: true)
+    }
+
+    func testColdSwipeGuardWaitsForFocusOnScriptThread() async throws {
+        try await checkPreparedGuard(background: true, coldSwipe: true)
+    }
+
+    func testPreparedHiddenScreenCannotReceiveTheVisibleScreensNativeLink() async throws {
+        await displayWait("adjacent native root prepared while idle") { self.stack("/details") != nil }
+        let home = try XCTUnwrap(stack("/")?.topViewController as? CraftNativeScreenController)
+        let hidden = try XCTUnwrap(stack("/details")?.topViewController as? CraftNativeScreenController)
+        let listen = "globalThis.__links = []; craft.deepLinks.onLink(function(link) { __links.push(link.url); });"
+        home.evaluateScript(listen)
+        hidden.evaluateScript(listen)
+        let url = try XCTUnwrap(URL(string: "https://example.com/?nativeFocus=visible"))
+        DeepLinkManager.shared.handleURL(url)
+        await displayWait("visible native screen receives its link") {
+            home.evaluateScript("__links.length")?.toInt32() == 1
+        }
+        XCTAssertEqual(home.evaluateScript("__links[0]")?.toString(), url.absoluteString)
+        XCTAssertEqual(hidden.evaluateScript("__links.length")?.toInt32(), 0)
+    }
+
     func testFirstSwipeMountsAnUnvisitedNativeTabBesideTheCurrentScreen() async throws {
         // Do not yield an idle run-loop turn between constructing this shell
         // and dragging: this explicitly covers the cold fallback as well as

@@ -1249,8 +1249,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             // create a second web root here: the shared WebView cannot draw
             // both pages during the same gesture.
             guard hybrid.routes.match(id) != nil else { return false }
-            target = CraftFramePacing.shared.measure("tab swipe mount \(id)") { makeStack(tab: id, rootPath: id) }
-            (target.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(false)
+            target = CraftFramePacing.shared.measure("tab swipe mount \(id)") { makeStack(tab: id, rootPath: id, hidden: true) }
         }
         guard current.view !== target.view,
               !(current.topViewController is CraftHybridWebSlot && target.topViewController is CraftHybridWebSlot),
@@ -1557,7 +1556,11 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     /// the view hierarchy, so its screen never takes the shell's chrome (the
     /// bar, the tab accessory) from the one on screen.
     private func makeStack(tab: String, rootPath: String, hidden: Bool = false) -> UINavigationController {
-        let nav = UINavigationController(rootViewController: entry(for: rootPath, isTabRoot: true, depth: nil))
+        let root = entry(for: rootPath, isTabRoot: true, depth: nil)
+        // Constructing the navigation controller can load the root's view and
+        // mount its script immediately. Set its initial focus before that.
+        if hidden { (root as? CraftNativeScreenController)?.screenVisibilityChanged(false) }
+        let nav = UINavigationController(rootViewController: root)
         nav.delegate = self
         nav.view.backgroundColor = config.resolvedBackgroundColor
         nav.additionalSafeAreaInsets.bottom = safeAreaForTabBar()

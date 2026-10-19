@@ -6,6 +6,18 @@ const listEvents = state(0)
 const rowLayouts = state(0)
 const peopleRefreshing = state(false)
 
+// The guarded tab exercises a real mount/appearance redirect when prewarmed.
+function guardFocusedRoute() {
+  if (globalThis.craft.route.params.path === '/guarded' && globalThis.craft.navigation.isFocused())
+    globalThis.craft.navigation.push('summary')
+}
+
+onMount(() => {
+  globalThis.__detailsFocusAtMount = globalThis.craft.navigation.isFocused()
+  guardFocusedRoute()
+})
+globalThis.craft.navigation.onAppear(guardFocusedRoute)
+
 function captureRowLayout() {
   rowLayouts.update(value => value + 1)
 }

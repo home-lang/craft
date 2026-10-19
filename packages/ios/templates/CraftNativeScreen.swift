@@ -5326,13 +5326,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     /// What a screen's script starts with that only the main thread may read:
-    /// the app's state, the appearance, what the device can do.
+    /// the app's state, the appearance, initial visibility, what the device can do.
     private struct ScriptInputs {
         let capabilityJSON: String
         let appState: String
         let colorScheme: String
         let appearanceJSON: String
         let sessionTokenKey: String
+        let focused: Bool?
     }
 
     private func scriptInputs() -> ScriptInputs {
@@ -5343,7 +5344,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             appState: CraftNativeActions.currentAppState(),
             colorScheme: colorScheme,
             appearanceJSON: appearanceJSON(),
-            sessionTokenKey: Self.jsonString(CraftSession.tokenKey(config))
+            sessionTokenKey: Self.jsonString(CraftSession.tokenKey(config)),
+            focused: reportedVisible
         )
     }
 
@@ -5355,7 +5357,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         jsContext.setObject(routeProps as NSDictionary, forKeyedSubscript: "__stxNativeProps" as NSString)
         // Hidden before its script ran: the SCREEN_FOCUS saying so reached no
         // callback, so the script reads it as it starts instead.
-        if reportedVisible == false {
+        if inputs.focused == false {
             jsContext.setObject(false, forKeyedSubscript: "__stxNativeFocused" as NSString)
         }
         jsContext.exceptionHandler = { [weak self] context, exception in

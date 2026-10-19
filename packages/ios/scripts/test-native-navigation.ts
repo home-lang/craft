@@ -69,6 +69,7 @@ try {
         '/identity': 'identity',
         '/details': 'details',
         '/linked-details': 'details',
+        '/guarded': 'details',
         '/summary': 'summary',
         '/capabilities': 'capabilities',
         '/third': 'summary',
