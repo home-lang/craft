@@ -170,6 +170,18 @@ class NativeMapTest {
     }
 
     @Test
+    fun nativeMapStrokeWidthsStayInLogicalPointsAcrossDensities() = withMap { _, host, _, map, _ ->
+        awaitState("The native route did not publish its stroke width") {
+            features(map).firstOrNull { it.getStringProperty("craftOverlayId") == "route" }
+                ?.getNumberProperty("width") != null
+        }
+        val density = main { host.resources.displayMetrics.density.toDouble() }
+        val width = features(map).first { it.getStringProperty("craftOverlayId") == "route" }
+            .getNumberProperty("width").toDouble()
+        assertEquals("MapLibre must scale logical stroke points by display density", 5.0 * density, width, 0.001)
+    }
+
+    @Test
     fun nativeMapMutationsUpdateThePinAndCameraWithoutReloadingTheStyle() = withMap { _, host, _, map, _ ->
         val style = main { map.style }
         val pressed = AtomicReference<String?>()

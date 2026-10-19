@@ -619,6 +619,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val rawWidth = props.opt("strokeWidth")')
     expect(android).toContain('null, JSONObject.NULL -> 3.0')
     expect(android).toContain('authoredWidth * resources.displayMetrics.density')
+    expect(androidMapLibre).toContain('val logicalWidth = if (authoredWidth == null || authoredWidth == JSONObject.NULL) 3.0 else finiteNumber(authoredWidth) ?: continue')
+    expect(androidMapLibre).toContain('logicalWidth * resources.displayMetrics.density')
     expect(android).toContain('if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue')
     expect(android).toContain('latitude >= -90.0 && latitude <= 90.0')
     expect(android).toContain('longitude >= -180.0 && longitude <= 180.0')
@@ -655,6 +657,8 @@ describe('native renderer component contract', () => {
     expect(androidReadme).toContain('`strokeWidth` is expressed in logical')
     expect(iosReadme).toContain('`Map`')
     expect(androidReadme).toContain('`Map`')
+    expect(androidMapTest).toContain('nativeMapStrokeWidthsStayInLogicalPointsAcrossDensities')
+    expect(mobileE2EWorkflow).toContain('NativeMapTest#nativeMapStrokeWidthsStayInLogicalPointsAcrossDensities')
   })
 
   it('refreshes Android map utility chrome for night mode', () => {

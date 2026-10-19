@@ -243,8 +243,12 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
                 pointsForFit.add(point)
             } else if ((type == "mappolyline" || type == "polyline") && points.size > 1) {
                 val authoredWidth = props.opt("strokeWidth")
-                val width = if (authoredWidth == null || authoredWidth == JSONObject.NULL) 3.0 else finiteNumber(authoredWidth) ?: continue
-                if (width <= 0 || !width.toFloat().isFinite()) continue
+                val logicalWidth = if (authoredWidth == null || authoredWidth == JSONObject.NULL) 3.0 else finiteNumber(authoredWidth) ?: continue
+                // The shared contract is expressed in logical points. MapLibre's
+                // style line-width is in physical pixels, just like the Google
+                // Maps polyline width, so convert only at this host boundary.
+                val width = (logicalWidth * resources.displayMetrics.density)
+                    .takeIf { it.isFinite() && it > 0 } ?: continue
                 properties.put("kind", "line").put("color", cssColor(props.opt("strokeColor"), Color.BLUE)).put("width", width)
                 geometry.put("type", "LineString").put("coordinates", JSONArray().apply { points.forEach { put(JSONArray().put(it.longitude).put(it.latitude)) } })
                 pointsForFit.addAll(points)

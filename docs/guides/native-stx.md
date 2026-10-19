@@ -225,8 +225,8 @@ be `MapPolyline` or `MapMarker`; each overlay carries a flat latitude,
 longitude `geometry` array, so a signal update changes the existing native map
 without rebuilding the screen. `MapPolyline` also accepts `strokeColor` and a
 positive `strokeWidth` in logical points, which are preserved by both map
-hosts (the Android host converts points to the physical pixels expected by the
-Google Maps SDK). `Map` accepts a
+hosts (the Android hosts convert points to the physical pixels expected by
+their map renderers). `Map` accepts a
 controlled `region` (with `center` and `span`), an `initialRegion` applied once,
 or `fitToBounds`, which recenters only when its overlay geometry changes. Explicit regions use the
 authored camera bounds on both hosts; only `fitToBounds` adds framing padding. A marker's `onPress` or
