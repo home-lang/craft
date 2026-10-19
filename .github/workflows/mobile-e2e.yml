@@ -137,11 +137,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(inputs.scope == 'ios-render' && '["uikit"]' || inputs.scope == 'ios-navigation' && inputs.selectors != '' && '["navigation"]' || inputs.scope == 'ios-navigation' && '["navigation-unit","navigation-ui"]' || '["uikit","navigation-unit","navigation-ui"]') }}
+        suite: ${{ fromJSON(inputs.scope == 'ios-render' && '["uikit"]' || inputs.scope == 'ios-navigation' && inputs.selectors != '' && '["navigation"]' || inputs.scope == 'ios-navigation' && '["navigation-unit","navigation-ui-core","navigation-ui-controls"]' || '["uikit","navigation-unit","navigation-ui-core","navigation-ui-controls"]') }}
     runs-on: macos-15
-    # UIKit reconciliation and both navigation XCTest targets each get a fresh
-    # runner and result bundle. Combining unit and UI navigation exceeded the
-    # existing job budget; all targets remain required with the same backstop.
+    # Every navigation UI case belongs to exactly one required group. The large
+    # controls journey gets its own runner; core navigation, unit reconciliation
+    # and UIKit retain separate results and the same bounded backstop.
     timeout-minutes: 45
     env:
       CRAFT_EVIDENCE_LABEL: ios-native
@@ -196,7 +196,8 @@ jobs:
         if: ${{ !cancelled() && startsWith(matrix.suite, 'navigation') }}
         env:
           STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
-          CRAFT_ONLY_TESTING: ${{ matrix.suite == 'navigation-unit' && 'NativeNavigationUnitTests' || matrix.suite == 'navigation-ui' && 'NativeNavigationUITests' || inputs.selectors }}
+          CRAFT_ONLY_TESTING: ${{ matrix.suite == 'navigation-unit' && 'NativeNavigationUnitTests' || inputs.selectors }}
+          CRAFT_NATIVE_NAVIGATION_GROUP: ${{ matrix.suite == 'navigation-ui-core' && 'core' || matrix.suite == 'navigation-ui-controls' && 'controls' || '' }}
           CRAFT_NATIVE_NAVIGATION_RESULT: ${{ github.workspace }}/artifacts/mobile-e2e/ios-native/navigation.xcresult
         run: |
           mkdir -p artifacts/mobile-e2e/ios-native

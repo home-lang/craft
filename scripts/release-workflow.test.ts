@@ -129,15 +129,19 @@ test('navigation shards retain both complete XCTest targets and focused selectio
     startsWith: (text: string, prefix: string) => text.startsWith(prefix), cancelled: () => false,
   }, { timeout: 100 })
   for (const scope of ['', 'all'])
-    expect(evaluate(expression, scope)).toEqual(['uikit', 'navigation-unit', 'navigation-ui'])
-  expect(evaluate(expression, 'ios-navigation')).toEqual(['navigation-unit', 'navigation-ui'])
+    expect(evaluate(expression, scope)).toEqual(['uikit', 'navigation-unit', 'navigation-ui-core', 'navigation-ui-controls'])
+  expect(evaluate(expression, 'ios-navigation')).toEqual(['navigation-unit', 'navigation-ui-core', 'navigation-ui-controls'])
   expect(evaluate(expression, 'ios-render')).toEqual(['uikit'])
   const focused = 'NativeNavigationUITests/NativeNavigationUITests/testMultilineInputKeepsKeyboardFocusWhenTapped'
   expect(evaluate(expression, 'ios-navigation', focused)).toEqual(['navigation'])
   expect(evaluate(navigation!.env!.CRAFT_ONLY_TESTING, 'all', '', 'navigation-unit')).toBe('NativeNavigationUnitTests')
-  expect(evaluate(navigation!.env!.CRAFT_ONLY_TESTING, 'all', '', 'navigation-ui')).toBe('NativeNavigationUITests')
+  for (const [suite, group] of [['navigation-ui-core', 'core'], ['navigation-ui-controls', 'controls']]) {
+    expect(evaluate(navigation!.env!.CRAFT_ONLY_TESTING, 'all', '', suite)).toBe('')
+    expect(evaluate(navigation!.env!.CRAFT_NATIVE_NAVIGATION_GROUP, 'all', '', suite)).toBe(group)
+  }
   expect(evaluate(navigation!.env!.CRAFT_ONLY_TESTING, 'ios-navigation', focused, 'navigation')).toBe(focused)
-  for (const suite of ['navigation-unit', 'navigation-ui', 'navigation'])
+  expect(evaluate(navigation!.env!.CRAFT_NATIVE_NAVIGATION_GROUP, 'ios-navigation', focused, 'navigation')).toBe('')
+  for (const suite of ['navigation-unit', 'navigation-ui-core', 'navigation-ui-controls', 'navigation'])
     expect(evaluate(navigation!.if!, 'all', '', suite)).toBe(true)
   expect(evaluate(navigation!.if!, 'all', '', 'uikit')).toBe(false)
   expect(native.strategy?.['fail-fast']).toBe(false)
