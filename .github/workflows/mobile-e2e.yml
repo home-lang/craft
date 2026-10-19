@@ -132,11 +132,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(inputs.scope == 'ios-render' && '["uikit"]' || inputs.scope == 'ios-navigation' && '["navigation"]' || '["uikit","navigation"]') }}
+        suite: ${{ fromJSON(inputs.scope == 'ios-render' && '["uikit"]' || inputs.scope == 'ios-navigation' && inputs.selectors != '' && '["navigation"]' || inputs.scope == 'ios-navigation' && '["navigation-unit","navigation-ui"]' || '["uikit","navigation-unit","navigation-ui"]') }}
     runs-on: macos-15
-    # Compile and run each native fixture on its own fresh runner. Combining
-    # both consumed the job budget before navigation finished on slower hosts.
-    # Each suite keeps the same bounded backstop and strict XCTest assertions.
+    # UIKit reconciliation and both navigation XCTest targets each get a fresh
+    # runner and result bundle. Combining unit and UI navigation exceeded the
+    # existing job budget; all targets remain required with the same backstop.
     timeout-minutes: 45
     env:
       CRAFT_EVIDENCE_LABEL: ios-native
@@ -163,7 +163,7 @@ jobs:
       # @stacksjs/stx compiler (`stx native compile`) so this job cannot silently change
       # underneath us. Both iOS jobs and Android use the same compiler revision.
       - name: Checkout stx compiler
-        if: ${{ matrix.suite == 'navigation' }}
+        if: ${{ startsWith(matrix.suite, 'navigation') }}
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
@@ -171,7 +171,7 @@ jobs:
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
-        if: ${{ matrix.suite == 'navigation' }}
+        if: ${{ startsWith(matrix.suite, 'navigation') }}
         working-directory: .stx-compiler
         # Pantry ships Bun 1.3.14, which cannot frozen-install the pinned stx
         # lockfile. Resolve the unchanged external manifest without rewriting
@@ -191,10 +191,10 @@ jobs:
         id: navigation
         # Reconciliation and navigation are independent suites. Keep the
         # navigation evidence when reconciliation fails; the job still fails.
-        if: ${{ !cancelled() && matrix.suite == 'navigation' }}
+        if: ${{ !cancelled() && startsWith(matrix.suite, 'navigation') }}
         env:
           STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
-          CRAFT_ONLY_TESTING: ${{ inputs.selectors }}
+          CRAFT_ONLY_TESTING: ${{ matrix.suite == 'navigation-unit' && 'NativeNavigationUnitTests' || matrix.suite == 'navigation-ui' && 'NativeNavigationUITests' || inputs.selectors }}
           CRAFT_NATIVE_NAVIGATION_RESULT: ${{ github.workspace }}/artifacts/mobile-e2e/ios-native/navigation.xcresult
         run: |
           mkdir -p artifacts/mobile-e2e/ios-native

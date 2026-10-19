@@ -1,6 +1,7 @@
 import { afterAll, expect, test } from 'bun:test'
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { runInNewContext } from 'node:vm'
 import { requiredReleaseAssets } from './release-manifest'
 import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
 
@@ -74,6 +75,31 @@ test('native iOS suites and protocol checks have independent required jobs', () 
   expect(summary.steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-native.result')
   for (const name of ['ios-native', 'ios-simulator', 'ios-zig-slice'])
     expect(workflow.jobs[name].env?.DEVELOPER_DIR).toBe('/Applications/Xcode_26.2.app/Contents/Developer')
+})
+
+test('navigation shards retain both complete XCTest targets and focused selection', () => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
+  const native = workflow.jobs['ios-native']
+  const expression = (native.strategy?.matrix as unknown as { suite: string }).suite
+  const navigation = native.steps?.find(step => step.name === 'Test native multi-screen navigation')
+  const evaluate = (value: string, scope: string, selectors = '', suite = '') => runInNewContext(value.replace(/^\$\{\{\s*|\s*\}\}$/g, ''), {
+    inputs: { scope, selectors }, matrix: { suite }, fromJSON: JSON.parse,
+    startsWith: (text: string, prefix: string) => text.startsWith(prefix), cancelled: () => false,
+  }, { timeout: 100 })
+  for (const scope of ['', 'all'])
+    expect(evaluate(expression, scope)).toEqual(['uikit', 'navigation-unit', 'navigation-ui'])
+  expect(evaluate(expression, 'ios-navigation')).toEqual(['navigation-unit', 'navigation-ui'])
+  expect(evaluate(expression, 'ios-render')).toEqual(['uikit'])
+  const focused = 'NativeNavigationUITests/NativeNavigationUITests/testMultilineInputKeepsKeyboardFocusWhenTapped'
+  expect(evaluate(expression, 'ios-navigation', focused)).toEqual(['navigation'])
+  expect(evaluate(navigation!.env!.CRAFT_ONLY_TESTING, 'all', '', 'navigation-unit')).toBe('NativeNavigationUnitTests')
+  expect(evaluate(navigation!.env!.CRAFT_ONLY_TESTING, 'all', '', 'navigation-ui')).toBe('NativeNavigationUITests')
+  expect(evaluate(navigation!.env!.CRAFT_ONLY_TESTING, 'ios-navigation', focused, 'navigation')).toBe(focused)
+  for (const suite of ['navigation-unit', 'navigation-ui', 'navigation'])
+    expect(evaluate(navigation!.if!, 'all', '', suite)).toBe(true)
+  expect(evaluate(navigation!.if!, 'all', '', 'uikit')).toBe(false)
+  expect(native.strategy?.['fail-fast']).toBe(false)
+  expect(workflow.jobs['mobile-summary'].steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-native.result')
 })
 
 test('mobile device jobs preserve runner diagnostics when the harness fails', () => {
