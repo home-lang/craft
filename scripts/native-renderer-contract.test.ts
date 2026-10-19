@@ -12,6 +12,7 @@ const iosHealth = readFileSync(join(root, 'packages/ios/templates/CraftHealth.sw
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
 const iosFiles = readFileSync(join(root, 'packages/ios/templates/CraftNativeFiles.swift'), 'utf8')
+const iosLiveActivities = readFileSync(join(root, 'packages/ios/templates/CraftLiveActivities.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
   .replace('{{NATIVE_MAP_HOST}}', () => readFileSync(join(root, 'packages/android/templates', androidMapHost('google').template), 'utf8'))
   .replace('{{NATIVE_MAP_IMPORTS}}', () => androidMapHost('google').imports)
@@ -1890,6 +1891,10 @@ describe('native renderer component contract', () => {
     expect(iosFiles).toContain('Double(largestMaxPixels)')
     expect(iosFiles).toContain('craftNativeNumber(options["quality"])')
     expect(iosFiles).toContain('craftNativeNumber(options["maxBytes"])')
+  })
+
+  it('keeps iOS Live Activity numeric state strict', () => {
+    expect(iosLiveActivities).toContain('guard let number = craftNativeNumber(body[key]), number.doubleValue.isFinite else { return nil }')
   })
 
   it('keeps native iOS passkeys capability-gated and domain-bound', () => {

@@ -1156,6 +1156,7 @@ describe('Craft iOS builder', () => {
     const widget = readFileSync(join(output, 'WidgetExtension', 'WildLoopLiveActivity.swift'), 'utf8')
     expect(activities).toContain('activities.first(where: { $0.id == id })')
     expect(activities).toContain('activities.first(where: { $0.attributes.activityId == key })')
+    expect(activities).toContain('guard let number = craftNativeNumber(body[key]), number.doubleValue.isFinite else { return nil }')
     expect(actions).toContain('values.append("liveActivities")')
     expect(actions).toContain('case ("LiveActivities", _):')
     expect(widget).toContain('Text(timerInterval:')

@@ -70,7 +70,7 @@ enum CraftLiveActivities {
 
     private static func finite(_ body: [String: Any], _ key: String, _ fallback: Double? = nil) -> Double? {
         guard body.keys.contains(key) else { return fallback }
-        guard let number = body[key] as? NSNumber, number.doubleValue.isFinite else { return nil }
+        guard let number = craftNativeNumber(body[key]), number.doubleValue.isFinite else { return nil }
         return max(0, number.doubleValue)
     }
 
