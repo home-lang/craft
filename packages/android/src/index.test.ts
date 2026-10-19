@@ -570,7 +570,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('if (childView.parent !== layout)')
       expect(nativeActivity).toContain('desired.forEach(layout::bringChildToFront)')
       expect(nativeActivity).toContain('val modal = screen.modalVisibility.entries.lastOrNull')
-      expect(nativeActivity).toContain('val suppressDismiss = !visible && consumeDismissSuppression()')
+      expect(nativeActivity).toContain('if (!lifecycleHandler.isNullOrBlank()) {')
+      expect(nativeActivity).not.toContain('consumeDismissSuppression')
       expect(nativeActivity).toContain('(modal.key as? CraftNativeModalView)?.requestClose(reason = "back")')
       expect(nativeActivity).toContain('override fun onBackPressed()')
       expect(nativeActivity).toContain('view.requestLayout()')
@@ -1516,9 +1517,12 @@ describe('Craft Android builder', () => {
     const shell = readFileSync(join(output, 'app/src/main/java/dev/craft/media/CraftNativeShell.kt'), 'utf8')
     const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
     expect(gradle).toContain('androidx.work:work-runtime-ktx')
-    // A job per address and connection rule: a running one is joined, one waiting (or in a retry's backoff) runs now.
+    // Join running and fresh queued work; an explicit retry replaces failed backoff.
     expect(shell).toContain('internal class CraftNativeMediaWorker(')
-    expect(shell).toContain('work.enqueueUniqueWork(name, if (running) androidx.work.ExistingWorkPolicy.KEEP else androidx.work.ExistingWorkPolicy.REPLACE, request)')
+    expect(shell).toContain('(it.state == androidx.work.WorkInfo.State.ENQUEUED && it.runAttemptCount == 0)')
+    expect(shell).toContain('"$TAG:generation:$started" in it.tags &&')
+    expect(shell).toContain('val matching = pending.filter { it.generation == started }')
+    expect(shell).toContain('work.enqueueUniqueWork(name, if (pending) androidx.work.ExistingWorkPolicy.KEEP else androidx.work.ExistingWorkPolicy.REPLACE, request).result.get()')
     // A prune never stops the transfer a keep still waits on; a 206 nobody asked for is refused.
     expect(shell).toContain('owner in wanted || owner in active')
     expect(shell).toContain('if (status == 206 && have == 0L) return Fetched.Refused(status)')
