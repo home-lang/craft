@@ -14,7 +14,7 @@ type Job = {
   if?: string
   uses?: string
   with?: { enforce_high?: boolean, 'release-draft'?: string, release?: string, version?: string }
-  steps?: { name?: string, run?: string, uses?: string, env?: Record<string, string>, with?: { 'version'?: string, 'bun-version'?: string, 'publish'?: string, 'release-draft'?: string, release?: string, 'package-dir'?: string, install?: string } }[]
+  steps?: { name?: string, run?: string, uses?: string, 'working-directory'?: string, env?: Record<string, string>, with?: { 'version'?: string, 'bun-version'?: string, 'publish'?: string, 'release-draft'?: string, release?: string, 'package-dir'?: string, install?: string } }[]
   strategy?: { 'fail-fast'?: boolean, matrix: { platform: { name: string, os: string }[] } }
 }
 const release = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/release.yml'), 'utf8')) as { jobs: Record<string, Job> }
@@ -65,6 +65,20 @@ test('mobile device jobs use the same pinned stx compiler', () => {
   expect(compilerCheckouts).toHaveLength(4)
   for (const step of compilerCheckouts)
     expect((step.with as Record<string, string>).ref).toBe(stxCompilerCommit)
+})
+
+test('native compiler jobs use a supported Bun and preserve its frozen lockfile', () => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
+  for (const name of ['ios-native', 'ios-simulator', 'android-emulator', 'android-navigation']) {
+    const job = workflow.jobs[name]
+    const jobSteps = job.steps ?? []
+    const tool = jobSteps.findIndex(step => step.uses === 'oven-sh/setup-bun@v2' && step.with?.['bun-version'] === '1.4.2')
+    const install = jobSteps.findIndex(step => step['working-directory'] === '.stx-compiler')
+    expect(tool).toBeGreaterThanOrEqual(0)
+    expect(install).toBeGreaterThan(tool)
+    expect(jobSteps[install].run).toBe('bun install --frozen-lockfile')
+    expect(steps(job)).not.toContain('bun install --no-save')
+  }
 })
 
 test('native iOS suites and protocol checks have independent required jobs', () => {
