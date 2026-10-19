@@ -446,7 +446,9 @@ describe('native renderer component contract', () => {
     expect(iosMutation).toContain('"Fragment", "Svg", "G", "Map"')
     expect(androidMutation).toContain('"Fragment", "Svg", "G", "Map"')
     expect(androidMutation).toContain('"reparentChild" -> {')
-    expect(android).toContain('val identity = protocolId?.let { "id:$it" }')
+    expect(android).toContain('val previous = protocolId?.let { previousControls["id:$it"] } ?: keyedPrevious')
+    expect(android).toContain('next["id:$it"] = control')
+    expect(android).toContain('!screen.mutations.containsNode(previousId)')
   })
 
   it('exports the flat flex ABI for mobile hosts', () => {

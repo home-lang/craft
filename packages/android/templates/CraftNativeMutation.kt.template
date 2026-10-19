@@ -160,6 +160,9 @@ class CraftNativeMutationDocument {
 
     fun node(id: String): JSONObject? = materialize(id, nodes)
 
+    /** Reserve surviving protocol nodes before reusing an authored keyed slot. */
+    fun containsNode(id: String): Boolean = nodes.containsKey(id)
+
     /** The committed parent used to redraw a child that has no native view. */
     fun parentId(id: String): String? = nodes[id]?.parent
 
