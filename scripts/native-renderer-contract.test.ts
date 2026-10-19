@@ -1733,6 +1733,18 @@ describe('native renderer component contract', () => {
     expect(android).toContain('__craftInstallNativeDialog === \'function\'')
   })
 
+  it('keeps missing browser globals actionable on both native hosts', () => {
+    for (const host of [ios, androidShell]) {
+      expect(host).toContain("unavailable('URL'")
+      expect(host).toContain("unavailable('URLSearchParams'")
+      expect(host).toContain("unavailable('TextEncoder'")
+      expect(host).toContain('is not available on a native screen')
+    }
+    expect(guide).toContain('URLSearchParams')
+    expect(guide).toContain('TextEncoder')
+    expect(guide).toContain('encodeURIComponent')
+  })
+
   it('preserves Android native launch query parameters like iOS', () => {
     expect(androidShell).toContain('val path = uri.encodedPath?.takeIf { it.isNotBlank() } ?: "/"')
     expect(androidShell).toContain('val query = uri.encodedQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""')

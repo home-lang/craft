@@ -1454,6 +1454,16 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain("globalThis.TextEncoder = unavailable('TextEncoder'")
   })
 
+  it('keeps every unsupported browser global actionable in generated iOS hosts', async () => {
+    const output = createTempDir('craft-ios-native-web-api-docs-')
+    await init({ runtimeDir: null, name: 'NativeWebAPIDocs', bundleId: 'org.example.nativewebapidocs', output, config: { renderer: 'native' } as any })
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    for (const name of ['URL', 'URLSearchParams', 'TextEncoder']) {
+      expect(screen).toContain(`unavailable('${name}'`)
+    }
+    expect(screen).toContain('is not available on a native screen')
+  })
+
   it('keeps generated iOS media limits strict and finite', async () => {
     const output = createTempDir('craft-ios-native-media-numbers-')
     await init({ runtimeDir: null, name: 'NativeMediaNumbers', bundleId: 'org.example.nativemedianumbers', output })
