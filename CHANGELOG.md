@@ -1,5 +1,32 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.244...v0.0.245)
+
+## 🚀 Features
+
+- **android**: keep offline media on WorkManager, resumed after Android stops the app ([72a9f86](https://github.com/craft-native/craft/commit/72a9f86)) _(by Chris Breuer)_
+- **ios**: report session changes to native screens and the page ([0153fcf](https://github.com/craft-native/craft/commit/0153fcf)) _(by Chris Breuer)_
+- **android**: report session changes to native screens ([9155257](https://github.com/craft-native/craft/commit/9155257)) _(by Chris Breuer)_
+- **sdk**: add craft.session and SESSION_CHANGED ([3fd36c5](https://github.com/craft-native/craft/commit/3fd36c5)) _(by Chris Breuer)_
+- **android**: play every iOS haptic style on native screens ([c0a1c4c](https://github.com/craft-native/craft/commit/c0a1c4c)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **sdk**: keep craftsession out of the CraftApp event map ([1f88548](https://github.com/craft-native/craft/commit/1f88548)) _(by Chris Breuer)_
+- **browser**: resolve haptics without the Vibration API ([dd43c66](https://github.com/craft-native/craft/commit/dd43c66)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- document craft.session, background completion and Android haptics ([af16433](https://github.com/craft-native/craft/commit/af16433)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: follow offline media onto WorkManager ([85a2850](https://github.com/craft-native/craft/commit/85a2850)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.243...v0.0.244)
 
 ## 🐛 Bug Fixes
