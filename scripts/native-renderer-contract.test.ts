@@ -489,8 +489,12 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('func refreshThemeDefaults()')
     expect(ios).toContain('tileAttribution.textColor = .secondaryLabel')
     expect(ios).toContain('UIColor.secondarySystemBackground.withAlphaComponent(0.85)')
+    expect(ios).toContain('Self.markerImages.removeAllObjects()')
+    expect(ios).toContain('for (id, annotation) in annotationsByID')
+    expect(ios).toContain('configureMarkerView(view, id: id)')
     expect(ios).toContain('(node.view as? CraftNativeMapView)?.refreshThemeDefaults()')
     expect(iosNativeUnitTests).toContain('func testMapAttributionFollowsLightAndDarkTraits()')
+    expect(iosNativeUnitTests).toContain('retained map markers must remain configured after a changed color trait')
   })
 
   it('waits for asynchronous capability text before asserting it', () => {

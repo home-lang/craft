@@ -1214,6 +1214,19 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     func refreshThemeDefaults() {
         tileAttribution.textColor = .secondaryLabel
         tileAttribution.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.85)
+        // Marker images are rasterized from the resolved trait color. Refresh
+        // mounted annotations as well as the utility chrome so a retained map
+        // does not keep light-trait artwork after a dark-mode switch.
+        Self.markerImages.removeAllObjects()
+        for (id, annotation) in annotationsByID {
+            if let view = view(for: annotation) { configureMarkerView(view, id: id) }
+        }
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
+        refreshThemeDefaults()
     }
 
     func configure(props: [String: Any], children: [Any], markerHandler: @escaping (String) -> Void) {
@@ -1653,6 +1666,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     private static func color(_ value: String?) -> UIColor {
         switch value?.lowercased() {
+        case "label": return .label
+        case "secondarylabel", "secondary-label": return .secondaryLabel
         case "red": return .systemRed
         case "green": return .systemGreen
         case "orange": return .systemOrange

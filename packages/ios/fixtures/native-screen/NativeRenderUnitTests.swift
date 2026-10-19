@@ -1092,10 +1092,13 @@ final class NativeRenderUnitTests: XCTestCase {
         controller.render([
             "type": "Map", "props": ["key": "trait-map", "tileOverlay": ["urlTemplate": "https://example.org/tiles/{z}/{y}/{x}.png", "attribution": "Trait map data"]],
             "style": ["width": 320, "height": 480],
+            "children": [["type": "MapMarker", "props": ["id": "trait-marker", "geometry": [37.7, -119.5], "pinColor": "label"]]],
         ])
         controller.view.layoutIfNeeded()
         let map = try XCTUnwrap(find(MKMapView.self, key: "trait-map", below: controller.view))
         let credit = try XCTUnwrap(map.subviews.compactMap { $0 as? UILabel }.first { $0.text == "Trait map data" && !$0.isHidden })
+        let annotation = try XCTUnwrap(map.annotations.first)
+        let marker = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
         let lightTrait = UITraitCollection(userInterfaceStyle: .light)
         let darkTrait = UITraitCollection(userInterfaceStyle: .dark)
         let lightText = try XCTUnwrap(credit.textColor).resolvedColor(with: lightTrait)
@@ -1104,6 +1107,10 @@ final class NativeRenderUnitTests: XCTestCase {
         let darkBackground = try XCTUnwrap(credit.backgroundColor).resolvedColor(with: darkTrait)
         XCTAssertNotEqual(lightText, darkText)
         XCTAssertNotEqual(lightBackground, darkBackground)
+        map.overrideUserInterfaceStyle = .dark
+        let darkMarker = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+        XCTAssertEqual(darkMarker.tintColor?.resolvedColor(with: darkTrait), UIColor.label.resolvedColor(with: darkTrait))
+        XCTAssertNotNil(darkMarker.image, "retained map markers must remain configured after a changed color trait")
     }
 
     func testMapReservesRoomForFloatingControls() throws {
