@@ -1124,6 +1124,34 @@ const available = await craft.biometrics.isAvailable()
 const biometricType = await craft.biometrics.getBiometricType()
 if (available) await craft.biometrics.authenticate('Unlock WildLoop')
 
+#### Mounted-view operations
+
+Shared overlays use the screen-owned `View` capability rather than reaching
+into a DOM. The STX adapter sends an `API_REQUEST` with `module: 'View'` and
+one of these argument shapes:
+
+```ts
+await nativeCall('View', 'focus', [{ nodeId, mode: 'keyboard' }])
+await nativeCall('View', 'focus', [{ nodeId, mode: 'accessibility' }])
+const box = await nativeCall('View', 'measure', [{ nodeId }])
+```
+
+`focus` resolves to `true`. Keyboard focus is supported for mounted text
+inputs; accessibility focus posts the platform's layout-change notification
+for the mounted node. `measure` resolves to `{ x, y, width, height,
+viewportWidth, viewportHeight, unit, coordinateSpace }`. The coordinate space
+is the native screen viewport, with an origin at its top-left and values in
+logical units (`points` on iOS and density-independent `dp` on Android).
+Coordinates therefore move as a scroll view moves, include the screen's safe
+area and exclude any window chrome outside the native screen root. Calls made
+after reconciliation but before layout settle on the host's main/UI thread.
+
+Unknown or removed node ids reject with `VIEW_NOT_FOUND`; detached nodes reject
+with `VIEW_NOT_MOUNTED`; unsupported focus targets reject with
+`UNSUPPORTED_TARGET`. The `viewFocus` and `viewMeasure` capability flags are
+advertised independently so shared components can gate these operations on
+older Craft hosts.
+
 // Native iOS passkeys (capability `passkeys`). The server still creates and
 // verifies the WebAuthn challenge; Craft presents Apple's credential sheet and
 // returns the standard WebAuthn response fields. `rpId` must be one of the

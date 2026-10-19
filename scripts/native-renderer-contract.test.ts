@@ -1671,6 +1671,24 @@ describe('native renderer component contract', () => {
     expect(android).toContain('Missing native-screen.js')
   })
 
+  it('exposes mounted-view focus and viewport measurement without DOM access', () => {
+    for (const host of [ios, android]) {
+      expect(host).toContain('View')
+      expect(host).toContain('VIEW_NOT_FOUND')
+      expect(host).toContain('VIEW_NOT_MOUNTED')
+      expect(host).toContain('UNSUPPORTED_TARGET')
+      expect(host).toContain('coordinateSpace')
+      expect(host).toContain('screenViewport')
+    }
+    expect(iosActions).toContain('"viewFocus", "viewMeasure"')
+    expect(android).toContain('viewFocus')
+    expect(android).toContain('viewMeasure')
+    expect(ios).toContain('UIAccessibility.post(notification: .layoutChanged, argument: node.view)')
+    expect(ios).toContain('"unit": "points"')
+    expect(android).toContain('TYPE_VIEW_FOCUSED')
+    expect(android).toContain('"unit", "dp"')
+  })
+
   it('detaches Android picker callbacks without calling AdapterView click APIs', () => {
     expect(android).toContain('if (it !is android.widget.AdapterView<*>) it.setOnClickListener(null)')
     expect(android).toContain('released.filterIsInstance<Spinner>().forEach { it.onItemSelectedListener = null }')
@@ -2106,7 +2124,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps native iOS badges permission-free and capability-advertised', () => {
-    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation"]')
+    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure"]')
     expect(iosActions).toContain('case ("Badge", "set"):')
     expect(iosActions).toContain('case ("Badge", "clear"):')
     expect(iosActions).toContain('without requesting notification authorization')

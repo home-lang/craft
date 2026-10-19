@@ -4550,6 +4550,8 @@ class MainActivity : AppCompatActivity() {
     /** The bridge's capability names: Craft's core set and this host's services. */
     private fun capabilityNames(): JSONArray = capabilities.names().apply {
         services.names().forEach { name -> put(name) }
+        put("viewFocus")
+        put("viewMeasure")
     }
 
     private fun appVersion(): Pair<String, String> = runCatching {
@@ -6813,15 +6815,18 @@ class MainActivity : AppCompatActivity() {
             capabilityHandler.postDelayed(timeout, CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS)
         }
         val module = payload.optString("module")
-        val perform: ((CraftNativeCapabilityResult) -> Unit) -> Unit = if (services.handles(module)) {
-            { completion -> services.perform(module, payload.optString("method"), args, completion) }
+        val method = payload.optString("method")
+        val perform: ((CraftNativeCapabilityResult) -> Unit) -> Unit = if (module == "View") {
+            { completion -> performView(screen, method, args, completion) }
+        } else if (services.handles(module)) {
+            { completion -> services.perform(module, method, args, completion) }
         } else {
             { completion ->
                 capabilities.perform(
                     token,
                     payload.optInt("version", CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION),
                     module,
-                    payload.optString("method"),
+                    method,
                     args,
                     completion,
                 )
@@ -6836,6 +6841,72 @@ class MainActivity : AppCompatActivity() {
             if (result.code == null) response.put("data", result.data ?: JSONObject.NULL)
             else response.put("code", result.code).put("message", result.message ?: "Native API failed")
             send(screen, if (result.code == null) "API_RESPONSE" else "API_ERROR", response, id)
+        }
+    }
+
+    /** View operations are screen-owned: node ids only exist while a route is mounted. */
+    private fun performView(
+        screen: Screen,
+        method: String,
+        args: JSONArray,
+        completion: (CraftNativeCapabilityResult) -> Unit,
+    ) {
+        val options = args.optJSONObject(0)
+        val nodeId = options?.optString("nodeId")?.takeIf { it.isNotBlank() } ?: args.optString(0)
+        if (nodeId.isBlank()) {
+            completion(CraftNativeCapabilityResult(code = "INVALID_ARGUMENT", message = "View.$method needs a nodeId"))
+            return
+        }
+        val target = screen.nodeViews[nodeId]
+        if (target == null) {
+            completion(CraftNativeCapabilityResult(code = "VIEW_NOT_FOUND", message = "View.$method could not find mounted node $nodeId"))
+            return
+        }
+        if (!target.isAttachedToWindow) {
+            completion(CraftNativeCapabilityResult(code = "VIEW_NOT_MOUNTED", message = "View.$method requires a mounted node"))
+            return
+        }
+        when (method) {
+            "focus" -> when (options?.optString("mode") ?: args.optString(1, "keyboard")) {
+                "keyboard" -> if (target is EditText) {
+                    if (!target.requestFocus()) {
+                        completion(CraftNativeCapabilityResult(code = "FOCUS_FAILED", message = "The mounted view refused keyboard focus"))
+                    } else {
+                        target.post {
+                            (getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                                ?.showSoftInput(target, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                        }
+                        completion(CraftNativeCapabilityResult(data = true))
+                    }
+                } else completion(CraftNativeCapabilityResult(code = "UNSUPPORTED_TARGET", message = "Keyboard focus is supported only for text inputs"))
+                "accessibility" -> {
+                    target.sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED)
+                    completion(CraftNativeCapabilityResult(data = true))
+                }
+                else -> completion(CraftNativeCapabilityResult(code = "INVALID_ARGUMENT", message = "View.focus mode must be keyboard or accessibility"))
+            }
+            "measure" -> {
+                screen.view.requestLayout()
+                screen.view.measure(
+                    View.MeasureSpec.makeMeasureSpec(screen.view.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(screen.view.height, View.MeasureSpec.EXACTLY),
+                )
+                val targetLocation = IntArray(2)
+                val viewportLocation = IntArray(2)
+                target.getLocationOnScreen(targetLocation)
+                screen.view.getLocationOnScreen(viewportLocation)
+                val density = resources.displayMetrics.density.coerceAtLeast(0.1f)
+                completion(CraftNativeCapabilityResult(data = JSONObject()
+                    .put("x", (targetLocation[0] - viewportLocation[0]) / density)
+                    .put("y", (targetLocation[1] - viewportLocation[1]) / density)
+                    .put("width", target.width / density)
+                    .put("height", target.height / density)
+                    .put("viewportWidth", screen.view.width / density)
+                    .put("viewportHeight", screen.view.height / density)
+                    .put("unit", "dp")
+                    .put("coordinateSpace", "screenViewport")))
+            }
+            else -> completion(CraftNativeCapabilityResult(code = "UNKNOWN_ACTION", message = "Unsupported View operation"))
         }
     }
 
