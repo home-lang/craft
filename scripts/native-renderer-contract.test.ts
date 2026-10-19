@@ -1531,6 +1531,10 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('isSelectable = true')
     expect(android).toContain('setTextIsSelectable(selectable)')
     expect(android).toContain('isFocusableInTouchMode = selectable')
+    expect(navigationHome).toContain('testID="selectable-native-text" selectable')
+    expect(iosNavigationUnitTests).toContain('testSelectableTextUsesNativeSelectionControl')
+    expect(androidNavigationTest).toContain('selectableTextUsesNativeTextSelection')
+    expect(guide).toContain('Native `Text` accepts `selectable`')
   })
 
   it('delivers Pressable press-in and press-out callbacks on both hosts', () => {

@@ -658,6 +658,24 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun selectableTextUsesNativeTextSelection() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        try {
+            val text = awaitView(activity, "selectable-native-text") as TextView
+            instrumentation.runOnMainSync {
+                assertTrue("selectable Text must expose Android's selection model", text.isTextSelectable)
+                assertTrue("selectable Text must be focusable for the copy menu", text.isFocusable)
+            }
+        } finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
     fun liveTabUpdatesRetainToolbarViewsAndActionsUntilTheirSpecsChange() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(
