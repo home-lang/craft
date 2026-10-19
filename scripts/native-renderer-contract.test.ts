@@ -433,6 +433,7 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot()')
     expect(iosNativeUnitTests).toContain('func testMapOverlayMutationStaysAddressableToItsMap()')
     expect(iosNativeUnitTests).toContain('func testReparentChildMovesAcrossParentsAtomically()')
+    expect(iosNativeUnitTests).toContain('func testReparentedInputKeepsNativeIdentityAndSelection()')
     expect(androidMutationTest).toContain('fun keepsMapOverlayParentsAddressableForTargetedUpdates()')
     expect(androidMutationTest).toContain('fun reparentsChildAcrossParentsAtomically()')
     expect(iosMutation).toContain('"Fragment", "Svg", "G", "Map"')
