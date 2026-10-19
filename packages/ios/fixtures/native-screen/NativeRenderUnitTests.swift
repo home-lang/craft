@@ -2205,7 +2205,7 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(CraftNativeScreenController.sliderEventValue(7, step: 1), 7)
     }
 
-    func testAScrollDragCanCancelButtonsWhileOtherControlsKeepTracking() throws {
+    func testAScrollDragCanCancelButtonsAndFieldsWhileValueControlsKeepTracking() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
         controller.render(document([[
@@ -2225,7 +2225,9 @@ final class NativeRenderUnitTests: XCTestCase {
             let button = try XCTUnwrap(find(UIButton.self, key: key, below: scroll))
             XCTAssertTrue(scroll.touchesShouldCancel(in: button), "\(key) must yield to a scroll drag")
         }
-        for key in ["slider", "switch", "field", "date"] {
+        let field = try XCTUnwrap(find(UITextField.self, key: "field", below: scroll))
+        XCTAssertTrue(scroll.touchesShouldCancel(in: field), "a drag over a row's field must scroll its page")
+        for key in ["slider", "switch", "date"] {
             let control = try XCTUnwrap(find(UIControl.self, key: key, below: scroll))
             XCTAssertFalse(scroll.touchesShouldCancel(in: control), "\(key) retains its tracking gesture")
         }

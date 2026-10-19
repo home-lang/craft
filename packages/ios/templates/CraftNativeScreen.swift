@@ -3993,9 +3993,10 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
     required init?(coder: NSCoder) { nil }
 
     override func touchesShouldCancel(in view: UIView) -> Bool {
-        // A drag beginning on a button scrolls; lifting without dragging
-        // remains a tap. Sliders, switches and text fields keep tracking.
-        if view is UIButton { return true }
+        // Buttons and text fields yield once a scroll drag begins; an
+        // ordinary tap still reaches them immediately. Value controls such
+        // as sliders, switches and date pickers keep their tracking gesture.
+        if view is UIButton || view is UITextField { return true }
         if view is UIControl { return false }
         return super.touchesShouldCancel(in: view)
     }
@@ -7448,10 +7449,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 // already-stopped view changes hidesWhenStopped to false.
                 // Android applies the requested visibility on every render;
                 // keep the two hosts in lockstep for dynamic prop changes.
-                indicator.isHidden = indicator.hidesWhenStopped
+                indicator.isHidden = style["display"] as? String == "none" || indicator.hidesWhenStopped
             } else {
                 indicator.startAnimating()
-                indicator.isHidden = false
+                indicator.isHidden = style["display"] as? String == "none"
             }
         case "Svg":
             let drawing = result as! CraftNativeSvgView
