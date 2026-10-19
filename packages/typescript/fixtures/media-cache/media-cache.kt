@@ -23,6 +23,13 @@ class DownloadProbe : android.app.Instrumentation() {
         check(done.await(25, java.util.concurrent.TimeUnit.SECONDS), "operation settled")
         return ok
     }
+    private fun awaitCached(address: String) {
+        // The worker authors a 30-second first retry. Allow that backoff plus
+        // the existing 25-second transfer budget, without issuing another keep.
+        val until = System.currentTimeMillis() + 60000
+        while (CraftNativeMedia.local(targetContext, address) == null && System.currentTimeMillis() < until) Thread.sleep(25)
+        check(CraftNativeMedia.local(targetContext, address) != null, "the durable worker recovers the complete file without another keep")
+    }
     override fun onStart() {
         val result = android.os.Bundle()
         try {
@@ -80,10 +87,11 @@ class DownloadProbe : android.app.Instrumentation() {
                     val until = System.currentTimeMillis() + 25000
                     while (!partial() && System.currentTimeMillis() < until) Thread.sleep(25)
                     check(partial(), "download is in progress before process death")
+                    check(CraftNativeMedia.local(targetContext, restart) == null, "interrupted process never published a partial video")
                     android.os.Process.killProcess(android.os.Process.myPid())
                 }
                 "recover" -> {
-                    check(CraftNativeMedia.local(targetContext, restart) == null, "interrupted process never published a partial video")
+                    awaitCached(restart)
                     check(keep(restart), "retry after process death downloads a complete video")
                     val media = android.media.MediaMetadataRetriever()
                     try {
@@ -98,7 +106,8 @@ class DownloadProbe : android.app.Instrumentation() {
                     check(!keep(broken), "truncated transfer fails")
                     check(CraftNativeMedia.local(targetContext, broken) == null, "truncated transfer is not playable cache")
                     val root = CraftNativeMedia.file(targetContext, broken).parentFile!!
-                    check(root.listFiles()?.none { it.name.endsWith(".part") } != false, "failed transfer cleans staging files")
+                    check(CraftNativeMedia.part(targetContext, broken).length() > 0, "a truncated transfer retains bytes for resumption")
+                    awaitCached(broken)
                     check(keep(broken), "same URL retries successfully")
                     check(!keep("$base/partial.mp4"), "unsolicited partial response is refused")
                     check(!keep("$base/empty.mp4"), "empty file is refused")

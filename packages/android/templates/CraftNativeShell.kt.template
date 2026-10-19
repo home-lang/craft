@@ -1475,8 +1475,8 @@ internal class CraftResumableDownload(
             // HttpURLConnection inflates gzip itself; a Content-Length is then the compressed size.
             val encoded = connection.getHeaderField("Content-Encoding") != null
             if (size <= 0 || (!encoded && total >= 0 && size != total)) {
-                // Longer than the file says it is: nothing to resume from.
-                if (total in 0 until size) part.delete()
+                // Empty or longer than the file says: nothing useful to resume.
+                if (size <= 0 || total in 0 until size) part.delete()
                 return Fetched.Incomplete
             }
             return Fetched.Complete(size)

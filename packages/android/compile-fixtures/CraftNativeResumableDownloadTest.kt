@@ -24,7 +24,7 @@ class CraftNativeResumableDownloadTest {
     private val body = "0123456789abcdefghij".toByteArray()
 
     /** Serves `body`, honouring `Range: bytes=N-` when `ranges` is on; records each request's Range. */
-    private fun serve(ranges: Boolean = true, status: Int = 200, check: (String, MutableList<String?>) -> Unit) {
+    private fun serve(ranges: Boolean = true, status: Int = 200, payload: ByteArray = body, check: (String, MutableList<String?>) -> Unit) {
         val seen = Collections.synchronizedList(mutableListOf<String?>())
         val server = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
         server.soTimeout = 5000
@@ -45,16 +45,16 @@ class CraftNativeResumableDownloadTest {
                     val start = Regex("^bytes=(\\d+)-$").find(range.orEmpty())?.groupValues?.get(1)?.toInt()
                     val code = when {
                         status != 200 -> status
-                        ranges && start != null && start >= body.size -> 416
+                        ranges && start != null && start >= payload.size -> 416
                         ranges && start != null -> 206
                         else -> 200
                     }
                     val bytes = when (code) {
-                        206 -> body.copyOfRange(start!!, body.size)
-                        200 -> body
+                        206 -> payload.copyOfRange(start!!, payload.size)
+                        200 -> payload
                         else -> byteArrayOf()
                     }
-                    val contentRange = if (code == 206) "Content-Range: bytes $start-${body.size - 1}/${body.size}\r\n" else ""
+                    val contentRange = if (code == 206) "Content-Range: bytes $start-${payload.size - 1}/${payload.size}\r\n" else ""
                     val headers = "HTTP/1.1 $code Test\r\nContent-Length: ${bytes.size}\r\n${contentRange}Connection: close\r\n\r\n"
                     socket.getOutputStream().write(headers.toByteArray(Charsets.US_ASCII) + bytes)
                 }
@@ -123,6 +123,14 @@ class CraftNativeResumableDownloadTest {
         serve(status = 404) { address, _ ->
             assertEquals(CraftResumableDownload.Fetched.Refused(404), CraftResumableDownload().fetch(address, emptyMap(), file) { false })
             assertFalse(file.exists())
+        }
+    }
+
+    @Test
+    fun refusesAnEmptyResponseWithoutRetainingAnUnresumablePart() = part { file ->
+        serve(payload = byteArrayOf()) { address, _ ->
+            assertEquals(CraftResumableDownload.Fetched.Incomplete, CraftResumableDownload().fetch(address, emptyMap(), file) { false })
+            assertFalse("An empty file has no bytes to resume", file.exists())
         }
     }
 
