@@ -496,7 +496,7 @@ describe('native renderer component contract', () => {
   it('infers link semantics for href-bearing native pressables on both hosts', () => {
     expect(android).toContain('val linkedControl = type in setOf("Link", "TouchableOpacity", "TouchableHighlight", "Pressable") && hasLinkTarget')
     expect(iosNavigationUnitTests).toContain('XCTAssertTrue(link.accessibilityTraits.contains(.link)')
-    expect(androidNavigationTest).toContain('assertEquals("link", node("native-linked-pressable").roleDescription?.toString())')
+    expect(androidNavigationTest).toContain('getCharSequence("AccessibilityNodeInfo.roleDescription")')
     expect(navigationHome).toContain('<Pressable testID="native-linked-pressable" href="/linked-details" style=')
   })
 

@@ -709,7 +709,7 @@ internal class CraftNativeCelebration(private val view: View) {
 }
 
 /** A deterministic flex-shaped container shared by normal views and scroll content. */
-private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
+internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var celebration: CraftNativeCelebration? = null
     fun configureCelebration(raw: JSONObject?, radius: Float) {
         if (raw != null && celebration == null) celebration = CraftNativeCelebration(this)
