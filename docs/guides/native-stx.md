@@ -748,6 +748,11 @@ Android also detaches control-specific listeners from released checkboxes,
 switches, sliders, and pickers so a retained native control cannot dispatch the
 previous identity's callback during reuse.
 
+When an iOS screen is popped or replaced, its rendered tree is torn down before
+the JavaScript runtime closes. That includes rows kept in a `FlatList` recycle
+pool, so UIKit delegates, control targets, media, and map callbacks cannot keep
+the old screen alive after navigation.
+
 ## Events, accessibility, and navigation
 
 `defaultValue` initializes an uncontrolled `TextInput` once; controlled

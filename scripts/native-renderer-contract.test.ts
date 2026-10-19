@@ -1701,6 +1701,9 @@ describe('native renderer component contract', () => {
     expect(iosFlatList).toContain('delegate = nil')
     expect(iosFlatList).toContain('nativeRefreshControl.removeTarget(self, action: nil, for: .allEvents)')
     expect(ios).toContain('if !preservingInputDrafts { list.resetForTeardown() }')
+    expect(ios).toContain('flatListRecycled.removeValue(forKey: listKey)?.values.forEach { forgetHandlers($0) }')
+    expect(ios).toContain('private func disposeRenderedTree()')
+    expect(ios).toContain('disposeRenderedTree()')
   })
 
   it('keeps responsive layout events aligned across hosts', () => {

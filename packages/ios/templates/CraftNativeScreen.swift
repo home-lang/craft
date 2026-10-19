@@ -4870,6 +4870,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func disposeRuntime() {
         guard !runtimeDisposed else { return }
         runtimeDisposed = true
+        disposeRenderedTree()
         let context = jsContext
         CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }
         audio.close()
@@ -4877,6 +4878,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         streams.close()
         screenRequestCancellers.values.forEach { $0() }
         screenRequestCancellers.removeAll()
+    }
+
+    /// Runtime disposal happens before UIKit necessarily deallocates the
+    /// controller. Release the rendered tree now so recycled rows, native
+    /// delegates, media, and map callbacks cannot outlive their screen.
+    private func disposeRenderedTree() {
+        guard let root = renderedRoot else { return }
+        forgetHandlers(root)
+        rootStack.removeArrangedSubview(root.view)
+        root.view.removeFromSuperview()
+        renderedRoot = nil
+        flatListRows.removeAll()
+        flatListRecycled.removeAll()
+        flatListOwners.removeAll()
+        svgOwners.removeAll()
     }
 
     private var appliedTraitDefaults: String?
@@ -7438,7 +7454,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             list.discardAll()
             if !preservingInputDrafts { list.resetForTeardown() }
             flatListRows.removeValue(forKey: listKey)
-            flatListRecycled.removeValue(forKey: listKey)
+            if !preservingInputDrafts {
+                flatListRecycled.removeValue(forKey: listKey)?.values.forEach { forgetHandlers($0) }
+            } else {
+                flatListRecycled.removeValue(forKey: listKey)
+            }
             if let owner = node.protocolId { flatListOwners = flatListOwners.filter { $0.value != owner } }
         }
         if node.view is CraftNativeSvgView, let owner = node.protocolId { svgOwners = svgOwners.filter { $0.value != owner } }
