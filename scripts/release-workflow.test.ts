@@ -45,6 +45,16 @@ test('macOS signing reads credentials from the declared Stacks CLI, not the shar
   finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
+test('shared native layout changes trigger mobile acceptance for pushes and pull requests', () => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as {
+    on: { push: { paths: string[] }, pull_request: { paths: string[] } }
+  }
+  for (const event of ['push', 'pull_request'] as const) {
+    const matchesLayout = workflow.on[event].paths.some(pattern => new Bun.Glob(pattern).match('packages/zig/src/native_layout.zig'))
+    expect(matchesLayout, `${event} must exercise the shared iOS and Android layout engine`).toBe(true)
+  }
+})
+
 test('mobile device jobs use the same pinned stx compiler', () => {
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
   const compilerCheckouts = Object.values(workflow.jobs).flatMap(job => job.steps ?? []).filter((step) => {
