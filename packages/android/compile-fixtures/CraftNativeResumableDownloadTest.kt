@@ -1,8 +1,8 @@
 package {{PACKAGE_NAME}}
 
-import com.sun.net.httpserver.HttpServer
 import java.io.File
-import java.net.InetSocketAddress
+import java.net.InetAddress
+import java.net.ServerSocket
 import java.nio.file.Files
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -19,32 +19,46 @@ import org.junit.Test
 class CraftNativeResumableDownloadTest {
     private val body = "0123456789abcdefghij".toByteArray()
 
-    /** Serves `body`, honouring `Range: bytes=N-` when `ranges` is on; records each request's Range. */
+    /**
+     * Serves `body`, honouring `Range: bytes=N-` when `ranges` is on; records
+     * each request's Range. A plain socket: Android's unit-test classpath has
+     * no com.sun.net.httpserver.
+     */
     private fun serve(ranges: Boolean = true, status: Int = 200, check: (String, MutableList<String?>) -> Unit) {
-        val seen = mutableListOf<String?>()
-        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        server.createContext("/") { exchange ->
-            val range = exchange.requestHeaders.getFirst("Range")
-            seen.add(range)
-            val start = Regex("^bytes=(\\d+)-$").find(range.orEmpty())?.groupValues?.get(1)?.toInt()
-            when {
-                status != 200 -> exchange.sendResponseHeaders(status, -1)
-                ranges && start != null && start >= body.size -> exchange.sendResponseHeaders(416, -1)
-                ranges && start != null -> {
-                    exchange.responseHeaders.add("Content-Range", "bytes $start-${body.size - 1}/${body.size}")
-                    exchange.sendResponseHeaders(206, (body.size - start).toLong())
-                    exchange.responseBody.use { it.write(body, start, body.size - start) }
-                }
-                else -> {
-                    exchange.sendResponseHeaders(200, body.size.toLong())
-                    exchange.responseBody.use { it.write(body) }
+        val seen = java.util.Collections.synchronizedList(mutableListOf<String?>())
+        val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+        val thread = Thread {
+            while (!server.isClosed) {
+                val socket = runCatching { server.accept() }.getOrNull() ?: break
+                socket.use { client ->
+                    val reader = client.getInputStream().bufferedReader(Charsets.ISO_8859_1)
+                    val lines = generateSequence { reader.readLine() }.takeWhile { it.isNotEmpty() }.toList()
+                    val range = lines.drop(1).firstOrNull { it.startsWith("Range:", ignoreCase = true) }?.substringAfter(':')?.trim()
+                    seen.add(range)
+                    val start = Regex("^bytes=(\\d+)-$").find(range.orEmpty())?.groupValues?.get(1)?.toInt()
+                    val out = client.getOutputStream()
+                    fun head(code: Int, length: Int, extra: String = "") =
+                        out.write("HTTP/1.1 $code X\r\nContent-Length: $length\r\n${extra}Connection: close\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
+                    when {
+                        status != 200 -> head(status, 0)
+                        ranges && start != null && start >= body.size -> head(416, 0)
+                        ranges && start != null -> {
+                            head(206, body.size - start, "Content-Range: bytes $start-${body.size - 1}/${body.size}\r\n")
+                            out.write(body, start, body.size - start)
+                        }
+                        else -> {
+                            head(200, body.size)
+                            out.write(body)
+                        }
+                    }
+                    out.flush()
                 }
             }
-            exchange.close()
         }
-        server.start()
-        try { check("http://127.0.0.1:${server.address.port}/clip.mp4", seen) }
-        finally { server.stop(0) }
+        thread.isDaemon = true
+        thread.start()
+        try { check("http://127.0.0.1:${server.localPort}/clip.mp4", seen) }
+        finally { server.close(); thread.join(2000) }
     }
 
     private fun part(check: (File) -> Unit) {

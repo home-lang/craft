@@ -158,7 +158,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
       await Bun.write(join(android, 'settings.gradle.kts'), 'pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositories { google(); mavenCentral() } }\nrootProject.name = "HQDownloadProbe"\ninclude(":app")')
       await Bun.write(join(android, 'build.gradle.kts'), 'plugins { id("com.android.application") version "8.9.1" apply false; id("org.jetbrains.kotlin.android") version "2.0.21" apply false }')
       await Bun.write(join(android, 'local.properties'), `sdk.dir=${sdk}\n`)
-      await Bun.write(join(android, 'gradle.properties'), 'org.gradle.jvmargs=-Xmx768m\norg.gradle.workers.max=2\n')
+      await Bun.write(join(android, 'gradle.properties'), 'org.gradle.jvmargs=-Xmx768m\norg.gradle.workers.max=2\nandroid.useAndroidX=true\n')
       await Bun.write(join(app, 'build.gradle.kts'), `plugins { id("com.android.application");
   id("org.jetbrains.kotlin.android") }\nandroid { namespace = "${packageName}";
   compileSdk = 36;
