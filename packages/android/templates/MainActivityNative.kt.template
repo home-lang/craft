@@ -1521,7 +1521,7 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             put(base, 26, padding[3].toFloat())
             put(base, 27, padding[0].toFloat())
             putEnum(base, 28, 0)
-            put(base, 29, 1f)
+            putEnum(base, 29, 1)
             put(base, 30, if (root) rowGapValue else 0f)
             put(base, 31, if (root) columnGapValue else 0f)
         }

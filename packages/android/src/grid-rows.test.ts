@@ -40,7 +40,8 @@ test('encodes shared grid counts as the unsigned integer fields in the native AB
   const template = await Bun.file(new URL('../templates/MainActivityNative.kt.template', import.meta.url)).text()
   const columns = template.match(/^[^\n]*put(?:Enum)?\(base, 29, node\.gridColumns[^\n]*$/m)?.[0]
   const rows = template.match(/^[^\n]*if \(explicitRowsAware\) put(?:Enum)?\(base, 34, [^\n]*$/m)?.[0]
-  if (!columns || !rows) throw new Error('Shared grid count serialization is missing')
+  const directColumns = template.match(/^[^\n]*put(?:Enum)?\(base, 29, 1f?\)[^\n]*$/m)?.[0]
+  if (!columns || !rows || !directColumns) throw new Error('Shared grid count serialization is missing')
   await runKotlinFixture(`
 data class GridNode(val gridColumns: Int, val gridRows: Int?)
 
@@ -55,6 +56,8 @@ ${columns}
 ${rows}
     check(nodeData[29].toRawBits() == 2) { "grid_columns is not encoded as u32" }
     check(nodeData[34].toRawBits() == 3) { "grid_rows is not encoded as u32" }
+${directColumns}
+    check(nodeData[29].toRawBits() == 1) { "direct layout grid_columns default is not encoded as u32" }
     println("PASS native grid counts retain the integer bit patterns consumed by Zig")
 }
 `)
