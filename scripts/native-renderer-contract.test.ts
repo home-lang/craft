@@ -220,10 +220,12 @@ describe('native renderer component contract', () => {
   it('types the implemented native scroll targeting controls', () => {
     expect(componentTypes).toContain('stickyHeaderIndices?: number[]')
     expect(componentTypes).toContain('scrollTarget?: string | { id: string; animated?: boolean; key?: string } | null')
-    const scrollViewProps = componentTypes.match(/export interface ScrollViewProps extends ViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
-    const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const scrollViewProps = componentTypes.match(/export interface ScrollViewProps extends ScrollViewBaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewBaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(scrollViewProps).not.toContain('inverted?: boolean')
+    expect(scrollViewProps).toContain('stickyHeaderIndices?: number[]')
     expect(flatListProps).toContain('inverted?: boolean')
+    expect(flatListProps).not.toContain('stickyHeaderIndices?: number[]')
     expect(ios).toContain('scroll.setStickyHeaderIndices(props["stickyHeaderIndices"])')
     expect(ios).toContain('scroll.setScrollTarget(props["scrollTarget"])')
     expect(android).toContain('setStickyHeaderIndices(props.optJSONArray("stickyHeaderIndices"))')
@@ -243,7 +245,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps FlatList chrome and virtualization on the native child protocol', () => {
-    const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewBaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(flatListProps).toContain('data: T[]')
     expect(flatListProps).toContain('numColumns?: number')
     expect(flatListProps).not.toContain('ItemSeparatorComponent?:')

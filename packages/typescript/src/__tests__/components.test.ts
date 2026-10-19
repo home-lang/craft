@@ -94,6 +94,9 @@ describe('Component System', () => {
     expect(scroll.refreshControl?.tintColor).toBe('#2563eb')
     const list: FlatListProps<string> = { data: ['today'], renderItem: ({ item }) => item, inverted: true }
     expect(list.inverted).toBe(true)
+    // Sticky headers are implemented by ScrollView, not the virtualized FlatList hosts.
+    // @ts-expect-error stickyHeaderIndices is intentionally ScrollView-only.
+    list.stickyHeaderIndices = [0]
   })
 
   it('types the native renderer component contract', () => {

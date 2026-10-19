@@ -719,10 +719,8 @@ export interface SvgTextProps extends SvgPaintProps {
   dominantBaseline?: string
 }
 
-/**
- * ScrollView component props.
- */
-export interface ScrollViewProps extends ViewProps {
+/** Shared scroll-container props consumed by ScrollView and FlatList. */
+interface ScrollViewBaseProps extends ViewProps {
   /** Horizontal scrolling */
   horizontal?: boolean
   /** Show horizontal scroll indicator */
@@ -755,12 +753,18 @@ export interface ScrollViewProps extends ViewProps {
   keyboardDismissMode?: 'none' | 'on-drag' | 'interactive'
   /** Keyboard should persist taps */
   keyboardShouldPersistTaps?: 'always' | 'never' | 'handled'
-  /** Keep indexed vertical children pinned while scrolling. */
-  stickyHeaderIndices?: number[]
   /** Scroll a child into view when this target changes. */
   scrollTarget?: string | { id: string; animated?: boolean; key?: string } | null
   /** Controlled native pull-to-refresh component. */
   refreshControl?: RefreshControlProps
+}
+
+/**
+ * ScrollView component props.
+ */
+export interface ScrollViewProps extends ScrollViewBaseProps {
+  /** Keep indexed vertical children pinned while scrolling. */
+  stickyHeaderIndices?: number[]
 }
 
 /**
@@ -937,7 +941,7 @@ export interface ActivityIndicatorProps extends BaseProps {
 /**
  * FlatList component props.
  */
-export interface FlatListProps<T> extends ScrollViewProps {
+export interface FlatListProps<T> extends ScrollViewBaseProps {
   /** Data array */
   data: T[]
   /** Render item function */
