@@ -113,6 +113,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -6460,6 +6461,13 @@ class MainActivity : AppCompatActivity() {
             host == "::1" || host.endsWith(".localhost")
     }
 
+    /** Resolve app paths against the configured site; bare names stay assets. */
+    private fun imageURI(uri: String): String {
+        if (!uri.startsWith("/")) return uri
+        val base = config.optString("devServerURL").takeIf { it.isNotBlank() } ?: return uri
+        return runCatching { URI(base).resolve(uri).toString() }.getOrDefault(uri)
+    }
+
     private fun imageUri(source: Any?): String = when (source) {
         is String -> source
         is JSONObject -> craftNativeOptionalString(source.opt("uri")).orEmpty()
@@ -6488,6 +6496,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateImage(screen: Screen, view: ImageView, source: Any?, defaultSource: Any? = null) {
         val uri = imageUri(source)
+        val requestUri = imageURI(uri)
         val headers = imageHeaders(source)
         val requestKey = imageRequestKey(uri, headers)
         if (uri.isBlank()) {
@@ -6521,7 +6530,7 @@ class MainActivity : AppCompatActivity() {
             } else imageFailure(screen, view, uri, "Image data is invalid")
             return
         }
-        if (!uri.contains(':')) {
+        if (!uri.startsWith("/") && !uri.contains(':')) {
             val bitmap = runCatching { assets.open(uri).use { BitmapFactory.decodeStream(it) } }.getOrNull()
             if (bitmap != null) {
                 view.setImageBitmap(bitmap)
@@ -6531,22 +6540,23 @@ class MainActivity : AppCompatActivity() {
             } else imageFailure(screen, view, uri, "Bundled image was not found")
             return
         }
-        if (!loadsImage(Uri.parse(uri))) {
-            imageFailure(screen, view, uri, "Unsupported image source")
+        if (!loadsImage(Uri.parse(requestUri))) {
+            if (uri.startsWith("/")) imageFailure(screen, view, uri, "Relative image source requires devServerURL")
+            else imageFailure(screen, view, uri, "Unsupported image source")
             return
         }
         imageJobs[view] = imageExecutor.submit {
             val bitmap = runCatching {
-                val publicRequest = headers.isEmpty() && Uri.parse(uri).userInfo.isNullOrEmpty()
+                val publicRequest = headers.isEmpty() && Uri.parse(requestUri).userInfo.isNullOrEmpty()
                 if (publicRequest) {
-                    val bytes = imageCache.read(uri)
+                    val bytes = imageCache.read(requestUri)
                     if (bytes != null) {
                         val saved = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         if (saved != null) return@runCatching saved
-                        imageCache.remove(uri)
+                        imageCache.remove(requestUri)
                     }
                 }
-                val connection = (URL(uri).openConnection() as HttpURLConnection).apply {
+                val connection = (URL(requestUri).openConnection() as HttpURLConnection).apply {
                     connectTimeout = 10_000
                     readTimeout = 10_000
                     // This loader owns its bounded public cache. Do not let
@@ -6564,8 +6574,8 @@ class MainActivity : AppCompatActivity() {
                         if (downloaded != null && policy != null) {
                             // Encode only after a complete decode, then commit
                             // before onLoad so a cold offline reopen is safe.
-                            imageCache.write(uri, policy) { downloaded.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                        } else imageCache.remove(uri)
+                            imageCache.write(requestUri, policy) { downloaded.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                        } else imageCache.remove(requestUri)
                     }
                     downloaded
                 } finally { connection.disconnect() }

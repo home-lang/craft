@@ -8342,6 +8342,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         return ["localhost", "127.0.0.1", "::1"].contains(bare) || bare.hasSuffix(".localhost")
     }
 
+    /// Native screens have no document URL to resolve a path against. A
+    /// leading slash is an app URL (for example `/api/avatar`), while a bare
+    /// name remains a bundled asset for backwards compatibility.
+    private func imageURL(for uri: String) -> URL? {
+        let candidate: URL?
+        if uri.hasPrefix("/") {
+            guard let base = config.devServerURL.flatMap(URL.init(string:)) else { return nil }
+            candidate = URL(string: uri, relativeTo: base)?.absoluteURL
+        } else {
+            candidate = URL(string: uri)
+        }
+        guard let candidate, Self.loadsImage(from: candidate) else { return nil }
+        return candidate
+    }
+
     private func applyImageClipping(_ view: UIImageView, contentMode: UIView.ContentMode, style: [String: Any]) {
         let authored = (style["overflow"] as? String) == "hidden"
             || (view.craftRequestedCornerRadius ?? 0) > 0
@@ -8390,7 +8405,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             emitImageEvent(view, handler: imageLoadEndHandlers[id])
             return
         }
-        if let url = URL(string: uri), Self.loadsImage(from: url) {
+        if let url = imageURL(for: uri) {
             // Decoded at the size it is drawn, when the style fixes that size.
             let pixels = Self.displayPixels(of: view)
             let fill = view.contentMode == .scaleAspectFill
@@ -8430,6 +8445,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
             imageTasks[id] = task
             task.resume()
+            return
+        }
+        if uri.hasPrefix("/") {
+            imageFailure(view, uri: uri, message: "Relative image source requires devServerURL")
             return
         }
         if !uri.contains(":") {

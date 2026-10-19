@@ -741,6 +741,16 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('public HTTP, file')
   })
 
+  it('resolves absolute image paths against the configured native app URL', () => {
+    expect(ios).toContain('private func imageURL(for uri: String) -> URL?')
+    expect(ios).toContain('URL(string: uri, relativeTo: base)?.absoluteURL')
+    expect(ios).toContain('if uri.hasPrefix("/") {')
+    expect(android).toContain('private fun imageURI(uri: String): String')
+    expect(android).toContain('URI(base).resolve(uri).toString()')
+    expect(android).toContain('val requestUri = imageURI(uri)')
+    expect(android).toContain('if (!uri.startsWith("/") && !uri.contains(\':\'))')
+  })
+
   it('normalizes numeric picker values identically on both hosts', () => {
     expect(ios).toContain('private func craftNativePickerValue(_ value: Any?) -> String?')
     expect(ios).toContain('craftNativePickerValue(optionProps["value"])')
@@ -2542,7 +2552,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private fun loadsImage(uri: Uri): Boolean')
     expect(android).toContain('host == "10.0.2.2"')
     expect(android).toContain('host.endsWith(".localhost")')
-    expect(android).toContain('if (!loadsImage(Uri.parse(uri)))')
+    expect(android).toContain('if (!loadsImage(Uri.parse(requestUri)))')
     expect(android).toContain('"cover" -> ImageView.ScaleType.CENTER_CROP')
     expect(android).toContain('val tint = style.opt("tintColor") as? String')
     expect(android).toContain('it.isBlank() || it == "null" || it == "undefined"')

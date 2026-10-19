@@ -253,7 +253,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('private fun loadsImage(uri: Uri): Boolean')
       expect(nativeActivity).toContain('host == "10.0.2.2"')
       expect(nativeActivity).toContain('host.endsWith(".localhost")')
-      expect(nativeActivity).toContain('if (!loadsImage(Uri.parse(uri)))')
+      expect(nativeActivity).toContain('if (!loadsImage(Uri.parse(requestUri)))')
       expect(nativeActivity).toContain('current.ifBlank { view.tag?.toString() ?: "Image" }')
       expect(nativeActivity).toContain('val inputIdentities = mutableMapOf<EditText, String>()')
       expect(nativeActivity).toContain('preservingInputDrafts: Boolean = false')

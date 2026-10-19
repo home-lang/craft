@@ -2169,7 +2169,7 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('"Picker", "DatePicker", "Switch"')
     expect(screen).toContain('picker.addTarget(self, action: #selector(datePicked(_:)), for: .valueChanged)')
     expect(screen).toContain('source: props["source"] ?? props["src"],')
-    expect(screen).toContain('if let url = URL(string: uri), Self.loadsImage(from: url) {')
+    expect(screen).toContain('if let url = imageURL(for: uri) {')
   })
 
   it('gives every Swift-only call that waits on a framework callback a deadline', async () => {
