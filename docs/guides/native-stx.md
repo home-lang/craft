@@ -73,13 +73,15 @@ renderer.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
-The current pair is pinned to `617826427dea89a203e7f6d254dffea211bad1ba`,
+The current pair uses STX 0.2.593, pinned to `9d003f90714dc5c36daf262aaaa285a9671245e7`,
 which preserves authored reconciliation keys and explicit grid row tracks in
 static and reactive native styles, and keeps template indentation out of native
 leaf button labels. Touchable primitives preserve authored accessibility roles
 and let the hosts infer link or button semantics from their current destination.
 Prepared hidden screens start unfocused before their mount hooks run; their
-appearance guards run when the host actually shows them. The native fixtures qualify its compiled
+appearance guards run when the host actually shows them. Scripted component
+clones receive independent setup, and retained keyed rows keep their handlers
+and local state after reordering. The native fixtures qualify its compiled
 properties and mutation metadata together with both native models. Application
 releases consume the normally published compiler after qualification.
 
