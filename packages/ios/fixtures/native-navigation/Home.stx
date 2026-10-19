@@ -813,6 +813,7 @@ function openDetailsThenUpdateBackground() {
     <Checkbox testID="native-checkbox" label="Accept terms" :value="checkboxValue" :color="invalidControlColors ? 'not-a-color' : '#22c55e'" @value-change="chooseCheckbox($event)" />
     <Text testID="checkbox-status" :text="checkboxStatus" />
     <Checkbox testID="native-checkbox-indeterminate" label="Mixed terms" indeterminate />
+    <Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" />
     <Button testID="toggle-invalid-control-colors" @click="toggleInvalidControlColors()">Toggle invalid control colors</Button>
     <Text testID="invalid-control-style-status" :text="invalidControlStyleStatus" />
     <Text testID="date-event-status" :text="dateEventStatus" />

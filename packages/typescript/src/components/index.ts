@@ -874,6 +874,7 @@ export interface CheckboxProps extends BaseProps {
   style?: StyleValue<ViewStyle>
   /** Controlled boolean state; malformed native bridge values stay off. */
   value?: boolean
+  /** Compatibility alias; `checked` takes precedence when both are provided. */
   checked?: boolean
   indeterminate?: boolean
   label?: string

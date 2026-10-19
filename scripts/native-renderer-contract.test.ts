@@ -196,6 +196,15 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('app.switches["switch-value-precedence"].value as? String, "0"')
   })
 
+  it('keeps Checkbox checked precedence aligned with both hosts', () => {
+    expect(componentTypes).toContain('checked?: boolean')
+    expect(ios).toContain('props["checked"] as? Bool) ?? (props["value"] as? Bool) ?? false')
+    expect(android).toContain('checkboxChecked is Boolean -> checkboxChecked')
+    expect(navigationHome).toContain('<Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" />')
+    expect(androidNavigationTest).toContain('checked should take precedence over value')
+    expect(iosNavigationTest).toContain('app.buttons["checkbox-checked-precedence"].value as? String, "0"')
+  })
+
   it('keeps Picker value compatibility aligned with both hosts', () => {
     expect(componentTypes).toContain('value?: string | number')
     expect(ios).toContain('craftNativePickerValue(props["selectedValue"]) ?? craftNativePickerValue(props["value"])')

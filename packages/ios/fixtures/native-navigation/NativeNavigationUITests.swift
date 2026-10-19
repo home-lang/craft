@@ -515,6 +515,7 @@ final class NativeNavigationUITests: XCTestCase {
         let indeterminateCheckbox = app.buttons["native-checkbox-indeterminate"]
         XCTAssertTrue(indeterminateCheckbox.waitForExistence(timeout: 5))
         XCTAssertEqual(indeterminateCheckbox.value as? String, "mixed")
+        XCTAssertEqual(app.buttons["checkbox-checked-precedence"].value as? String, "0")
         XCTAssertTrue(app.buttons["disabled-button"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["disabled-button"].isEnabled)
         XCTAssertEqual(image.label, "Native pixel")

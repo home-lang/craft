@@ -1514,6 +1514,8 @@ class NativeNavigationTest {
             assertEquals("mixed", ViewCompat.getStateDescription(indeterminateCheckbox))
             instrumentation.runOnMainSync { indeterminateCheckbox.performClick() }
             assertTrue("indeterminate checkbox should become checked on first toggle", indeterminateCheckbox.isChecked)
+            val precedenceCheckbox = awaitView(activity, "checkbox-checked-precedence") as CheckBox
+            assertTrue("checked should take precedence over value", !precedenceCheckbox.isChecked)
             val styledIndicator = awaitView(activity, "native-indicator") as ProgressBar
             assertTrue("authored activity-indicator color should be applied", styledIndicator.indeterminateTintList != null)
             click(activity, "toggle-invalid-control-colors")
