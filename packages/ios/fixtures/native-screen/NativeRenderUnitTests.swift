@@ -1082,6 +1082,30 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertLessThanOrEqual(credit.frame.maxY, map.bounds.height - 160, "The floating profile must not cover map attribution")
     }
 
+    func testMapAttributionFollowsLightAndDarkTraits() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        controller.render([
+            "type": "Map", "props": ["key": "trait-map", "tileOverlay": ["urlTemplate": "https://example.org/tiles/{z}/{y}/{x}.png", "attribution": "Trait map data"]],
+            "style": ["width": 320, "height": 480],
+        ])
+        controller.view.layoutIfNeeded()
+        let map = try XCTUnwrap(find(MKMapView.self, key: "trait-map", below: controller.view))
+        let credit = try XCTUnwrap(map.subviews.compactMap { $0 as? UILabel }.first { $0.text == "Trait map data" && !$0.isHidden })
+        let lightTrait = UITraitCollection(userInterfaceStyle: .light)
+        let darkTrait = UITraitCollection(userInterfaceStyle: .dark)
+        let lightText = try XCTUnwrap(credit.textColor).resolvedColor(with: lightTrait)
+        let darkText = try XCTUnwrap(credit.textColor).resolvedColor(with: darkTrait)
+        let lightBackground = try XCTUnwrap(credit.backgroundColor).resolvedColor(with: lightTrait)
+        let darkBackground = try XCTUnwrap(credit.backgroundColor).resolvedColor(with: darkTrait)
+        XCTAssertNotEqual(lightText, darkText)
+        XCTAssertNotEqual(lightBackground, darkBackground)
+    }
+
     func testMapReservesRoomForFloatingControls() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()

@@ -1196,6 +1196,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     override init(frame: CGRect) {
         super.init(frame: frame)
         delegate = self
+        refreshThemeDefaults()
         showsCompass = false
         showsScale = false
         isRotateEnabled = false
@@ -1207,6 +1208,12 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         delegate = self
+        refreshThemeDefaults()
+    }
+
+    func refreshThemeDefaults() {
+        tileAttribution.textColor = .secondaryLabel
+        tileAttribution.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.85)
     }
 
     func configure(props: [String: Any], children: [Any], markerHandler: @escaping (String) -> Void) {
@@ -4915,6 +4922,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func refreshTraitDefaults(in node: RenderedNode?) {
         guard let node else { return }
+        (node.view as? CraftNativeMapView)?.refreshThemeDefaults()
         (node.view as? CraftNativeFlatList)?.refreshThemeDefaults()
         node.children.forEach { refreshTraitDefaults(in: $0) }
     }

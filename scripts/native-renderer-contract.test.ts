@@ -483,6 +483,14 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<Pressable testID="native-linked-pressable" href="/linked-details" style=')
   })
 
+  it('refreshes native map utility chrome when iOS traits change', () => {
+    expect(ios).toContain('func refreshThemeDefaults()')
+    expect(ios).toContain('tileAttribution.textColor = .secondaryLabel')
+    expect(ios).toContain('UIColor.secondarySystemBackground.withAlphaComponent(0.85)')
+    expect(ios).toContain('(node.view as? CraftNativeMapView)?.refreshThemeDefaults()')
+    expect(iosNativeUnitTests).toContain('func testMapAttributionFollowsLightAndDarkTraits()')
+  })
+
   it('waits for asynchronous capability text before asserting it', () => {
     expect(androidCapabilityTest).toContain('awaitText(activity, "capabilities-platform", "Platform: android")')
     expect(androidCapabilityTest).not.toContain('assertEquals("Platform: android", (await(activity, "capabilities-platform") as TextView).text.toString())')
