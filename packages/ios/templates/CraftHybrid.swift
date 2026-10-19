@@ -354,6 +354,7 @@ final class CraftHybrid: NSObject {
         guard !isConfigured else { return }
         isConfigured = true
         self.config = config
+        CraftNativeScriptThread.isBackground = config.nativeScriptThread == "background"
         hasWeb = config.renderer != "native"
         siteURL = config.devServerURL.flatMap(URL.init(string:)).flatMap { url in
             ["http", "https"].contains((url.scheme ?? "").lowercased()) ? url : nil
@@ -1104,6 +1105,21 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     /// this separate from the live frame: deriving it after the drag begins
     /// makes the target jump when the translation crosses the midpoint.
     private var tabSwipeFrom: CGFloat = 0
+    /// A native screen waiting for its first content before it is pushed.
+    private var pendingPush: String?
+    /// Where the current screen already was when this gesture took over: a
+    /// swipe that caught the last one while it settled starts from there.
+    private var tabSwipeBase: CGFloat = 0
+    /// A screen still partly on screen when this gesture caught a settling
+    /// swipe and went the other way: it keeps its distance from the current
+    /// screen (`tabSwipeTrailingGap`) until it has left.
+    private var tabSwipeTrailing: UINavigationController?
+    private var tabSwipeTrailingGap: CGFloat = 0
+    /// The end of the settle under way, run at once when a swipe catches it.
+    private var settleNow: (() -> Void)?
+    private var settleCompleting = false
+    /// A caught settle's screens, where they were, for the gesture that caught it.
+    private var caughtSettle: (other: String, otherX: CGFloat, currentX: CGFloat)?
 
     init(config: CraftConfig) {
         self.config = config
@@ -1160,6 +1176,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     @objc private func tabSwipeRecognized(_ recognizer: UIPanGestureRecognizer) {
+        // A finger that lands while the last swipe settles takes the screens
+        // from where they are, as a paging scroll view does. This swipe used
+        // to be ignored until the settle ended.
+        if recognizer.state == .began, tabSwipeSettling { catchSettlingSwipe() }
         guard !tabSwipeSettling else { return }
         let tabs = hybrid.tabIds
         guard let index = tabs.firstIndex(of: currentTab), tabs.count > 1 else { return }
@@ -1177,6 +1197,9 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             updateInteractiveTabSwipe(translation: translation)
         case .ended, .cancelled, .failed:
             guard let target = activeTabSwipeTarget else {
+                // Caught and let go without a direction (or toward the edge):
+                // the caught screens finish where they were going.
+                if caughtSettle != nil { settleCaughtScreens(); return }
                 guard recognizer.state == .ended else { return }
                 let delta = abs(translation) >= 32 ? translation : velocity
                 guard abs(delta) >= 32 else { return }
@@ -1191,7 +1214,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             // jumping straight to their destination.
             tabSwipeSettling = true
             let direction: CGFloat = tabSwipeFrom > 0 ? -1 : 1
-            let progress = translation * direction
+            let progress = (translation + tabSwipeBase) * direction
             let speed = velocity * direction
             let complete = recognizer.state == .ended && speed > -700
                 && (progress >= max(32, view.bounds.width * 0.28) || speed > 700)
@@ -1252,7 +1275,20 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         target.view.isHidden = false
         let width = view.bounds.width
         tabSwipeFrom = -direction * width
-        target.view.frame = view.bounds.offsetBy(dx: tabSwipeFrom, dy: 0)
+        // Caught from a settle: the current screen is still where the last
+        // swipe left it, and the other screen it showed either is this
+        // target (the finger went back to it) or trails behind.
+        tabSwipeBase = 0
+        tabSwipeTrailing = nil
+        if let caught = caughtSettle {
+            caughtSettle = nil
+            tabSwipeBase = caught.currentX
+            if caught.other != id, let other = stacks[caught.other] {
+                tabSwipeTrailing = other
+                tabSwipeTrailingGap = caught.otherX - caught.currentX
+            }
+        }
+        target.view.frame = view.bounds.offsetBy(dx: tabSwipeFrom + tabSwipeBase, dy: 0)
         view.bringSubviewToFront(target.view)
         CraftChrome.shared.beginTabSwipe(to: id, from: currentTab)
         lastNavigation = CACurrentMediaTime()
@@ -1265,13 +1301,16 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
               let target = stacks[targetId] else { return }
         let width = max(1, view.bounds.width)
         // Reversing past the start stays at zero progress, rather than
-        // pulling both screens away and exposing the background.
+        // pulling both screens away and exposing the background; past where
+        // a caught swipe left the screens, when it left them further out.
+        let raw = translation + tabSwipeBase
         let offset = tabSwipeFrom > 0
-            ? min(0, max(-width, translation))
-            : max(0, min(width, translation))
+            ? min(max(0, tabSwipeBase), max(-width, raw))
+            : max(min(0, tabSwipeBase), min(width, raw))
         target.view.frame.origin.x = tabSwipeFrom + offset
         current.view.frame.origin.x = offset
-        CraftChrome.shared.updateTabSwipe(progress: abs(offset) / width)
+        tabSwipeTrailing?.view.frame.origin.x = offset + tabSwipeTrailingGap
+        CraftChrome.shared.updateTabSwipe(progress: max(0, tabSwipeFrom > 0 ? -offset : offset) / width)
     }
 
     private func finishInteractiveTabSwipe(completed: Bool, velocity: CGFloat, completion: @escaping () -> Void) {
@@ -1286,13 +1325,20 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         CraftChrome.shared.settleTabSwipe(completed: completed, duration: duration)
         let remaining = end - target.view.frame.minX
         let initialVelocity = abs(remaining) > 1 ? max(0, min(12, velocity / remaining)) : 0
+        let trailing = tabSwipeTrailing
+        let gap = tabSwipeTrailingGap
         let move = {
             target.view.frame.origin.x = end
             current.view.frame.origin.x = completed ? -direction * width : 0
+            trailing?.view.frame.origin.x = current.view.frame.origin.x + gap
         }
-        let settled: (Bool) -> Void = { _ in
-            guard self.tabSwipeGeneration == generation,
-                  self.activeTabSwipeTarget == targetId else { return }
+        let finish = {
+            if let trailing {
+                trailing.view.isHidden = true
+                trailing.view.frame = self.view.bounds
+            }
+            self.tabSwipeTrailing = nil
+            self.tabSwipeBase = 0
             if completed {
                 current.view.isHidden = true
                 current.view.frame = self.view.bounds
@@ -1309,15 +1355,81 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             }
             completion()
         }
+        settleNow = finish
+        settleCompleting = completed
+        let settled: (Bool) -> Void = { _ in
+            guard self.tabSwipeGeneration == generation,
+                  self.activeTabSwipeTarget == targetId else { return }
+            self.settleNow = nil
+            finish()
+        }
         UIView.animate(withDuration: duration, delay: 0, usingSpringWithDamping: 1,
                        initialSpringVelocity: initialVelocity,
                        options: [.beginFromCurrentState, .allowUserInteraction], animations: move, completion: settled)
+    }
+
+    /// A finger landed while the last swipe settled. Its end happens now,
+    /// commit or cancel, chrome and events included, and the two screens go
+    /// back exactly where they were on screen (no frame is drawn between),
+    /// for this gesture to carry on from.
+    private func catchSettlingSwipe() {
+        guard let finish = settleNow, let targetId = activeTabSwipeTarget,
+              let current = visibleStack, let target = stacks[targetId] else { return }
+        let outgoing = currentTab
+        let currentX = current.view.layer.presentation()?.frame.minX ?? current.view.frame.minX
+        let targetX = target.view.layer.presentation()?.frame.minX ?? target.view.frame.minX
+        tabSwipeGeneration &+= 1
+        for nav in [current, target] + (tabSwipeTrailing.map { [$0] } ?? []) { nav.view.layer.removeAllAnimations() }
+        settleNow = nil
+        let completing = settleCompleting
+        CraftFramePacing.shared.end("tab swipe")
+        finish()
+        let (stay, stayX, other, otherId, otherX) = completing
+            ? (target, targetX, current, outgoing, currentX)
+            : (current, currentX, target, targetId, targetX)
+        guard abs(stayX) > 0.5 else { return }
+        stay.view.frame = view.bounds.offsetBy(dx: stayX, dy: 0)
+        other.view.isHidden = false
+        other.view.frame = view.bounds.offsetBy(dx: otherX, dy: 0)
+        caughtSettle = (otherId, otherX, stayX)
+    }
+
+    /// A caught settle that no new swipe took on: its screens finish where
+    /// they were going.
+    private func settleCaughtScreens(animated: Bool = true) {
+        guard let caught = caughtSettle else { return }
+        caughtSettle = nil
+        guard let current = visibleStack else { return }
+        let other = stacks[caught.other]
+        let gap = caught.otherX - caught.currentX
+        let generation = tabSwipeGeneration
+        let done = {
+            guard self.tabSwipeGeneration == generation else { return }
+            current.view.frame = self.view.bounds
+            other?.view.frame = self.view.bounds
+            if other !== current { other?.view.isHidden = true }
+        }
+        guard animated, CraftChrome.motion(.easeOut(duration: 0.18)) != nil else { done(); return }
+        UIView.animate(withDuration: 0.18, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0,
+                       options: [.beginFromCurrentState, .allowUserInteraction], animations: {
+            current.view.frame.origin.x = 0
+            other?.view.frame.origin.x = gap
+        }, completion: { _ in done() })
     }
 
     /// A newer navigation action wins immediately, including a tap back on
     /// the outgoing tab. Invalidate the old animation before removing it:
     /// UIKit may deliver its completion while the replacement is starting.
     private func interruptTabSwipe(restoringSelection: Bool) {
+        if caughtSettle != nil { settleCaughtScreens(animated: false) }
+        if let trailing = tabSwipeTrailing {
+            trailing.view.layer.removeAllAnimations()
+            trailing.view.frame = view.bounds
+            trailing.view.isHidden = trailing !== visibleStack
+            tabSwipeTrailing = nil
+        }
+        tabSwipeBase = 0
+        settleNow = nil
         guard let targetId = activeTabSwipeTarget else { return }
         tabSwipeGeneration &+= 1
         activeTabSwipeTarget = nil
@@ -1568,6 +1680,15 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             }
             (nav.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(false)
             (self.visibleStack?.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(true)
+            // A script on its own thread draws a moment later: its first
+            // content is drawn ahead too, once it is there.
+            if CraftNativeScriptThread.isBackground, let screen = nav.topViewController as? CraftNativeScreenController {
+                screen.whenFirstRendered(within: 1) { [weak nav] in
+                    guard let nav, nav.view.isHidden else { return }
+                    nav.view.layoutIfNeeded()
+                    Self.drawContents(of: nav.view.layer)
+                }
+            }
             self.prepareAdjacentNativeTabs()
         }
         preparation = timer
@@ -1679,10 +1800,25 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             return
         }
         let screen = entry(for: raw, isTabRoot: false, depth: nil)
-        if replace, !nav.viewControllers.isEmpty {
-            nav.setViewControllers(Array(nav.viewControllers.dropLast()) + [screen], animated: true)
-        } else {
-            nav.pushViewController(screen, animated: true)
+        let show = { [weak nav] in
+            guard let nav else { return }
+            if replace, !nav.viewControllers.isEmpty {
+                nav.setViewControllers(Array(nav.viewControllers.dropLast()) + [screen], animated: true)
+            } else {
+                nav.pushViewController(screen, animated: true)
+            }
+        }
+        guard let native = screen as? CraftNativeScreenController, CraftNativeScriptThread.isBackground else { show(); return }
+        // Its script runs on its own thread: it slides in with its content,
+        // and a second tap meanwhile does not push it twice.
+        guard pendingPush != match.path else { return }
+        pendingPush = match.path
+        native.whenFirstRendered(within: 0.3) { [weak self, weak nav] in
+            guard let self, self.pendingPush == match.path else { return }
+            self.pendingPush = nil
+            // Not into a tab the person has left meanwhile.
+            guard let nav, nav === self.visibleStack else { return }
+            show()
         }
     }
 
@@ -1952,7 +2088,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         if tabSwipeRecognizers.contains(where: { $0 === gestureRecognizer }) {
-            guard activeTabSwipeTarget == nil, !tabSwipeSettling,
+            // A swipe may begin while the last one settles: it catches it.
+            guard activeTabSwipeTarget == nil || tabSwipeSettling,
                   hybrid.tabIds.count > 1, let nav = visibleStack, let top = nav.topViewController else { return false }
             guard CraftChrome.shared.tabSwipeEnabled else { return false }
             // Only between the tabs' own first screens, as the bar shows them:

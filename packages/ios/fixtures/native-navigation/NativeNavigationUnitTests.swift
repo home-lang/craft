@@ -134,6 +134,13 @@ final class NativeNavigationUnitTests: XCTestCase {
         await displayWait("native frames rendered") { frames += 1; return frames >= 2 }
     }
 
+    /// The settle a second swipe catches, slowed so a loaded simulator's
+    /// frames cannot outlast it before the catch: layer time runs at a
+    /// twentieth until the test puts it back (each test has its own shell).
+    private func catchableSettle() {
+        shell.view.layer.speed = 0.05
+    }
+
     private func settle() async {
         await displayWait("native settle animation completed", diagnostic: { [self] in
             shell.children.compactMap { $0 as? UINavigationController }.map {
@@ -358,6 +365,92 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(details.view.frame, shell.view.bounds)
         XCTAssertFalse(details.view.isHidden)
         XCTAssertEqual(CraftChrome.shared.selected, "/details")
+    }
+
+    /// Swipe twice in quick succession: the second finger lands while the
+    /// first swipe settles. It catches the screens where they are, as a
+    /// paging scroll view does, instead of being ignored until the settle
+    /// ends, and carries on to the next tab without a jump.
+    func testASwipeCatchesTheLastOneWhileItSettlesAndCarriesOn() async throws {
+        mountDetails()
+        _ = shell.tabTapped("/third", reselect: false)
+        _ = shell.tabTapped("/", reselect: false)
+        CraftChrome.shared.selected = "/"
+        let width = shell.view.bounds.width
+        let home = try XCTUnwrap(stack("/"))
+        let details = try XCTUnwrap(stack("/details"))
+        let third = try XCTUnwrap(stack("/third"))
+        drag(-width * 0.6)
+        catchableSettle()
+        drag(-width * 0.6, phase: .ended, speed: -900)
+        await renderFrames()
+        drag(0, phase: .began, speed: -600)
+        shell.view.layer.speed = 1
+        // The first swipe is done (Details is the tab) and nothing moved.
+        XCTAssertEqual(CraftChrome.shared.selected, "/details")
+        let caughtAt = details.view.frame.minX
+        XCTAssertGreaterThan(caughtAt, 0.5, "the settle should still have been under way")
+        XCTAssertLessThan(caughtAt, width * 0.4 + 1)
+        XCTAssertFalse(home.view.isHidden)
+        XCTAssertEqual(home.view.frame.maxX, caughtAt, accuracy: 0.5)
+        drag(-150)
+        XCTAssertEqual(details.view.frame.minX, caughtAt - 150, accuracy: 0.5)
+        XCTAssertEqual(third.view.frame.minX, details.view.frame.maxX, accuracy: 0.5)
+        XCTAssertEqual(home.view.frame.maxX, details.view.frame.minX, accuracy: 0.5, "the outgoing screen keeps its place beside Details")
+        attachFrame("A caught swipe carrying on to Third")
+        drag(-width * 0.6, phase: .ended, speed: -900)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/third")
+        XCTAssertFalse(third.view.isHidden)
+        XCTAssertTrue(details.view.isHidden)
+        XCTAssertTrue(home.view.isHidden)
+        XCTAssertEqual(third.view.frame, shell.view.bounds)
+    }
+
+    /// The second finger goes back instead: the screen the first swipe was
+    /// leaving follows it from exactly where it was.
+    func testACaughtSwipeGoesBackFromWhereTheScreensWere() async throws {
+        mountDetails()
+        let width = shell.view.bounds.width
+        let home = try XCTUnwrap(stack("/"))
+        let details = try XCTUnwrap(stack("/details"))
+        drag(-width * 0.6)
+        catchableSettle()
+        drag(-width * 0.6, phase: .ended, speed: -900)
+        await renderFrames()
+        drag(0, phase: .began, speed: 600)
+        shell.view.layer.speed = 1
+        let caughtAt = details.view.frame.minX
+        XCTAssertGreaterThan(caughtAt, 0.5, "the settle should still have been under way")
+        drag(120)
+        XCTAssertEqual(details.view.frame.minX, caughtAt + 120, accuracy: 0.5)
+        XCTAssertEqual(home.view.frame.maxX, details.view.frame.minX, accuracy: 0.5)
+        drag(width * 0.6, phase: .ended, speed: 900)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
+        XCTAssertFalse(home.view.isHidden)
+        XCTAssertTrue(details.view.isHidden)
+        XCTAssertEqual(home.view.frame, shell.view.bounds)
+    }
+
+    /// Caught and let go without moving: the screens finish where they were going.
+    func testACaughtSwipeLetGoWithoutMovingFinishesWhereItWasGoing() async throws {
+        mountDetails()
+        let width = shell.view.bounds.width
+        let home = try XCTUnwrap(stack("/"))
+        let details = try XCTUnwrap(stack("/details"))
+        drag(-width * 0.6)
+        catchableSettle()
+        drag(-width * 0.6, phase: .ended, speed: -900)
+        await renderFrames()
+        drag(0, phase: .began)
+        shell.view.layer.speed = 1
+        drag(0, phase: .ended)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/details")
+        XCTAssertFalse(details.view.isHidden)
+        XCTAssertTrue(home.view.isHidden)
+        XCTAssertEqual(details.view.frame, shell.view.bounds)
     }
 
     func testShortAndSystemCancelledSwipesRestoreBothStacksAndSelection() async throws {

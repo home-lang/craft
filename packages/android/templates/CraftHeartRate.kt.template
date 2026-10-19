@@ -1,0 +1,938 @@
+package {{PACKAGE_NAME}}
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.ParcelUuid
+import android.util.Log
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
+import org.json.JSONArray
+import org.json.JSONObject
+import org.json.JSONTokener
+import java.io.File
+import java.util.UUID
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
+import kotlin.math.sin
+
+/** Maps and lists as org.json values, null as JSONObject.NULL, for the bridge and the disk. */
+internal fun craftHeartRateToJson(value: Any?): Any = when (value) {
+    null -> JSONObject.NULL
+    is JSONObject, is JSONArray -> value
+    is Map<*, *> -> JSONObject().also { json -> value.forEach { (key, item) -> json.put(key.toString(), craftHeartRateToJson(item)) } }
+    is List<*> -> JSONArray().also { json -> value.forEach { json.put(craftHeartRateToJson(it)) } }
+    else -> value
+}
+
+/** org.json values back as maps and lists, JSONObject.NULL as null. */
+internal fun craftHeartRateFromJson(value: Any?): Any? = when {
+    value == null || value === JSONObject.NULL -> null
+    value is JSONObject -> value.keys().asSequence().associateWith { craftHeartRateFromJson(value.opt(it)) }
+    value is JSONArray -> (0 until value.length()).map { craftHeartRateFromJson(value.opt(it)) }
+    else -> value
+}
+
+internal object CraftHeartRateOrgJson : CraftHeartRateJson {
+    override fun encode(value: Any?): String = craftHeartRateToJson(value).toString()
+    override fun decode(text: String): Any? = craftHeartRateFromJson(JSONTokener(text).nextValue())
+}
+
+/**
+ * A Bluetooth heart-rate strap, or a watch broadcasting its heart rate, read
+ * during a workout: the page's `craft.heartRate` (CraftBridge.kt) and a
+ * native screen's `HeartRate` module (CraftNativeServices.kt), one service
+ * for the whole process. The Android half of CraftHeartRate.swift, with the
+ * same methods, answers and `craftHeartRate` events.
+ *
+ * A GATT central for the standard Heart Rate Service (0x180D):
+ * - `scan` finds what advertises the service nearby, each one a
+ *   `{type: 'device'}` event with its name and signal strength.
+ * - `connect` subscribes to Heart Rate Measurement (0x2A37), writing its
+ *   client configuration descriptor; every reading is a `{type: 'reading'}`
+ *   event with bpm and, when the strap sends them, RR intervals. The device
+ *   (its address) is remembered, and `reconnect` asks for it again next time
+ *   without a scan.
+ * - A strap that drops out (out of range, the battery, a sweaty contact) is
+ *   asked for again until `disconnect`: the old GATT client is closed and an
+ *   automatic connection, which never times out, waits for the strap, spaced
+ *   out by craftHeartRateReconnectDelayMs when the stack itself fails. A strap
+ *   this process has not seen in a scan is also looked for with a short
+ *   filtered scan, since Android needs to have seen a random address first.
+ * - `startRecording` keeps every reading on disk until `stopRecording`
+ *   (CraftHeartRateRecording, CraftHeartRateCore.kt). While it runs,
+ *   CraftHeartRateService keeps the process in the foreground (a
+ *   connectedDevice service), so readings keep coming with the screen locked,
+ *   and the samples survive the app being closed.
+ *
+ * Connection changes are `{type: 'state'}` events. Every event goes to each
+ * sink: the page's bridge (`page`) and the native screens' hub (`native`).
+ *
+ * Emulators: with a file named `CraftFakeHeartRateMonitor` in the app's files
+ * directory (`adb shell run-as <package> touch files/CraftFakeHeartRateMonitor`)
+ * a made-up strap stands in, whose readings are encoded as 0x2A37 payloads
+ * and decoded like a real one's, its RR intervals varying with the breath.
+ * Never on a device.
+ *
+ * Everything runs on the main thread: GATT and scan callbacks hop there first.
+ */
+@SuppressLint("MissingPermission")
+internal class CraftHeartRate private constructor(private val context: Context) {
+    companion object {
+        val SERVICE: UUID = UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb")
+        val MEASUREMENT: UUID = UUID.fromString("00002a37-0000-1000-8000-00805f9b34fb")
+        /** Client Characteristic Configuration: notifications are switched on here. */
+        val CLIENT_CONFIGURATION: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        /** How long `connect` waits before answering TIMEOUT. The strap is still asked for after that. */
+        const val CONNECT_TIMEOUT_MS = 15_000L
+        /** A reading older than this is no longer "now". */
+        const val STALE_AFTER_MS = 10_000L
+        /** How long a strap not yet seen is looked for in a scan, while its connection is pending. */
+        const val SEEK_MS = 30_000L
+        const val PERMISSION_REQUEST = 4319
+        /** The stand-in strap's id: the iOS simulator's, so a test names it the same way on both. */
+        const val SIMULATED_ID = "00000000-0000-4000-8000-00000000180D"
+        private const val PREFERENCES = "craft-heart-rate"
+        private const val TAG = "CraftHeartRate"
+
+        @Volatile private var instance: CraftHeartRate? = null
+
+        fun get(context: Context): CraftHeartRate = instance ?: synchronized(this) {
+            instance ?: CraftHeartRate(context.applicationContext).also { instance = it }
+        }
+
+        /** Whether this is an emulator: a hint for the stand-in strap, never a security boundary. */
+        fun isEmulator(): Boolean {
+            val hardware = Build.HARDWARE.lowercase()
+            if (hardware.startsWith("goldfish") || hardware.startsWith("ranchu")) return true
+            val fingerprint = Build.FINGERPRINT.lowercase()
+            if (fingerprint.startsWith("generic") || fingerprint.startsWith("unknown")) return true
+            if (fingerprint.contains("emulator") || fingerprint.contains("sdk_gphone")) return true
+            val product = Build.PRODUCT.lowercase()
+            if (product.startsWith("sdk") || product.contains("_sdk") || product.contains("sdk_")) return true
+            val model = Build.MODEL.lowercase()
+            return model.contains("google_sdk") || model.contains("emulator") || model.contains("android sdk built for")
+        }
+    }
+
+    private class Found(val device: BluetoothDevice?, val name: String, val rssi: Int)
+
+    private val main = Handler(Looper.getMainLooper())
+    private val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+    private val manager get() = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+    private val adapter: BluetoothAdapter? get() = manager?.adapter
+    private val clock: () -> Long = System::currentTimeMillis
+
+    /** Where each event goes, by who listens: `page` (CraftBridge) and `native` (the screens' hub). */
+    val sinks = java.util.concurrent.ConcurrentHashMap<String, (JSONObject) -> Unit>()
+
+    val recording = CraftHeartRateRecording(context.noBackupFilesDir, CraftHeartRateOrgJson, clock)
+
+    private val discovered = linkedMapOf<String, Found>()
+    private var scanning = false
+    private var scannerRunning = false
+    private var scanStop: Runnable? = null
+    /** The remembered strap's address while it is looked for in a scan. */
+    private var seeking: String? = null
+    private var seekStop: Runnable? = null
+    private var gatt: BluetoothGatt? = null
+    private var device: BluetoothDevice? = null
+    private var deviceId: String? = null
+    private var deviceName: String? = null
+    private var connection = "disconnected"
+    /** Between connect and disconnect: a lost strap is asked for again. */
+    private var wantsConnection = false
+    private var linkConnected = false
+    private val connectWaiters = mutableListOf<(Result<Any?>) -> Unit>()
+    private var connectDeadline: Runnable? = null
+    private var latest: CraftHeartRateMeasurement? = null
+    private var latestAt: Long? = null
+    // Packet freshness is separate from a valid BPM: a monitor reporting no
+    // skin contact is still delivering notifications and needs no reconnect.
+    private var packetAt: Long? = null
+    private var subscriptionAt: Long? = null
+    private var recoveryTimer: Runnable? = null
+    private var reconnectTimer: Runnable? = null
+    private var reconnectAttempt = 0
+    private var hasSubscribed = false
+    private var radioWatched = false
+    private val permissionWaiters = mutableListOf<(Boolean) -> Unit>()
+
+    // MARK: The emulator's stand-in
+
+    private val simulated: Boolean by lazy { isEmulator() && File(context.filesDir, "CraftFakeHeartRateMonitor").exists() }
+    private var simulatedTimer: Runnable? = null
+    private var simulatedBeat = 0
+    /** Milliseconds since the stand-in connected, and how far its beats reach. */
+    private var simulatedElapsed = 0.0
+    private var simulatedBeatsUntil = 0.0
+
+    // MARK: Entry
+
+    /**
+     * One call from a page or a native screen, by method name. `activity` is
+     * the screen that can show Android's permission prompt; null in a
+     * background worker, where nothing can ask.
+     */
+    fun perform(method: String, options: JSONObject, activity: Activity?, done: (Result<Any?>) -> Unit) {
+        @Suppress("UNCHECKED_CAST")
+        val values = craftHeartRateFromJson(options) as? Map<String, Any?> ?: emptyMap()
+        val answer: (Result<Any?>) -> Unit = { result -> done(result.map { craftHeartRateToJson(it) }) }
+        main.post {
+            watchRadio()
+            try {
+                if (method in CraftHeartRateRecording.METHODS) {
+                    val value = recording.perform(method, values)
+                    keepRecordingAlive()
+                    return@post answer(Result.success(value))
+                }
+                recording.restore()
+                when (method) {
+                    "getState" -> {
+                        recoverQuietBroadcast()
+                        answer(Result.success(state()))
+                    }
+                    "requestAuthorization" -> requestAuthorization(activity, answer)
+                    "scan" -> scan((values["timeout"] as? Number)?.toDouble(), activity, answer)
+                    "stopScan" -> {
+                        stopScan()
+                        answer(Result.success(state()))
+                    }
+                    "getDevices" -> answer(Result.success(devices()))
+                    "connect" -> connect(values["id"] as? String, wait = true, activity = activity, done = answer)
+                    "reconnect" -> connect(null, wait = false, activity = activity, done = answer)
+                    "disconnect" -> disconnect(values["forget"] == true, answer)
+                    else -> throw CraftHeartRateException("UNKNOWN_ACTION", "Unsupported HeartRate method")
+                }
+            } catch (error: CraftHeartRateException) {
+                answer(Result.failure(error))
+            } catch (error: SecurityException) {
+                answer(Result.failure(CraftHeartRateException("NOT_AUTHORIZED", "Bluetooth access was not allowed")))
+            } catch (error: Exception) {
+                Log.w(TAG, "HeartRate.$method failed", error)
+                answer(Result.failure(CraftHeartRateException("CRAFT_ERROR", error.message ?: "Heart rate failed")))
+            }
+        }
+    }
+
+    /** CraftHeartRateService, restarted by Android: the recording carries on, and so does its strap. */
+    fun resumeAfterRestart() {
+        main.post {
+            watchRadio()
+            runCatching { recording.restore() }.onFailure { Log.w(TAG, "Unable to restore the heart-rate recording", it) }
+            keepRecordingAlive()
+            if (recording.active && !wantsConnection && permitted()) connect(null, wait = false, activity = null) {}
+        }
+    }
+
+    // MARK: State
+
+    private fun permissions(): Array<String> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+    } else {
+        // Before Android 12 a BLE scan needs location; BLUETOOTH and
+        // BLUETOOTH_ADMIN are granted at install.
+        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+
+    private fun permitted(): Boolean = simulated || permissions().all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+
+    private val authorization: String
+        get() = if (simulated) "authorized" else craftHeartRateAuthorizationName(permitted(), preferences.getBoolean("asked", false))
+
+    private val bluetooth: String
+        get() {
+            if (simulated) return "poweredOn"
+            val radio = adapter
+            val radioState = try { radio?.state } catch (_: SecurityException) { null }
+            return craftHeartRateBluetoothName(radio != null, radioState, authorization)
+        }
+
+    private fun remembered(): Map<String, Any?>? {
+        val id = preferences.getString("lastDeviceId", null) ?: return null
+        return mapOf("id" to id, "name" to (preferences.getString("lastDeviceName", null) ?: "Heart rate monitor"))
+    }
+
+    private fun remember(id: String, name: String) {
+        preferences.edit().putString("lastDeviceId", id).putString("lastDeviceName", name).apply()
+    }
+
+    fun state(): Map<String, Any?> {
+        val fresh = latestAt?.let { clock() - it <= STALE_AFTER_MS } ?: false
+        return mapOf(
+            "available" to (bluetooth != "unsupported"),
+            "bluetooth" to bluetooth,
+            "authorization" to authorization,
+            "scanning" to scanning,
+            "connection" to connection,
+            "device" to deviceId?.let { mapOf("id" to it, "name" to (deviceName ?: "Heart rate monitor")) },
+            "lastDevice" to remembered(),
+            "bpm" to (if (fresh) latest?.bpm else null),
+            "lastReadingAt" to latestAt,
+            "recording" to recording.summary(false),
+        )
+    }
+
+    private fun emit(detail: Map<String, Any?>) {
+        val json = craftHeartRateToJson(detail) as JSONObject
+        sinks.values.forEach { sink -> runCatching { sink(json) }.onFailure { Log.w(TAG, "A heart-rate listener failed", it) } }
+    }
+
+    private fun emitState() = emit(state() + ("type" to "state"))
+
+    // MARK: Bluetooth
+
+    /**
+     * Android's Nearby devices prompt (location before Android 12), asked for
+     * from a screen. Without one, the answer is what was already allowed.
+     */
+    private fun withPermission(activity: Activity?, then: (Boolean) -> Unit) {
+        if (permitted()) return then(true)
+        if (activity == null) return then(false)
+        permissionWaiters.add(then)
+        if (permissionWaiters.size > 1) return
+        preferences.edit().putBoolean("asked", true).apply()
+        ActivityCompat.requestPermissions(activity, permissions(), PERMISSION_REQUEST)
+    }
+
+    /** The screen's permission answer (MainActivity routes PERMISSION_REQUEST here). */
+    fun onPermissions(requestCode: Int): Boolean {
+        if (requestCode != PERMISSION_REQUEST) return false
+        main.post {
+            val granted = permitted()
+            val waiting = permissionWaiters.toList()
+            permissionWaiters.clear()
+            waiting.forEach { it(granted) }
+            emitState()
+        }
+        return true
+    }
+
+    /** A reason the radio cannot be used now, or null when it can. */
+    private fun unusable(): CraftHeartRateException? {
+        if (!permitted()) return CraftHeartRateException("NOT_AUTHORIZED", "Bluetooth access was not allowed")
+        return when (bluetooth) {
+            "poweredOn" -> null
+            "poweredOff" -> CraftHeartRateException("BLUETOOTH_OFF", "Bluetooth is off")
+            "unauthorized" -> CraftHeartRateException("NOT_AUTHORIZED", "Bluetooth access was not allowed")
+            "unsupported" -> CraftHeartRateException("UNSUPPORTED", "This device has no Bluetooth")
+            else -> CraftHeartRateException("BLUETOOTH_UNAVAILABLE", "Bluetooth is not ready")
+        }
+    }
+
+    /** Asks when it has to, then runs `run` with a radio that can be used, or answers why not. */
+    private fun whenReady(activity: Activity?, done: (Result<Any?>) -> Unit, run: () -> Unit) {
+        withPermission(activity) {
+            val reason = unusable()
+            if (reason != null) done(Result.failure(reason))
+            else try { run() } catch (_: SecurityException) { done(Result.failure(CraftHeartRateException("NOT_AUTHORIZED", "Bluetooth access was not allowed"))) }
+        }
+    }
+
+    private fun requestAuthorization(activity: Activity?, done: (Result<Any?>) -> Unit) {
+        withPermission(activity) { done(Result.success(authorization)) }
+    }
+
+    /** Bluetooth turned off and on again: the strap is asked for again, a scan stops. */
+    private val radioReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
+            val radioState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+            main.post {
+                if (radioState == BluetoothAdapter.STATE_ON) {
+                    if (wantsConnection && gatt == null && !simulated) {
+                        connection = "reconnecting"
+                        openGatt(automatic = true)
+                    }
+                    updateScanner()
+                } else if (radioState == BluetoothAdapter.STATE_OFF || radioState == BluetoothAdapter.STATE_TURNING_OFF) {
+                    scanning = false
+                    scannerRunning = false
+                    scanStop?.let(main::removeCallbacks)
+                    scanStop = null
+                    if (!simulated) {
+                        closeGatt()
+                        if (wantsConnection && connection != "disconnected") connection = "reconnecting"
+                    }
+                }
+                emitState()
+            }
+        }
+    }
+
+    private fun watchRadio() {
+        if (radioWatched) return
+        radioWatched = true
+        // Exported: a protected broadcast only the system sends. Not-exported
+        // would, before Android 13, filter out the Bluetooth process sending it.
+        ContextCompat.registerReceiver(context, radioReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED), ContextCompat.RECEIVER_EXPORTED)
+    }
+
+    // MARK: Scanning
+
+    private fun devices(): List<Map<String, Any?>> = discovered
+        .map { (id, found) -> mapOf<String, Any?>("id" to id, "name" to found.name, "rssi" to found.rssi) }
+        .sortedByDescending { it["rssi"] as Int }
+
+    private fun found(id: String, device: BluetoothDevice?, name: String, rssi: Int) {
+        val known = discovered.containsKey(id)
+        discovered[id] = Found(device, name, rssi)
+        if (!known && scanning) emit(mapOf("type" to "device", "device" to mapOf("id" to id, "name" to name, "rssi" to rssi)))
+    }
+
+    private fun scan(seconds: Double?, activity: Activity?, done: (Result<Any?>) -> Unit) {
+        whenReady(activity, done) {
+            discovered.clear()
+            scanning = true
+            if (simulated) found(SIMULATED_ID, null, "Simulated HRM", -48)
+            else updateScanner()
+            scanStop?.let(main::removeCallbacks)
+            scanStop = Runnable { stopScan() }.also { main.postDelayed(it, ((seconds ?: 15.0).coerceIn(1.0, 60.0) * 1000).roundToLong()) }
+            emitState()
+            done(Result.success(state()))
+        }
+    }
+
+    private fun stopScan() {
+        scanStop?.let(main::removeCallbacks)
+        scanStop = null
+        if (!scanning) return
+        scanning = false
+        updateScanner()
+        emitState()
+    }
+
+    /** One LE scan, filtered on 0x180D, while a person scans or a remembered strap is looked for. */
+    private fun updateScanner() {
+        if (simulated) return
+        val wanted = (scanning || seeking != null) && permitted() && adapter?.isEnabled == true
+        if (wanted == scannerRunning) return
+        val scanner = adapter?.bluetoothLeScanner
+        if (wanted) {
+            if (scanner == null) return
+            val filters = listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE)).build())
+            val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+            scannerRunning = runCatching { scanner.startScan(filters, settings, scanCallback) }
+                .onFailure { Log.w(TAG, "Heart-rate scan could not start", it) }
+                .isSuccess
+        } else {
+            runCatching { scanner?.stopScan(scanCallback) }
+            scannerRunning = false
+        }
+    }
+
+    private val scanCallback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult) {
+            val address = result.device.address
+            val advertised = result.scanRecord?.deviceName
+            val rssi = result.rssi
+            main.post {
+                val name = advertised ?: runCatching { result.device.name }.getOrNull() ?: "Heart rate monitor"
+                // 127 is "no reading".
+                found(address, result.device, name, if (rssi == 127) -100 else rssi)
+                if (seeking == address) {
+                    stopSeeking()
+                    if (wantsConnection && deviceId == address && !linkConnected) {
+                        device = result.device
+                        openGatt(automatic = false)
+                    }
+                }
+            }
+        }
+
+        override fun onScanFailed(errorCode: Int) {
+            main.post {
+                Log.w(TAG, "Heart-rate scan failed ($errorCode)")
+                scannerRunning = false
+                if (scanning) {
+                    scanning = false
+                    emitState()
+                }
+            }
+        }
+    }
+
+    private fun seek(address: String) {
+        if (simulated) return
+        seeking = address
+        seekStop?.let(main::removeCallbacks)
+        seekStop = Runnable { stopSeeking() }.also { main.postDelayed(it, SEEK_MS) }
+        updateScanner()
+    }
+
+    private fun stopSeeking() {
+        seekStop?.let(main::removeCallbacks)
+        seekStop = null
+        if (seeking == null) return
+        seeking = null
+        updateScanner()
+    }
+
+    // MARK: Connecting
+
+    private fun connect(id: String?, wait: Boolean, activity: Activity?, done: (Result<Any?>) -> Unit) {
+        val target = id ?: remembered()?.get("id") as? String
+        if (target == null) {
+            if (wait) done(Result.failure(CraftHeartRateException("INVALID_ARGUMENT", "connect needs the id of a device from scan")))
+            else done(Result.success(state()))
+            return
+        }
+        whenReady(activity, done) {
+            // A connected link can lose its notification subscription when a
+            // broadcasting watch restarts. Keep healthy links, repair quiet ones.
+            if (deviceId == target && wantsConnection) {
+                recoverQuietBroadcast()
+                if (connection == "connected" || !wait) return@whenReady done(Result.success(state()))
+                connectWaiters.add(done)
+                armConnectDeadline()
+                return@whenReady
+            }
+            release()
+            val saved = remembered()
+            val savedName = if (saved?.get("id") == target) saved["name"] as? String else null
+            val name = discovered[target]?.name ?: savedName ?: "Heart rate monitor"
+            if (simulated) {
+                if (target != SIMULATED_ID) return@whenReady done(Result.failure(CraftHeartRateException("NOT_FOUND", "No heart-rate monitor with that id is nearby")))
+            } else {
+                val next = discovered[target]?.device
+                    ?: target.takeIf(BluetoothAdapter::checkBluetoothAddress)?.let { adapter?.getRemoteDevice(it) }
+                    ?: return@whenReady done(Result.failure(CraftHeartRateException("NOT_FOUND", "No heart-rate monitor with that id is nearby")))
+                device = next
+            }
+            deviceId = target
+            deviceName = name
+            wantsConnection = true
+            connection = "connecting"
+            subscriptionAt = clock()
+            reconnectAttempt = 0
+            startRecoveryWatch()
+            remember(target, name)
+            if (wait) {
+                connectWaiters.add(done)
+                armConnectDeadline()
+            }
+            if (simulated) main.postDelayed({ simulatedConnected() }, 300)
+            else {
+                openGatt(automatic = false)
+                // Android connects to an address it has seen; one it has not
+                // (a random address, after a restart) is found by a scan.
+                if (!discovered.containsKey(target)) seek(target)
+            }
+            emitState()
+            if (!wait) done(Result.success(state()))
+        }
+    }
+
+    /** `connect` answers TIMEOUT after a while; the strap is still asked for, since it may wake up once it is worn. */
+    private fun armConnectDeadline() {
+        if (connectDeadline != null) return
+        connectDeadline = Runnable {
+            connectDeadline = null
+            if (connection != "connected") settleConnect(Result.failure(CraftHeartRateException("TIMEOUT", "The heart-rate monitor did not answer. Wear it to wake it up.")))
+        }.also { main.postDelayed(it, CONNECT_TIMEOUT_MS) }
+    }
+
+    private fun settleConnect(result: Result<Any?>) {
+        connectDeadline?.let(main::removeCallbacks)
+        connectDeadline = null
+        val waiting = connectWaiters.toList()
+        connectWaiters.clear()
+        waiting.forEach { it(result) }
+    }
+
+    /** A GATT client for the chosen strap; `automatic` waits for it as long as it takes. */
+    private fun openGatt(automatic: Boolean) {
+        val target = device ?: return
+        closeGatt()
+        reconnectTimer?.let(main::removeCallbacks)
+        reconnectTimer = null
+        gatt = target.connectGatt(context, automatic, gattCallback, BluetoothDevice.TRANSPORT_LE)
+    }
+
+    /** Lets go of the GATT client: disconnected and closed, so Android frees it. */
+    private fun closeGatt() {
+        val old = gatt ?: return
+        gatt = null
+        linkConnected = false
+        runCatching { old.disconnect() }
+        runCatching { old.close() }
+    }
+
+    /** After a dropped link: ask again, with an automatic connection, once the delay for this attempt has passed. */
+    private fun scheduleReconnect() {
+        reconnectTimer?.let(main::removeCallbacks)
+        reconnectTimer = Runnable {
+            reconnectTimer = null
+            if (!wantsConnection || gatt != null || simulated) return@Runnable
+            if (!permitted() || adapter?.isEnabled != true) return@Runnable
+            openGatt(automatic = true)
+            deviceId?.takeUnless(discovered::containsKey)?.let { seek(it) }
+        }.also { main.postDelayed(it, craftHeartRateReconnectDelayMs(reconnectAttempt++)) }
+    }
+
+    /** Lets go of the current strap without telling anyone. */
+    private fun release() {
+        wantsConnection = false
+        hasSubscribed = false
+        recoveryTimer?.let(main::removeCallbacks)
+        recoveryTimer = null
+        reconnectTimer?.let(main::removeCallbacks)
+        reconnectTimer = null
+        packetAt = null
+        subscriptionAt = null
+        simulatedTimer?.let(main::removeCallbacks)
+        simulatedTimer = null
+        stopSeeking()
+        closeGatt()
+        device = null
+        deviceId = null
+        deviceName = null
+        latest = null
+        latestAt = null
+        connection = "disconnected"
+        settleConnect(Result.failure(CraftHeartRateException("CANCELLED", "Another heart-rate monitor was chosen")))
+    }
+
+    private fun disconnect(forget: Boolean, done: (Result<Any?>) -> Unit) {
+        release()
+        if (forget) preferences.edit().remove("lastDeviceId").remove("lastDeviceName").apply()
+        emitState()
+        done(Result.success(state()))
+    }
+
+    private val gattCallback = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(peer: BluetoothGatt, status: Int, newState: Int) {
+            main.post {
+                if (peer !== gatt) {
+                    // A client this service already let go of.
+                    if (newState == BluetoothProfile.STATE_DISCONNECTED) runCatching { peer.close() }
+                    return@post
+                }
+                if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
+                    linkConnected = true
+                    stopSeeking()
+                    if (!wantsConnection) return@post closeGatt()
+                    packetAt = null
+                    subscriptionAt = clock()
+                    if (!peer.discoverServices()) restartBroadcast()
+                    return@post
+                }
+                // Dropped, or never made: close this client and ask again.
+                latest = null
+                latestAt = null
+                packetAt = null
+                subscriptionAt = clock()
+                closeGatt()
+                if (wantsConnection) {
+                    connection = "reconnecting"
+                    scheduleReconnect()
+                } else {
+                    connection = "disconnected"
+                }
+                emitState()
+            }
+        }
+
+        override fun onServicesDiscovered(peer: BluetoothGatt, status: Int) {
+            main.post {
+                if (peer !== gatt || !wantsConnection) return@post
+                if (status != BluetoothGatt.GATT_SUCCESS) return@post restartBroadcast()
+                val measurement = peer.getService(SERVICE)?.getCharacteristic(MEASUREMENT)
+                val descriptor = measurement?.getDescriptor(CLIENT_CONFIGURATION)
+                if (measurement == null || descriptor == null) {
+                    if (hasSubscribed) restartBroadcast() else notAHeartRateMonitor()
+                    return@post
+                }
+                if (!peer.setCharacteristicNotification(measurement, true) || !writeNotify(peer, descriptor)) restartBroadcast()
+            }
+        }
+
+        override fun onDescriptorWrite(peer: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            main.post {
+                if (peer !== gatt || !wantsConnection) return@post
+                if (descriptor.uuid != CLIENT_CONFIGURATION || descriptor.characteristic.uuid != MEASUREMENT) return@post
+                if (status != BluetoothGatt.GATT_SUCCESS) return@post restartBroadcast()
+                hasSubscribed = true
+                subscriptionAt = clock()
+                reconnectAttempt = 0
+                connection = "connected"
+                keepRecordingAlive()
+                emitState()
+                settleConnect(Result.success(state()))
+            }
+        }
+
+        // Garmin may invalidate its service when the heart-rate broadcast is
+        // toggled without dropping the link (Android 12+ tells us). Discover
+        // and subscribe to the replacement.
+        override fun onServiceChanged(peer: BluetoothGatt) {
+            main.post {
+                if (peer !== gatt || !wantsConnection) return@post
+                connection = "reconnecting"
+                latest = null
+                latestAt = null
+                packetAt = null
+                subscriptionAt = clock()
+                if (!peer.discoverServices()) restartBroadcast()
+                emitState()
+            }
+        }
+
+        // Android 13 and later hand over the value with the notification.
+        override fun onCharacteristicChanged(peer: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
+            notified(peer, characteristic, value.copyOf())
+        }
+
+        @Deprecated("Android 12 and earlier")
+        @Suppress("DEPRECATION")
+        override fun onCharacteristicChanged(peer: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return
+            notified(peer, characteristic, characteristic.value?.copyOf() ?: return)
+        }
+    }
+
+    private fun notified(peer: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
+        if (characteristic.uuid != MEASUREMENT) return
+        main.post {
+            if (peer !== gatt || !wantsConnection) return@post
+            received(value)
+        }
+    }
+
+    /** Switches notifications on in the client configuration descriptor. */
+    @Suppress("DEPRECATION")
+    private fun writeNotify(peer: BluetoothGatt, descriptor: BluetoothGattDescriptor): Boolean {
+        val enable = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            peer.writeDescriptor(descriptor, enable) == BluetoothStatusCodes.SUCCESS
+        } else {
+            descriptor.value = enable
+            peer.writeDescriptor(descriptor)
+        }
+    }
+
+    private fun notAHeartRateMonitor() {
+        wantsConnection = false
+        hasSubscribed = false
+        recoveryTimer?.let(main::removeCallbacks)
+        recoveryTimer = null
+        closeGatt()
+        connection = "disconnected"
+        settleConnect(Result.failure(CraftHeartRateException("NOT_HEART_RATE_MONITOR", "That device does not send a heart rate")))
+        emitState()
+    }
+
+    /**
+     * Run independently of any player or big-timer screen. A pending radio
+     * connection stays pending until the strap returns; only a link that went
+     * quiet is restarted.
+     */
+    private fun startRecoveryWatch() {
+        recoveryTimer?.let(main::removeCallbacks)
+        recoveryTimer = object : Runnable {
+            override fun run() {
+                recoverQuietBroadcast()
+                if (recoveryTimer === this) main.postDelayed(this, 5_000)
+            }
+        }.also { main.postDelayed(it, 5_000) }
+    }
+
+    private fun recoverQuietBroadcast() {
+        if (!wantsConnection) return
+        val since = packetAt ?: subscriptionAt ?: return
+        val link = if (simulated) connection == "connected" else linkConnected
+        if (craftHeartRateShouldRestart(connection, link, clock() - since)) restartBroadcast()
+    }
+
+    /**
+     * Keep the recording and the device choice while replacing the
+     * subscription: a connected link is dropped (its disconnect asks again),
+     * anything else is asked for again straight away.
+     */
+    private fun restartBroadcast() {
+        if (!wantsConnection) return
+        connection = "reconnecting"
+        latest = null
+        latestAt = null
+        packetAt = null
+        subscriptionAt = clock()
+        emitState()
+        if (simulated) {
+            simulatedTimer?.let(main::removeCallbacks)
+            simulatedTimer = null
+            main.postDelayed({ simulatedConnected() }, 300)
+            return
+        }
+        if (adapter?.isEnabled != true) return
+        val current = gatt
+        if (current != null && linkConnected) {
+            runCatching { current.disconnect() }
+            // Should the stack never report the drop, let go of it anyway.
+            main.postDelayed({
+                if (gatt === current && wantsConnection) {
+                    closeGatt()
+                    scheduleReconnect()
+                }
+            }, 3_000)
+        } else {
+            closeGatt()
+            scheduleReconnect()
+        }
+    }
+
+    // MARK: Readings
+
+    private fun received(bytes: ByteArray) {
+        // A strap reads 0 between losing the skin and giving up; that is no
+        // heart rate, and neither is anything a heart could not do.
+        packetAt = clock()
+        val reading = CraftHeartRateMeasurement.parse(bytes)
+        if (reading == null || reading.sensorContact == false || reading.bpm < 20 || reading.bpm > 250) {
+            latest = null
+            latestAt = null
+            emitState()
+            return
+        }
+        val now = clock()
+        latest = reading
+        latestAt = now
+        val intervals = reading.rrIntervals.map { (it * 10).roundToLong() / 10.0 }
+        val detail = mutableMapOf<String, Any?>(
+            "type" to "reading",
+            "bpm" to reading.bpm,
+            "rrIntervals" to intervals,
+            "contact" to reading.sensorContact,
+            "energyExpended" to reading.energyExpended,
+            "timestamp" to now,
+        )
+        deviceId?.let { detail["deviceId"] = it }
+        recording.append(mapOf("timestamp" to now, "bpm" to reading.bpm, "rr" to intervals))
+        emit(detail)
+    }
+
+    private fun simulatedConnected() {
+        if (!simulated || !wantsConnection || deviceId != SIMULATED_ID) return
+        connection = "connected"
+        subscriptionAt = clock()
+        emitState()
+        settleConnect(Result.success(state()))
+        simulatedTimer?.let(main::removeCallbacks)
+        simulatedElapsed = 0.0
+        simulatedBeatsUntil = 0.0
+        simulatedTimer = object : Runnable {
+            override fun run() {
+                if (simulatedTimer !== this) return
+                main.postDelayed(this, 1_000)
+                simulatedBeat += 1
+                simulatedElapsed += 1000
+                // A steady run with a slow swell, the way a real one drifts.
+                val rate = 142 + sin(simulatedBeat / 20.0) * 12
+                val (intervals, until) = craftHeartRateSimulatedIntervals(rate, simulatedBeatsUntil, simulatedElapsed)
+                simulatedBeatsUntil = until
+                if (intervals.isEmpty()) return
+                // The rate a strap reports is the one its intervals give.
+                val bpm = (60_000 / intervals.average()).roundToInt()
+                received(CraftHeartRateMeasurement.encode(bpm, sensorContact = true, rrIntervals = intervals))
+            }
+        }.also { main.postDelayed(it, 1_000) }
+    }
+
+    // MARK: The recording in the foreground
+
+    /** Whether CraftHeartRateService was asked to keep this recording. */
+    private var serviceStarted = false
+
+    /** A running recording keeps CraftHeartRateService up; a finished one lets it go. */
+    private fun keepRecordingAlive() {
+        val intent = Intent(context, CraftHeartRateService::class.java)
+        if (recording.active) {
+            // Android 14 starts a connectedDevice service only with Bluetooth
+            // allowed; asked again once it is (a strap subscribed).
+            if (serviceStarted || (!permitted() && !simulated)) return
+            serviceStarted = runCatching { ContextCompat.startForegroundService(context, intent) }
+                .onFailure { Log.w(TAG, "The heart-rate recording could not move to the foreground", it) }
+                .isSuccess
+        } else {
+            // Unconditionally: a relaunched process did not start the one running.
+            serviceStarted = false
+            runCatching { context.stopService(intent) }
+        }
+    }
+
+    /** Whether the service still has a recording to keep. */
+    fun keepsRecording(): Boolean = recording.active
+}
+
+/**
+ * Keeps the process in the foreground while a heart-rate recording runs, as
+ * iOS's `bluetooth-central` background mode does: readings keep coming with
+ * the screen locked. Declared in the manifest only for an app built with
+ * `enableHeartRate`; restarted by Android, it brings the recording and its
+ * strap back (CraftHeartRate.resumeAfterRestart).
+ */
+class CraftHeartRateService : Service() {
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, "Heart rate", NotificationManager.IMPORTANCE_LOW))
+        }
+        val notification = NotificationCompat.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.craft_notification_icon)
+            .setColor(ContextCompat.getColor(this, R.color.craft_notification_color))
+            .setContentTitle("Recording your heart rate")
+            .setContentText("${applicationInfo.loadLabel(packageManager)} is reading your heart-rate monitor")
+            .setOngoing(true)
+            .setSilent(true)
+            .build()
+        try {
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+        } catch (error: Exception) {
+            Log.w("CraftHeartRate", "The heart-rate service could not start in the foreground", error)
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        val monitor = CraftHeartRate.get(this)
+        if (intent == null) monitor.resumeAfterRestart()
+        else if (!monitor.keepsRecording()) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        private const val CHANNEL = "craft_heart_rate_recording"
+        private const val NOTIFICATION_ID = 7002
+    }
+}

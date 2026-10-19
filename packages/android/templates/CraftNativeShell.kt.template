@@ -1260,22 +1260,26 @@ internal object CraftNativeMedia {
         }
         local(context, address)?.let { return done(CraftNativeCapabilityResult(data = describe(address, it))) }
         val app = context.applicationContext
-        synchronized(lock) { waiting.getOrPut(address) { mutableListOf() }.add(done) }
         val wifiOnly = !cellular
         val work = androidx.work.WorkManager.getInstance(app)
-        // The same address under the other rule gives way; its part file is resumed.
-        work.cancelUniqueWork(workName(address, !wifiOnly))
-        val request = androidx.work.OneTimeWorkRequestBuilder<CraftNativeMediaWorker>()
-            .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(if (wifiOnly) androidx.work.NetworkType.UNMETERED else androidx.work.NetworkType.CONNECTED).build())
-            .setInputData(androidx.work.workDataOf("address" to address, "headers" to headers.toString(), "generation" to generation(app)))
-            .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, java.util.concurrent.TimeUnit.SECONDS)
-            .addTag(TAG)
-            .addTag("$TAG:${digest(address)}")
-            .build()
-        // Serialize requests, including one arriving after a terminal answer but
-        // before WorkManager marks that attempt complete. Each successor checks
-        // the cache before fetching, so concurrent callers still share one copy.
-        work.enqueueUniqueWork(workName(address, wifiOnly), androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+        synchronized(lock) {
+            // Only a transfer that still owes an answer is joined. WorkManager
+            // can still report RUNNING after that answer, before committing its
+            // terminal state; a new caller must not be lost in that interval.
+            val joined = !waiting[address].isNullOrEmpty()
+            waiting.getOrPut(address) { mutableListOf() }.add(done)
+            work.cancelUniqueWork(workName(address, !wifiOnly))
+            val request = androidx.work.OneTimeWorkRequestBuilder<CraftNativeMediaWorker>()
+                .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(if (wifiOnly) androidx.work.NetworkType.UNMETERED else androidx.work.NetworkType.CONNECTED).build())
+                .setInputData(androidx.work.workDataOf("address" to address, "headers" to headers.toString(), "generation" to generation(app)))
+                .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, java.util.concurrent.TimeUnit.SECONDS)
+                .addTag(TAG)
+                .addTag("$TAG:${digest(address)}")
+                .build()
+            // A fresh request replaces a queued retry so it runs immediately;
+            // concurrent callers join the attempt that owns their callbacks.
+            work.enqueueUniqueWork(workName(address, wifiOnly), if (joined) androidx.work.ExistingWorkPolicy.KEEP else androidx.work.ExistingWorkPolicy.REPLACE, request)
+        }
         val reason = when {
             !online(app) -> "offline"
             wifiOnly && metered(app) -> "cellular"
@@ -1314,8 +1318,13 @@ internal object CraftNativeMedia {
             val target = file(context, address)
             val staging = part(context, address)
             target.parentFile?.mkdirs()
+            val download = CraftResumableDownload()
+            val asked = headers.keys().asSequence().associateWith { headers.optString(it) }
             val fetched = try {
-                CraftResumableDownload().fetch(address, headers.keys().asSequence().associateWith { headers.optString(it) }, staging, stopped)
+                // A part that no longer lines up was dropped: the whole file, now, not after a backoff.
+                download.fetch(address, asked, staging, stopped).let { first ->
+                    if (first is CraftResumableDownload.Fetched.Restart) download.fetch(address, asked, staging, stopped) else first
+                }
             } catch (error: Exception) {
                 val full = generateSequence<Throwable>(error) { it.cause }.take(16).any {
                     it is android.system.ErrnoException && it.errno == android.system.OsConstants.ENOSPC
@@ -1377,7 +1386,7 @@ internal object CraftNativeMedia {
         val wanted = keep.map { digest(it) }.toSet()
         var removed = 0
         synchronized(lock) {
-            // A keep still waiting owns its address's files until it is answered.
+            // A keep still waiting owns its files until it is answered.
             val active = waiting.keys.map { digest(it) }.toSet()
             root(context).listFiles()?.forEach { file ->
                 val owner = file.name.substringBefore('.')
@@ -1418,9 +1427,10 @@ internal object CraftNativeMedia {
             root(context).listFiles()?.forEach { file ->
                 if (file.delete()) removed++ else failure = java.io.IOException("The video cache could not be cleared")
             }
+            // Schedule cancellation before a new generation can enqueue its work.
+            androidx.work.WorkManager.getInstance(context.applicationContext).cancelAllWorkByTag(TAG)
             callbacks
         }
-        androidx.work.WorkManager.getInstance(context.applicationContext).cancelAllWorkByTag(TAG)
         main.post { answered.forEach { it(CraftNativeCapabilityResult(code = "CANCELLED", message = "The video cache was cleared")) } }
         failure?.let { throw it }
         return removed

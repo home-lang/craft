@@ -59,6 +59,7 @@ internal class CraftNativeServices(
     private val activity: () -> Activity?,
 ) {
     private val main = Handler(Looper.getMainLooper())
+    private val heartRateEnabled = config.optBoolean("enableHeartRate")
     private val health: CraftNativeHealth? = if (config.optBoolean("enableHealthConnect")) {
         CraftNativeHealth(context, activity, config.optBoolean("enableHealthConnectBackground"), config.optBoolean("enableHealthConnectHistory"))
     } else null
@@ -76,6 +77,14 @@ internal class CraftNativeServices(
             // Keep this process sink independent from the page's listener.
             com.craft.runtime.CraftLocationRecordingStore.nativeListener = { location, id ->
                 CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", craftLocationFix(location).put("recordingId", id)))
+            }
+        }
+        if (heartRateEnabled) {
+            // The strap's readings and connection changes reach every screen
+            // and the app script as `craftHeartRate`, as on iOS. One sink for
+            // the process: each host sets the same one.
+            CraftHeartRate.get(context).sinks["native"] = { detail ->
+                CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftHeartRate").put("detail", detail))
             }
         }
     }
@@ -111,13 +120,16 @@ internal class CraftNativeServices(
             if (CraftNative.supportsRecordingIntentIdentity()) add("locationRecordingIntentIdentity")
         }
         if (config.optJSONObject("backgroundRefresh")?.optBoolean("enabled") == true || config.optBoolean("enablePushNotifications")) add("background")
+        // A Bluetooth heart-rate strap (CraftHeartRate.kt), the app's own
+        // service: one connection and one recording for every screen.
+        if (heartRateEnabled) addAll(listOf("heartRate", "heartRateRecordingOwnership", "heartRateRecordingIntentIdentity"))
         // craft.crashReporter: the app's crash and error reporter (bughq).
         if (CraftCrashReporter.enabled) add("crashReporter")
     }
 
     fun handles(module: String): Boolean = module in setOf(
         "Dialog", "Browser", "Linking", "Share", "Push", "Health", "KeepAwake", "Brightness", "StatusBar", "Speech", "Background",
-        "Location", "Media", "CrashReporter",
+        "Location", "Media", "CrashReporter", "HeartRate",
     )
 
     fun perform(module: String, method: String, args: JSONArray, completion: (CraftNativeCapabilityResult) -> Unit) {
@@ -137,6 +149,7 @@ internal class CraftNativeServices(
                 "StatusBar" -> statusBar(args.optString(0, "default"), done)
                 "Speech" -> speech(method, args, done)
                 "Location" -> location(method, args, done)
+                "HeartRate" -> heartRate(method, args, done)
                 "Media" -> when (method) {
                     "keep" -> CraftNativeMedia.keep(context, args.optString(0), args.optJSONObject(1)?.optJSONObject("headers") ?: JSONObject(), args.optJSONObject(1)?.optBoolean("cellular", true) ?: true, done)
                     "path" -> done(success(CraftNativeMedia.local(context, args.optString(0))?.absolutePath ?: JSONObject.NULL))
@@ -363,6 +376,7 @@ internal class CraftNativeServices(
     }
 
     fun onRequestPermissionsResult(requestCode: Int): Boolean {
+        if (heartRateEnabled && CraftHeartRate.get(context).onPermissions(requestCode)) return true
         if (requestCode == LOCATION_PERMISSION_REQUEST) {
             val pending = pendingLocationPermission
             pendingLocationPermission = null
@@ -452,6 +466,25 @@ internal class CraftNativeServices(
                 if (method == "startRecording") withLocation(done, invoke) else invoke()
             }
             else -> done(failure("UNKNOWN_ACTION", "Unsupported Location method"))
+        }
+    }
+
+    // MARK: Heart rate (CraftHeartRate.kt)
+
+    /**
+     * A Bluetooth heart-rate strap, the same service as a page's
+     * `craft.heartRate`, in the iOS host's names (CraftNativeActions.swift's
+     * HeartRate module). Its events reach every screen as `craftHeartRate`.
+     */
+    private fun heartRate(method: String, args: JSONArray, done: (CraftNativeCapabilityResult) -> Unit) {
+        if (!heartRateEnabled) return done(failure("CAPABILITY_DISABLED", "Heart rate is disabled"))
+        CraftHeartRate.get(context).perform(method, args.optJSONObject(0) ?: JSONObject(), activity()) { result ->
+            result.fold(
+                onSuccess = { done(success(it)) },
+                onFailure = { error ->
+                    done(failure((error as? CraftHeartRateException)?.code ?: "CRAFT_ERROR", error.message ?: "Heart rate failed"))
+                },
+            )
         }
     }
 

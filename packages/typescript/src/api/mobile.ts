@@ -2080,12 +2080,13 @@ export const music = {
  * A Bluetooth heart-rate strap, or a watch broadcasting its heart rate (the
  * standard Heart Rate Service every Polar, Garmin and Wahoo strap speaks).
  *
- * iOS only (`enableHeartRate`): scan for straps nearby, connect to one (it is
- * remembered, and `reconnect()` finds it again without a scan), hear each
- * reading with its RR intervals, and record the readings natively for a
+ * iOS and Android (`enableHeartRate`): scan for straps nearby, connect to one
+ * (it is remembered, and `reconnect()` finds it again without a scan), hear
+ * each reading with its RR intervals, and record the readings natively for a
  * workout: the recording keeps going with the screen locked or the web view
- * suspended, and survives the app being closed, like the route recording.
- * Off a phone (a browser, Android) `isAvailable()` is false, the state says
+ * suspended (on Android, in a foreground service), and survives the app being
+ * closed, like the route recording. Off a phone (a browser), or in a build
+ * without the flag, `isAvailable()` is false, the state says
  * `available: false`, and nothing ever fires.
  */
 export type HeartRateAuthorization = 'authorized' | 'denied' | 'restricted' | 'notDetermined' | 'unavailable'
@@ -2322,8 +2323,8 @@ export const heartRate = {
   getState: (): Promise<HeartRateState> => heartRateCall('getState', noHeartRate, normalizeHeartRateState),
 
   /**
-   * Ask for Bluetooth: iOS's prompt the first time, its remembered answer
-   * after that. Scanning and connecting ask too; call this from the person's
+   * Ask for Bluetooth: the system's prompt the first time (iOS's, or
+   * Android's Nearby devices), its remembered answer after that. Scanning and connecting ask too; call this from the person's
    * tap to ask first.
    */
   requestAuthorization: (): Promise<HeartRateAuthorization> => heartRateCall('requestAuthorization', () => 'unavailable' as const,

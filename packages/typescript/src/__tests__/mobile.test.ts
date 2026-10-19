@@ -24,7 +24,7 @@ import type {
   LiveActivityHandle,
   LiveActivityOptions,
 } from '../api/mobile'
-import mobile, { biometrics, brightness, bridgeNotification, crashReporter, health, heartRate, music, normalizeDeepLinkURL, normalizeScheduledWorkout, scheduledWorkouts, normalizeHeartRateSamples, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
+import mobile, { biometrics, brightness, bridgeNotification, crashReporter, health, heartRate, music, normalizeDeepLinkURL, normalizeScheduledWorkout, scheduledWorkouts, normalizeHeartRateReading, normalizeHeartRateSamples, normalizeHeartRateState, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
 
 describe('Mobile deep links', () => {
   it('normalizes native payloads to the public string contract', () => {
@@ -1176,6 +1176,23 @@ describe('heartRate', () => {
         heartRate.onReading(() => { throw new Error('never') })()
       })
     }
+  })
+
+  it('reads the shapes Android sends as it reads iOS\'s', () => {
+    // CraftHeartRate.kt's state() and reading detail, as org.json serializes
+    // them: a Bluetooth address for an id, null for what the strap does not send.
+    const strap = { id: 'C4:7F:51:0A:3E:21', name: 'Polar H10 9A1B2C3D' }
+    expect(normalizeHeartRateState({
+      available: true, bluetooth: 'poweredOn', authorization: 'notDetermined', scanning: false, connection: 'reconnecting',
+      device: strap, lastDevice: strap, bpm: null, lastReadingAt: 1_800_000_000_000,
+      recording: { id: 'run', active: true, paused: false, startedAt: 1_799_999_000_000 },
+    })).toEqual({
+      available: true, bluetooth: 'poweredOn', authorization: 'notDetermined', scanning: false, connection: 'reconnecting',
+      device: { ...strap, rssi: null }, lastDevice: { ...strap, rssi: null }, bpm: null, lastReadingAt: 1_800_000_000_000,
+      recording: { id: 'run', active: true, paused: false, startedAt: 1_799_999_000_000, sampleCount: null },
+    })
+    expect(normalizeHeartRateReading({ type: 'reading', bpm: 142, rrIntervals: [422.9, 418.0], contact: null, energyExpended: null, timestamp: 1_800_000_000_000, deviceId: strap.id }))
+      .toEqual({ bpm: 142, rrIntervals: [422.9, 418], contact: null, energyExpended: null, timestamp: 1_800_000_000_000, deviceId: strap.id })
   })
 
   it('keeps only samples a heart could give, once each, oldest first', () => {

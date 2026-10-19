@@ -7,7 +7,9 @@ import {
   build,
   init,
   installRuntime,
+  nativeMessages,
   nativeRouteBundles,
+  nativeRouteRuntime,
   renderFeatureSettings,
   renderRuntimeSettings,
   resolveRuntimeDir,
@@ -162,12 +164,14 @@ describe('Craft iOS builder', () => {
     expect(guide).toContain('`ScrollView` and `FlatList` emit the scroll callbacks described above, accept')
     expect(nativeSwift).toContain('platform: "ios"')
     expect(nativeSwift).toContain('mutationProtocolVersion: 1')
-    expect(nativeSwift).toContain('jsContext.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: [])')
+    expect(nativeSwift).toContain('CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }')
     expect(nativeSwift).toContain('capabilityProtocolVersion: \\(craftNativeCapabilityProtocolVersion)')
     expect(nativeSwift).toContain('capabilityTimeoutMs: \\(craftNativeCapabilityTimeoutMilliseconds)')
     expect(nativeSwift).toContain('"code": "TIMEOUT"')
     expect(nativeSwift).toContain('pendingCapabilityDeadlines.removeValue(forKey: requestToken)?.cancel()')
-    expect(nativeSwift).toContain('initialAppState: "\\(CraftNativeActions.currentAppState())"')
+    // Read on the main thread, before the script (maybe on its own thread) starts.
+    expect(nativeSwift).toContain('appState: CraftNativeActions.currentAppState(),')
+    expect(nativeSwift).toContain('initialAppState: "\\(inputs.appState)"')
     expect(nativeSwift).toContain('case "API_CANCEL":')
     expect(nativeSwift).toContain('let interval = Int(number(props["minuteInterval"]) ?? 1)')
     expect(nativeSwift).toContain('columns: Int(number(props["numColumns"]) ?? 1)')
@@ -391,7 +395,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('if (typeof globalThis.setTimeout !== \'function\') {')
     expect(nativeSwift).toContain('globalThis.clearTimeout = function(id) {')
     expect(nativeSwift).toContain('jsContext.setObject(scheduleTimer, forKeyedSubscript: "craftNativeScheduleTimer" as NSString)')
-    expect(nativeSwift).toContain('pendingTimers.values.forEach { $0.cancel() }')
+    expect(nativeSwift).toContain('CraftNativeScriptThread.run { timers.pending.values.forEach { $0.cancel() } }')
     expect(guide).toContain('const response = await fetch(')
 
     await expect(build({ output, generateProject: false, runtimeDir: null })).rejects.toThrow('native-screen.js')
@@ -419,11 +423,23 @@ describe('Craft iOS builder', () => {
     mkdirSync(join(output, 'empty-routes'))
     await expect(build({ output, nativeBundlePath: join(output, 'empty-routes'), generateProject: false, runtimeDir: null })).rejects.toThrow('Native route bundles not found')
     expect(nativeRouteBundles).toBe(true)
+    expect(nativeRouteRuntime).toBe(true)
+    expect(nativeMessages).toBe(true)
     // Each screen runs from its route's file when there is one, in one
     // shared virtual machine, with the one-file bundle as the fallback.
     expect(nativeSwift).toContain('subdirectory: "dist/native-screens"')
     expect(nativeSwift).toContain('JSContext(virtualMachine: CraftNativeBundle.virtualMachine)')
     expect(nativeSwift).toContain('jsContext.evaluateScript(bundle.source, withSourceURL: bundle.url)')
+    // A route file runs on stx's shared runtime prelude, evaluated first and
+    // as a source of its own so the shared VM parses it once.
+    expect(nativeSwift).toContain('forResource: "__runtime", withExtension: "js", subdirectory: "dist/native-screens"')
+    expect(nativeSwift.indexOf('jsContext.evaluateScript(runtime.source, withSourceURL: runtime.url)')).toBeLessThan(nativeSwift.indexOf('jsContext.evaluateScript(bundle.source, withSourceURL: bundle.url)'))
+    // A language's messages are read for a screen when it first looks inside
+    // them (stx's `messages`), from beside the route files, and only by name.
+    expect(nativeSwift).toContain('jsContext.setObject(readMessages, forKeyedSubscript: "__stxNativeReadMessages" as NSString)')
+    expect(nativeSwift).toContain('CraftNativeBundle.messages(language: language, area: area) ?? NSNull()')
+    expect(nativeSwift).toContain('.appendingPathComponent("__messages", isDirectory: true)')
+    expect(nativeSwift).toContain('area.range(of: #"^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$"#, options: .regularExpression) != nil')
     await expect(build({ output, htmlPath: bundle, generateProject: false, runtimeDir: null })).rejects.toThrow('cannot use --html-path')
     await expect(init({ runtimeDir: null, name: 'Invalid', output: join(output, 'invalid'), config: { renderer: 'canvas' as 'native' } })).rejects.toThrow('Unknown iOS renderer')
   })
@@ -452,7 +468,7 @@ describe('Craft iOS builder', () => {
     expect(native).toContain('showError("Missing dist/native-screen.js. Compile a .stx screen with `stx native compile` first.")')
     expect(native).toContain('imageTasks.values.forEach { $0.cancel() }')
     expect(native).toContain('pendingCapabilityDeadlines.values.forEach { $0.cancel() }')
-    expect(native).toContain('pendingTimers.values.forEach { $0.cancel() }')
+    expect(native).toContain('CraftNativeScriptThread.run { timers.pending.values.forEach { $0.cancel() } }')
     expect(native).toContain('pendingCapabilityRequests.forEach { CraftNativeActions.cancel(requestToken: $0) }')
     expect(native).toContain('lifecycleObservers.forEach(NotificationCenter.default.removeObserver)')
     expect(native).not.toContain('WKWebView')
@@ -1679,7 +1695,7 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('sessionTokenKey: \\(sessionTokenKey),')
     expect(screen).toContain('forName: CraftSession.changed,')
     expect(screen).toContain('self.send(type: "SESSION_CHANGED", payload: ["key": key, "token": token ?? NSNull(), "previous": previous ?? NSNull()])')
-    expect(screen).toContain('self.jsContext.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()])')
+    expect(screen).toContain('CraftNativeScriptThread.run { context.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()]) }')
     expect(screen).toContain("keep('session', {")
   })
 

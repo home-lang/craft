@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { afterEach, describe, expect, it } from 'bun:test'
 
 /**
  * The reply-correlation contract, exercised against the real
@@ -37,6 +37,27 @@ interface Harness {
  * they can simply be passed in as parameters — no DOM, no jsdom, and nothing
  * shared between tests.
  */
+/**
+ * The bridge's timers. A test that sends without answering (an id check, a
+ * fire-and-forget) leaves its call's timeout running; left alone it rejects
+ * during whatever test runs then, as an unhandled error that fails that one.
+ * Each test's bridge stops when the test does.
+ */
+const timers = new Set<ReturnType<typeof setTimeout>>()
+const bridgeSetTimeout = (run: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+  const timer = setTimeout(() => { timers.delete(timer); run(...args) }, ms)
+  timers.add(timer)
+  return timer
+}
+const bridgeClearTimeout = (timer: ReturnType<typeof setTimeout>) => {
+  timers.delete(timer)
+  clearTimeout(timer)
+}
+afterEach(() => {
+  for (const timer of timers) clearTimeout(timer)
+  timers.clear()
+})
+
 function loadBridge(platform: 'webkit' | 'webview2' = 'webkit'): Harness {
   const sent: Envelope[] = []
   const errors: unknown[][] = []
@@ -57,7 +78,7 @@ function loadBridge(platform: 'webkit' | 'webview2' = 'webkit'): Harness {
 
   // eslint-disable-next-line no-new-func
   const run = new Function('window', 'document', 'console', 'setTimeout', 'clearTimeout', 'setInterval', BRIDGE_SRC)
-  run(win, doc, console_, setTimeout, clearTimeout, () => 0)
+  run(win, doc, console_, bridgeSetTimeout, bridgeClearTimeout, () => 0)
 
   return {
     craft: win.craft,

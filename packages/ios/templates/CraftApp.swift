@@ -1626,6 +1626,10 @@ struct CraftConfig: Codable {
     /// The bundle route of the app script: a screen-less script that runs for
     /// the app's whole life and hears the app's events (CraftHybrid.swift).
     var nativeApp: String? = nil
+    /// Where native screens run their JavaScript: `"main"` (the default) or
+    /// `"background"`, a thread of their own, so a screen's script and its
+    /// renders never hold the main thread (CraftNativeScriptThread).
+    var nativeScriptThread: String? = nil
     /// Crash and error reporting to bughq (CraftCrashReporter.swift). Off
     /// unless the config names a project key.
     var crashReporting: CrashReporting? = nil

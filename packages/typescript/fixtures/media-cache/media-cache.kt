@@ -109,6 +109,10 @@ class DownloadProbe : android.app.Instrumentation() {
                     check(CraftNativeMedia.part(targetContext, broken).length() > 0, "a truncated transfer retains bytes for resumption")
                     awaitCached(broken)
                     check(keep(broken), "same URL retries successfully")
+                    val retry = "$base/retry.mp4"
+                    check(!keep(retry), "a separate interrupted transfer reports its failure")
+                    check(keep(retry), "an explicit retry runs immediately, without waiting for backoff")
+                    check(root.listFiles()?.none { it.name.endsWith(".part") } != false, "finished retries leave no staging files")
                     check(!keep("$base/partial.mp4"), "unsolicited partial response is refused")
                     check(!keep("$base/empty.mp4"), "empty file is refused")
                     val slow = "$base/slow.mp4"

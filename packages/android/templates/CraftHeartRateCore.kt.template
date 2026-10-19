@@ -1,0 +1,485 @@
+package {{PACKAGE_NAME}}
+
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
+import java.util.UUID
+import kotlin.math.PI
+import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.random.Random
+
+// The parts of the heart-rate strap service (CraftHeartRate.kt) that need no
+// Android: the 0x2A37 decoder, the stand-in strap's beats, when a quiet strap
+// is asked for again, and the recording kept on disk. Plain Kotlin and
+// java.io, so a JVM fixture runs them (src/heart-rate.test.ts) against the
+// payloads iOS's HeartRateUnitTests use. Ported from CraftHeartRate.swift.
+
+/** A heart-rate call that did not happen: the message a page sees, and the bridge's error code. */
+internal class CraftHeartRateException(val code: String, message: String) : Exception(message)
+
+/**
+ * One Heart Rate Measurement (characteristic 0x2A37 of the Bluetooth SIG's
+ * Heart Rate Service, 0x180D), decoded.
+ *
+ * The payload is a flags byte and then the fields the flags announce, all
+ * little-endian:
+ *
+ *   bit 0     the heart rate is a uint16 (else a uint8)
+ *   bits 1-2  sensor contact: bit 2 says the strap reports it at all,
+ *             bit 1 that the skin is touching (a strap worn loose reads 0)
+ *   bit 3     a uint16 of energy expended, kilojoules, follows the rate
+ *   bit 4     uint16 RR intervals follow, as many as fit, in 1/1024 s
+ *
+ * Every strap and every watch that broadcasts its heart rate (Polar, Garmin,
+ * Wahoo, a watch with a broadcasting app) sends this one shape.
+ */
+internal data class CraftHeartRateMeasurement(
+    /** Beats per minute. */
+    val bpm: Int,
+    /** Whether the strap is touching skin; null when it cannot tell. */
+    val sensorContact: Boolean?,
+    /** Kilojoules since the strap was last reset; null when it does not count them. */
+    val energyExpended: Int?,
+    /** The time between beats, in milliseconds, oldest first. */
+    val rrIntervals: List<Double>,
+) {
+    companion object {
+        fun parse(bytes: ByteArray): CraftHeartRateMeasurement? = parse(IntArray(bytes.size) { bytes[it].toInt() and 0xFF })
+
+        /** Null for a payload too short for what its flags announce. */
+        fun parse(bytes: IntArray): CraftHeartRateMeasurement? {
+            if (bytes.isEmpty()) return null
+            val flags = bytes[0] and 0xFF
+            var offset = 1
+            fun uint8(): Int? {
+                if (offset >= bytes.size) return null
+                return (bytes[offset++] and 0xFF)
+            }
+            fun uint16(): Int? {
+                if (offset + 1 >= bytes.size) return null
+                val value = (bytes[offset] and 0xFF) or ((bytes[offset + 1] and 0xFF) shl 8)
+                offset += 2
+                return value
+            }
+            val bpm = (if ((flags and 0x01) != 0) uint16() else uint8()) ?: return null
+            val contact: Boolean? = if ((flags and 0x04) != 0) (flags and 0x02) != 0 else null
+            var energy: Int? = null
+            if ((flags and 0x08) != 0) energy = uint16() ?: return null
+            val intervals = mutableListOf<Double>()
+            if ((flags and 0x10) != 0) {
+                while (true) intervals.add((uint16() ?: break) * 1000.0 / 1024)
+            }
+            return CraftHeartRateMeasurement(bpm, contact, energy, intervals)
+        }
+
+        /**
+         * The payload a strap would send for these values: the emulator's
+         * stand-in speaks it, so its readings take the same path as a strap's.
+         */
+        fun encode(bpm: Int, sensorContact: Boolean? = true, energyExpended: Int? = null, rrIntervals: List<Double> = emptyList()): ByteArray {
+            var flags = 0
+            val body = mutableListOf<Int>()
+            fun append16(value: Int) { body.add(value and 0xFF); body.add((value shr 8) and 0xFF) }
+            if (bpm > 255) {
+                flags = flags or 0x01
+                append16(bpm)
+            } else body.add(maxOf(0, bpm))
+            if (sensorContact != null) flags = flags or 0x04 or (if (sensorContact) 0x02 else 0)
+            if (energyExpended != null) {
+                flags = flags or 0x08
+                append16(energyExpended)
+            }
+            if (rrIntervals.isNotEmpty()) {
+                flags = flags or 0x10
+                for (interval in rrIntervals) append16((interval * 1024 / 1000).roundToInt())
+            }
+            return (listOf(flags) + body).map { it.toByte() }.toByteArray()
+        }
+    }
+}
+
+/**
+ * The stand-in strap's beats from `start` (ms) until `end`, each interval in
+ * ms: the rate's own interval, plus respiratory sinus arrhythmia (beats come
+ * closer on the in-breath and spread on the out-breath over a ten-second
+ * breath, ±4% of the interval: ±40 ms at 60 bpm) and a few ms of noise, so a
+ * heart-rate variability worked out from them means something. Answers the
+ * intervals and where the last beat fell.
+ */
+internal fun craftHeartRateSimulatedIntervals(
+    rate: Double,
+    start: Double,
+    end: Double,
+    noise: () -> Double = { Random.nextDouble(-4.0, 4.0) },
+): Pair<List<Double>, Double> {
+    val base = 60_000 / rate
+    var at = start
+    val intervals = mutableListOf<Double>()
+    while (at < end) {
+        val breath = sin(2 * PI * at / 10_000)
+        val interval = base * (1 - 0.04 * breath) + noise()
+        at += interval
+        intervals.add(interval)
+    }
+    return intervals to at
+}
+
+/**
+ * Whether a link that is still wanted has gone quiet long enough to rebuild
+ * its subscription: a connected strap that sent nothing for 20 s (a
+ * broadcasting watch can drop its notifications and keep the link), or a link
+ * that came up but never subscribed for 30 s. A pending connection is left
+ * pending: the strap comes back when it is worn.
+ */
+internal fun craftHeartRateShouldRestart(connection: String, linkConnected: Boolean, quietMs: Long): Boolean =
+    (connection == "connected" && quietMs > 20_000) || (connection != "connected" && linkConnected && quietMs > 30_000)
+
+/**
+ * How long to wait before asking for a dropped strap again: 1, 2, 4, 8, 16
+ * and then every 30 seconds. The ask itself never times out (an automatic
+ * GATT connection waits for the strap); this only spaces out the stack's
+ * own failures (status 133 and friends) so they do not spin.
+ */
+internal fun craftHeartRateReconnectDelayMs(attempt: Int): Long = min(30_000L, 1_000L shl attempt.coerceIn(0, 5))
+
+/**
+ * Whether the person has let the app use Bluetooth, in the iOS names: asked
+ * and refused is `denied`, never asked `notDetermined`.
+ */
+internal fun craftHeartRateAuthorizationName(granted: Boolean, asked: Boolean): String = when {
+    granted -> "authorized"
+    asked -> "denied"
+    else -> "notDetermined"
+}
+
+/**
+ * The radio in the iOS names. `adapterState` is BluetoothAdapter's: 10 off,
+ * 11 turning on, 12 on, 13 turning off. Reading it asks for nothing.
+ */
+internal fun craftHeartRateBluetoothName(hasAdapter: Boolean, adapterState: Int?, authorization: String): String = when {
+    !hasAdapter -> "unsupported"
+    authorization == "denied" -> "unauthorized"
+    adapterState == 12 -> "poweredOn"
+    adapterState == 10 -> "poweredOff"
+    adapterState == 11 || adapterState == 13 -> "resetting"
+    else -> "unknown"
+}
+
+/** JSON text in and out; org.json on a phone, a small codec in the JVM fixture. */
+internal interface CraftHeartRateJson {
+    /** Maps, lists, strings, numbers, booleans and null. */
+    fun encode(value: Any?): String
+    fun decode(text: String): Any?
+}
+
+/** Write to a temporary file beside `destination`, sync it, then rename it into place. */
+internal fun craftHeartRateWriteAtomically(data: ByteArray, destination: File) {
+    destination.parentFile?.mkdirs()
+    val temporary = File(destination.parentFile, ".craft-atomic-" + UUID.randomUUID())
+    try {
+        FileOutputStream(temporary).use { stream -> stream.write(data); stream.fd.sync() }
+        Files.move(temporary.toPath(), destination.toPath(), StandardCopyOption.ATOMIC_MOVE)
+    } finally {
+        temporary.delete()
+    }
+}
+
+/**
+ * The recording a workout keeps natively, on disk in `directory`, exactly as
+ * CraftHeartRate.swift keeps it: its state in
+ * `craft-heart-rate-recording-state.json`, one sample a line in
+ * `craft-heart-rate-recording.jsonl`, a completed recording archived under
+ * the SHA-256 of its ID when the next one starts, and an acknowledgement
+ * tombstone so an acknowledged recording never comes back. A page reload, a
+ * screen change or the app being closed loses nothing: the next call reads
+ * it all back.
+ *
+ * Main thread only, like the service that owns it.
+ */
+internal class CraftHeartRateRecording(
+    private val directory: File,
+    private val json: CraftHeartRateJson,
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val archiveWriter: (ByteArray, File) -> Unit = ::craftHeartRateWriteAtomically,
+) {
+    companion object {
+        /** Fourteen hours of one reading a second: more is not one workout. */
+        const val MAX_SAMPLES = 50_000
+        val METHODS = setOf("startRecording", "pauseRecording", "resumeRecording", "stopRecording", "getRecordingState", "readRecording", "acknowledgeRecording")
+        private const val KIND = "heart-rate"
+    }
+
+    var active = false
+        private set
+    var paused = false
+        private set
+    var id: String? = null
+        private set
+    private var startedAt: Long? = null
+    private var count = 0
+    private var restored = false
+
+    private val stateFile get() = File(directory, "craft-heart-rate-recording-state.json")
+    private val samplesFile get() = File(directory, "craft-heart-rate-recording.jsonl")
+
+    private fun storage(message: String) = CraftHeartRateException("RECORDING_STORAGE_ERROR", message)
+    private fun invalid(message: String) = CraftHeartRateException("INVALID_ARGUMENT", message)
+
+    /** Anything but our own refusal is the disk's: RECORDING_STORAGE_ERROR, with `message`. */
+    private inline fun <T> guarded(message: String, run: () -> T): T = try {
+        run()
+    } catch (error: CraftHeartRateException) {
+        throw error
+    } catch (error: Exception) {
+        throw storage(message)
+    }
+
+    // MARK: Archive (CraftRecordingArchive.swift, kind "heart-rate")
+
+    private fun archive(id: String, acknowledged: Boolean = false): File {
+        val digest = MessageDigest.getInstance("SHA-256").digest(id.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        return File(directory, "craft-$KIND-${if (acknowledged) "ack" else "completed"}-$digest.json")
+    }
+
+    private fun isAcknowledged(id: String): Boolean {
+        val marker = archive(id, acknowledged = true)
+        if (!marker.exists()) return false
+        if (!marker.readBytes().contentEquals(id.toByteArray(Charsets.UTF_8))) throw storage("Invalid recording acknowledgement")
+        return true
+    }
+
+    private fun acknowledgeArchive(id: String) {
+        if (!isAcknowledged(id)) craftHeartRateWriteAtomically(id.toByteArray(Charsets.UTF_8), archive(id, acknowledged = true))
+        val completed = archive(id)
+        if (completed.exists() && !completed.delete()) throw IOException("Unable to remove the completed recording")
+    }
+
+    private fun readArchive(id: String): MutableMap<String, Any?>? {
+        if (isAcknowledged(id)) {
+            acknowledgeArchive(id)
+            throw CraftHeartRateException("RECORDING_NOT_FOUND", "This recording has been acknowledged")
+        }
+        val source = archive(id)
+        if (!source.exists()) return null
+        @Suppress("UNCHECKED_CAST")
+        val value = json.decode(String(source.readBytes(), Charsets.UTF_8)) as? Map<String, Any?>
+        if (value == null || value["id"] != id || value["active"] != false || value["samples"] !is List<*>)
+            throw storage("Invalid completed recording archive")
+        return value.toMutableMap()
+    }
+
+    private fun saveArchive(state: Map<String, Any?>, samples: List<Map<String, Any?>>) {
+        val id = state["id"] as? String ?: return
+        if (isAcknowledged(id)) { acknowledgeArchive(id); return }
+        if (readArchive(id) != null) return
+        val completed = state.toMutableMap()
+        completed["active"] = false
+        completed["paused"] = false
+        completed["sampleCount"] = samples.size
+        completed["samples"] = samples
+        archiveWriter(json.encode(completed).toByteArray(Charsets.UTF_8), archive(id))
+    }
+
+    private fun startId(options: Map<String, Any?>): String {
+        val next = if (options.containsKey("recordingId")) {
+            val requested = options["recordingId"] as? String
+            if (requested == null || requested.isBlank()) throw invalid("recordingId must be a nonempty recording ID")
+            requested
+        } else UUID.randomUUID().toString()
+        if (next == id || isAcknowledged(next) || archive(next).exists())
+            throw CraftHeartRateException("RECORDING_CONFLICT", "Recording IDs cannot be reused")
+        return next
+    }
+
+    // MARK: State
+
+    /** A recording that was running when the app last closed carries on. */
+    fun restore() {
+        if (restored) return
+        guarded("Unable to restore the recording") {
+            if (!stateFile.exists()) {
+                if (samplesFile.exists() && samplesFile.length() > 0) throw storage("Recording metadata is missing")
+                restored = true
+                return
+            }
+            @Suppress("UNCHECKED_CAST")
+            val saved = json.decode(stateFile.readText()) as? Map<String, Any?> ?: throw storage("Invalid recording metadata")
+            val wasActive = saved["active"] as? Boolean ?: throw storage("Invalid recording metadata")
+            active = wasActive
+            id = saved["id"] as? String
+            startedAt = (saved["startedAt"] as? Number)?.toLong()
+            paused = saved["paused"] as? Boolean ?: false
+            val current = id
+            if (current != null && isAcknowledged(current)) {
+                acknowledgeArchive(current)
+                if (samplesFile.exists() && !samplesFile.delete()) throw IOException("Unable to remove acknowledged samples")
+                id = null
+                startedAt = null
+                active = false
+                paused = false
+                persist()
+            }
+            count = samples(null).size
+            restored = true
+        }
+    }
+
+    private fun persist() {
+        val saved = mapOf("active" to active, "paused" to paused, "id" to id, "startedAt" to startedAt)
+        craftHeartRateWriteAtomically(json.encode(saved).toByteArray(Charsets.UTF_8), stateFile)
+    }
+
+    fun summary(withCount: Boolean): MutableMap<String, Any?> {
+        val summary = mutableMapOf<String, Any?>("id" to id, "active" to active, "paused" to paused, "startedAt" to startedAt)
+        if (withCount) summary["sampleCount"] = count
+        return summary
+    }
+
+    /** The recording's samples, oldest first; only those after `since` (ms) when given. */
+    private fun samples(since: Double?): List<Map<String, Any?>> {
+        if (id == null) return emptyList()
+        return samplesFile.readText().split("\n").mapNotNull { line ->
+            if (line.isBlank()) return@mapNotNull null
+            @Suppress("UNCHECKED_CAST")
+            val sample = runCatching { json.decode(line) as? Map<String, Any?> }.getOrNull() ?: return@mapNotNull null
+            if (since != null && ((sample["timestamp"] as? Number)?.toDouble() ?: 0.0) <= since) return@mapNotNull null
+            sample
+        }
+    }
+
+    /** Checked on the same main-thread turn as the read or change it guards. */
+    private fun requireOwner(options: Map<String, Any?>) {
+        if (!options.containsKey("expectedId")) return
+        val expected = options["expectedId"] as? String
+        if (expected == null || expected.isBlank()) throw invalid("expectedId must be a nonempty recording ID")
+        if (id != expected) throw CraftHeartRateException("RECORDING_CONFLICT", "The active heart-rate recording has changed")
+    }
+
+    // MARK: Calls
+
+    /** One recording call from a page or a native screen, by method name (`METHODS`). */
+    fun perform(method: String, options: Map<String, Any?>): Any? {
+        if (method == "acknowledgeRecording" && !options.containsKey("expectedId")) throw invalid("Acknowledgement needs expectedId")
+        restore()
+        if (method in setOf("getRecordingState", "readRecording", "stopRecording", "acknowledgeRecording") && options.containsKey("expectedId")) {
+            val expected = options["expectedId"] as? String
+            if (expected == null || expected.isBlank()) throw invalid("expectedId must be a nonempty recording ID")
+            val answer = guarded("Unable to persist the recording") { answerFor(method, expected, options) }
+            if (answer != null) return answer
+            requireOwner(options)
+        }
+        if (method in setOf("pauseRecording", "resumeRecording", "stopRecording", "readRecording")) requireOwner(options)
+        return when (method) {
+            "startRecording" -> start(options)
+            "pauseRecording" -> setPaused(true)
+            "resumeRecording" -> setPaused(false)
+            "stopRecording" -> stop()
+            "getRecordingState" -> summary(true)
+            "readRecording" -> guarded("Unable to read the recording") { samples((options["since"] as? Number)?.toDouble()) }
+            else -> throw CraftHeartRateException("UNKNOWN_ACTION", "Unsupported HeartRate method")
+        }
+    }
+
+    /** The answer a call naming a recording gets from its archive or acknowledgement; null to carry on. */
+    private fun answerFor(method: String, expected: String, options: Map<String, Any?>): Any? {
+        if (method == "acknowledgeRecording") {
+            if (id == expected && active) throw CraftHeartRateException("RECORDING_ALREADY_ACTIVE", "The recording is still active")
+            val known = id == expected || isAcknowledged(expected) || readArchive(expected) != null
+            if (!known) throw CraftHeartRateException("RECORDING_CONFLICT", "Unknown recording ID")
+            acknowledgeArchive(expected)
+            if (id == expected) {
+                if (samplesFile.exists() && !samplesFile.delete()) throw IOException("Unable to remove recording samples")
+                id = null
+                startedAt = null
+                count = 0
+                persist()
+            }
+            return true
+        }
+        val archived = readArchive(expected) ?: return null
+        return when (method) {
+            "readRecording" -> {
+                val since = (options["since"] as? Number)?.toDouble()
+                (archived["samples"] as? List<*>).orEmpty().filter { sample ->
+                    since == null || (((sample as? Map<*, *>)?.get("timestamp") as? Number)?.toDouble() ?: 0.0) > since
+                }
+            }
+            "getRecordingState" -> archived.apply { remove("samples") }
+            else -> archived
+        }
+    }
+
+    private fun start(options: Map<String, Any?>): Map<String, Any?> {
+        if (active) throw CraftHeartRateException("RECORDING_ALREADY_ACTIVE", "A heart-rate recording is already active")
+        val next = guarded("Unable to create the heart-rate recording") {
+            val next = startId(options)
+            saveArchive(summary(true), samples(null))
+            directory.mkdirs()
+            craftHeartRateWriteAtomically(ByteArray(0), samplesFile)
+            next
+        }
+        val previous = listOf(active, id, startedAt, paused, count)
+        active = true
+        id = next
+        startedAt = clock()
+        paused = false
+        count = 0
+        try {
+            persist()
+        } catch (error: Exception) {
+            active = previous[0] as Boolean
+            id = previous[1] as String?
+            startedAt = previous[2] as Long?
+            paused = previous[3] as Boolean
+            count = previous[4] as Int
+            throw storage("Unable to persist the recording")
+        }
+        return summary(true)
+    }
+
+    private fun setPaused(value: Boolean): Map<String, Any?> {
+        if (!active) throw CraftHeartRateException("NO_ACTIVE_RECORDING", "No active heart-rate recording")
+        val previous = paused
+        paused = value
+        try {
+            persist()
+        } catch (error: Exception) {
+            paused = previous
+            throw storage("Unable to persist the recording")
+        }
+        return summary(true)
+    }
+
+    private fun stop(): Map<String, Any?> {
+        val kept = guarded("Unable to persist the recording") { samples(null) }
+        val wasActive = active
+        val wasPaused = paused
+        active = false
+        paused = false
+        try {
+            persist()
+        } catch (error: Exception) {
+            active = wasActive
+            paused = wasPaused
+            throw storage("Unable to persist the recording")
+        }
+        return summary(true).apply { put("samples", kept) }
+    }
+
+    /** Keeps one reading while the recording runs and is not paused; false when it was not kept. */
+    fun append(sample: Map<String, Any?>): Boolean {
+        if (!active || paused || count >= MAX_SAMPLES) return false
+        return try {
+            FileOutputStream(samplesFile, true).use { it.write((json.encode(sample) + "\n").toByteArray(Charsets.UTF_8)) }
+            count += 1
+            true
+        } catch (error: Exception) {
+            false
+        }
+    }
+}
