@@ -196,11 +196,48 @@ test('every publishing path depends on release identity validation', () => {
   expect(release.jobs.npm.if).toBe("${{ !cancelled() && needs.validate-release.result == 'success' && needs.release-sbom.result == 'success' && needs.prepare-npm.result == 'success' && needs.publish-release.result == 'success' }}")
 })
 
+test('tag publication requires the complete source and native acceptance workflows', () => {
+  for (const [name, file] of [['source-acceptance', 'ci.yml'], ['native-acceptance', 'mobile-e2e.yml']]) {
+    const gate = release.jobs[name]
+    expect(gate.uses).toBe(`./.github/workflows/${file}`)
+    expect(needs(gate)).toEqual(['validate-release'])
+    expect(gate.if).toBeUndefined()
+    expect(gate.with).toBeUndefined() // A release cannot request a focused suite.
+    const called = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows', file), 'utf8')) as { on: Record<string, unknown> }
+    expect(called.on.workflow_call).toEqual({}) // No selectors or diagnostic inputs are accepted by callers.
+  }
+  for (const name of ['pantry', 'publish-release']) {
+    expect(needs(release.jobs[name])).toContain('source-acceptance')
+    expect(needs(release.jobs[name])).toContain('native-acceptance')
+    expect(release.jobs[name].if).toBeUndefined()
+  }
+  function prerequisites(name: string, found = new Set<string>()): Set<string> {
+    for (const dependency of needs(release.jobs[name])) {
+      if (found.has(dependency)) continue
+      found.add(dependency)
+      prerequisites(dependency, found)
+    }
+    return found
+  }
+  for (const name of ['pantry', 'publish-release', 'publish-pantry', 'npm', 'notify-registry']) {
+    expect(prerequisites(name).has('source-acceptance')).toBe(true)
+    expect(prerequisites(name).has('native-acceptance')).toBe(true)
+  }
+})
+
+test('called source and native acceptance have independent concurrency groups', () => {
+  const parse = (file: string): { concurrency: { group: string } } => Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows', file), 'utf8'))
+  const source = parse('ci.yml').concurrency.group
+  const native = parse('mobile-e2e.yml').concurrency.group
+  expect(source.startsWith('source-ci-')).toBe(true)
+  expect(native.startsWith('mobile-e2e-')).toBe(true)
+})
+
 test('registry indexing waits for the public release and all of its verification gates', () => {
   const notify = release.jobs['notify-registry']
   expect(notify).toBeDefined()
   expect(needs(notify)).toEqual(['publish-release', 'publish-pantry'])
-  expect(needs(release.jobs['publish-release']).sort()).toEqual(['attach-release-sbom', 'prepare-npm', 'validate-release', 'verify-desktop-downloads', 'verify-macos-downloads', 'verify-release'])
+  expect(needs(release.jobs['publish-release']).sort()).toEqual(['attach-release-sbom', 'native-acceptance', 'prepare-npm', 'source-acceptance', 'validate-release', 'verify-desktop-downloads', 'verify-macos-downloads', 'verify-release'])
   expect(release.jobs['publish-release'].if).toBeUndefined() // A failed or skipped gate cannot publish a draft.
   expect(notify.if).toBeUndefined() // Default success gating: never bypass failed prerequisites.
   expect(steps(notify)).toContain('https://registry.pantry.dev/api/rebuild')

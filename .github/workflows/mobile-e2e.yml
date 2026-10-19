@@ -24,6 +24,7 @@ name: Mobile E2E Testing
 # GitHub Actions does not resolve YAML anchors, so the two path filters are
 # written out rather than shared. Keep them identical.
 on:
+  workflow_call: {}
   push:
     branches: [main]
     paths:
