@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { createAndroidEmulator } from '../../../android/src/emulator'
 import type { AndroidEmulatorOptions } from '../../../android/src/emulator'
 
-function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false, delayedHome = false): { root: string, options: AndroidEmulatorOptions } {
+function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false, delayedHome = false, bootstrapHome = 'com.android.sdksetup/.DefaultActivity'): { root: string, options: AndroidEmulatorOptions } {
   const root = mkdtempSync(join(tmpdir(), 'craft emulator fixture '))
   const sdk = join(root, 'managed sdk')
   for (const directory of ['bin', 'platform-tools', 'emulator']) mkdirSync(join(sdk, directory), { recursive: true })
@@ -33,7 +33,7 @@ else
     *'cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME')
       if [ '${delayedHome ? 'yes' : 'no'}' = yes ] && [ ! -f "$ANDROID_HOME/home-ready" ]; then
         touch "$ANDROID_HOME/home-ready"
-        printf 'com.android.sdksetup/.DefaultActivity\\n'
+        printf '${bootstrapHome}\\n'
       else
         printf 'com.android.launcher3/.Launcher\\n'
       fi ;;
@@ -131,6 +131,18 @@ test('boot completion waits for the automatic SDK setup activity to release HOME
     const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
     expect(Date.parse(home[1].finishedAt)).toBeLessThanOrEqual(Date.parse(identity.bootedAt))
     expect(identity.bootTimeoutMs).toBe(600_000)
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
+test.each(['com.android.settings/.FallbackHome', 'android/com.android.internal.app.ResolverActivity'])('boot readiness rejects the temporary HOME destination %s', async (bootstrapHome) => {
+  const { root, options } = fixture(true, false, false, true, bootstrapHome)
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator(options)
+    const trace = readFileSync(join(options.artifactsDirectory, 'device-commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    const home = trace.filter(entry => entry.args.includes('resolve-activity'))
+    expect(home.map(entry => entry.stdout.trim())).toEqual([bootstrapHome, 'com.android.launcher3/.Launcher'])
   }
   finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
 }, 10_000)

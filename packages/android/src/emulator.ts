@@ -160,9 +160,12 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
           // modifying device setup or relaxing native acceptance.
           const home = await run([adb, '-s', serial, 'shell', 'cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.HOME'], undefined, probeTimeout(), true)
           const homeActivity = home.stdout.trim().split(/\r?\n/).at(-1) ?? ''
+          const temporaryHome = homeActivity.startsWith('com.android.sdksetup/')
+            || /^com\.android\.settings\/(?:\.|com\.android\.settings\.)FallbackHome$/.test(homeActivity)
+            || /^android\/.*(?:Resolver|Chooser)Activity$/.test(homeActivity)
           booted = settings.code === 0 && packages.code === 0 && systemUi.code === 0 && events.code === 0
             && /^package:\/\S+/m.test(packages.stdout) && /^\d+(?:\s+\d+)*$/.test(systemUi.stdout.trim())
-            && home.code === 0 && /^[\w.]+\/[\w.$]+$/.test(homeActivity) && !homeActivity.startsWith('com.android.sdksetup/')
+            && home.code === 0 && /^[\w.]+\/[\w.$]+$/.test(homeActivity) && !temporaryHome
         }
       }
       const checkedAt = Date.now()
