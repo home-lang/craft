@@ -142,7 +142,7 @@ describe('Component System', () => {
     const androidOnlyMap: MapProps = { mapType: 'terrain' }
     expect(androidOnlyMap).toBeDefined()
     const route: MapPolylineProps = { geometry: [47, 11, 47.1, 11.2], strokeWidth: 3 }
-    const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], onPress: () => {} }
+    const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], pinColor: '#24724b', onPress: () => {} }
     const picker: PickerProps = { items: [{ label: 'One', value: 1 }], selectedValue: 1, onChange: () => {} }
     const childPicker: PickerProps = { children: ['One', 'Two'], selectedValue: 'Two' }
     const statusBar: StatusBarProps = { barStyle: 'dark-content', hidden: false }

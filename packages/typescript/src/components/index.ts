@@ -654,6 +654,8 @@ export interface MapMarkerProps extends BaseProps {
   geometry: number[]
   id: string
   title?: string
+  /** Tint for the native marker pin. */
+  pinColor?: string
   /** A direction arrow in place of the default marker, clockwise from north. */
   bearing?: number
   onPress?: (event: { nativeEvent: { id: string } }) => void
