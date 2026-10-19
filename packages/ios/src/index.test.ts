@@ -999,12 +999,17 @@ describe('Craft iOS builder', () => {
     expect(app).toContain('startHeartRateUpdates: function(options) {')
     expect(app).toContain("return craft._invoke('startHealthHeartRateUpdates', {since: since});")
     expect(app).toContain("stopHeartRateUpdates: function() { return craft._invoke('stopHealthHeartRateUpdates'); }")
+    expect(app).toContain("startWorkout: function(options) { return craft._invoke('startHealthWorkout', options || {}); }")
+    expect(app).toContain("endWorkout: function() { return craft._invoke('endHealthWorkout'); }")
     expect(app).toMatch(/case "startHealthHeartRateUpdates":\n\s+if config\.enableHealthKit \{\n\s+CraftHealth\.shared\.startHeartRateUpdates\(since: body\["since"\] as\? Double\)/)
     expect(app).toMatch(/case "stopHealthHeartRateUpdates":\n\s+if config\.enableHealthKit \{\n\s+CraftHealth\.shared\.stopHeartRateUpdates/)
     // Batches reach the page, and native screens with or without it.
     expect(app).toContain('CraftHealth.shared.pageSink = { [weak self] detail in')
     expect(app).toContain('self.sendToWeb("craftHealthHeartRate", data: detail)')
-    expect(app).toContain('"craftHealthHeartRate", "craftMusicChange", "craftHeartRate"]')
+    expect(app).toContain('self.sendToWeb("craftHealthWorkout", data: detail)')
+    expect(app).toContain('"craftHealthHeartRate", "craftHealthWorkout", "craftMusicChange", "craftHeartRate"]')
+    expect(health).toContain('HKWorkoutSession(healthStore: healthStore, configuration: configuration)')
+    expect(health).toContain('builder.beginCollection(withStart: start)')
     expect(health).toContain('if pageSink?(detail) != true { CraftWebServices.forward("craftHealthHeartRate", data: detail) }')
     // An anchored query from `since` (two minutes ago by default), one at a time.
     expect(health).toContain('(since ?? Date().timeIntervalSince1970 * 1000 - 120_000) / 1000')
@@ -1049,7 +1054,7 @@ describe('Craft iOS builder', () => {
     // native-screen JavaScript can resume safely after the sheet/query ends.
     expect(health).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(health).toContain('DispatchQueue.main.async { completion(result) }')
-    expect(health.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(13)
+    expect(health.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(17)
   })
 
   it('gates native Apple Wallet passes behind the app config', async () => {
@@ -1958,7 +1963,7 @@ describe('Craft iOS builder', () => {
     expect(app).toContain('if CraftWebServices.resolve(id, result: result) { return }')
     expect(app).toContain('if CraftWebServices.reject(id, message: error, code: code) { return }')
     expect(app).toContain('CraftWebServices.forward(event, data: data)')
-    expect(app).toContain('static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftHealthHeartRate", "craftMusicChange", "craftHeartRate"]')
+    expect(app).toContain('static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftHealthHeartRate", "craftHealthWorkout", "craftMusicChange", "craftHeartRate"]')
     expect(screen).toContain('self?.send(type: "CRAFT_EVENT", payload: ["event": name')
   })
 

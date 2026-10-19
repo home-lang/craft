@@ -9,6 +9,40 @@ struct CraftHealthError: Error {
     var code: String = "CRAFT_ERROR"
 }
 
+/// A separate delegate keeps the iOS 17+ HealthKit session types out of the
+/// iOS 16-compatible CraftHealth declaration. The owning service retains it
+/// for the lifetime of the session.
+@available(iOS 17.0, *)
+private final class CraftHealthWorkoutDelegate: NSObject, HKWorkoutSessionDelegate {
+    private let id: () -> String
+    private let emit: ([String: Any]) -> Void
+
+    init(id: @escaping () -> String, emit: @escaping ([String: Any]) -> Void) {
+        self.id = id
+        self.emit = emit
+    }
+
+    func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
+        emit(["id": id(), "event": "state", "state": Self.stateName(toState), "date": date.timeIntervalSince1970 * 1000])
+    }
+
+    func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
+        emit(["id": id(), "event": "error", "message": error.localizedDescription])
+    }
+
+    private static func stateName(_ state: HKWorkoutSessionState) -> String {
+        switch state {
+        case .notStarted: return "notStarted"
+        case .prepared: return "prepared"
+        case .running: return "running"
+        case .paused: return "paused"
+        case .stopped: return "stopped"
+        case .ended: return "ended"
+        @unknown default: return "unknown"
+        }
+    }
+}
+
 /// Apple Health for the whole app: the web page's bridge (`craft.health` in
 /// the hybrid's web view, CraftApp.swift) and native screens alike
 /// (`Health` through CraftNativeActions), so a screen drawn natively reads
@@ -69,6 +103,14 @@ final class CraftHealth {
             startHeartRateUpdates(since: options(0)["since"] as? Double, completion: completion)
         case "stopHeartRateUpdates":
             stopHeartRateUpdates(completion: completion)
+        case "startWorkout":
+            startWorkout(body: options(0), completion: completion)
+        case "pauseWorkout":
+            pauseWorkout(completion: completion)
+        case "resumeWorkout":
+            resumeWorkout(completion: completion)
+        case "endWorkout":
+            endWorkout(completion: completion)
         default:
             completion(.failure(CraftHealthError(message: "Unsupported Health method", code: "UNKNOWN_ACTION")))
         }
@@ -745,12 +787,187 @@ final class CraftHealth {
         healthStore.execute(query)
     }
 
+    // MARK: Live workout sessions
+
+    /// Starts an OS-owned workout session. HealthKit's live builder was
+    /// introduced for iOS 26; older systems receive a clear unsupported
+    /// result instead of silently recording a post-hoc workout.
+    func startWorkout(body: [String: Any], completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
+        guard let type = body["type"] as? String, !type.isEmpty else {
+            completion(.failure(CraftHealthError(message: "startWorkout needs a workout type", code: "INVALID_ARGUMENT")))
+            return
+        }
+        guard healthStore != nil else {
+            completion(.failure(CraftHealthError(message: "HealthKit not available")))
+            return
+        }
+        guard liveWorkoutID == nil else {
+            completion(.failure(CraftHealthError(message: "A live workout is already running", code: "WORKOUT_IN_PROGRESS")))
+            return
+        }
+        guard #available(iOS 26.0, *) else {
+            completion(.failure(CraftHealthError(message: "Live workouts require iOS 26 or later", code: "UNSUPPORTED")))
+            return
+        }
+        startWorkout26(type: type, location: body["location"] as? String, completion: completion)
+    }
+
+    @available(iOS 26.0, *)
+    private func startWorkout26(type: String, location: String?, completion: @escaping Completion) {
+        guard let healthStore else {
+            completion(.failure(CraftHealthError(message: "HealthKit not available")))
+            return
+        }
+        guard let activity = Self.workoutActivity(type) else {
+            completion(.failure(CraftHealthError(message: "Unsupported workout type", code: "INVALID_ARGUMENT")))
+            return
+        }
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = activity
+        switch location {
+        case "indoor": configuration.locationType = .indoor
+        case "outdoor": configuration.locationType = .outdoor
+        case nil, "unknown": configuration.locationType = .unknown
+        default:
+            completion(.failure(CraftHealthError(message: "location must be indoor, outdoor, or unknown", code: "INVALID_ARGUMENT")))
+            return
+        }
+        do {
+            let session = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
+            let builder = session.associatedWorkoutBuilder()
+            let delegate = CraftHealthWorkoutDelegate(id: { [weak self] in self?.liveWorkoutID ?? "" }) { [weak self] detail in self?.sendWorkout(detail) }
+            session.delegate = delegate
+            builder.shouldCollectWorkoutEvents = true
+            builder.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
+            liveWorkoutSession = session
+            liveWorkoutBuilder = builder
+            liveWorkoutDelegate = delegate
+            liveWorkoutID = UUID().uuidString.lowercased()
+            liveWorkoutType = type
+            liveWorkoutStart = Date()
+            let id = liveWorkoutID!
+            let start = liveWorkoutStart!
+            session.startActivity(with: start)
+            builder.beginCollection(withStart: start) { [weak self] success, error in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    guard success else {
+                        self.clearLiveWorkout()
+                        completion(.failure(CraftHealthError(message: error?.localizedDescription ?? "Live workout could not start")))
+                        return
+                    }
+                    completion(.success(["id": id, "type": type, "startDate": start.timeIntervalSince1970 * 1000]))
+                }
+            }
+        } catch {
+            clearLiveWorkout()
+            completion(.failure(CraftHealthError(message: error.localizedDescription, code: "INVALID_ARGUMENT")))
+        }
+    }
+
+    func pauseWorkout(completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
+        guard #available(iOS 26.0, *), let session = liveWorkoutSession as? HKWorkoutSession else {
+            completion(.failure(CraftHealthError(message: "No live workout is running", code: "NO_WORKOUT")))
+            return
+        }
+        session.pause()
+        completion(.success(true))
+    }
+
+    func resumeWorkout(completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
+        guard #available(iOS 26.0, *), let session = liveWorkoutSession as? HKWorkoutSession else {
+            completion(.failure(CraftHealthError(message: "No live workout is running", code: "NO_WORKOUT")))
+            return
+        }
+        session.resume()
+        completion(.success(true))
+    }
+
+    func endWorkout(completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
+        guard #available(iOS 26.0, *), let session = liveWorkoutSession as? HKWorkoutSession, let builder = liveWorkoutBuilder as? HKLiveWorkoutBuilder, let id = liveWorkoutID else {
+            completion(.failure(CraftHealthError(message: "No live workout is running", code: "NO_WORKOUT")))
+            return
+        }
+        let end = Date()
+        session.end()
+        builder.endCollection(withEnd: end) { [weak self] success, error in
+            guard let self else { return }
+            guard success else {
+                DispatchQueue.main.async { completion(.failure(CraftHealthError(message: error?.localizedDescription ?? "Live workout could not end"))) }
+                return
+            }
+            builder.finishWorkout { [weak self] workout, finishError in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    defer { self.clearLiveWorkout() }
+                    guard let workout else {
+                        completion(.failure(CraftHealthError(message: finishError?.localizedDescription ?? "Live workout could not be saved")))
+                        return
+                    }
+                    completion(.success([
+                        "id": id,
+                        "workoutId": workout.uuid.uuidString,
+                        "endDate": end.timeIntervalSince1970 * 1000,
+                        "durationSeconds": workout.duration,
+                    ]))
+                }
+            }
+        }
+    }
+
+    private func clearLiveWorkout() {
+        liveWorkoutSession = nil
+        liveWorkoutBuilder = nil
+        liveWorkoutDelegate = nil
+        liveWorkoutID = nil
+        liveWorkoutType = nil
+        liveWorkoutStart = nil
+    }
+
+    private static func workoutActivity(_ type: String) -> HKWorkoutActivityType? {
+        switch type {
+        case "running": return .running
+        case "walking": return .walking
+        case "hiking": return .hiking
+        case "cycling": return .cycling
+        case "swimming": return .swimming
+        case "rowing": return .rowing
+        case "elliptical": return .elliptical
+        case "strength": return .traditionalStrengthTraining
+        case "hiit": return .highIntensityIntervalTraining
+        default: return nil
+        }
+    }
+
+    private func sendWorkout(_ detail: [String: Any]) {
+        if workoutSink?(detail) != true { CraftWebServices.forward("craftHealthWorkout", data: detail) }
+    }
+
     // MARK: Heart rate as it arrives
 
     /// The web view's coordinator, which sends `craftHealthHeartRate` to the
     /// page and every native screen. False (or unset, in an app without a web
     /// view) and the event goes to the native screens alone.
     var pageSink: (([String: Any]) -> Bool)?
+
+    /// Live workout lifecycle events use a separate page event so existing
+    /// heart-rate listeners remain unchanged. When no page owns the event,
+    /// CraftWebServices forwards it to native screens.
+    var workoutSink: (([String: Any]) -> Bool)?
+
+    // Stored as object references because the generated app still supports
+    // iOS 16.2; concrete HealthKit types are only touched behind the iOS 26
+    // availability checks below.
+    private var liveWorkoutSession: AnyObject?
+    private var liveWorkoutBuilder: AnyObject?
+    private var liveWorkoutDelegate: AnyObject?
+    private var liveWorkoutID: String?
+    private var liveWorkoutType: String?
+    private var liveWorkoutStart: Date?
 
     /// The one running stream: an anchored query that hears every heart-rate
     /// sample HealthKit receives after it starts.

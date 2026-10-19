@@ -960,6 +960,24 @@ describe('craft.health heart rate as it arrives', () => {
     refuse('startHealthHeartRateUpdates', 'HealthKit is disabled', 'CAPABILITY_DISABLED')
     await expect(started).rejects.toMatchObject({ code: 'CAPABILITY_DISABLED' })
   })
+
+  it('drives the live workout lifecycle through HealthKit', async () => {
+    const { craft, last, answer } = loadPage()
+    const started = craft.health.startWorkout({ type: 'running', location: 'outdoor' })
+    expect(last('startHealthWorkout')).toMatchObject({ type: 'running', location: 'outdoor' })
+    answer('startHealthWorkout', { id: 'live-1', type: 'running', startDate: 1000 })
+    expect(await started).toMatchObject({ id: 'live-1' })
+    const paused = craft.health.pauseWorkout()
+    expect(last('pauseHealthWorkout').action).toBe('pauseHealthWorkout')
+    answer('pauseHealthWorkout', true)
+    expect(await paused).toBe(true)
+    const resumed = craft.health.resumeWorkout()
+    answer('resumeHealthWorkout', true)
+    expect(await resumed).toBe(true)
+    const ended = craft.health.endWorkout()
+    answer('endHealthWorkout', { id: 'live-1', workoutId: 'hk-1', endDate: 9000, durationSeconds: 8 })
+    expect(await ended).toMatchObject({ workoutId: 'hk-1' })
+  })
 })
 
 describe('craft.heartRate', () => {

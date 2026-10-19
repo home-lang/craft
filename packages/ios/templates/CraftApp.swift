@@ -2170,6 +2170,11 @@ struct CraftWebView: UIViewRepresentable {
                     self.sendToWeb("craftHealthHeartRate", data: detail)
                     return true
                 }
+                CraftHealth.shared.workoutSink = { [weak self] detail in
+                    guard let self else { return false }
+                    self.sendToWeb("craftHealthWorkout", data: detail)
+                    return true
+                }
             }
             if config.enableHeartRate {
                 // The strap's readings and connection changes reach the page,
@@ -3060,6 +3065,30 @@ struct CraftWebView: UIViewRepresentable {
             case "stopHealthHeartRateUpdates":
                 if config.enableHealthKit {
                     CraftHealth.shared.stopHeartRateUpdates { [weak self] in self?.answer(callbackId, $0) }
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "startHealthWorkout":
+                if config.enableHealthKit {
+                    CraftHealth.shared.startWorkout(body: body) { [weak self] in self?.answer(callbackId, $0) }
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "pauseHealthWorkout":
+                if config.enableHealthKit {
+                    CraftHealth.shared.pauseWorkout { [weak self] in self?.answer(callbackId, $0) }
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "resumeHealthWorkout":
+                if config.enableHealthKit {
+                    CraftHealth.shared.resumeWorkout { [weak self] in self?.answer(callbackId, $0) }
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "endHealthWorkout":
+                if config.enableHealthKit {
+                    CraftHealth.shared.endWorkout { [weak self] in self?.answer(callbackId, $0) }
                 } else {
                     rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
                 }
@@ -5650,7 +5679,11 @@ struct CraftWebView: UIViewRepresentable {
                         var since = options && typeof options.since === 'number' ? options.since : null;
                         return craft._invoke('startHealthHeartRateUpdates', {since: since});
                     },
-                    stopHeartRateUpdates: function() { return craft._invoke('stopHealthHeartRateUpdates'); }
+                    stopHeartRateUpdates: function() { return craft._invoke('stopHealthHeartRateUpdates'); },
+                    startWorkout: function(options) { return craft._invoke('startHealthWorkout', options || {}); },
+                    pauseWorkout: function() { return craft._invoke('pauseHealthWorkout'); },
+                    resumeWorkout: function() { return craft._invoke('resumeHealthWorkout'); },
+                    endWorkout: function() { return craft._invoke('endHealthWorkout'); }
                 };
                 // The Music app's song and transport. Nothing is read until
                 // requestAuthorization() has been allowed; observe(true) makes
@@ -9342,7 +9375,7 @@ final class CraftZigRuntime: NSObject {
 enum CraftWebServices {
     private static var waiting: [String: (Result<Any, CraftNativeActionError>) -> Void] = [:]
     /// Coordinator events a native screen hears too.
-    static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftHealthHeartRate", "craftMusicChange", "craftHeartRate"]
+    static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftHealthHeartRate", "craftHealthWorkout", "craftMusicChange", "craftHeartRate"]
     static let event = Notification.Name("craftWebServicesEvent")
 
     static var isAvailable: Bool { CraftSwiftShim.coordinator != nil }
