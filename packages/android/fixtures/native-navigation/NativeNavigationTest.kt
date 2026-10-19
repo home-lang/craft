@@ -1863,8 +1863,11 @@ class NativeNavigationTest {
                 // viewport edge, matching the iOS native scroll host.
                 val headerTop = screenTop(peopleHeader)
                 val viewportTop = screenTop(people)
+                val firstChild = (peopleContent as? ViewGroup)?.getChildAt(0)
+                val layout = "scrollY=${people.scrollY} headerTop=${peopleHeader.top} translationY=${peopleHeader.translationY} contentHeight=${peopleContent.height} viewportHeight=${people.height} firstChild=${firstChild?.tag} firstTranslation=${firstChild?.translationY} headerIsDirectChild=${peopleHeader.parent === peopleContent} focus=${activity.currentFocus?.tag} refreshing=${peopleHost.isRefreshing}"
+                assertTrue("ScrollView did not retain the requested scroll: $layout", people.scrollY > 0)
                 assertTrue(
-                    "ScrollView sticky header did not remain pinned: header=$headerTop viewport=$viewportTop",
+                    "ScrollView sticky header did not remain pinned: header=$headerTop viewport=$viewportTop $layout",
                     kotlin.math.abs(headerTop - viewportTop) <= 1,
                 )
             }
