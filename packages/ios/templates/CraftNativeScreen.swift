@@ -1163,6 +1163,11 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var overlayCoordinatesByID: [String: [CLLocationCoordinate2D]] = [:]
     private var overlayColors: [ObjectIdentifier: UIColor] = [:]
     private var overlayWidths: [ObjectIdentifier: CGFloat] = [:]
+    private var polygonsByID: [String: MKPolygon] = [:]
+    private var polygonCoordinatesByID: [String: [CLLocationCoordinate2D]] = [:]
+    private var polygonFills: [ObjectIdentifier: UIColor] = [:]
+    private var polygonStrokes: [ObjectIdentifier: UIColor] = [:]
+    private var polygonWidths: [ObjectIdentifier: CGFloat] = [:]
     private var initialCameraKey: String?
     private var pendingFitKey: String?
     private var pendingRegion: MKCoordinateRegion?
@@ -1259,6 +1264,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         var nextHandlers: [String: String] = [:]
         var nextPolylines: [String: (coordinates: [CLLocationCoordinate2D], color: UIColor, width: CGFloat)] = [:]
         var nextPolylineIDs: [String] = []
+        var nextPolygons: [String: (coordinates: [CLLocationCoordinate2D], fill: UIColor, stroke: UIColor, width: CGFloat)] = [:]
         for (index, child) in children.enumerated() {
             guard let node = child as? [String: Any], let rawType = node["type"] as? String else { continue }
             let type = rawType.lowercased()
@@ -1286,6 +1292,14 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
                 guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }
                 if nextPolylines[id] == nil { nextPolylineIDs.append(id) }
                 nextPolylines[id] = (points, Self.color(childProps["strokeColor"] as? String), width)
+            } else if type == "mappolygon" || type == "polygon" {
+                guard points.count > 2 else { continue }
+                let authoredWidth = Self.numeric(childProps["strokeWidth"]) ?? 2
+                let width = CGFloat(authoredWidth)
+                guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }
+                let fill = Self.color(childProps["fillColor"] as? String).withAlphaComponent(0.28)
+                let stroke = Self.color(childProps["strokeColor"] as? String)
+                nextPolygons[id] = (points, fill, stroke, width)
             }
         }
 
@@ -1338,6 +1352,39 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             overlayWidths[ObjectIdentifier(overlay)] = value.width
             addOverlay(overlay)
         }
+        let stalePolygons = polygonsByID.keys.filter { nextPolygons[$0] == nil }
+        for id in stalePolygons {
+            if let polygon = polygonsByID.removeValue(forKey: id) {
+                removeOverlay(polygon)
+                polygonFills.removeValue(forKey: ObjectIdentifier(polygon))
+                polygonStrokes.removeValue(forKey: ObjectIdentifier(polygon))
+                polygonWidths.removeValue(forKey: ObjectIdentifier(polygon))
+            }
+            polygonCoordinatesByID.removeValue(forKey: id)
+        }
+        for (id, value) in nextPolygons {
+            if let polygon = polygonsByID[id],
+               let coordinates = polygonCoordinatesByID[id],
+               Self.coordinatesEqual(coordinates, value.coordinates),
+               polygonFills[ObjectIdentifier(polygon)]?.isEqual(value.fill) == true,
+               polygonStrokes[ObjectIdentifier(polygon)]?.isEqual(value.stroke) == true,
+               polygonWidths[ObjectIdentifier(polygon)] == value.width {
+                continue
+            }
+            if let previous = polygonsByID.removeValue(forKey: id) {
+                removeOverlay(previous)
+                polygonFills.removeValue(forKey: ObjectIdentifier(previous))
+                polygonStrokes.removeValue(forKey: ObjectIdentifier(previous))
+                polygonWidths.removeValue(forKey: ObjectIdentifier(previous))
+            }
+            let polygon = MKPolygon(coordinates: value.coordinates, count: value.coordinates.count)
+            polygonsByID[id] = polygon
+            polygonCoordinatesByID[id] = value.coordinates
+            polygonFills[ObjectIdentifier(polygon)] = value.fill
+            polygonStrokes[ObjectIdentifier(polygon)] = value.stroke
+            polygonWidths[ObjectIdentifier(polygon)] = value.width
+            addOverlay(polygon)
+        }
         // Keep authored casing/foreground order when an earlier line changes
         // or retained children move. Exchanging native overlays preserves the
         // unchanged objects, tile levels and current camera.
@@ -1373,7 +1420,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
                 initialCameraKey = key
             }
         } else if props["fitToBounds"] as? Bool == true {
-            let key = "fit:\(Self.overlayKey(markers: nextMarkers.mapValues { $0.coordinate }, polylines: nextPolylines.mapValues { $0.coordinates })):\(edgePadding)"
+            let key = "fit:\(Self.overlayKey(markers: nextMarkers.mapValues { $0.coordinate }, polylines: nextPolylines.mapValues { $0.coordinates }, polygons: nextPolygons.mapValues { $0.coordinates })):\(edgePadding)"
             if initialCameraKey != key {
                 // A native screen can reconcile before UIKit assigns the map
                 // its final safe-area-constrained bounds. Keep the fit
@@ -1410,6 +1457,12 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         overlayCoordinatesByID.removeAll()
         overlayColors.removeAll()
         overlayWidths.removeAll()
+        removeOverlays(Array(polygonsByID.values))
+        polygonsByID.removeAll()
+        polygonCoordinatesByID.removeAll()
+        polygonFills.removeAll()
+        polygonStrokes.removeAll()
+        polygonWidths.removeAll()
         if let tileOverlay {
             removeOverlay(tileOverlay)
             self.tileOverlay = nil
@@ -1554,6 +1607,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         guard bounds.width > 0, bounds.height > 0 else { return false }
         var rect = MKMapRect.null
         for overlay in overlaysByID.values { rect = rect.union(overlay.boundingMapRect) }
+        for polygon in polygonsByID.values { rect = rect.union(polygon.boundingMapRect) }
         for annotation in annotationsByID.values {
             let point = MKMapPoint(annotation.coordinate)
             rect = rect.union(MKMapRect(x: point.x, y: point.y, width: 0, height: 0))
@@ -1594,6 +1648,13 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
+        if let polygon = overlay as? MKPolygon {
+            let renderer = MKPolygonRenderer(polygon: polygon)
+            renderer.fillColor = polygonFills[ObjectIdentifier(polygon)] ?? UIColor.systemBlue.withAlphaComponent(0.28)
+            renderer.strokeColor = polygonStrokes[ObjectIdentifier(polygon)] ?? .systemBlue
+            renderer.lineWidth = polygonWidths[ObjectIdentifier(polygon)] ?? 2
+            return renderer
+        }
         let renderer = MKPolylineRenderer(overlay: overlay)
         renderer.strokeColor = overlayColors[ObjectIdentifier(overlay)] ?? .systemBlue
         renderer.lineWidth = overlayWidths[ObjectIdentifier(overlay)] ?? 3
@@ -1626,7 +1687,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     private static func overlayKey(
         markers: [String: CLLocationCoordinate2D],
-        polylines: [String: [CLLocationCoordinate2D]]
+        polylines: [String: [CLLocationCoordinate2D]],
+        polygons: [String: [CLLocationCoordinate2D]]
     ) -> String {
         let markerKey = markers.keys.sorted().compactMap { id in
             guard let point = markers[id] else { return nil }
