@@ -570,7 +570,7 @@ function openDetailsThenUpdateBackground() {
     <View :for="row in navigationRows" :key="row.id" style={{"height":52,"flexDirection":"row","gap":4}}>
       <Text :text="row.label" style={{"width":100}} />
       <TextInput :testID="'navigation-input-' + row.id" placeholder="Draft" style={{"width":100}} @input="updateNavigationDraft(row.id, $event)" />
-      <Button @click="selectNavigationRow(row.id)">Select row</Button>
+      <Button :testID="'navigation-select-' + row.id" @click="selectNavigationRow(row.id)">Select row</Button>
     </View>
     <Button testID="keyed-list-reorder" @click="reorderNavigationRows()">Reorder rows</Button>
     <Text testID="navigation-home-state" :text="'Home state: ' + navigationName + '/' + navigationCount" />

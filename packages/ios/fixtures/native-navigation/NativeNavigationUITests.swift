@@ -442,7 +442,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(beaInput.value as? String, "draft")
         beaInput.typeText("!")
         XCTAssertEqual(beaInput.value as? String, "draft!")
-        app.buttons.matching(NSPredicate(format: "label == %@", "Select row")).firstMatch.tap()
+        XCTAssertLessThan(app.staticTexts["Bea row updated"].frame.minY, app.staticTexts["Cy row"].frame.minY,
+                          "the keyed rows must retain their new visual order")
+        app.buttons["navigation-select-b"].tap()
         XCTAssertTrue(waitForLabel(status, "Selected: b"))
         XCTAssertTrue(scroll.exists, "keyed reconciliation replaced the list scroll host")
     }
