@@ -1265,6 +1265,30 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         var nextPolylines: [String: (coordinates: [CLLocationCoordinate2D], color: UIColor, width: CGFloat)] = [:]
         var nextPolylineIDs: [String] = []
         var nextPolygons: [String: (coordinates: [CLLocationCoordinate2D], fill: UIColor, stroke: UIColor, width: CGFloat)] = [:]
+        if let polylines = props["polylines"] as? [[String: Any]] {
+            for overlay in polylines {
+                let points = Self.coordinates(overlay["geometry"])
+                guard let id = (overlay["id"] as? CustomStringConvertible)?.description,
+                      points.count > 1 else { continue }
+                let authoredWidth = Self.numeric(overlay["strokeWidth"]) ?? 3
+                let width = CGFloat(authoredWidth)
+                guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }
+                nextPolylineIDs.append(id)
+                nextPolylines[id] = (points, Self.color(overlay["strokeColor"] as? String), width)
+            }
+        }
+        if let markers = props["markers"] as? [[String: Any]] {
+            for overlay in markers {
+                let points = Self.coordinates(overlay["geometry"])
+                guard let id = (overlay["id"] as? CustomStringConvertible)?.description,
+                      let point = points.first else { continue }
+                nextMarkers[id] = (point, overlay["title"] as? String)
+                if let color = overlay["pinColor"] as? String { nextPinColors[id] = Self.color(color) }
+                if let bearing = Self.numeric(overlay["bearing"]), bearing.isFinite {
+                    nextBearings[id] = bearing.truncatingRemainder(dividingBy: 360)
+                }
+            }
+        }
         for (index, child) in children.enumerated() {
             guard let node = child as? [String: Any], let rawType = node["type"] as? String else { continue }
             let type = rawType.lowercased()

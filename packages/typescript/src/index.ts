@@ -232,6 +232,8 @@ export type {
   VideoProps,
   MapRegion,
   MapProps,
+  MapPolylineOverlay,
+  MapMarkerOverlay,
   MapPolylineProps,
   MapPolygonProps,
   MapMarkerProps,

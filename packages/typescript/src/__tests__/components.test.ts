@@ -30,7 +30,9 @@ import type {
   GProps,
   PickerProps,
   MapProps,
+  MapMarkerOverlay,
   MapMarkerProps,
+  MapPolylineOverlay,
   MapPolygonProps,
   SvgProps,
   SvgTextProps,
@@ -155,6 +157,10 @@ describe('Component System', () => {
     expect(androidOnlyMap).toBeDefined()
     const route: MapPolylineProps = { geometry: [47, 11, 47.1, 11.2], strokeWidth: 3 }
     const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], pinColor: '#24724b', onPress: () => {} }
+    const routeData: MapPolylineOverlay = { id: 'route-1', geometry: [47, 11, 47.1, 11.2], strokeWidth: 3 }
+    const markerData: MapMarkerOverlay = { id: 'trailhead', geometry: [47, 11], title: 'Trailhead' }
+    map.polylines = [routeData]
+    map.markers = [markerData]
     const picker: PickerProps = { items: [{ label: 'One', value: 1 }], value: 1, selectedValue: 1, onChange: () => {} }
     const childPicker: PickerProps = { children: ['One', 'Two'], value: 'Two' }
     const statusBar: StatusBarProps = { barStyle: 'dark-content', hidden: false }
@@ -198,6 +204,8 @@ describe('Component System', () => {
     expect(map.initialRegion?.span.longitudeDelta).toBe(0.75)
     expect(map.fitToBounds).toBe(true)
     expect(route.geometry).toHaveLength(4)
+    expect(map.polylines?.[0].id).toBe('route-1')
+    expect(map.markers?.[0].title).toBe('Trailhead')
     const territory: MapPolygonProps = { geometry: [47, 11, 47.1, 11.2, 47.2, 11.1], fillColor: '#24724b', strokeWidth: 2 }
     expect(territory.geometry).toHaveLength(6)
     expect(territory.fillColor).toBe('#24724b')

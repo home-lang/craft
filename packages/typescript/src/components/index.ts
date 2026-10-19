@@ -616,6 +616,23 @@ export interface MapRegion {
   span: { latitudeDelta: number; longitudeDelta: number }
 }
 
+/** A keyed route overlay supplied as map data instead of a child node. */
+export interface MapPolylineOverlay {
+  id: string
+  geometry: number[]
+  strokeColor?: string
+  strokeWidth?: number
+}
+
+/** A keyed marker supplied as map data instead of a child node. */
+export interface MapMarkerOverlay {
+  id: string
+  geometry: number[]
+  title?: string
+  pinColor?: string
+  bearing?: number
+}
+
 export interface MapProps extends BaseProps {
   style?: StyleValue<ViewStyle>
   region?: MapRegion
@@ -639,6 +656,9 @@ export interface MapProps extends BaseProps {
   /** Requested tilt in degrees; the platform may lower it for the current altitude or map type. */
   cameraPitch?: number
   cameraHeading?: number
+  /** Keyed overlays for large collections; child nodes remain supported. */
+  polylines?: MapPolylineOverlay[]
+  markers?: MapMarkerOverlay[]
   /** A coordinate tapped on the map, excluding annotation presses. */
   onPress?: (event: { nativeEvent: { latitude: number, longitude: number } }) => void
   /** Settled camera after a person pans, rotates, zooms or tilts the map. */
