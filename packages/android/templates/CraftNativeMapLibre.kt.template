@@ -72,6 +72,7 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
         scale.setBackgroundColor(surface)
         scaleLabel.setTextColor(foreground)
         scaleLine.setBackgroundColor(foreground)
+        readyStyle?.let { updateOverlays(it) }
     }
 
     override fun onMapReady(nativeMap: MapLibreMap) {
@@ -260,8 +261,18 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
     }
 
     private fun cssColor(value: Any?, fallback: Int): String {
-        val color = (value as? String)?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: fallback
+        val color = (value as? String)?.let { mapColor(it, fallback) } ?: fallback
         return "rgba(${Color.red(color)},${Color.green(color)},${Color.blue(color)},${Color.alpha(color) / 255.0})"
+    }
+
+    private fun mapColor(raw: String, fallback: Int): Int {
+        val value = raw.trim().lowercase()
+        val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        return when (value) {
+            "label" -> if (dark) Color.WHITE else Color.BLACK
+            "secondarylabel", "secondary-label" -> if (dark) Color.LTGRAY else Color.DKGRAY
+            else -> runCatching { craftNativeColor(raw) }.getOrDefault(fallback)
+        }
     }
 
     private fun directionBitmap(): Bitmap {

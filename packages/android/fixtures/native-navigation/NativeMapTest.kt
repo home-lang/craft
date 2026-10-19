@@ -327,6 +327,41 @@ class NativeMapTest {
     }
 
     @Test
+    fun dynamicMapOverlayColorsRefreshForNightMode() = withMap { activity, host, _, map, _ ->
+        val originalMode = activity.resources.configuration.uiMode
+        try {
+            main {
+                val light = Configuration(activity.resources.configuration)
+                light.uiMode = (light.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_NO
+                activity.resources.updateConfiguration(light, activity.resources.displayMetrics)
+                host.configure(props(), overlays("label")) {}
+                host.refreshThemeDefaults()
+            }
+            awaitState("The native map must resolve label markers in light mode") {
+                features(map).firstOrNull { it.getStringProperty("craftOverlayId") == "start" }
+                    ?.getStringProperty("color") == "rgba(0,0,0,1.0)"
+            }
+            main {
+                val dark = Configuration(activity.resources.configuration)
+                dark.uiMode = (dark.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_YES
+                activity.resources.updateConfiguration(dark, activity.resources.displayMetrics)
+                host.refreshThemeDefaults()
+            }
+            awaitState("The native map must refresh label markers in dark mode") {
+                features(map).firstOrNull { it.getStringProperty("craftOverlayId") == "start" }
+                    ?.getStringProperty("color") == "rgba(255,255,255,1.0)"
+            }
+        } finally {
+            main {
+                val restore = Configuration(activity.resources.configuration)
+                restore.uiMode = (restore.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or (originalMode and Configuration.UI_MODE_NIGHT_MASK)
+                activity.resources.updateConfiguration(restore, activity.resources.displayMetrics)
+                host.refreshThemeDefaults()
+            }
+        }
+    }
+
+    @Test
     fun showingTheLocationDotDoesNotRequestPermissionDuringRendering() = withMap { activity, host, _, map, _ ->
         assertEquals(PackageManager.PERMISSION_DENIED, activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION))
         main {

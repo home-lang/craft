@@ -54,6 +54,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         scaleLine.setBackgroundColor(foreground)
         tileAttribution.setTextColor(foreground)
         tileAttribution.setBackgroundColor(surface)
+        applyPending(refreshCamera = false)
     }
 
     override fun onMapReady(map: GoogleMap) {
@@ -97,7 +98,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
 
     fun markerHandler(id: String): String? = markerHandlers[id]
 
-    private fun applyPending() {
+    private fun applyPending(refreshCamera: Boolean = true) {
         val map = googleMap ?: return
         applyMapPadding()
         map.uiSettings.isCompassEnabled = craftNativeBoolean(pendingProps.opt("showsCompass"))
@@ -133,7 +134,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
             if (type == "mapmarker" || type == "marker") {
                 points.firstOrNull()?.let { point ->
                     nextMarkers[id] = point to (props.opt("title") as? String)
-                    (props.opt("pinColor") as? String)?.let { value -> runCatching { craftNativeColor(value) }.getOrNull()?.let { nextPinColors[id] = it } }
+                    (props.opt("pinColor") as? String)?.let { value -> nextPinColors[id] = color(value) }
                     (props.opt("bearing") as? Number)?.toDouble()?.takeIf { it.isFinite() }?.let { nextBearings[id] = (it % 360).toFloat() }
                     listOf(events.opt("onPress"), events.opt("onMarkerPress"))
                         .firstNotNullOfOrNull(::craftNativeOptionalString)
@@ -192,6 +193,10 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
             } else {
                 map.addPolyline(PolylineOptions().addAll(value.first).color(value.second).width(value.third))?.let { polylines[id] = it }
             }
+        }
+        if (!refreshCamera) {
+            updateScale()
+            return
         }
         val explicitRegion = region(pendingProps.optJSONObject("region"))
         val initialRegion = region(pendingProps.optJSONObject("initialRegion"))
@@ -447,6 +452,13 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
     private fun finiteNumber(value: Any?): Double? =
         (value as? Number)?.toDouble()?.takeIf { it.isFinite() }
 
-    private fun color(value: String): Int = runCatching { craftNativeColor(value) }.getOrDefault(Color.BLUE)
+    private fun color(value: String): Int {
+        val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        return when (value.trim().lowercase()) {
+            "label" -> if (dark) Color.WHITE else Color.BLACK
+            "secondarylabel", "secondary-label" -> if (dark) Color.LTGRAY else Color.DKGRAY
+            else -> runCatching { craftNativeColor(value) }.getOrDefault(Color.BLUE)
+        }
+    }
 }
 

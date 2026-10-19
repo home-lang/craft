@@ -614,7 +614,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val mapMarkerHandler = craftNativeOptionalString(events.opt("onMarkerPress"))')
     expect(android).toContain('(markerHandler(markerId) ?: mapMarkerHandler)?.let')
     expect(android).toContain('mutableMapOf<String, Triple<List<LatLng>, Int, Float>>()')
-    expect(android).toContain('private fun color(value: String): Int = runCatching { craftNativeColor(value) }')
+    expect(android).toContain('private fun color(value: String): Int {')
     expect(android).toContain('PolylineOptions().addAll(value.first).color(value.second).width(value.third)')
     expect(android).toContain('polylines.keys.filter { nextPolylines[it] == null }.forEach')
     expect(android).toContain('polyline.points = value.first')
@@ -669,7 +669,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('fun refreshThemeDefaults()')
     expect(android).toContain('mapViews().forEach { it.refreshThemeDefaults() }')
     expect(androidMapLibre).toContain('fun refreshThemeDefaults()')
+    expect(androidMapLibre).toContain('readyStyle?.let { updateOverlays(it) }')
+    expect(androidMapLibre).toContain('"label" -> if (dark) Color.WHITE else Color.BLACK')
+    expect(android).toContain('applyPending(refreshCamera = false)')
+    expect(android).toContain('"label" -> if (dark) Color.WHITE else Color.BLACK')
     expect(androidMapTest).toContain('fun mapUtilityChromeRefreshesForNightMode()')
+    expect(androidMapTest).toContain('fun dynamicMapOverlayColorsRefreshForNightMode()')
   })
 
   it('retries iOS map fitting after the native viewport is measured', () => {
