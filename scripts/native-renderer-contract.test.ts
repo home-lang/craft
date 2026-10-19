@@ -114,8 +114,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private fun absoluteSize(entry: Entry, contentWidth: Int, contentHeight: Int): Pair<Int, Int>')
     expect(android).toContain('anchoredWidth && style.aspectRatio != null && style.aspectRatio > 0')
     expect(androidNavigationTest).toContain('absolute aspect ratio should remeasure from anchored width')
+    expect(androidNavigationTest).toContain('absolute aspect ratio should derive width from authored height')
     expect(navigationHome).toContain('testID="layout-absolute-ratio"')
+    expect(navigationHome).toContain('testID="layout-absolute-height-ratio"')
     expect(iosNavigationTest).toContain('absolute aspect ratio was not resolved from anchored width')
+    expect(iosNavigationTest).toContain('absolute aspect ratio did not derive width from authored height')
   })
 
   it('keeps browser-safe capability bridges reachable in DOM-free hosts', () => {

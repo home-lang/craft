@@ -897,7 +897,13 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val style = entry.style
         val anchoredWidth = style.left != null && style.right != null
         val anchoredHeight = style.top != null && style.bottom != null
-        var width = if (anchoredWidth) contentWidth - style.left!! - style.right!! else entry.width
+        var width = when {
+            anchoredWidth -> contentWidth - style.left!! - style.right!!
+            style.width != null -> style.width.resolve(contentWidth) ?: entry.width
+            style.aspectRatio != null && style.height != null ->
+                ((style.height.resolve(contentHeight) ?: entry.height) * style.aspectRatio).roundToInt()
+            else -> entry.width
+        }
         var height = if (anchoredHeight) contentHeight - style.top!! - style.bottom!! else entry.height
         width = clamp(width, style.minWidth?.resolve(contentWidth), style.maxWidth?.resolve(contentWidth))
         if (!anchoredHeight) {
