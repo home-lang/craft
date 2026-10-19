@@ -1449,7 +1449,8 @@ describe('native renderer component contract', () => {
   it('restores UIKit TextInput accessibility values when authored metadata is removed', () => {
     expect(ios).toContain('private var authoredAccessibilityValues = Set<ObjectIdentifier>()')
     expect(ios).toContain('else if authoredAccessibilityValues.remove(id) != nil')
-    expect(iosNativeUnitTests).toContain('XCTAssertNil(field.accessibilityValue)')
+    expect(iosNativeUnitTests).toContain('XCTAssertNotEqual(field.accessibilityValue, "Custom value")')
+    expect(iosNativeUnitTests).toContain('XCTAssertEqual(field.accessibilityValue, native.accessibilityValue)')
     expect(guide).toContain('removing that prop')
   })
 
@@ -1606,13 +1607,13 @@ describe('native renderer component contract', () => {
     for (const marker of [
       'imageTasks.values.forEach { $0.cancel() }',
       'pendingCapabilityDeadlines.values.forEach { $0.cancel() }',
-      'pendingTimers.values.forEach { $0.cancel() }',
+      'CraftNativeScriptThread.run { timers.pending.values.forEach { $0.cancel() } }',
       'pendingCapabilityRequests.forEach { CraftNativeActions.cancel(requestToken: $0) }',
       'lifecycleObservers.forEach(NotificationCenter.default.removeObserver)',
-      'jsContext.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: [])',
+      'CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }',
       'let inStack = navigationController?.viewControllers.contains(where: { $0 === self }) ?? false',
       'if !inStack {',
-      'disposeRuntime()\n                navigation.setViewControllers',
+      'self.disposeRuntime()\n                    navigation.setViewControllers',
     ]) expect(ios, `${marker} missing from iOS teardown`).toContain(marker)
 
     for (const marker of [
@@ -3012,10 +3013,11 @@ describe('native renderer component contract', () => {
   })
 
   it('releases replaced iOS row roots when a keyed identity changes type', () => {
-    expect(ios).toContain('if let previous, previous.view !== next.view {')
+    expect(ios).toContain('if let previous, previous.view !== next.view, !adopting {')
     expect(ios).toContain('self.forgetHandlers(previous)')
-    expect(ios).toContain('for child in rootStack.arrangedSubviews where child !== next.view')
-    expect(ios).toContain('if next.view.superview !== rootStack { rootStack.addArrangedSubview(next.view) }')
+    expect(iosFlatList).toContain('guard hostedView !== view else { return }')
+    expect(iosFlatList).toContain('hostedView?.removeFromSuperview()\n            hostedView = view')
+    expect(iosFlatList).toContain('contentView.addSubview(view)')
   })
 
   it('waits for asynchronous Android native fixture updates before asserting', () => {
