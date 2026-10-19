@@ -59,6 +59,19 @@ private func craftNativeGridColumnCount(_ value: Any?) -> Int {
     return max(1, tracks.count)
 }
 
+private func craftNativeGridRowCount(_ value: Any?) -> Int? {
+    if let number = craftNativeNumber(value) { return max(1, number.intValue) }
+    guard let text = value as? String else { return nil }
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    if trimmed.hasPrefix("repeat(") {
+        let digits = trimmed.dropFirst("repeat(".count).prefix { $0.isNumber }
+        if let count = Int(digits) { return max(1, count) }
+    }
+    let tracks = trimmed.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" })
+    return tracks.isEmpty ? nil : max(1, tracks.count)
+}
+
 /// Optional bridge to the shared Zig flex rule. Native hosts retain their
 /// local implementation when no Craft runtime is linked (the normal SDK
 /// fallback), while runtime-backed apps get one cross-platform calculation.
@@ -1869,6 +1882,7 @@ private struct CraftNativeLayoutStyle {
     let marginLeft: CGFloat
     let display: String
     let gridColumns: Int
+    let gridRows: Int?
     let gridAutoRows: CraftNativeLength?
 
     static let empty = CraftNativeLayoutStyle([:])
@@ -1910,6 +1924,7 @@ private struct CraftNativeLayoutStyle {
         marginLeft = number(raw["marginLeft"]) ?? horizontalMargin
         display = raw["display"] as? String ?? "flex"
         gridColumns = craftNativeGridColumnCount(raw["gridTemplateColumns"] ?? raw["gridColumns"])
+        gridRows = craftNativeGridRowCount(raw["gridTemplateRows"])
         gridAutoRows = CraftNativeLength(raw["gridAutoRows"])
     }
 }
@@ -2419,6 +2434,7 @@ private class CraftNativeFlowView: UIStackView {
     var columnGap: CGFloat? { didSet { if columnGap != oldValue { invalidateMeasurements() } } }
     var grid = false { didSet { if grid != oldValue { invalidateMeasurements() } } }
     var gridColumns = 1 { didSet { if gridColumns != oldValue { invalidateMeasurements() } } }
+    var gridRows: Int? { didSet { if gridRows != oldValue { invalidateMeasurements() } } }
     var gridAutoRows: CraftNativeLength? { didSet { if gridAutoRows != oldValue { invalidateMeasurements() } } }
     var reverse = false { didSet { if reverse != oldValue { invalidateMeasurements() } } }
     var wrapReverse = false { didSet { if wrapReverse != oldValue { invalidateMeasurements() } } }
@@ -3397,10 +3413,17 @@ private class CraftNativeFlowView: UIStackView {
             rowHeights[row] = max(rowHeights[row], size.height + style.marginTop + style.marginBottom)
         }
         let width = innerWidth ?? (CGFloat(columns) * cellWidth + gaps)
+        if let explicitRows = gridRows, let innerHeight {
+            let count = max(explicitRows, rowHeights.count)
+            while rowHeights.count < count { rowHeights.append(0) }
+            let available = max(0, innerHeight - CGFloat(max(0, count - 1)) * verticalGap)
+            let equal = available / CGFloat(max(1, count))
+            rowHeights = rowHeights.map { max($0, equal) }
+        }
         let height = rowHeights.reduce(0, +) + CGFloat(max(0, rowHeights.count - 1)) * verticalGap
         // Older runtimes return nil for the optional symbol; the local layout
         // below remains the compatibility path in that case.
-        let sharedFrames = CraftNativeGridBridge.frames(
+        let sharedFrames = gridRows == nil ? CraftNativeGridBridge.frames(
             availableWidth: innerWidth ?? width,
             availableHeight: innerHeight ?? height,
             columns: columns,
@@ -3428,7 +3451,7 @@ private class CraftNativeFlowView: UIStackView {
             },
             autoRowHeight: gridAutoRows.map { $0.resolve(innerHeight) ?? 0 },
             alignContent: craftNativeAlignContentCode(alignContent)
-        )
+        ) : nil
         if place {
             if let sharedFrames {
                 for (index, child) in children.enumerated() {
@@ -8253,6 +8276,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         stack.columnGap = max(0, number(style["columnGap"]) ?? gap)
         stack.grid = style["display"] as? String == "grid"
         stack.gridColumns = craftNativeGridColumnCount(style["gridTemplateColumns"] ?? style["gridColumns"])
+        stack.gridRows = craftNativeGridRowCount(style["gridTemplateRows"])
         stack.gridAutoRows = CraftNativeLength(style["gridAutoRows"])
         stack.padding = paddingInsets(style)
         stack.invalidateMeasurements()

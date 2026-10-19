@@ -722,6 +722,11 @@ function openDetailsThenUpdateBackground() {
       <Text testID="grid-second">grid two</Text>
       <Text testID="grid-third">grid three</Text>
     </View>
+    <View testID="grid-template-rows" style={{"display":"grid","gridTemplateColumns":"repeat(2, 1fr)","gridTemplateRows":"repeat(2, 1fr)","columnGap":4,"rowGap":4,"width":120,"height":84,"backgroundColor":"#164e63"}}>
+      <View testID="grid-template-rows-first" style={{"height":12,"backgroundColor":"#67e8f9"}} />
+      <View testID="grid-template-rows-second" style={{"height":12,"backgroundColor":"#22d3ee"}} />
+      <View testID="grid-template-rows-third" style={{"height":12,"backgroundColor":"#06b6d4"}} />
+    </View>
     <View testID="grid-fractional-wrap" style={{"display":"grid","gridTemplateColumns":"repeat(3, 1fr)","columnGap":4,"width":121,"height":32,"backgroundColor":"#164e63"}}>
       <View testID="grid-fractional-first" style={{"height":20,"backgroundColor":"#67e8f9"}} />
       <View testID="grid-fractional-second" style={{"height":20,"backgroundColor":"#22d3ee"}} />
