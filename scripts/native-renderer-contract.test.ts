@@ -13,6 +13,7 @@ const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudi
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
 const iosFiles = readFileSync(join(root, 'packages/ios/templates/CraftNativeFiles.swift'), 'utf8')
 const iosLiveActivities = readFileSync(join(root, 'packages/ios/templates/CraftLiveActivities.swift'), 'utf8')
+const iosHeartRate = readFileSync(join(root, 'packages/ios/templates/CraftHeartRate.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
   .replace('{{NATIVE_MAP_HOST}}', () => readFileSync(join(root, 'packages/android/templates', androidMapHost('google').template), 'utf8'))
   .replace('{{NATIVE_MAP_IMPORTS}}', () => androidMapHost('google').imports)
@@ -1895,6 +1896,11 @@ describe('native renderer component contract', () => {
 
   it('keeps iOS Live Activity numeric state strict', () => {
     expect(iosLiveActivities).toContain('guard let number = craftNativeNumber(body[key]), number.doubleValue.isFinite else { return nil }')
+  })
+
+  it('keeps iOS heart-rate numeric filters strict', () => {
+    expect(iosHeartRate).toContain('craftNativeNumber(options["timeout"]).map { $0.doubleValue }')
+    expect(iosHeartRate).toContain('craftNativeNumber(options["since"]).map { $0.doubleValue }')
   })
 
   it('keeps native iOS passkeys capability-gated and domain-bound', () => {

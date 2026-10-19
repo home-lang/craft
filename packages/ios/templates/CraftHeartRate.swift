@@ -235,7 +235,7 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
                     }
                     if var archived = try CraftRecordingArchive.read(self.directory, "heart-rate", id) {
                         if method == "readRecording" {
-                            let since = (options["since"] as? NSNumber)?.doubleValue
+                            let since = craftNativeNumber(options["since"]).map { $0.doubleValue }.flatMap { $0.isFinite ? $0 : nil }
                             let samples = archived["samples"] as? [[String: Any]] ?? []
                             return completion(.success(samples.filter { since == nil || (($0["timestamp"] as? NSNumber)?.doubleValue ?? 0) > since! }))
                         }
@@ -256,7 +256,7 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
                 self.recoverQuietBroadcast()
                 completion(.success(self.state()))
             case "requestAuthorization": self.requestAuthorization(completion: completion)
-            case "scan": self.scan(seconds: (options["timeout"] as? NSNumber)?.doubleValue, completion: completion)
+            case "scan": self.scan(seconds: craftNativeNumber(options["timeout"]).map { $0.doubleValue }.flatMap { $0.isFinite ? $0 : nil }, completion: completion)
             case "stopScan":
                 self.stopScan()
                 completion(.success(self.state()))
@@ -270,7 +270,10 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
             case "stopRecording": self.stopRecording(completion: completion)
             case "getRecordingState": completion(.success(self.recordingSummary(count: true)))
             case "readRecording":
-                do { completion(.success(try self.persistedSamples(since: (options["since"] as? NSNumber)?.doubleValue))) }
+                do {
+                    let since = craftNativeNumber(options["since"]).map { $0.doubleValue }.flatMap { $0.isFinite ? $0 : nil }
+                    completion(.success(try self.persistedSamples(since: since)))
+                }
                 catch { completion(.failure(CraftHeartRateError(message: "Unable to read the recording", code: "RECORDING_STORAGE_ERROR"))) }
             default: completion(.failure(CraftHeartRateError(message: "Unsupported HeartRate method", code: "UNKNOWN_ACTION")))
             }
