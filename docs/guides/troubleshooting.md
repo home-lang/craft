@@ -152,6 +152,19 @@ if (typeof window.craft === 'undefined') {
 }
 ```
 
+### Pointer lock fails on macOS
+
+**Symptom:** `Element.requestPointerLock()` fires `pointerlockerror` in a Craft
+macOS window, even when called from a real mouse click.
+
+**Cause:** WebKit's public macOS `WKUIDelegate` has no pointer-lock permission
+entry point. Craft does not use private WebKit APIs, so pointer lock is not
+available in the WebView renderer. Element fullscreen is supported, but it does
+not grant pointer lock.
+
+**Solution:** listen for `pointerlockerror` and offer a drag or fullscreen-based
+input mode. The AppKit native renderer does not expose a DOM pointer-lock API.
+
 ### Permission denied
 
 **Symptom:** File or system operations fail with permission error

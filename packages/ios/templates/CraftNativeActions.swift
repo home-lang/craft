@@ -1,6 +1,7 @@
 import Foundation
 import AuthenticationServices
 import LocalAuthentication
+import PassKit
 import SQLite3
 import Security
 import UIKit
@@ -52,6 +53,7 @@ enum CraftNativeActions {
         if config.enableDeepLinks { values.append("deepLinks") }
         if config.enableLocalNotifications { values.append("notifications") }
         if config.enableHealthKit { values.append("health") }
+        if config.enableWallet { values.append("wallet") }
         if config.enableLiveActivities { values.append("liveActivities") }
         // The in-app browser and the system's web sign-in sheet (CraftBrowser).
         values.append("browser")
@@ -376,6 +378,44 @@ enum CraftNativeActions {
                 complete(requestToken, result.mapError { CraftNativeActionError(code: $0.code, message: $0.message) }, completion)
             }
             return
+        case ("Wallet", "isAvailable"):
+            sync = config.enableWallet ? .success(PKPassLibrary.isPassLibraryAvailable()) : failure("CAPABILITY_DISABLED", "Wallet is disabled")
+        case ("Wallet", "has"):
+            guard config.enableWallet else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Wallet is disabled"), completion)
+                return
+            }
+            guard let serialNumber = args.first as? String, !serialNumber.isEmpty else {
+                complete(requestToken, failure("INVALID_ARGUMENT", "Wallet.has needs a serial number"), completion)
+                return
+            }
+            sync = .success(PKPassLibrary().passes().contains { $0.serialNumber == serialNumber })
+        case ("Wallet", "add"):
+            guard config.enableWallet else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Wallet is disabled"), completion)
+                return
+            }
+            let options = args.first as? [String: Any] ?? [:]
+            if let encoded = options["data"] as? String {
+                guard let data = Data(base64Encoded: encoded), let pass = try? PKPass(data: data) else {
+                    complete(requestToken, failure("INVALID_ARGUMENT", "Wallet.add needs a valid base64 pkpass"), completion)
+                    return
+                }
+                presentWalletPass(pass, requestToken: requestToken, completion: completion)
+                return
+            }
+            guard let address = options["url"] as? String, let url = URL(string: address), url.scheme == "https" else {
+                complete(requestToken, failure("INVALID_ARGUMENT", "Wallet.add needs base64 data or an https URL"), completion)
+                return
+            }
+            URLSession.shared.dataTask(with: url) { data, _, error in
+                guard let data, error == nil, let pass = try? PKPass(data: data) else {
+                    complete(requestToken, failure("WALLET_PASS_INVALID", "The Wallet pass could not be downloaded or parsed"), completion)
+                    return
+                }
+                DispatchQueue.main.async { self.presentWalletPass(pass, requestToken: requestToken, completion: completion) }
+            }.resume()
+            return
         case ("KeepAwake", "set"):
             guard config.enableKeepAwake else {
                 complete(requestToken, failure("CAPABILITY_DISABLED", "Keep awake is disabled"), completion)
@@ -594,6 +634,27 @@ enum CraftNativeActions {
             sync = failure("UNKNOWN_ACTION", "Unsupported native API")
         }
         complete(requestToken, sync ?? failure("UNKNOWN_ACTION", "Unsupported native API"), completion)
+    }
+
+    private static var walletPresenters: [String: CraftWalletPresenter] = [:]
+
+    private static func presentWalletPass(
+        _ pass: PKPass,
+        requestToken: String,
+        completion: @escaping (Result<Any, CraftNativeActionError>) -> Void
+    ) {
+        DispatchQueue.main.async {
+            let presenter = CraftWalletPresenter { result in
+                walletPresenters.removeValue(forKey: requestToken)
+                completion(result)
+            }
+            guard let controller = PKAddPassesViewController(pass: pass), CraftPresenter.present(controller, from: nil) else {
+                completion(failure("PRESENTATION_FAILED", "Wallet could not present its add-pass sheet"))
+                return
+            }
+            controller.delegate = presenter
+            walletPresenters[requestToken] = presenter
+        }
     }
 
     static func cancel(requestToken: String) {
@@ -1239,6 +1300,18 @@ enum CraftNativeActions {
             "batteryLevel": device.batteryLevel,
             "batteryState": batteryState,
         ]
+    }
+}
+
+private final class CraftWalletPresenter: NSObject, PKAddPassesViewControllerDelegate {
+    private let completion: (Result<Any, CraftNativeActionError>) -> Void
+
+    init(completion: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
+        self.completion = completion
+    }
+
+    func addPassesViewControllerDidFinish(_ controller: PKAddPassesViewController) {
+        controller.dismiss(animated: true) { [completion] in completion(.success(true)) }
     }
 }
 

@@ -1052,6 +1052,24 @@ describe('Craft iOS builder', () => {
     expect(health.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(13)
   })
 
+  it('gates native Apple Wallet passes behind the app config', async () => {
+    const output = createTempDir('craft-ios-native-wallet-')
+    await init({ runtimeDir: null, name: 'Wallet', bundleId: 'com.example.wallet', output, config: { enableWallet: true } })
+    const config = readFileSync(join(output, 'craft.config.json'), 'utf8')
+    const app = readFileSync(join(output, 'Sources', 'WalletApp.swift'), 'utf8')
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+
+    expect(JSON.parse(config).enableWallet).toBe(true)
+    expect(app).toContain('enableWallet: Bool = false')
+    expect(actions).toContain('import PassKit')
+    expect(actions).toContain('if config.enableWallet { values.append("wallet") }')
+    expect(actions).toContain('case ("Wallet", "isAvailable"):')
+    expect(actions).toContain('case ("Wallet", "has"):')
+    expect(actions).toContain('case ("Wallet", "add"):')
+    expect(actions).toContain('PKAddPassesViewController(pass: pass)')
+    expect(actions).toContain('Wallet.add needs base64 data or an https URL')
+  })
+
   it('asks a native screen\'s questions with the system\'s own alerts and sheets', async () => {
     const output = createTempDir('craft-ios-native-dialog-')
     await init({ runtimeDir: null, name: 'Ask', bundleId: 'com.example.ask', output })

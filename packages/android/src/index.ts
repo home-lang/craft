@@ -162,6 +162,8 @@ export interface CraftAndroidConfig {
    */
   enableHeartRate?: boolean
   enableHealthConnect?: boolean
+  /** Google Wallet save-link handoff for native screens. */
+  enableWallet?: boolean
   /**
    * The Health Connect data the app reads and writes, by the shared type
    * names (`steps`, `sleep`, `workouts`...). The manifest declares only
@@ -375,6 +377,7 @@ const DEFAULT_CONFIG: Omit<CraftAndroidConfig, 'appName' | 'packageName'> = {
   enableBluetooth: false,
   enableHeartRate: false,
   enableHealthConnect: false,
+  enableWallet: false,
   enableKeepAwake: false,
   enableDeepLinks: false,
   urlSchemes: [],

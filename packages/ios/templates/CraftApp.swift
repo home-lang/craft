@@ -1574,6 +1574,8 @@ struct CraftConfig: Codable {
     var enableBluetooth: Bool = false
     var enableNFC: Bool = false
     var enableHealthKit: Bool = false
+    /// Apple Wallet pass presentation and lookup for native screens.
+    var enableWallet: Bool = false
     var enableLiveActivities: Bool = false
     var enableWatchApp: Bool = false
     var enableBackgroundLocation: Bool = false

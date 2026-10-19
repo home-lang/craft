@@ -113,6 +113,7 @@ internal class CraftNativeServices(
             // `health.grantedTypes()` and `health.openSettings()`.
             add("healthAvailability")
         }
+        if (config.optBoolean("enableWallet")) add("wallet")
         if (config.optBoolean("enableKeepAwake")) add("keepAwake")
         if (config.optBoolean("enableGeolocation") || config.optBoolean("enableBackgroundLocation")) {
             add("geolocation")
@@ -130,6 +131,7 @@ internal class CraftNativeServices(
     fun handles(module: String): Boolean = module in setOf(
         "Dialog", "Browser", "Linking", "Share", "Push", "Health", "KeepAwake", "Brightness", "StatusBar", "Speech", "Background",
         "Location", "Media", "CrashReporter", "HeartRate",
+        "Wallet",
     )
 
     fun perform(module: String, method: String, args: JSONArray, completion: (CraftNativeCapabilityResult) -> Unit) {
@@ -144,6 +146,7 @@ internal class CraftNativeServices(
                 "Share" -> share(args.optJSONObject(0) ?: JSONObject(), done)
                 "Push" -> push(method, done)
                 "Health" -> health?.perform(method, args, done) ?: done(failure("CAPABILITY_DISABLED", "Health Connect is not enabled for this app"))
+                "Wallet" -> wallet(method, args, done)
                 "KeepAwake" -> keepAwake(args.optBoolean(0, true), done)
                 "Brightness" -> brightness(method, args, done)
                 "StatusBar" -> statusBar(args.optString(0, "default"), done)
@@ -173,6 +176,28 @@ internal class CraftNativeServices(
         } catch (error: Exception) {
             Log.e("CraftNativeAndroid", "$module.$method failed", error)
             done(failure("CRAFT_ERROR", error.message ?: "$module.$method failed"))
+        }
+    }
+
+    private fun wallet(method: String, args: JSONArray, done: (CraftNativeCapabilityResult) -> Unit) {
+        if (!config.optBoolean("enableWallet")) return done(failure("CAPABILITY_DISABLED", "Wallet is disabled"))
+        when (method) {
+            "isAvailable" -> done(success(runCatching {
+                context.packageManager.getLaunchIntentForPackage("com.google.android.apps.walletnfcrel") != null
+            }.getOrDefault(false)))
+            "add" -> {
+                val source = args.optJSONObject(0) ?: return done(failure("INVALID_ARGUMENT", "Wallet.add needs a source object"))
+                val address = source.optString("url").trim()
+                if (!address.startsWith("https://")) return done(failure("INVALID_ARGUMENT", "Android Wallet.add needs an HTTPS save URL"))
+                val host = activity() ?: return done(failure("NEEDS_ACTIVITY", "No screen is showing to open Wallet"))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(address))
+                if (intent.resolveActivity(host.packageManager) == null) return done(failure("UNAVAILABLE", "Google Wallet cannot open this save URL"))
+                runCatching { host.startActivity(intent) }
+                    .onSuccess { done(success(true)) }
+                    .onFailure { done(failure("PRESENTATION_FAILED", it.message ?: "Google Wallet could not open")) }
+            }
+            "has" -> done(failure("UNSUPPORTED", "Google Wallet pass lookup is not available through the save-link API"))
+            else -> done(failure("UNKNOWN_ACTION", "Unsupported Wallet method"))
         }
     }
 

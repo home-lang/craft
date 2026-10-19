@@ -122,6 +122,8 @@ export interface CraftConfig {
   enableBluetooth?: boolean
   enableNFC?: boolean
   enableHealthKit?: boolean
+  /** Native Apple Wallet pass presentation and lookup for native screens. */
+  enableWallet?: boolean
   enableLiveActivities?: boolean
   enableWatchApp?: boolean
   enableBackgroundLocation?: boolean
@@ -681,6 +683,7 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   enableBluetooth: false,
   enableNFC: false,
   enableHealthKit: false,
+  enableWallet: false,
   enableLiveActivities: false,
   enableWatchApp: false,
   enableBackgroundLocation: false,

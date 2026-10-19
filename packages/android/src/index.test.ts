@@ -727,6 +727,21 @@ describe('Craft Android builder', () => {
     expect(native).toContain('control.transitionName = craftNativeOptionalString(props.opt("transitionID"))?.takeIf { it.isNotBlank() }')
   })
 
+  it('hands native wallet passes to Google Wallet through an opt-in save URL', async () => {
+    const output = createTempDir('craft-android-native-wallet-')
+    await init({ name: 'Wallet', packageName: 'org.example.wallet', output, runtimeDir: null, config: { renderer: 'native', enableWallet: true } })
+    const services = readFileSync(join(output, 'app/src/main/java/org/example/wallet/CraftNativeServices.kt'), 'utf8')
+    const config = JSON.parse(readFileSync(join(output, 'app/src/main/assets/craft.config.json'), 'utf8'))
+
+    expect(config.enableWallet).toBe(true)
+    expect(services).toContain('if (config.optBoolean("enableWallet")) add("wallet")')
+    expect(services).toContain('"Wallet" -> wallet(method, args, done)')
+    expect(services).toContain('getLaunchIntentForPackage("com.google.android.apps.walletnfcrel")')
+    expect(services).toContain('Android Wallet.add needs an HTTPS save URL')
+    expect(services).toContain('host.startActivity(intent)')
+    expect(services).toContain('Google Wallet pass lookup is not available through the save-link API')
+  })
+
   it('generates a DayNight background resource for native screens', async () => {
     const output = createTempDir('craft-android-dark-background-')
     await init({

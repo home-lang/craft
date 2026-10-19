@@ -32,6 +32,16 @@ produce a diagnostic and an explicit visible error. The native `Sidebar` accepts
 sections of `{ id, header?, items: [{ id, label, icon?, badge? }] }` and sends an
 `onValueChange` event. Desktop capabilities are exposed through `craft.desktop`.
 
+## WebView pointer lock
+
+The macOS WebView renderer does not support `Element.requestPointerLock()`. WebKit
+reports `pointerlockerror` even when the request comes from a trusted click because
+its public `WKUIDelegate` has no pointer-lock permission callback. Craft does not
+use private WebKit APIs for Store builds. Element fullscreen remains available, so
+canvas and game code should detect pointer-lock failure and provide a drag or
+fullscreen control fallback. The AppKit native renderer has no DOM pointer-lock
+surface and is unaffected by this WebView limitation.
+
 An explicit `--test-dir` enables local file-based AppKit control automation.
 It records actual control classes, frames, values, script errors, and view trees.
 It is absent during normal launches. Tests should always use isolated data.
