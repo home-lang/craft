@@ -839,7 +839,7 @@ function openDetailsThenUpdateBackground() {
     <Text testID="invalid-control-style-status" :text="invalidControlStyleStatus" />
     <Text testID="date-event-status" :text="dateEventStatus" />
     <Button testID="toggle-modal" @click="toggleModal()">Toggle modal</Button>
-    <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} @show="modalShown()" @dismiss="modalDismissed()" @request-close="modalRequested()">
+    <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} @show="modalShown()" @dismiss="modalDismissed()" @request-close="modalRequested($event)">
       <Text testID="modal-content">Modal content</Text>
       <Button testID="toggle-modal-opacity" @click="toggleModalOpacity()">Toggle modal opacity</Button>
       <Text testID="modal-opacity" :text="modalOpacity" />
