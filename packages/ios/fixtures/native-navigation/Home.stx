@@ -795,6 +795,7 @@ function openDetailsThenUpdateBackground() {
     <Switch testID="native-switch" value={switchValue} accessibilityState={switchAccessibilityState()} trackColor={switchTrackColor()} thumbColor={switchThumbColor()} ios_backgroundColor="#475569" @value-change="toggleSwitch($event)" />
     <Button testID="toggle-invalid-switch-colors" @click="toggleInvalidSwitchColors()">Toggle invalid switch colors</Button>
     <Switch testID="nullable-switch" :value="null" :checked="true" />
+    <Switch testID="switch-value-precedence" :value="false" :checked="true" />
     <select testID="native-picker" :value="pickerValue" @change="choosePicker($event)">
       <option value="one">One</option>
       <option value="two">Two</option>

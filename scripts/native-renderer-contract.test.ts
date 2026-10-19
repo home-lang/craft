@@ -191,6 +191,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
     expect(guide).toContain('`checked` is a compatibility alias')
     expect(guide).toContain('`value` is null, and `value` takes precedence')
+    expect(navigationHome).toContain('<Switch testID="switch-value-precedence" :value="false" :checked="true" />')
+    expect(androidNavigationTest).toContain('non-null switch value should take precedence over checked')
+    expect(iosNavigationTest).toContain('app.switches["switch-value-precedence"].value as? String, "0"')
   })
 
   it('keeps Picker value compatibility aligned with both hosts', () => {

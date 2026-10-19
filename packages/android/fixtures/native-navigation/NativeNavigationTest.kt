@@ -1439,6 +1439,8 @@ class NativeNavigationTest {
             assertTrue("native switch should apply thumb tint", nativeSwitch.thumbTintList != null)
             val nullableSwitch = awaitView(activity, "nullable-switch") as Switch
             assertTrue("null switch value should fall back to checked", nullableSwitch.isChecked)
+            val precedenceSwitch = awaitView(activity, "switch-value-precedence") as Switch
+            assertTrue("non-null switch value should take precedence over checked", !precedenceSwitch.isChecked)
             var nullableSwitchInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { nullableSwitchInfo = nullableSwitch.createAccessibilityNodeInfo() }
             assertTrue("native checked state should remain accessible without accessibilityState", nullableSwitchInfo?.isChecked == true)
