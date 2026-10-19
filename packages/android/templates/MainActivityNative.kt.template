@@ -1432,12 +1432,12 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             put(base, 26, node.padding[3].toFloat())
             put(base, 27, node.padding[0].toFloat())
             putEnum(base, 28, if (node.grid) 1 else 0)
-            put(base, 29, node.gridColumns.toFloat())
+            putEnum(base, 29, node.gridColumns)
             put(base, 30, node.rowGap)
             put(base, 31, node.columnGap)
             if (fields >= 33) putEnum(base, 32, (if (node.reverse) 1 else 0) or (if (node.wrapReverse) 2 else 0))
             if (autoRowsAware) put(base, 33, sharedLength(node.gridAutoRows, contentHeight))
-            if (explicitRowsAware) put(base, 34, (node.gridRows ?: 0).toFloat())
+            if (explicitRowsAware) putEnum(base, 34, node.gridRows ?: 0)
             val firstChild = cursor
             node.children.forEach { child -> write(child, contentWidth, contentHeight, false, node.direction) }
             treeMeta[index * 2] = firstChild.toFloat()
