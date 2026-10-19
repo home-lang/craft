@@ -1,5 +1,6 @@
 /** The Android host for the small, host-neutral native trail map contract. */
 private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMapReadyCallback {
+    private data class PolygonValue(val points: List<LatLng>, val fillColor: Int, val strokeColor: Int, val strokeWidth: Float)
     private val mapView = MapView(context)
     private val scaleView = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -17,6 +18,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
     private var pendingChildren = JSONArray()
     private val markers = mutableMapOf<String, Marker>()
     private val polylines = mutableMapOf<String, Polyline>()
+    private val polygons = mutableMapOf<String, Polygon>()
     private val markerHandlers = mutableMapOf<String, String>()
     private var onMarkerTap: ((String) -> Unit)? = null
     var onMapPress: ((LatLng) -> Unit)? = null
@@ -122,6 +124,31 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         val nextPinColors = mutableMapOf<String, Int>()
         val nextHandlers = mutableMapOf<String, String>()
         val nextPolylines = mutableMapOf<String, Triple<List<LatLng>, Int, Float>>()
+        val nextPolygons = mutableMapOf<String, PolygonValue>()
+        val dataMarkers = pendingProps.optJSONArray("markers")
+        for (index in 0 until (dataMarkers?.length() ?: 0)) {
+            val overlay = dataMarkers?.optJSONObject(index) ?: continue
+            val id = craftNativeOptionalString(overlay.opt("id")) ?: continue
+            val point = coordinates(overlay.optJSONArray("geometry")).firstOrNull() ?: continue
+            nextMarkers[id] = point to (overlay.opt("title") as? String)
+            (overlay.opt("pinColor") as? String)?.let { nextPinColors[id] = color(it) }
+            (overlay.opt("bearing") as? Number)?.toDouble()?.takeIf { it.isFinite() }?.let { nextBearings[id] = (it % 360).toFloat() }
+        }
+        val dataPolylines = pendingProps.optJSONArray("polylines")
+        for (index in 0 until (dataPolylines?.length() ?: 0)) {
+            val overlay = dataPolylines?.optJSONObject(index) ?: continue
+            val id = craftNativeOptionalString(overlay.opt("id")) ?: continue
+            val points = coordinates(overlay.optJSONArray("geometry"))
+            if (points.size <= 1) continue
+            val authoredWidth = when (val rawWidth = overlay.opt("strokeWidth")) {
+                null, JSONObject.NULL -> 3.0
+                is Number -> rawWidth.toDouble()
+                else -> 3.0
+            }
+            val width = (authoredWidth * resources.displayMetrics.density).toFloat()
+            if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue
+            nextPolylines[id] = Triple(points, color(craftNativeOptionalString(overlay.opt("strokeColor")).orEmpty()), width)
+        }
         for (index in 0 until pendingChildren.length()) {
             val child = pendingChildren.optJSONObject(index) ?: continue
             val type = child.optString("type").lowercase()
@@ -160,6 +187,18 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
                     if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue
                     nextPolylines[id] = Triple(points, color(craftNativeOptionalString(props.opt("strokeColor")).orEmpty()), width)
                 }
+            } else if (type == "mappolygon" || type == "polygon") {
+                if (points.size > 2) {
+                    val rawWidth = props.opt("strokeWidth")
+                    val authoredWidth = when (rawWidth) {
+                        null, JSONObject.NULL -> 2.0
+                        is Number -> rawWidth.toDouble()
+                        else -> 2.0
+                    }
+                    val width = (authoredWidth * resources.displayMetrics.density).toFloat()
+                    if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue
+                    nextPolygons[id] = PolygonValue(points, color(craftNativeOptionalString(props.opt("fillColor")).orEmpty(), Color.argb(72, 33, 150, 83)), color(craftNativeOptionalString(props.opt("strokeColor")).orEmpty()), width)
+                }
             }
         }
         markerBearings = nextBearings
@@ -194,6 +233,18 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
                 map.addPolyline(PolylineOptions().addAll(value.first).color(value.second).width(value.third))?.let { polylines[id] = it }
             }
         }
+        polygons.keys.filter { nextPolygons[it] == null }.forEach { id -> polygons.remove(id)?.remove() }
+        for ((id, value) in nextPolygons) {
+            val polygon = polygons[id]
+            if (polygon != null) {
+                polygon.points = value.points
+                polygon.fillColor = value.fillColor
+                polygon.strokeColor = value.strokeColor
+                polygon.strokeWidth = value.strokeWidth
+            } else {
+                map.addPolygon(PolygonOptions().addAll(value.points).fillColor(value.fillColor).strokeColor(value.strokeColor).strokeWidth(value.strokeWidth))?.let { polygons[id] = it }
+            }
+        }
         if (!refreshCamera) {
             updateScale()
             return
@@ -213,7 +264,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
                 initialCameraKey = key
             }
         } else if (craftNativeBoolean(pendingProps.opt("fitToBounds"))) {
-            val key = "fit:${overlayKey(nextMarkers, nextPolylines)}:${pendingProps.optJSONObject("edgePadding")}"
+            val key = "fit:${overlayKey(nextMarkers, nextPolylines, nextPolygons)}:${pendingProps.optJSONObject("edgePadding")}"
             if (initialCameraKey != key) {
                 if (fitToBounds()) initialCameraKey = key
             }
@@ -340,14 +391,18 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
     private fun overlayKey(
         markers: Map<String, Pair<LatLng, String?>>,
         polylines: Map<String, Triple<List<LatLng>, Int, Float>>,
+        polygons: Map<String, PolygonValue>,
     ): String {
         val markerKey = markers.toSortedMap().entries.joinToString("|") { (id, value) ->
             "$id:${value.first.latitude},${value.first.longitude}"
         }
         val polylineKey = polylines.toSortedMap().entries.joinToString("|") { (id, value) ->
+            "$id:" + value.points.joinToString(";") { point -> "${point.latitude},${point.longitude}" }
+        }
+        val polygonKey = polygons.toSortedMap().entries.joinToString("|") { (id, value) ->
             "$id:" + value.first.joinToString(";") { point -> "${point.latitude},${point.longitude}" }
         }
-        return "m[$markerKey]p[$polylineKey]"
+        return "m[$markerKey]p[$polylineKey]g[$polygonKey]"
     }
 
     private fun fitToBounds(): Boolean {
@@ -357,6 +412,8 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         var count = 0
         markers.values.forEach { builder.include(it.position); count++ }
         polylines.values.flatMap { it.points }.forEach { builder.include(it); count++ }
+        polygons.values.flatMap { it.points }.forEach { builder.include(it); count++ }
+        polygons.values.flatMap { it.points }.forEach { builder.include(it); count++ }
         if (count == 0) return false
         post {
             if (width > 0 && height > 0) {
@@ -405,6 +462,8 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         markers.clear()
         polylines.values.forEach { it.remove() }
         polylines.clear()
+        polygons.values.forEach { it.remove() }
+        polygons.clear()
         mapView.onDestroy()
         googleMap = null
     }
@@ -453,11 +512,15 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         (value as? Number)?.toDouble()?.takeIf { it.isFinite() }
 
     private fun color(value: String): Int {
+        return color(value, Color.BLUE)
+    }
+
+    private fun color(value: String, fallback: Int): Int {
         val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
         return when (value.trim().lowercase()) {
             "label" -> if (dark) Color.WHITE else Color.BLACK
             "secondarylabel", "secondary-label" -> if (dark) Color.LTGRAY else Color.DKGRAY
-            else -> runCatching { craftNativeColor(value) }.getOrDefault(Color.BLUE)
+            else -> runCatching { craftNativeColor(value) }.getOrDefault(fallback)
         }
     }
 }

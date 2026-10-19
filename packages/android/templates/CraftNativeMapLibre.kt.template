@@ -221,6 +221,12 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
         style.addLayer(LineLayer("craft-map-routes", "craft-map-overlays")
             .withFilter(Expression.eq(Expression.get("kind"), "line"))
             .withProperties(lineColor(Expression.toColor(Expression.get("color"))), lineWidth(Expression.get("width")), lineCap("round"), lineJoin("round")))
+        style.addLayer(FillLayer("craft-map-polygons", "craft-map-overlays")
+            .withFilter(Expression.eq(Expression.get("kind"), "polygon"))
+            .withProperties(fillColor(Expression.toColor(Expression.get("fillColor")))))
+        style.addLayer(LineLayer("craft-map-polygon-strokes", "craft-map-overlays")
+            .withFilter(Expression.eq(Expression.get("kind"), "polygon"))
+            .withProperties(lineColor(Expression.toColor(Expression.get("strokeColor"))), lineWidth(Expression.get("strokeWidth")), lineCap("round"), lineJoin("round")))
         style.addLayer(CircleLayer("craft-map-markers", "craft-map-overlays")
             .withFilter(Expression.eq(Expression.get("kind"), "marker"))
             .withProperties(circleColor(Expression.toColor(Expression.get("color"))), circleRadius(7f), circleStrokeColor(Color.WHITE), circleStrokeWidth(2f)))
@@ -233,6 +239,42 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
         val features = JSONArray()
         val pointsForFit = mutableListOf<LatLng>()
         markerHandlers.clear()
+        val dataMarkers = pendingProps.optJSONArray("markers")
+        for (index in 0 until (dataMarkers?.length() ?: 0)) {
+            val overlay = dataMarkers?.optJSONObject(index) ?: continue
+            val id = craftNativeOptionalString(overlay.opt("id")) ?: continue
+            val point = coordinates(overlay.optJSONArray("geometry")).firstOrNull() ?: continue
+            val bearing = finiteNumber(overlay.opt("bearing"))
+            val properties = JSONObject()
+                .put("craftOverlayId", id)
+                .put("kind", if (bearing == null) "marker" else "direction")
+                .put("craftMarkerId", id)
+                .put("bearing", (bearing ?: 0.0) % 360)
+                .put("color", cssColor(overlay.opt("pinColor"), Color.rgb(36, 114, 75)))
+            val geometry = JSONObject().put("type", "Point").put("coordinates", JSONArray().put(point.longitude).put(point.latitude))
+            features.put(JSONObject().put("type", "Feature").put("properties", properties).put("geometry", geometry))
+            pointsForFit.add(point)
+        }
+        val dataPolylines = pendingProps.optJSONArray("polylines")
+        for (index in 0 until (dataPolylines?.length() ?: 0)) {
+            val overlay = dataPolylines?.optJSONObject(index) ?: continue
+            val id = craftNativeOptionalString(overlay.opt("id")) ?: continue
+            val points = coordinates(overlay.optJSONArray("geometry"))
+            if (points.size <= 1) continue
+            val rawWidth = overlay.opt("strokeWidth")
+            val logicalWidth = if (rawWidth == null || rawWidth == JSONObject.NULL) 3.0 else finiteNumber(rawWidth) ?: continue
+            val width = (logicalWidth * resources.displayMetrics.density).takeIf { it.isFinite() && it > 0 } ?: continue
+            val properties = JSONObject()
+                .put("craftOverlayId", id)
+                .put("kind", "line")
+                .put("color", cssColor(overlay.opt("strokeColor"), Color.BLUE))
+                .put("width", width)
+            val geometry = JSONObject().put("type", "LineString").put("coordinates", JSONArray().apply {
+                points.forEach { put(JSONArray().put(it.longitude).put(it.latitude)) }
+            })
+            features.put(JSONObject().put("type", "Feature").put("properties", properties).put("geometry", geometry))
+            pointsForFit.addAll(points)
+        }
         for (index in 0 until pendingChildren.length()) {
             val child = pendingChildren.optJSONObject(index) ?: continue
             val type = child.optString("type").lowercase()
@@ -260,6 +302,16 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
                     .takeIf { it.isFinite() && it > 0 } ?: continue
                 properties.put("kind", "line").put("color", cssColor(props.opt("strokeColor"), Color.BLUE)).put("width", width)
                 geometry.put("type", "LineString").put("coordinates", JSONArray().apply { points.forEach { put(JSONArray().put(it.longitude).put(it.latitude)) } })
+                pointsForFit.addAll(points)
+            } else if ((type == "mappolygon" || type == "polygon") && points.size > 2) {
+                val rawWidth = props.opt("strokeWidth")
+                val logicalWidth = if (rawWidth == null || rawWidth == JSONObject.NULL) 2.0 else finiteNumber(rawWidth) ?: continue
+                val width = (logicalWidth * resources.displayMetrics.density).takeIf { it.isFinite() && it > 0 } ?: continue
+                val fill = cssColor(props.opt("fillColor"), Color.argb(72, 33, 150, 83))
+                val stroke = cssColor(props.opt("strokeColor"), Color.rgb(33, 150, 83))
+                properties.put("kind", "polygon").put("fillColor", fill).put("strokeColor", stroke).put("strokeWidth", width)
+                val ring = points + points.first()
+                geometry.put("type", "Polygon").put("coordinates", JSONArray().put(JSONArray().apply { ring.forEach { put(JSONArray().put(it.longitude).put(it.latitude)) } }))
                 pointsForFit.addAll(points)
             } else continue
             features.put(JSONObject().put("type", "Feature").put("properties", properties).put("geometry", geometry))

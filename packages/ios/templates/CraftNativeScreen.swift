@@ -1163,6 +1163,11 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var overlayCoordinatesByID: [String: [CLLocationCoordinate2D]] = [:]
     private var overlayColors: [ObjectIdentifier: UIColor] = [:]
     private var overlayWidths: [ObjectIdentifier: CGFloat] = [:]
+    private var polygonsByID: [String: MKPolygon] = [:]
+    private var polygonCoordinatesByID: [String: [CLLocationCoordinate2D]] = [:]
+    private var polygonFills: [ObjectIdentifier: UIColor] = [:]
+    private var polygonStrokes: [ObjectIdentifier: UIColor] = [:]
+    private var polygonWidths: [ObjectIdentifier: CGFloat] = [:]
     private var initialCameraKey: String?
     private var pendingFitKey: String?
     private var pendingRegion: MKCoordinateRegion?
@@ -1259,6 +1264,31 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         var nextHandlers: [String: String] = [:]
         var nextPolylines: [String: (coordinates: [CLLocationCoordinate2D], color: UIColor, width: CGFloat)] = [:]
         var nextPolylineIDs: [String] = []
+        var nextPolygons: [String: (coordinates: [CLLocationCoordinate2D], fill: UIColor, stroke: UIColor, width: CGFloat)] = [:]
+        if let polylines = props["polylines"] as? [[String: Any]] {
+            for overlay in polylines {
+                let points = Self.coordinates(overlay["geometry"])
+                guard let id = (overlay["id"] as? CustomStringConvertible)?.description,
+                      points.count > 1 else { continue }
+                let authoredWidth = Self.numeric(overlay["strokeWidth"]) ?? 3
+                let width = CGFloat(authoredWidth)
+                guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }
+                nextPolylineIDs.append(id)
+                nextPolylines[id] = (points, Self.color(overlay["strokeColor"] as? String), width)
+            }
+        }
+        if let markers = props["markers"] as? [[String: Any]] {
+            for overlay in markers {
+                let points = Self.coordinates(overlay["geometry"])
+                guard let id = (overlay["id"] as? CustomStringConvertible)?.description,
+                      let point = points.first else { continue }
+                nextMarkers[id] = (point, overlay["title"] as? String)
+                if let color = overlay["pinColor"] as? String { nextPinColors[id] = Self.color(color) }
+                if let bearing = Self.numeric(overlay["bearing"]), bearing.isFinite {
+                    nextBearings[id] = bearing.truncatingRemainder(dividingBy: 360)
+                }
+            }
+        }
         for (index, child) in children.enumerated() {
             guard let node = child as? [String: Any], let rawType = node["type"] as? String else { continue }
             let type = rawType.lowercased()
@@ -1286,6 +1316,14 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
                 guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }
                 if nextPolylines[id] == nil { nextPolylineIDs.append(id) }
                 nextPolylines[id] = (points, Self.color(childProps["strokeColor"] as? String), width)
+            } else if type == "mappolygon" || type == "polygon" {
+                guard points.count > 2 else { continue }
+                let authoredWidth = Self.numeric(childProps["strokeWidth"]) ?? 2
+                let width = CGFloat(authoredWidth)
+                guard authoredWidth.isFinite, width.isFinite, width > 0 else { continue }
+                let fill = Self.color(childProps["fillColor"] as? String).withAlphaComponent(0.28)
+                let stroke = Self.color(childProps["strokeColor"] as? String)
+                nextPolygons[id] = (points, fill, stroke, width)
             }
         }
 
@@ -1338,6 +1376,39 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             overlayWidths[ObjectIdentifier(overlay)] = value.width
             addOverlay(overlay)
         }
+        let stalePolygons = polygonsByID.keys.filter { nextPolygons[$0] == nil }
+        for id in stalePolygons {
+            if let polygon = polygonsByID.removeValue(forKey: id) {
+                removeOverlay(polygon)
+                polygonFills.removeValue(forKey: ObjectIdentifier(polygon))
+                polygonStrokes.removeValue(forKey: ObjectIdentifier(polygon))
+                polygonWidths.removeValue(forKey: ObjectIdentifier(polygon))
+            }
+            polygonCoordinatesByID.removeValue(forKey: id)
+        }
+        for (id, value) in nextPolygons {
+            if let polygon = polygonsByID[id],
+               let coordinates = polygonCoordinatesByID[id],
+               Self.coordinatesEqual(coordinates, value.coordinates),
+               polygonFills[ObjectIdentifier(polygon)]?.isEqual(value.fill) == true,
+               polygonStrokes[ObjectIdentifier(polygon)]?.isEqual(value.stroke) == true,
+               polygonWidths[ObjectIdentifier(polygon)] == value.width {
+                continue
+            }
+            if let previous = polygonsByID.removeValue(forKey: id) {
+                removeOverlay(previous)
+                polygonFills.removeValue(forKey: ObjectIdentifier(previous))
+                polygonStrokes.removeValue(forKey: ObjectIdentifier(previous))
+                polygonWidths.removeValue(forKey: ObjectIdentifier(previous))
+            }
+            let polygon = MKPolygon(coordinates: value.coordinates, count: value.coordinates.count)
+            polygonsByID[id] = polygon
+            polygonCoordinatesByID[id] = value.coordinates
+            polygonFills[ObjectIdentifier(polygon)] = value.fill
+            polygonStrokes[ObjectIdentifier(polygon)] = value.stroke
+            polygonWidths[ObjectIdentifier(polygon)] = value.width
+            addOverlay(polygon)
+        }
         // Keep authored casing/foreground order when an earlier line changes
         // or retained children move. Exchanging native overlays preserves the
         // unchanged objects, tile levels and current camera.
@@ -1373,7 +1444,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
                 initialCameraKey = key
             }
         } else if props["fitToBounds"] as? Bool == true {
-            let key = "fit:\(Self.overlayKey(markers: nextMarkers.mapValues { $0.coordinate }, polylines: nextPolylines.mapValues { $0.coordinates })):\(edgePadding)"
+            let key = "fit:\(Self.overlayKey(markers: nextMarkers.mapValues { $0.coordinate }, polylines: nextPolylines.mapValues { $0.coordinates }, polygons: nextPolygons.mapValues { $0.coordinates })):\(edgePadding)"
             if initialCameraKey != key {
                 // A native screen can reconcile before UIKit assigns the map
                 // its final safe-area-constrained bounds. Keep the fit
@@ -1410,6 +1481,12 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         overlayCoordinatesByID.removeAll()
         overlayColors.removeAll()
         overlayWidths.removeAll()
+        removeOverlays(Array(polygonsByID.values))
+        polygonsByID.removeAll()
+        polygonCoordinatesByID.removeAll()
+        polygonFills.removeAll()
+        polygonStrokes.removeAll()
+        polygonWidths.removeAll()
         if let tileOverlay {
             removeOverlay(tileOverlay)
             self.tileOverlay = nil
@@ -1554,6 +1631,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         guard bounds.width > 0, bounds.height > 0 else { return false }
         var rect = MKMapRect.null
         for overlay in overlaysByID.values { rect = rect.union(overlay.boundingMapRect) }
+        for polygon in polygonsByID.values { rect = rect.union(polygon.boundingMapRect) }
         for annotation in annotationsByID.values {
             let point = MKMapPoint(annotation.coordinate)
             rect = rect.union(MKMapRect(x: point.x, y: point.y, width: 0, height: 0))
@@ -1594,6 +1672,13 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
+        if let polygon = overlay as? MKPolygon {
+            let renderer = MKPolygonRenderer(polygon: polygon)
+            renderer.fillColor = polygonFills[ObjectIdentifier(polygon)] ?? UIColor.systemBlue.withAlphaComponent(0.28)
+            renderer.strokeColor = polygonStrokes[ObjectIdentifier(polygon)] ?? .systemBlue
+            renderer.lineWidth = polygonWidths[ObjectIdentifier(polygon)] ?? 2
+            return renderer
+        }
         let renderer = MKPolylineRenderer(overlay: overlay)
         renderer.strokeColor = overlayColors[ObjectIdentifier(overlay)] ?? .systemBlue
         renderer.lineWidth = overlayWidths[ObjectIdentifier(overlay)] ?? 3
@@ -1626,7 +1711,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     private static func overlayKey(
         markers: [String: CLLocationCoordinate2D],
-        polylines: [String: [CLLocationCoordinate2D]]
+        polylines: [String: [CLLocationCoordinate2D]],
+        polygons: [String: [CLLocationCoordinate2D]]
     ) -> String {
         let markerKey = markers.keys.sorted().compactMap { id in
             guard let point = markers[id] else { return nil }
@@ -1636,7 +1722,11 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             guard let points = polylines[id] else { return nil }
             return "\(id):" + points.map { "\($0.latitude),\($0.longitude)" }.joined(separator: ";")
         }.joined(separator: "|")
-        return "m[\(markerKey)]p[\(polylineKey)]"
+        let polygonKey = polygons.keys.sorted().compactMap { id in
+            guard let points = polygons[id] else { return nil }
+            return "\(id):" + points.map { "\($0.latitude),\($0.longitude)" }.joined(separator: ";")
+        }.joined(separator: "|")
+        return "m[\(markerKey)]p[\(polylineKey)]g[\(polygonKey)]"
     }
 
     private static func region(_ value: Any?) -> MKCoordinateRegion? {
@@ -3515,13 +3605,14 @@ private final class CraftNativeImageBackgroundView: UIImageView {
     }
 }
 
-private final class CraftNativeModalView: UIView {
+private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     let contentStack = CraftNativeFlowView()
     private let blocker = UIView()
+    private let backdropTap = UITapGestureRecognizer()
     private var renderedVisible = false
     private var dismissSuppressedByRequest = false
     private var animationGeneration = 0
-    var onRequestClose: (() -> Void)?
+    var onRequestClose: ((String) -> Void)?
 
     var transparent = false {
         didSet { blocker.backgroundColor = transparent ? .clear : UIColor.black.withAlphaComponent(0.32) }
@@ -3532,7 +3623,10 @@ private final class CraftNativeModalView: UIView {
         isUserInteractionEnabled = true
         blocker.isUserInteractionEnabled = true
         blocker.backgroundColor = UIColor.black.withAlphaComponent(0.32)
-        blocker.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(blockerTapped)))
+        backdropTap.addTarget(self, action: #selector(backdropTapped))
+        backdropTap.cancelsTouchesInView = false
+        backdropTap.delegate = self
+        addGestureRecognizer(backdropTap)
         addSubview(blocker)
         contentStack.backgroundColor = .clear
         addSubview(contentStack)
@@ -3609,11 +3703,11 @@ private final class CraftNativeModalView: UIView {
         onRequestClose = nil
     }
 
-    func requestClose() {
+    func requestClose(reason: String = "backdrop") {
         guard let onRequestClose else { return }
         dismissSuppressedByRequest = true
         isUserInteractionEnabled = false
-        onRequestClose()
+        onRequestClose(reason)
     }
 
     func consumeDismissSuppression() -> Bool {
@@ -3624,7 +3718,35 @@ private final class CraftNativeModalView: UIView {
 
     func clearDismissSuppression() { dismissSuppressedByRequest = false }
 
-    @objc private func blockerTapped() { requestClose() }
+    @objc private func backdropTapped() { requestClose(reason: "backdrop") }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard gestureRecognizer === backdropTap else { return true }
+        var candidate = touch.view
+        while let view = candidate, view !== self {
+            if view === blocker { return true }
+            if view is UIControl || !(view.gestureRecognizers?.isEmpty ?? true) { return false }
+            candidate = view.superview
+        }
+        return true
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
+        let contentPoint = contentStack.convert(point, from: self)
+        if contentStack.bounds.contains(contentPoint), let hit = contentStack.hitTest(contentPoint, with: event), hit !== contentStack {
+            // Flow/layout views occupy the modal's entire content rect, but a
+            // blank part of one must still be a scrim tap. Preserve touches
+            // only when the hit view (or one of its ancestors) actually owns
+            // a control or gesture recognizer.
+            var candidate: UIView? = hit
+            while let view = candidate, view !== contentStack {
+                if view is UIControl || !(view.gestureRecognizers?.isEmpty ?? true) { return hit }
+                candidate = view.superview
+            }
+        }
+        return blocker.hitTest(blocker.convert(point, from: self), with: event)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -4614,6 +4736,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var sliderSteps: [ObjectIdentifier: Float] = [:]
     private var pickerOptions: [ObjectIdentifier: [(value: String, label: String)]] = [:]
     private var modalVisibility: [ObjectIdentifier: Bool] = [:]
+    private var modalFocusRestore: [ObjectIdentifier: UIView] = [:]
     private var layoutHandlers: [ObjectIdentifier: String] = [:]
     private var lastLayoutFrames: [ObjectIdentifier: CGRect] = [:]
     private var tapRecognizers: [ObjectIdentifier: UITapGestureRecognizer] = [:]
@@ -5091,6 +5214,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 onMessage: function(callback) { globalThis.__stxNativeCallback = callback; }
             };
         """)
+        jsContext.evaluateScript(Self.nativeWebAPICompatibilityPrelude)
         installHostAPIs()
         jsContext.evaluateScript("""
             if (typeof globalThis.setTimeout !== 'function') {
@@ -5146,6 +5270,25 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
         """)
     }
+
+    /// JavaScriptCore has the language core but not browser URL/encoding
+    /// globals. Keep their absence actionable for shared modules instead of
+    /// surfacing an opaque ReferenceError from an unrelated load path. Full
+    /// implementations belong to the shared STX runtime.
+    private static let nativeWebAPICompatibilityPrelude = """
+        (function() {
+          function unavailable(name, hint) {
+            var failure = function() {
+              throw new ReferenceError(name + ' is not available on a native screen — ' + hint);
+            };
+            failure.prototype.constructor = failure;
+            return failure;
+          }
+          if (typeof globalThis.URL === 'undefined') globalThis.URL = unavailable('URL', 'use an absolute URL or build the path with encodeURIComponent');
+          if (typeof globalThis.URLSearchParams === 'undefined') globalThis.URLSearchParams = unavailable('URLSearchParams', 'build query strings with encodeURIComponent');
+          if (typeof globalThis.TextEncoder === 'undefined') globalThis.TextEncoder = unavailable('TextEncoder', 'use a native-supported encoding helper');
+        })();
+    """
 
     /// `value` as a JavaScript string literal (JSON), quotes and all.
     static func jsonString(_ value: String) -> String {
@@ -6360,6 +6503,73 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         let id = args.first as? String ?? ""
         switch (module, method) {
+        case ("View", "focus"):
+            let options = args.first as? [String: Any]
+            let nodeId = options?["nodeId"] as? String ?? (args.first as? String) ?? ""
+            let mode = options?["mode"] as? String ?? (args.count > 1 ? args[1] as? String : nil) ?? "keyboard"
+            guard !nodeId.isEmpty else {
+                reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "View.focus needs a nodeId")))
+                return true
+            }
+            guard let node = renderedNode(nodeId) else {
+                reply(.failure(CraftNativeActionError(code: "VIEW_NOT_FOUND", message: "View.focus could not find mounted node \(nodeId)")))
+                return true
+            }
+            guard node.view.window != nil else {
+                reply(.failure(CraftNativeActionError(code: "VIEW_NOT_MOUNTED", message: "View.focus requires a mounted node")))
+                return true
+            }
+            switch mode {
+            case "keyboard":
+                guard node.view is UITextField || node.view is UITextView else {
+                    reply(.failure(CraftNativeActionError(code: "UNSUPPORTED_TARGET", message: "Keyboard focus is supported only for text inputs")))
+                    return true
+                }
+                guard node.view.becomeFirstResponder() else {
+                    reply(.failure(CraftNativeActionError(code: "FOCUS_FAILED", message: "The mounted view refused keyboard focus")))
+                    return true
+                }
+                lastFocusedInput = node.view
+                reply(.success(true))
+            case "accessibility":
+                UIAccessibility.post(notification: .layoutChanged, argument: node.view)
+                reply(.success(true))
+            default:
+                reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "View.focus mode must be keyboard or accessibility")))
+            }
+            return true
+        case ("View", "measure"):
+            let options = args.first as? [String: Any]
+            let nodeId = options?["nodeId"] as? String ?? (args.first as? String) ?? ""
+            guard !nodeId.isEmpty else {
+                reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "View.measure needs a nodeId")))
+                return true
+            }
+            guard let node = renderedNode(nodeId) else {
+                reply(.failure(CraftNativeActionError(code: "VIEW_NOT_FOUND", message: "View.measure could not find mounted node \(nodeId)")))
+                return true
+            }
+            guard node.view.window != nil else {
+                reply(.failure(CraftNativeActionError(code: "VIEW_NOT_MOUNTED", message: "View.measure requires a mounted node")))
+                return true
+            }
+            view.layoutIfNeeded()
+            let bounds = node.view.convert(node.view.bounds, to: view)
+            guard bounds.origin.x.isFinite, bounds.origin.y.isFinite, bounds.width.isFinite, bounds.height.isFinite else {
+                reply(.failure(CraftNativeActionError(code: "MEASURE_FAILED", message: "The mounted view has no finite layout")))
+                return true
+            }
+            reply(.success([
+                "x": bounds.origin.x,
+                "y": bounds.origin.y,
+                "width": bounds.width,
+                "height": bounds.height,
+                "viewportWidth": view.bounds.width,
+                "viewportHeight": view.bounds.height,
+                "unit": "points",
+                "coordinateSpace": "screenViewport",
+            ]))
+            return true
         case ("Network", "stream"):
             let options = args.first as? [String: Any] ?? [:]
             let streamId = options["id"] as? String ?? ""
@@ -6809,6 +7019,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: picker)
         case "Modal":
             let modal = result as! CraftNativeModalView
+            let focusBeforeContent = firstResponder(in: rootStack) ?? lastFocusedInput
             modal.transparent = props["transparent"] as? Bool == true
             let visible: Bool
             if let propVisible = props["visible"] as? Bool {
@@ -6823,10 +7034,22 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let modalID = ObjectIdentifier(modal)
             let wasVisible = modalVisibility[modalID]
             modalVisibility[modalID] = visible
+            if visible, wasVisible != true, let focusBeforeContent,
+               !focusBeforeContent.isDescendant(of: modal) {
+                modalFocusRestore[modalID] = focusBeforeContent
+            }
             if visible, wasVisible != true { positionModals() }
             modal.setVisible(visible, opacity: number(style["opacity"]) ?? 1, animationType: props["animationType"] as? String)
+            if !visible, wasVisible == true {
+                let restore = modalFocusRestore.removeValue(forKey: modalID)
+                DispatchQueue.main.async { [weak self, weak restore] in
+                    guard let self, let restore, restore.window != nil, restore.isDescendant(of: self.view) else { return }
+                    self.lastFocusedInput = restore
+                    _ = restore.becomeFirstResponder()
+                }
+            }
             modal.onRequestClose = nonEmptyHandler(events["onRequestClose"]).map { handler in
-                { [weak self] in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
+                { [weak self] reason in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["reason": reason]]) }
             }
             if visible { modal.clearDismissSuppression() }
             let suppressDismiss = !visible && modal.consumeDismissSuppression()
@@ -8344,6 +8567,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         return ["localhost", "127.0.0.1", "::1"].contains(bare) || bare.hasSuffix(".localhost")
     }
 
+    /// Native screens have no document URL to resolve a path against. A
+    /// leading slash is an app URL (for example `/api/avatar`), while a bare
+    /// name remains a bundled asset for backwards compatibility.
+    private func imageURL(for uri: String) -> URL? {
+        let candidate: URL?
+        if uri.hasPrefix("/") {
+            guard let base = config.devServerURL.flatMap(URL.init(string:)) else { return nil }
+            candidate = URL(string: uri, relativeTo: base)?.absoluteURL
+        } else {
+            candidate = URL(string: uri)
+        }
+        guard let candidate, Self.loadsImage(from: candidate) else { return nil }
+        return candidate
+    }
+
     private func applyImageClipping(_ view: UIImageView, contentMode: UIView.ContentMode, style: [String: Any]) {
         let authored = (style["overflow"] as? String) == "hidden"
             || (view.craftRequestedCornerRadius ?? 0) > 0
@@ -8392,7 +8630,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             emitImageEvent(view, handler: imageLoadEndHandlers[id])
             return
         }
-        if let url = URL(string: uri), Self.loadsImage(from: url) {
+        if let url = imageURL(for: uri) {
             // Decoded at the size it is drawn, when the style fixes that size.
             let pixels = Self.displayPixels(of: view)
             let fill = view.contentMode == .scaleAspectFill
@@ -8432,6 +8670,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
             imageTasks[id] = task
             task.resume()
+            return
+        }
+        if uri.hasPrefix("/") {
+            imageFailure(view, uri: uri, message: "Relative image source requires devServerURL")
             return
         }
         if !uri.contains(":") {

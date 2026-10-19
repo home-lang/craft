@@ -805,9 +805,10 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["modal-opacity"].label, "1")
         app.buttons["toggle-modal-opacity"].tap()
         XCTAssertTrue(waitForLabel(app.staticTexts["modal-opacity"], "0.45"))
-        // A shown modal covers the screen and takes its touches, so it is
-        // closed from inside; the toggle behind it is out of reach.
-        app.buttons["close-modal"].tap()
+        // The scrim reports why it requested the close; the visible modal
+        // then reconciles away and emits its ordinary dismiss lifecycle.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["modal requested backdrop"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["modal dismissed"].waitForExistence(timeout: 5))
 
         let slider = app.sliders["native-slider"]
@@ -1110,5 +1111,21 @@ final class NativeNavigationUITests: XCTestCase {
 
         XCTAssertTrue(probe.waitForExistence(timeout: 5), "theme probe disappeared during trait refresh")
         XCTAssertTrue(app.staticTexts["theme-probe-label"].waitForExistence(timeout: 5), "theme probe label disappeared during trait refresh")
+    }
+
+    func testModalBackdropReportsDismissReason() {
+        let app = XCUIApplication()
+        app.launch()
+        let rootScroll = app.scrollViews["native-root-scroll"]
+        XCTAssertTrue(rootScroll.waitForExistence(timeout: 15))
+        let modalToggle = app.buttons["toggle-modal"]
+        reveal(modalToggle, in: rootScroll)
+        modalToggle.tap()
+        XCTAssertTrue(app.otherElements["native-modal"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["modal shown"].waitForExistence(timeout: 5))
+
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["modal requested backdrop"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["modal dismissed"].waitForExistence(timeout: 5))
     }
 }

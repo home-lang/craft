@@ -450,6 +450,24 @@ internal object CraftNativePrelude {
         // address the host through `window.craft`. Keep native screens
         // compatible without pretending a document exists.
         if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;
+        // JavaScriptSandbox intentionally has no browser URL/encoding
+        // globals. Install named failures instead of letting a shared module
+        // die with an unhelpful `URLSearchParams is not defined` halfway
+        // through its load path. The full browser implementations belong to
+        // the shared STX runtime; these diagnostics keep the native boundary
+        // explicit until that runtime is present.
+        (function() {
+          function unavailable(name, hint) {
+            var failure = function() {
+              throw new ReferenceError(name + ' is not available on a native screen — ' + hint);
+            };
+            failure.prototype.constructor = failure;
+            return failure;
+          }
+          if (typeof globalThis.URL === 'undefined') globalThis.URL = unavailable('URL', 'use an absolute URL or build the path with encodeURIComponent');
+          if (typeof globalThis.URLSearchParams === 'undefined') globalThis.URLSearchParams = unavailable('URLSearchParams', 'build query strings with encodeURIComponent');
+          if (typeof globalThis.TextEncoder === 'undefined') globalThis.TextEncoder = unavailable('TextEncoder', 'use a native-supported encoding helper');
+        })();
         (function() {
           var forward = null;
           var listeners = [];

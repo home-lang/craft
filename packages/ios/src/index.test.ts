@@ -378,7 +378,7 @@ describe('Craft iOS builder', () => {
     expect(actionsSwift).toContain('ASAuthorizationPlatformPublicKeyCredentialProvider')
     expect(actionsSwift).toContain('import Security')
     // fetch: a URLSession task per request token, cancelled with the request.
-    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation"]')
+    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure"]')
     expect(actionsSwift).toContain('case ("Network", "fetch"):')
     expect(actionsSwift).toContain('let craftNativeFetchTimeoutSeconds: TimeInterval = 30')
     expect(actionsSwift).toContain('fetchTasks[requestToken] = task')
@@ -535,6 +535,15 @@ describe('Craft iOS builder', () => {
     expect(renderOrientations(config)).toContain('UIInterfaceOrientationPortrait')
     expect(renderUrlTypes(config)).toContain('<string>wildloop</string>')
     expect(renderBackgroundModes(config)).toContain('<string>location</string>')
+  })
+
+  it('advertises mounted-view focus and measurement in native screens', () => {
+    const source = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    const actions = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeActions.swift'), 'utf8')
+    expect(source).toContain('case ("View", "focus"):')
+    expect(source).toContain('case ("View", "measure"):')
+    expect(source).toContain('UIAccessibility.post(notification: .layoutChanged, argument: node.view)')
+    expect(actions).toContain('"viewFocus", "viewMeasure"')
   })
 
   it('keeps sound playing with the screen locked only when the app asks for it', () => {
@@ -1432,6 +1441,17 @@ describe('Craft iOS builder', () => {
     const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
     expect(screen).toContain('case "Map":')
     expect(screen).toContain('private final class CraftNativeMapView: MKMapView, MKMapViewDelegate')
+    expect(screen).toContain('let polygonKey = polygons.keys.sorted().compactMap')
+    expect(screen).toContain('g[\\(polygonKey)]')
+  })
+
+  it('names browser URL globals that are intentionally unavailable on native screens', async () => {
+    const output = createTempDir('craft-ios-native-web-apis-')
+    await init({ runtimeDir: null, name: 'NativeWebAPIs', bundleId: 'org.example.nativewebapis', output, config: { renderer: 'native' } as any })
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    expect(screen).toContain('private static let nativeWebAPICompatibilityPrelude')
+    expect(screen).toContain("globalThis.URLSearchParams = unavailable('URLSearchParams'")
+    expect(screen).toContain("globalThis.TextEncoder = unavailable('TextEncoder'")
   })
 
   it('keeps generated iOS media limits strict and finite', async () => {
@@ -1768,7 +1788,7 @@ describe('Craft iOS builder', () => {
     const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
 
-    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge", "animation"]')
+    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure"]')
     expect(actions).toContain('if config.enablePushNotifications { values.append("push") }')
     expect(actions).toContain('if config.enableShare { values.append("share") }')
     for (const call of ['case ("Speech", "speak"):', 'case ("Push", _):', 'case ("Linking", "openURL"), ("Linking", "canOpenURL"):', 'case ("Share", "share"):'])
@@ -2169,7 +2189,7 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('"Picker", "DatePicker", "Switch"')
     expect(screen).toContain('picker.addTarget(self, action: #selector(datePicked(_:)), for: .valueChanged)')
     expect(screen).toContain('source: props["source"] ?? props["src"],')
-    expect(screen).toContain('if let url = URL(string: uri), Self.loadsImage(from: url) {')
+    expect(screen).toContain('if let url = imageURL(for: uri) {')
   })
 
   it('gives every Swift-only call that waits on a framework callback a deadline', async () => {
@@ -2333,7 +2353,7 @@ describe('Craft iOS builder', () => {
     await init({ name: 'NativeBadge', bundleId: 'org.example.nativebadge', output, config: { renderer: 'native' } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const badge = actions.slice(actions.indexOf('private static func setBadgeCount('))
-    expect(actions).toContain('"linking", "badge", "animation"]')
+    expect(actions).toContain('"linking", "badge", "animation", "viewFocus", "viewMeasure"]')
     expect(actions).toContain('case ("Badge", "set"):')
     expect(actions).toContain('case ("Badge", "clear"):')
     expect(badge).toContain('UNUserNotificationCenter.current().setBadgeCount(count)')
