@@ -1463,6 +1463,10 @@ class NativeNavigationTest {
             assertTrue("native switch should start off", !nativeSwitch.isChecked)
             assertTrue("native switch should apply track tint", nativeSwitch.trackTintList != null)
             assertTrue("native switch should apply thumb tint", nativeSwitch.thumbTintList != null)
+            val uncontrolledSwitch = awaitView(activity, "uncontrolled-switch") as Switch
+            assertTrue("uncontrolled switch should start off", !uncontrolledSwitch.isChecked)
+            instrumentation.runOnMainSync { uncontrolledSwitch.performClick() }
+            assertTrue("uncontrolled switch should keep its native toggle", uncontrolledSwitch.isChecked)
             val nullableSwitch = awaitView(activity, "nullable-switch") as Switch
             assertTrue("null switch value should fall back to checked", nullableSwitch.isChecked)
             val precedenceSwitch = awaitView(activity, "switch-value-precedence") as Switch
@@ -1472,6 +1476,7 @@ class NativeNavigationTest {
             assertTrue("native checked state should remain accessible without accessibilityState", nullableSwitchInfo?.isChecked == true)
             click(activity, "toggle-invalid-switch-colors")
             awaitText(activity, "invalid-control-style-status", "invalid switch colors on")
+            assertTrue("uncontrolled switch should survive reconciliation", uncontrolledSwitch.isChecked)
             assertTrue("Invalid switch track colors should restore the native default", nativeSwitch.trackTintList == null)
             assertTrue("Invalid switch thumb color should restore the native default", nativeSwitch.thumbTintList == null)
             click(activity, "toggle-invalid-switch-colors")
@@ -1859,10 +1864,10 @@ class NativeNavigationTest {
             }
             SystemClock.sleep(150)
             instrumentation.runOnMainSync {
-                // Content padding scrolls away; a sticky header pins to the
-                // viewport edge, matching the iOS native scroll host.
+                // Sticky headers stay at the native host's effective viewport
+                // edge, including its authored content inset.
                 val headerTop = screenTop(peopleHeader)
-                val viewportTop = screenTop(people)
+                val viewportTop = screenTop(people) + peopleContent.paddingTop
                 val firstChild = (peopleContent as? ViewGroup)?.getChildAt(0)
                 val layout = "scrollY=${people.scrollY} headerTop=${peopleHeader.top} translationY=${peopleHeader.translationY} contentHeight=${peopleContent.height} viewportHeight=${people.height} firstChild=${firstChild?.tag} firstTranslation=${firstChild?.translationY} headerIsDirectChild=${peopleHeader.parent === peopleContent} focus=${activity.currentFocus?.tag} refreshing=${peopleHost.isRefreshing}"
                 assertTrue("ScrollView did not retain the requested scroll: $layout", people.scrollY > 0)

@@ -6849,10 +6849,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             pressable.pressUnderlayColor = type == "TouchableHighlight" && !disabled ? color(props["underlayColor"]) : nil
         case "Switch":
             let toggle = result as! UISwitch
-            let value = props["value"] as? Bool ?? props["checked"] as? Bool ?? false
-            // UIKit has already changed the value before emitting the event.
-            // Echoing it through the script must not restart its native animation.
-            if toggle.isOn != value { toggle.isOn = value }
+            // A supplied value controls the switch; without one, UIKit owns
+            // the state and a reconciliation must not erase a user's tap.
+            // `value: null` deliberately falls through to `checked`, matching
+            // the host-neutral precedence used by the other renderer.
+            if let value = props["value"] as? Bool ?? props["checked"] as? Bool {
+                // UIKit has already changed the value before emitting the
+                // event. Echoing it through the script must not restart its
+                // native animation.
+                if toggle.isOn != value { toggle.isOn = value }
+            }
             toggle.isEnabled = props["disabled"] as? Bool != true
             if let track = props["trackColor"] as? [String: Any] {
                 toggle.onTintColor = color(track["true"])

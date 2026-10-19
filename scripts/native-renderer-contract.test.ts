@@ -203,12 +203,14 @@ describe('native renderer component contract', () => {
 
   it('keeps Switch checked compatibility aligned with both hosts', () => {
     expect(componentTypes).toContain('checked?: boolean')
-    expect(ios).toContain('props["value"] as? Bool ?? props["checked"] as? Bool ?? false')
-    expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
+    expect(ios).toContain('if let value = props["value"] as? Bool ?? props["checked"] as? Bool')
+    expect(android).toContain('else if (requestedChecked is Boolean)')
     expect(guide).toContain('`checked` is a compatibility alias')
     expect(guide).toContain('`value` is null, and `value` takes precedence')
     expect(navigationHome).toContain('<Switch testID="switch-value-precedence" :value="false" :checked="true" />')
+    expect(navigationHome).toContain('<Switch testID="uncontrolled-switch" />')
     expect(androidNavigationTest).toContain('non-null switch value should take precedence over checked')
+    expect(androidNavigationTest).toContain('uncontrolled switch should keep its native toggle')
     expect(iosNavigationTest).toContain('app.switches["switch-value-precedence"].value as? String, "0"')
   })
 
@@ -314,6 +316,13 @@ describe('native renderer component contract', () => {
     expect(androidFlatListTest).toContain('assertEquals("row-7", invertedIdentities.first())')
     expect(androidFlatListTest).toContain('mounted identities must stay in adapter order')
     expect(iosNativeUnitTests).toContain('testFlatListRetainsAHorizontalViewportAcrossInvertedMoves')
+  })
+
+  it('keeps Android non-scrolling list measurements observable after async layout', () => {
+    expect(androidFlatList).toContain('private var lastReportedContentHeight = Int.MIN_VALUE')
+    expect(androidFlatList).toContain('if (!scrollEnabled && !horizontal) reportContentSizeChanged()')
+    expect(androidFlatList).toContain('post { onContentSizeChanged?.invoke() }')
+    expect(androidFlatListTest).toContain('nonScrollingListMeasuresItsFullContentHeight')
   })
 
   it('keeps DatePicker presentation platform-neutral', () => {
@@ -692,6 +701,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"label" -> if (dark) Color.WHITE else Color.BLACK')
     expect(androidMapTest).toContain('fun mapUtilityChromeRefreshesForNightMode()')
     expect(androidMapTest).toContain('fun dynamicMapOverlayColorsRefreshForNightMode()')
+  })
+
+  it('marshals Android MapLibre reconciliation onto the UI thread', () => {
+    expect(androidMapLibre).toContain('if (Looper.myLooper() != Looper.getMainLooper())')
+    expect(androidMapLibre).toContain('post { applyPending() }')
+    expect(androidMapTest).toContain('nativeMapWorkerThreadConfigurationIsMarshalledToTheUiThread')
   })
 
   it('retries iOS map fitting after the native viewport is measured', () => {
@@ -1336,6 +1351,8 @@ describe('native renderer component contract', () => {
 
   it('preserves UIKit interaction traits for native controls without authored roles', () => {
     expect(ios).toContain('case "Slider", "Picker", "DatePicker": traits.insert(.adjustable)')
+    expect(iosNativeUnitTests).toContain('testSwitchReceivesNativeTouchesWhenMountedInAFlowView')
+    expect(iosNativeUnitTests).toContain('testUncontrolledSwitchKeepsItsNativeValueAcrossReconciliation')
     expect(iosNativeUnitTests).toContain('testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges')
     expect(iosNativeUnitTests).toContain('testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles')
   })
@@ -1530,7 +1547,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('if (screen.suppressedTextChanges.remove(this@apply)) return')
     expect(android).toContain('screen.suppressedTextChanges.remove(it)')
     expect(android).toContain('val requestedValue = props.opt("value")')
-    expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
+    expect(android).toContain('else if (requestedChecked is Boolean)')
     expect(android).toContain('val tint = style.opt("tintColor") as? String')
     expect(android).toContain('craftNativeFiniteDouble(style, "lineHeight", Double.NaN)')
     expect(android).toContain('.takeIf { it.isFinite() }')
@@ -1845,7 +1862,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)\n        updateSafeAreaViews()')
     expect(android).toContain('A reused View may still carry a')
     expect(android).toContain('val requestedChecked = props.opt("checked")')
-    expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
+    expect(android).toContain('else if (requestedChecked is Boolean)')
     expect(android).not.toContain('(child.layoutParams?.width ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
     expect(android).not.toContain('(child.layoutParams?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
   })
@@ -3036,6 +3053,11 @@ describe('native renderer component contract', () => {
     expect(androidFlatListTest).toContain('nonScrollingListMeasuresItsFullContentHeight')
   })
 
+  it('pins Android sticky headers below the authored ScrollView inset', () => {
+    expect(android).toContain('var pinnedBottom = content.paddingTop')
+    expect(androidNavigationTest).toContain('ScrollView sticky header did not remain pinned')
+  })
+
   it('keeps FlatList paging enabled through both native hosts', () => {
     expect(ios).toContain('list.isPagingEnabled = props["pagingEnabled"] as? Bool ?? false')
     expect(android).toContain('list.setPagingEnabled(craftNativeBoolean(props.opt("pagingEnabled")))')
@@ -3401,10 +3423,10 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps malformed Switch state deterministic across native hosts', () => {
-    expect(ios).toContain('let value = props["value"] as? Bool ?? props["checked"] as? Bool ?? false')
+    expect(ios).toContain('if let value = props["value"] as? Bool ?? props["checked"] as? Bool')
     expect(ios).toContain('if toggle.isOn != value { toggle.isOn = value }')
     expect(android).toContain('requestedValue as? Boolean ?: false')
-    expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
+    expect(android).toContain('else if (requestedChecked is Boolean)')
     expect(android).not.toContain('requestedChecked.isBlank()')
   })
 

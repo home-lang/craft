@@ -2287,7 +2287,10 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
             return
         }
         val scrollY = vertical.scrollY
-        var pinnedBottom = 0
+        // Keep sticky content below the ScrollView's authored top inset,
+        // matching the native content viewport instead of pinning it to the
+        // raw window edge.
+        var pinnedBottom = content.paddingTop
         stickyIndices.forEachIndexed { position, index ->
             val header = content.getChildAt(index)
             if (header == null || header.visibility != View.VISIBLE || header.height <= 0) return@forEachIndexed
@@ -5340,10 +5343,10 @@ class MainActivity : AppCompatActivity() {
                 setOnCheckedChangeListener(null)
                 val requestedValue = props.opt("value")
                 val requestedChecked = props.opt("checked")
-                isChecked = when {
-                    requestedValue != null && requestedValue != JSONObject.NULL -> requestedValue as? Boolean ?: false
-                    requestedChecked is Boolean -> requestedChecked
-                    else -> false
+                if (requestedValue != null && requestedValue != JSONObject.NULL) {
+                    isChecked = requestedValue as? Boolean ?: false
+                } else if (requestedChecked is Boolean) {
+                    isChecked = requestedChecked
                 }
                 isEnabled = !craftNativeBoolean(props.opt("disabled"))
                 props.optJSONObject("trackColor")?.let { track ->

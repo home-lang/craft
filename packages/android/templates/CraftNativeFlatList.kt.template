@@ -124,6 +124,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     var onLayoutChanged: (() -> Unit)? = null
     var onContentSizeChanged: (() -> Unit)? = null
     private var lastIntrinsicHeight = Int.MIN_VALUE
+    private var lastReportedContentHeight = Int.MIN_VALUE
 
     private val scrollListener = object : OnScrollListener() {
         private var dragging = false
@@ -179,6 +180,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         if (scrollEnabled == enabled) return
         scrollEnabled = enabled
         lastIntrinsicHeight = Int.MIN_VALUE
+        lastReportedContentHeight = Int.MIN_VALUE
         requestLayout()
     }
 
@@ -204,8 +206,16 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
             .mapNotNull { index ->
                 val child = getChildAt(index)
                 val position = getChildAdapterPosition(child)
-                if (position == RecyclerView.NO_POSITION) return@mapNotNull null
-                (getChildViewHolder(child) as? Holder)?.identity?.let { position to it }
+                val order = if (position == RecyclerView.NO_POSITION) {
+                    // ListAdapter can briefly report NO_POSITION while an
+                    // async diff is dispatching. Keep the mounted holder in
+                    // the snapshot instead of making the entire list appear
+                    // empty to host-side reconciliation tests.
+                    Int.MAX_VALUE - childCount + index
+                } else {
+                    position
+                }
+                (getChildViewHolder(child) as? Holder)?.identity?.let { order to it }
             }
             .sortedBy { it.first }
             .map { it.second }
@@ -236,7 +246,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
                 resolveSize(measuredWidth, widthMeasureSpec),
                 resolvedHeight,
             )
-            if (contentChanged) post { onContentSizeChanged?.invoke() }
+            if (contentChanged) reportContentSizeChanged()
             return
         }
         lastIntrinsicHeight = Int.MIN_VALUE
@@ -264,7 +274,15 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
         scrollToPendingTarget(0)
+        if (!scrollEnabled && !horizontal) reportContentSizeChanged()
         onLayoutChanged?.invoke()
+    }
+
+    private fun reportContentSizeChanged() {
+        val height = measuredHeight
+        if (height <= 0 || height == lastReportedContentHeight) return
+        lastReportedContentHeight = height
+        post { onContentSizeChanged?.invoke() }
     }
 
     init {
@@ -446,6 +464,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         onLayoutChanged = null
         onContentSizeChanged = null
         lastIntrinsicHeight = Int.MIN_VALUE
+        lastReportedContentHeight = Int.MIN_VALUE
     }
 
     /** Releases callbacks owned by a permanently removed native list node. */

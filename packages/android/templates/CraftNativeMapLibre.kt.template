@@ -122,6 +122,14 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
     fun markerHandler(id: String): String? = markerHandlers[id]
 
     private fun applyPending() {
+        // MapLibre may deliver style and render callbacks from its worker
+        // thread. All map, style, and GeoJSON source mutations must happen on
+        // Android's UI thread, so marshal the whole reconciliation before
+        // touching the native map object.
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            post { applyPending() }
+            return
+        }
         val nativeMap = map ?: return
         if (destroyed) return
         nativeMap.uiSettings.isCompassEnabled = craftNativeBoolean(pendingProps.opt("showsCompass"))

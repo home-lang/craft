@@ -15,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -181,6 +182,22 @@ class NativeMapTest {
                 .getNumberProperty("width").toDouble()
         }
         assertEquals("MapLibre must scale logical stroke points by display density", 5.0 * density, width, 0.001)
+    }
+
+    @Test
+    fun nativeMapWorkerThreadConfigurationIsMarshalledToTheUiThread() = withMap { _, host, _, map, _ ->
+        val worker = Executors.newSingleThreadExecutor()
+        try {
+            worker.submit {
+                host.configure(props().put("mapType", "terrain"), overlays("#2878c8")) {}
+            }.get(10, TimeUnit.SECONDS)
+        } finally {
+            worker.shutdownNow()
+        }
+        awaitState("Worker-thread map configuration did not update the native source") {
+            features(map).firstOrNull { it.getStringProperty("craftOverlayId") == "start" }
+                ?.getStringProperty("color") == "rgba(40,120,200,1.0)"
+        }
     }
 
     @Test
