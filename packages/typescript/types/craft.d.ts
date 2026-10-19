@@ -2192,7 +2192,13 @@ export interface CraftBackgroundWorkEvent extends CustomEvent {
   detail: CraftBackgroundWorkDetail;
 }
 
-/** The signed-in account changed: a sign-in, a sign-out or another account. */
+/**
+ * The signed-in account changed: a sign-in, a sign-out or another account.
+ * The iOS hybrid page script dispatches it (CraftHybrid.swift), like
+ * `craftsharedstorage`; it stays out of `WindowEventMap`, which the iOS
+ * conformance test holds to what CraftApp.swift itself dispatches, so a
+ * listener reads it as `(event as CraftSessionEvent).detail`.
+ */
 export interface CraftSessionEvent extends CustomEvent {
   detail: CraftSessionChange;
 }
@@ -2246,7 +2252,6 @@ declare global {
     craftSilentPush: CraftBackgroundWorkEvent;
     craftBackgroundRefresh: CraftBackgroundWorkEvent;
     craftRefresh: CustomEvent<Record<string, never>>;
-    craftsession: CraftSessionEvent;
   }
 }
 
