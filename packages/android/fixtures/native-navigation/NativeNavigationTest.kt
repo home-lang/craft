@@ -39,6 +39,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.core.view.ViewCompat
+import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -1997,6 +1998,21 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
             instrumentation.waitForIdleSync()
         }
+    }
+
+    @Test
+    fun safeAreaInsetsPreserveAuthoredPaddingWhenRetained() {
+        lateinit var layout: CraftNativeFlexLayout
+        instrumentation.runOnMainSync {
+            layout = CraftNativeFlexLayout(instrumentation.targetContext)
+            layout.setPadding(3, 5, 7, 11)
+            layout.setSafeAreaEdges(JSONArray().put("top").put("bottom"))
+            layout.setWindowSafeInsets(13, 17, 19, 23)
+        }
+        assertEquals("left edge should keep authored padding", 3, layout.paddingLeft)
+        assertEquals("top edge should add the current window inset", 22, layout.paddingTop)
+        assertEquals("right edge should keep authored padding", 7, layout.paddingRight)
+        assertEquals("bottom edge should add the current window inset", 34, layout.paddingBottom)
     }
 
     private fun systemCommand(command: String): String =

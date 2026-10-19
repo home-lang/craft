@@ -1841,6 +1841,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('safeArea.setSafeAreaEdges(props["edges"])')
     expect(ios).toContain('rootBottomToView?.isActive = fullEdgeToEdge')
     expect(android).toContain('fun setWindowSafeInsets(left: Int, top: Int, right: Int, bottom: Int)')
+    expect(android).toContain('// Appearance/configuration changes can arrive while this screen is')
+    expect(android).toContain('updateSafeAreaInsets(screen)\n        updateSafeAreaViews()')
     expect(android).toContain('updateSafeAreaViews()')
     expect(android).toContain('if (safeRoot) 0 else windowSafeInsets[0]')
     expect(android).toContain('if (type == "SafeAreaView") setSafeAreaEdges(props.optJSONArray("edges"))')
@@ -1853,6 +1855,7 @@ describe('native renderer component contract', () => {
     expect(iosReadme).toContain("Keyboard frame changes update the native controller's additional safe area")
     expect(navigationHome).toContain('<SafeAreaView testID="root" :edges="safeAreaBottomOnly() ? [\'bottom\'] : [\'top\', \'bottom\']"')
     expect(iosNavigationTest).toContain('testSafeAreaEdgesUpdateTheNativeRootWithoutRecreatingItsScrollView')
+    expect(androidNavigationTest).toContain('safeAreaInsetsPreserveAuthoredPaddingWhenRetained')
     expect(androidNavigationTest).toContain('Removing the top edge did not remove the window inset')
   })
 

@@ -4618,6 +4618,10 @@ class MainActivity : AppCompatActivity() {
                 else -> null
             }
         }.forEach { it.refreshThemeDefaults() }
+        // Appearance/configuration changes can arrive while this screen is
+        // retained in another tab. Keep its SafeAreaView measured with the
+        // current window insets before the next interactive transition.
+        updateSafeAreaInsets(screen)
         updateSafeAreaViews()
     }
 
