@@ -7,8 +7,15 @@ struct HostApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Text(status).accessibilityIdentifier("craft-driver-status")
-                .task { await openUniversalLinkIfRequested() }
+            VStack {
+                Text(status).accessibilityIdentifier("craft-driver-status")
+                // XCTest must finish acquiring the host's launch assertion
+                // before a handoff can move another application foreground.
+                Button("Open Universal Link") {
+                    Task { await openUniversalLinkIfRequested() }
+                }
+                .accessibilityIdentifier("craft-driver-open-universal-link")
+            }
         }
     }
 
