@@ -6767,6 +6767,7 @@ class MainActivity : AppCompatActivity() {
         val role = craftNativeOptionalString(props.opt("accessibilityRole")) ?: run {
             when {
                 linkedControl -> "link"
+                type in setOf("TouchableOpacity", "TouchableHighlight", "Pressable") -> "button"
                 type == "Icon" -> "image"
                 else -> type.lowercase()
             }

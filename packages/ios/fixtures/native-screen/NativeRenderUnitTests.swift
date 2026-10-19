@@ -2315,6 +2315,36 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(date.accessibilityTraits.contains(.adjustable))
     }
 
+    func testTouchableAccessibilityInfersDestinationsAndPreservesAuthoredRoles() throws {
+        for type in ["Pressable", "TouchableOpacity", "TouchableHighlight"] {
+            let controller = CraftNativeScreenController(config: CraftConfig())
+            controller.loadViewIfNeeded()
+            controller.render(document([
+                ["type": type, "props": ["key": "plain"]],
+                ["type": type, "props": ["key": "linked", "href": "/details"]],
+                ["type": type, "props": ["key": "authored", "href": "/details", "accessibilityRole": "button"]],
+            ]))
+            let plain = try XCTUnwrap(find(UIView.self, key: "plain", below: controller.view))
+            let linked = try XCTUnwrap(find(UIView.self, key: "linked", below: controller.view))
+            let authored = try XCTUnwrap(find(UIView.self, key: "authored", below: controller.view))
+            XCTAssertTrue(plain.isAccessibilityElement)
+            XCTAssertTrue(plain.accessibilityTraits.contains(.button))
+            XCTAssertTrue(linked.accessibilityTraits.contains(.link))
+            XCTAssertFalse(linked.accessibilityTraits.contains(.button))
+            XCTAssertTrue(authored.accessibilityTraits.contains(.button))
+            XCTAssertFalse(authored.accessibilityTraits.contains(.link))
+            controller.render(document([
+                ["type": type, "props": ["key": "plain", "to": "/details"]],
+                ["type": type, "props": ["key": "linked"]],
+                ["type": type, "props": ["key": "authored", "href": "/details", "accessibilityRole": "button"]],
+            ]))
+            XCTAssertTrue(plain === find(UIView.self, key: "plain", below: controller.view))
+            XCTAssertTrue(plain.accessibilityTraits.contains(.link))
+            XCTAssertTrue(linked.accessibilityTraits.contains(.button))
+            XCTAssertFalse(linked.accessibilityTraits.contains(.link))
+        }
+    }
+
     func testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

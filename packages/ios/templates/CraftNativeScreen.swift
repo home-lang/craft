@@ -9081,7 +9081,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         let hasLinkTarget = ["href", "to"].contains { !(props[$0] as? String ?? "").isEmpty }
         let linkedControl = ["Link", "TouchableOpacity", "TouchableHighlight", "Pressable"].contains(type) && hasLinkTarget
-        let role = (props["accessibilityRole"] as? String) ?? (linkedControl ? "link" : nil)
+        let touchable = ["TouchableOpacity", "TouchableHighlight", "Pressable"].contains(type)
+        let role = (props["accessibilityRole"] as? String) ?? (linkedControl ? "link" : touchable ? "button" : nil)
         // A scroll view, a list or a group of controls holds what VoiceOver
         // reads: its label names the group, as a tab strip or a pager's
         // name, and never stands in for its content. As an element of its
