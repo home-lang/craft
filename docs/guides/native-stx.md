@@ -609,6 +609,9 @@ accepts `onRefresh` and controlled
 AndroidX `SwipeRefreshLayout` on Android. Use
 `ScrollView` for bounded content and `FlatList` for data sets that need
 recycling.
+When `scrollEnabled={false}`, the list is measured to its full vertical content
+height on both hosts, so it can be placed inside an outer native `ScrollView`
+without clipping rows.
 
 For a shared refresh configuration, `FlatList` also accepts the typed
 `refreshControl` prop. Its `refreshing` state and `tintColor` are applied to the

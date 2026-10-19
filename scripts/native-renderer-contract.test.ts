@@ -2942,6 +2942,14 @@ describe('native renderer component contract', () => {
     expect(androidFlatListTest).toContain('preservesRowTouchTargetsWhenScrollingIsDisabled')
   })
 
+  it('keeps non-scrolling FlatList intrinsic height aligned across hosts', () => {
+    expect(iosFlatList).toContain('func fittingHeight(width: CGFloat)')
+    expect(ios).toContain('list.onFittingHeightChanged = { [weak list] in')
+    expect(androidFlatList).toContain('if (!scrollEnabled && !horizontal && heightMode != MeasureSpec.EXACTLY)')
+    expect(androidFlatList).toContain('computeVerticalScrollRange()')
+    expect(androidFlatListTest).toContain('nonScrollingListMeasuresItsFullContentHeight')
+  })
+
   it('keeps FlatList paging enabled through both native hosts', () => {
     expect(ios).toContain('list.isPagingEnabled = props["pagingEnabled"] as? Bool ?? false')
     expect(android).toContain('list.setPagingEnabled(craftNativeBoolean(props.opt("pagingEnabled")))')

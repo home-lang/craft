@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
 import org.json.JSONObject
 import kotlin.math.ceil
+import kotlin.math.max
 
 internal typealias CraftNativeRenderItem = (node: JSONObject, identity: String, previous: View?) -> View
 
@@ -173,7 +174,9 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     }
 
     fun setScrollEnabled(enabled: Boolean) {
+        if (scrollEnabled == enabled) return
         scrollEnabled = enabled
+        requestLayout()
     }
 
     val isScrollEnabledForTest: Boolean
@@ -211,6 +214,24 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
         if (!scrollEnabled) return false
         return super.onTouchEvent(event)
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val heightMode = MeasureSpec.getMode(heightMeasureSpec)
+        if (!scrollEnabled && !horizontal && heightMode != MeasureSpec.EXACTLY) {
+            // A non-scrolling FlatList is content-sized on iOS. Let the
+            // RecyclerView measure its full adapter range instead of keeping
+            // the viewport height, which otherwise clips the list when it is
+            // nested in an outer native ScrollView.
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            val contentHeight = max(measuredHeight, computeVerticalScrollRange())
+            setMeasuredDimension(
+                resolveSize(measuredWidth, widthMeasureSpec),
+                resolveSize(contentHeight, heightMeasureSpec),
+            )
+            return
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 
     fun setBounceOptions(enabled: Boolean, vertical: Boolean, horizontal: Boolean) {

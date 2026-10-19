@@ -281,6 +281,26 @@ class NativeFlatListTest {
     }
 
     @Test
+    fun nonScrollingListMeasuresItsFullContentHeight() {
+        val context = instrumentation.targetContext
+        val list = CraftNativeFlatList(context)
+        val rows = (0 until 3).map(::row)
+        instrumentation.runOnMainSync {
+            list.setScrollEnabled(false)
+            list.apply(rows, false, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, null)
+        }
+        awaitCount(list, rows.size)
+        instrumentation.runOnMainSync {
+            list.measure(
+                View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(1_000, View.MeasureSpec.AT_MOST),
+            )
+            list.layout(0, 0, list.measuredWidth, list.measuredHeight)
+        }
+        assertTrue("non-scrolling FlatList should include every row", list.measuredHeight >= rows.size * 44)
+    }
+
+    @Test
     fun appliesPagingToNativeList() {
         val list = CraftNativeFlatList(instrumentation.targetContext)
         list.setPagingEnabled(true)
