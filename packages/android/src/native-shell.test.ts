@@ -217,8 +217,11 @@ describe('the native app shell in a generated project', () => {
       expect(shell).toContain('tabSwipeEnabled = options.optBoolean("tabSwipeEnabled", true)')
       // Wi-Fi only: a kept video is not fetched on a metered connection, and says it is waiting.
       expect(readFileSync(join(java, 'CraftNativeServices.kt'), 'utf8')).toContain('optBoolean("cellular", true)')
-      expect(readFileSync(join(java, 'CraftNativeShell.kt'), 'utf8')).toContain('if (!cellular && metered(context))')
-      expect(readFileSync(join(java, 'CraftNativeShell.kt'), 'utf8')).toContain('.put("reason", "cellular")')
+      // The job waits for an unmetered network, and says so at once when that is not the one now.
+      const shellSource = readFileSync(join(java, 'CraftNativeShell.kt'), 'utf8')
+      expect(shellSource).toContain('setRequiredNetworkType(if (wifiOnly) androidx.work.NetworkType.UNMETERED else androidx.work.NetworkType.CONNECTED)')
+      expect(shellSource).toContain('wifiOnly && metered(app) -> "cellular"')
+      expect(shellSource).toContain('.put("reason", reason).put("queued", true)')
       const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
       expect(manifest).toContain('android.permission.health.WRITE_MINDFULNESS')
       expect(manifest).not.toContain('android.permission.health.WRITE_EXERCISE')
