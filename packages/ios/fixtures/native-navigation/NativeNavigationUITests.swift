@@ -74,15 +74,25 @@ final class NativeNavigationUITests: XCTestCase {
         for _ in 0..<attempts {
             if inside(element, scroll) && element.isHittable { return }
             let viewport = scroll.frame
-            let nested: [CGRect] = scroll.descendants(matching: .scrollView).allElementsBoundByIndex.map { $0.frame }
-            var start: CGFloat = 0.5
-            for step in 0...8 {
-                let offset = CGFloat(step) * 0.05
+            // A picker wheel, slider or text selection owns its drag just as
+            // a nested scroll view does. Start on the list's own surface;
+            // dragging a wheel must not stand in for scrolling the page.
+            let trackingTypes: [XCUIElement.ElementType] = [.scrollView, .picker, .pickerWheel, .datePicker, .slider, .switch, .stepper, .textField, .secureTextField, .textView, .segmentedControl]
+            let blocked = scroll.descendants(matching: .any)
+                .matching(NSPredicate(format: "elementType IN %@", trackingTypes.map { NSNumber(value: $0.rawValue) }))
+                .allElementsBoundByIndex.map { $0.frame.insetBy(dx: -4, dy: -4) }
+            var start: CGFloat?
+            for step in 0...40 {
+                let offset = CGFloat(step) * 0.01
                 let free = [0.5 + offset, 0.5 - offset].first { (fraction: CGFloat) -> Bool in
                     let y = viewport.minY + viewport.height * fraction
-                    return !nested.contains { (frame: CGRect) -> Bool in frame.minY - 4 <= y && y <= frame.maxY + 4 }
+                    return !blocked.contains { $0.contains(CGPoint(x: viewport.midX, y: y)) }
                 }
                 if let free { start = free; break }
+            }
+            guard let start else {
+                XCTFail("no list-owned drag surface outside native controls", file: file, line: line)
+                return
             }
             // Content moves the opposite way to the finger, which may leave
             // a short scroll view: the drag stays its own until it lifts.
