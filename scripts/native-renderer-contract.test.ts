@@ -89,6 +89,7 @@ const COMPONENTS: Array<[string, string, string]> = [
   ['Image', 'case "Image":', '"Image" ->'],
   ['ImageBackground', 'case "ImageBackground":', '"ImageBackground" ->'],
   ['Video', 'case "Video":', '"Video" ->'],
+  ['Map', 'case "Map":', '"Map" ->'],
   ['ScrollView', 'case "ScrollView"', '"ScrollView"'],
   ['SectionList', 'case "ScrollView", "SectionList":', '"ScrollView", "SectionList" ->'],
   ['FlatList', 'case "FlatList":', '"FlatList" ->'],

@@ -1426,6 +1426,14 @@ describe('Craft iOS builder', () => {
     expect(services).toContain('craftNativeNumber(options["volume"]).map { $0.doubleValue }')
   })
 
+  it('generates the native Map node in iOS screen projects', async () => {
+    const output = createTempDir('craft-ios-native-map-')
+    await init({ runtimeDir: null, name: 'NativeMap', bundleId: 'org.example.nativemap', output, config: { renderer: 'native' } as any })
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    expect(screen).toContain('case "Map":')
+    expect(screen).toContain('private final class CraftNativeMapView: MKMapView, MKMapViewDelegate')
+  })
+
   it('keeps generated iOS media limits strict and finite', async () => {
     const output = createTempDir('craft-ios-native-media-numbers-')
     await init({ runtimeDir: null, name: 'NativeMediaNumbers', bundleId: 'org.example.nativemedianumbers', output })
