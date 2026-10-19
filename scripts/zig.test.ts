@@ -31,6 +31,19 @@ test('accepts only the locked snapshot by default, even when PATH shadows it', (
   expect(resolveZig(f.root, { ...f.env, CRAFT_ZIG: pinned.path })).toEqual({ path: pinned.path, version: '0.17.0-dev.1963+e00c6c439', overridden: false })
 })
 
+test.each(['0.17.0-dev.1963+e00c6c439', '0.17.0-dev.1963_e00c6c439'])('accepts the exact generated Zig pin %s without an override', (locked) => {
+  const f = fixture()
+  writeFileSync(join(f.root, 'pantry.lock'), JSON.stringify({ workspaces: { '': { system: { 'ziglang.org': locked } } } }))
+  expect(pinnedZigVersion(f.root)).toBe('0.17.0-dev.1963+e00c6c439')
+  expect(resolveZig(f.root, f.env)).toEqual({ path: f.path, version: '0.17.0-dev.1963+e00c6c439', overridden: false })
+})
+
+test.each(['^0.17.0', '0.17.0-dev.1963', '0.17.0-dev.1963+nothex', '0.17.0-dev.1963+e00c6c439+extra', '0.17.0-dev.1963_e00c6c439_extra'])('rejects non-exact or malformed Zig pin %s', (locked) => {
+  const f = fixture()
+  writeFileSync(join(f.root, 'pantry.lock'), JSON.stringify({ workspaces: { '': { system: { 'ziglang.org': locked } } } }))
+  expect(() => pinnedZigVersion(f.root)).toThrow('exact Zig version')
+})
+
 test('Windows uses the pinned Pantry installation instead of its .bin shim', () => {
   const f = fixture()
   const version = pinnedZigVersion(f.root)
