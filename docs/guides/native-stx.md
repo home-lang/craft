@@ -502,6 +502,9 @@ hosts normalize those forms before selecting the closest native type weight.
 justification on Android when the platform API supports it.
 Explicit `null` image style values are treated as unset, so a prop-level
 `resizeMode` remains effective during reconciliation.
+Changing `resizeMode` during reconciliation recomputes image clipping from the
+current mode and authored overflow/radius styles; a previous `cover` render does
+not permanently clip a later `contain` render.
 
 Colors use platform color syntax; hexadecimal colors are portable. Dimensions,
 spacing, and font sizes are points on iOS and density-independent units on

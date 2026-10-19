@@ -2512,6 +2512,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('image.scaleType = when (craftNativeResizeMode(style, props))')
   })
 
+  it('recomputes iOS image clipping when resize mode changes', () => {
+    expect(ios).toContain('applyImageClipping(image, contentMode: image.contentMode, style: style)')
+    expect(ios).toContain('applyImageClipping(background, contentMode: background.contentMode, style: style)')
+    expect(ios).toContain('let clips = authored || contentMode == .scaleAspectFill')
+    expect(ios).not.toContain('image.clipsToBounds = image.clipsToBounds || image.contentMode == .scaleAspectFill')
+    expect(guide).toContain('Changing `resizeMode` during reconciliation recomputes image clipping')
+  })
+
   it('shows local Image defaultSource placeholders before async loads', () => {
     expect(ios).toContain('updateImage(image, source: props["source"], defaultSource: props["defaultSource"])')
     expect(ios).toContain('private func immediateImage(_ source: Any?) -> UIImage?')
