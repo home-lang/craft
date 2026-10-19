@@ -3163,6 +3163,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('released.filterIsInstance<CraftNativeRefreshableFlatList>().forEach { it.resetForTeardown() }')
   })
 
+  it('detaches Android control-specific listeners during native release', () => {
+    expect(android).toContain('released.filterIsInstance<android.widget.CompoundButton>().forEach { it.setOnCheckedChangeListener(null) }')
+    expect(android).toContain('released.filterIsInstance<SeekBar>().forEach { it.setOnSeekBarChangeListener(null) }')
+    expect(android).toContain('released.filterIsInstance<Spinner>().forEach { it.onItemSelectedListener = null }')
+  })
+
   it('prefers authored keys over compiler ids when reconciling native rows', () => {
     expect(ios).toContain('let direct = [node["key"], props["key"]]')
     expect(ios).toContain('[node["id"], props["testID"]]')

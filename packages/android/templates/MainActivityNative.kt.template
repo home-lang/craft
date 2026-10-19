@@ -7240,6 +7240,9 @@ class MainActivity : AppCompatActivity() {
             it.isClickable = false
             it.isLongClickable = false
         }
+        released.filterIsInstance<android.widget.CompoundButton>().forEach { it.setOnCheckedChangeListener(null) }
+        released.filterIsInstance<SeekBar>().forEach { it.setOnSeekBarChangeListener(null) }
+        released.filterIsInstance<Spinner>().forEach { it.onItemSelectedListener = null }
         released.filterIsInstance<EditText>().forEach { it.setOnEditorActionListener(null) }
         released.filterIsInstance<EditText>().forEach {
             inputHintDefaults.remove(it)

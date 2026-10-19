@@ -744,6 +744,10 @@ The Android refreshable `FlatList` wrapper clears its refresh closure before
 the inner recycler is released, keeping a keyed reconciliation from retaining
 the previous screen through the outer swipe host.
 
+Android also detaches control-specific listeners from released checkboxes,
+switches, sliders, and pickers so a retained native control cannot dispatch the
+previous identity's callback during reuse.
+
 ## Events, accessibility, and navigation
 
 `defaultValue` initializes an uncontrolled `TextInput` once; controlled
