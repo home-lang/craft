@@ -200,6 +200,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('let maxContent = label.sizeThatFits(CGSize(width: unbounded, height: unbounded))')
     expect(nativeSwift).toContain('collapses shrink-to-fit bubbles and pills')
     expect(nativeSwift).toContain('UIImage(systemName: indeterminate ? "minus.square" : "checkmark.square.fill")')
+    expect(nativeSwift).toContain('self.textContainer.lineFragmentPadding = 0')
     expect(nativeSwift).toContain('required init(coder: NSCoder)')
     expect(nativeSwift).toContain('required init?(coder: NSCoder) { nil }')
     expect(nativeSwift).toContain('UIResponder.keyboardWillChangeFrameNotification')

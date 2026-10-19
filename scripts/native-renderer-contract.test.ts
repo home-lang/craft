@@ -133,6 +133,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('if containsGridAutoRows(root)')
     expect(ios).toContain('if containsGridRows(root)')
     expect(ios).toContain('treeFramesV5(root: root, width: width, height: height, function: functionV5)')
+    expect(ios).toContain('self.textContainer.lineFragmentPadding = 0')
     expect(android).toContain('val autoRowsAware = nodes.any { it.gridAutoRows != null }')
     expect(android).toContain('val explicitRowsAware = nodes.any { it.gridRows != null }')
     expect(android).toContain('CraftNative.layoutTreeV5(width.toFloat(), height.toFloat(), nodeData, treeMeta)')
