@@ -123,7 +123,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('screen.mutations.apply(payload)')
       expect(nativeActivity).toContain('A reused View may still carry a')
       expect(nativeActivity).toContain('val requestedChecked = props.opt("checked")')
-      expect(nativeActivity).toContain('requestedChecked is Boolean -> requestedChecked')
+      expect(nativeActivity).toContain('else if (requestedChecked is Boolean)')
       expect(nativeActivity).toContain('val checkboxChecked = props.opt("checked")')
       expect(nativeActivity).toContain('checkboxValue is Boolean -> checkboxValue')
       expect(nativeActivity).toContain('val indeterminate = (props.opt("indeterminate") as? Boolean) == true')
