@@ -700,6 +700,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertFalse(link.isEnabled)
         accessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["link accessibility enabled"].waitForExistence(timeout: 5))
+        XCTAssertTrue(link.isEnabled, "clearing accessibilityState.disabled should restore the link")
+        link.tap()
+        XCTAssertTrue(app.staticTexts["link pressed"].waitForExistence(timeout: 5))
 
         let panel = app.otherElements["native-panel"]
         reveal(panel, in: rootScroll)
@@ -711,6 +714,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["panel accessibility disabled"].waitForExistence(timeout: 5))
         panelAccessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["panel accessibility enabled"].waitForExistence(timeout: 5))
+        XCTAssertTrue(panel.isEnabled, "clearing accessibilityState.disabled should restore a generic pressable")
         panel.tap()
         XCTAssertTrue(app.staticTexts["panel pressed"].waitForExistence(timeout: 5))
         let pressable = app.otherElements["native-pressable"]

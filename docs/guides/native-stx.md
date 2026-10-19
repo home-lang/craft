@@ -752,7 +752,8 @@ keyboard open while scrolling.
 
 Removing `placeholderTextColor` or `selectionColor` from a reused `TextInput`
 restores the platform theme default on both hosts instead of retaining the
-previous native color.
+previous native color. Removing `accessibilityState.disabled` likewise restores
+interaction for retained links and generic pressable containers.
 
 Changing a keyed `TextInput` between single-line and `multiline` mode recreates
 the platform control when its native class or mode is incompatible, while the

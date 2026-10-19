@@ -2633,6 +2633,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('else if handlers[ObjectIdentifier(view)] != nil || longPressHandlers[ObjectIdentifier(view)] != nil {')
     expect(android).toContain('} else if (disabled) {\n            view.isEnabled = false')
     expect(android).not.toContain('if (state != null && state.has("disabled")) view.isEnabled = !disabled')
+    expect(iosNavigationTest).toContain('clearing accessibilityState.disabled should restore the link')
+    expect(iosNavigationTest).toContain('clearing accessibilityState.disabled should restore a generic pressable')
   })
 
   it('restores generic Android pressables when accessibility disabled clears', () => {
