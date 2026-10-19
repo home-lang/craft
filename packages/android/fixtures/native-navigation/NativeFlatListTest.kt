@@ -207,54 +207,61 @@ class NativeFlatListTest {
 
     @Test
     fun configuresHorizontalGridInvertedAndChromeOnlyLists() {
-        val context = instrumentation.targetContext
-        lateinit var list: CraftNativeFlatList
-        val renders = AtomicInteger()
-        val nodes = listOf(chrome("header", "header")) + (0 until 8).map(::row)
-        instrumentation.runOnMainSync {
-            list = CraftNativeFlatList(context)
-            attach(list)
-            list.apply(nodes, true, 1, true, 0.1, renderer(context, renders), { _ -> }, { _ -> }, null)
-        }
-        awaitCount(list, 9)
-        val horizontal = list.layoutManager as LinearLayoutManager
-        assertEquals(LinearLayoutManager.HORIZONTAL, horizontal.orientation)
-        val invertedIdentities = list.visibleItemIdentities
-        assertEquals("row-7", invertedIdentities.first())
-        assertEquals("mounted identities must stay in adapter order", invertedIdentities, invertedIdentities.sortedBy { it.substringAfter('-').toInt() })
+        val (scenario, list) = launchHost()
+        val context = list.context
+        try {
+            val renders = AtomicInteger()
+            val nodes = listOf(chrome("header", "header")) + (0 until 8).map(::row)
+            instrumentation.runOnMainSync {
+                list.apply(nodes, true, 1, true, 0.1, renderer(context, renders), { _ -> }, { _ -> }, null)
+            }
+            awaitCount(list, 9)
+            instrumentation.runOnMainSync {
+                attach(list)
+                val horizontal = list.layoutManager as LinearLayoutManager
+                assertEquals(LinearLayoutManager.HORIZONTAL, horizontal.orientation)
+                val invertedIdentities = list.visibleItemIdentities
+                assertTrue("the attached inverted list must mount rows", invertedIdentities.isNotEmpty())
+                assertEquals("row-7", invertedIdentities.first())
+                val adapterOrder = listOf("row-7", "row-6", "row-5", "row-4", "row-3", "row-2", "row-1", "row-0", "header")
+                assertEquals("mounted identities must stay in adapter order", adapterOrder.filter { it in invertedIdentities }, invertedIdentities)
+            }
 
-        instrumentation.runOnMainSync {
-            list.apply(nodes, false, 3, false, 0.1, renderer(context, renders), { _ -> }, { _ -> }, null)
-        }
-        awaitCount(list, 9)
-        SystemClock.sleep(200)
-        val grid = list.layoutManager as GridLayoutManager
-        assertEquals(3, grid.spanCount)
-        assertEquals(3, grid.spanSizeLookup.getSpanSize(0))
-        assertEquals(1, grid.spanSizeLookup.getSpanSize(1))
+            instrumentation.runOnMainSync {
+                list.apply(nodes, false, 3, false, 0.1, renderer(context, renders), { _ -> }, { _ -> }, null)
+            }
+            awaitCount(list, 9)
+            SystemClock.sleep(200)
+            val grid = list.layoutManager as GridLayoutManager
+            assertEquals(3, grid.spanCount)
+            assertEquals(3, grid.spanSizeLookup.getSpanSize(0))
+            assertEquals(1, grid.spanSizeLookup.getSpanSize(1))
 
-        val updated = listOf(chrome("header", "header"), row(0).put("children", JSONArray().put("Updated"))) +
-            (1 until 8).map(::row)
-        instrumentation.runOnMainSync {
-            list.apply(updated, false, 3, false, 0.1, renderer(context, renders), { _ -> }, { _ -> }, null)
-        }
-        SystemClock.sleep(300)
-        instrumentation.runOnMainSync { attach(list) }
+            val updated = listOf(chrome("header", "header"), row(0).put("children", JSONArray().put("Updated"))) +
+                (1 until 8).map(::row)
+            instrumentation.runOnMainSync {
+                list.apply(updated, false, 3, false, 0.1, renderer(context, renders), { _ -> }, { _ -> }, null)
+            }
+            SystemClock.sleep(300)
+            instrumentation.runOnMainSync { attach(list) }
 
-        val chromeEndReached = AtomicInteger()
-        val chromeOnly = listOf(
-            chrome("header", "header"),
-            chrome("empty", "empty"),
-            chrome("footer", "footer"),
-        )
-        instrumentation.runOnMainSync {
-            list.apply(chromeOnly, false, 1, false, 0.1, renderer(context, renders), { _ -> }, { _ -> }, {
-                chromeEndReached.incrementAndGet()
-            })
+            val chromeEndReached = AtomicInteger()
+            val chromeOnly = listOf(
+                chrome("header", "header"),
+                chrome("empty", "empty"),
+                chrome("footer", "footer"),
+            )
+            instrumentation.runOnMainSync {
+                list.apply(chromeOnly, false, 1, false, 0.1, renderer(context, renders), { _ -> }, { _ -> }, {
+                    chromeEndReached.incrementAndGet()
+                })
+            }
+            awaitCount(list, 3)
+            SystemClock.sleep(300)
+            assertEquals("chrome-only lists must not reach the data end", 0, chromeEndReached.get())
+        } finally {
+            scenario.close()
         }
-        awaitCount(list, 3)
-        SystemClock.sleep(300)
-        assertEquals("chrome-only lists must not reach the data end", 0, chromeEndReached.get())
     }
 
     @Test
@@ -284,29 +291,34 @@ class NativeFlatListTest {
 
     @Test
     fun nonScrollingListMeasuresItsFullContentHeight() {
-        val context = instrumentation.targetContext
-        val list = CraftNativeFlatList(context)
-        val rows = (0 until 3).map(::row)
-        val contentSizeChanges = AtomicInteger()
-        instrumentation.runOnMainSync {
-            list.setScrollEnabled(false)
-            list.onContentSizeChanged = { contentSizeChanges.incrementAndGet() }
-            list.apply(rows, false, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, { _ -> }, null)
+        val (scenario, list) = launchHost()
+        val context = list.context
+        try {
+            val rows = (0 until 3).map(::row)
+            val contentSizeChanges = AtomicInteger()
+            instrumentation.runOnMainSync {
+                list.layoutParams = FrameLayout.LayoutParams(320, ViewGroup.LayoutParams.WRAP_CONTENT)
+                list.setScrollEnabled(false)
+                list.onContentSizeChanged = { contentSizeChanges.incrementAndGet() }
+                list.apply(rows, false, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, { _ -> }, null)
+            }
+            awaitCount(list, rows.size)
+            instrumentation.runOnMainSync {
+                list.measure(
+                    View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(1_000, View.MeasureSpec.AT_MOST),
+                )
+                list.layout(0, 0, list.measuredWidth, list.measuredHeight)
+            }
+            assertTrue("non-scrolling FlatList should include every row", list.measuredHeight >= rows.size * 44)
+            repeat(100) {
+                if (contentSizeChanges.get() > 0) return@repeat
+                SystemClock.sleep(10)
+            }
+            assertTrue("non-scrolling FlatList should report content-size changes", contentSizeChanges.get() > 0)
+        } finally {
+            scenario.close()
         }
-        awaitCount(list, rows.size)
-        instrumentation.runOnMainSync {
-            list.measure(
-                View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(1_000, View.MeasureSpec.AT_MOST),
-            )
-            list.layout(0, 0, list.measuredWidth, list.measuredHeight)
-        }
-        assertTrue("non-scrolling FlatList should include every row", list.measuredHeight >= rows.size * 44)
-        repeat(100) {
-            if (contentSizeChanges.get() > 0) return@repeat
-            SystemClock.sleep(10)
-        }
-        assertTrue("non-scrolling FlatList should report content-size changes", contentSizeChanges.get() > 0)
     }
 
     @Test

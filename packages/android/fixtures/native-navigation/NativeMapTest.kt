@@ -177,8 +177,10 @@ class NativeMapTest {
                 ?.getNumberProperty("width") != null
         }
         val density = main { host.resources.displayMetrics.density.toDouble() }
-        val width = features(map).first { it.getStringProperty("craftOverlayId") == "route" }
-            .getNumberProperty("width").toDouble()
+        val width = main {
+            features(map).first { it.getStringProperty("craftOverlayId") == "route" }
+                .getNumberProperty("width").toDouble()
+        }
         assertEquals("MapLibre must scale logical stroke points by display density", 5.0 * density, width, 0.001)
     }
 
