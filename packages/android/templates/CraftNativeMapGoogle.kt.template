@@ -125,6 +125,30 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         val nextHandlers = mutableMapOf<String, String>()
         val nextPolylines = mutableMapOf<String, Triple<List<LatLng>, Int, Float>>()
         val nextPolygons = mutableMapOf<String, PolygonValue>()
+        val dataMarkers = pendingProps.optJSONArray("markers")
+        for (index in 0 until (dataMarkers?.length() ?: 0)) {
+            val overlay = dataMarkers?.optJSONObject(index) ?: continue
+            val id = craftNativeOptionalString(overlay.opt("id")) ?: continue
+            val point = coordinates(overlay.optJSONArray("geometry")).firstOrNull() ?: continue
+            nextMarkers[id] = point to (overlay.opt("title") as? String)
+            (overlay.opt("pinColor") as? String)?.let { nextPinColors[id] = color(it) }
+            (overlay.opt("bearing") as? Number)?.toDouble()?.takeIf { it.isFinite() }?.let { nextBearings[id] = (it % 360).toFloat() }
+        }
+        val dataPolylines = pendingProps.optJSONArray("polylines")
+        for (index in 0 until (dataPolylines?.length() ?: 0)) {
+            val overlay = dataPolylines?.optJSONObject(index) ?: continue
+            val id = craftNativeOptionalString(overlay.opt("id")) ?: continue
+            val points = coordinates(overlay.optJSONArray("geometry"))
+            if (points.size <= 1) continue
+            val authoredWidth = when (val rawWidth = overlay.opt("strokeWidth")) {
+                null, JSONObject.NULL -> 3.0
+                is Number -> rawWidth.toDouble()
+                else -> 3.0
+            }
+            val width = (authoredWidth * resources.displayMetrics.density).toFloat()
+            if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue
+            nextPolylines[id] = Triple(points, color(craftNativeOptionalString(overlay.opt("strokeColor")).orEmpty()), width)
+        }
         for (index in 0 until pendingChildren.length()) {
             val child = pendingChildren.optJSONObject(index) ?: continue
             val type = child.optString("type").lowercase()
