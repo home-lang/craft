@@ -656,7 +656,7 @@ export interface MapMarkerProps extends BaseProps {
   geometry: number[]
   id: string
   title?: string
-  /** Tint for the native marker pin. */
+  /** Tint for the native marker pin; `label` and `secondaryLabel` follow the current system appearance. */
   pinColor?: string
   /** A direction arrow in place of the default marker, clockwise from north. */
   bearing?: number

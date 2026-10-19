@@ -244,7 +244,9 @@ template and its visible provider attribution. `edgePadding` reserves logical
 points around a fitted route for floating controls. `pitchEnabled` controls
 tilt gestures; `cameraPitch` and `cameraHeading` set the camera explicitly.
 Markers accept `pinColor` for trailheads and inspected profile positions, or
-`bearing` for a contrasting route-direction sign. Clustering, turn-by-turn
+`bearing` for a contrasting route-direction sign. The portable system colors
+`label` and `secondaryLabel` follow light/dark appearance changes and refresh
+retained overlays without moving the camera. Clustering, turn-by-turn
 directions, and offline tile downloads remain outside this view contract.
 Set `showsUserLocation` to opt into the
 platform location dot; the host only enables it when the app's existing

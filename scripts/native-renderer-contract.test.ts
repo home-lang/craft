@@ -568,6 +568,7 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain("mapType?: 'standard' | 'satellite' | 'hybrid'")
     expect(componentTypes).toContain('pitchEnabled?: boolean')
     expect(componentTypes).toContain('pinColor?: string')
+    expect(componentTypes).toContain('`label` and `secondaryLabel` follow the current system appearance')
     expect(componentTypes).not.toContain("mapType?: 'standard' | 'satellite' | 'hybrid' | 'terrain'")
     expect(componentTypes).toContain("resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'")
     const imageProps = componentTypes.match(/export interface ImageProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
@@ -652,6 +653,7 @@ describe('native renderer component contract', () => {
     expect(androidManifest).toContain('{{GOOGLE_MAPS_API_KEY}}')
     expect(guide).toContain('| `Map` | `CraftNativeMapView` (`MKMapView`) |')
     expect(guide).toContain('flat latitude,\nlongitude `geometry` array')
+    expect(guide).toContain('`label` and `secondaryLabel` follow light/dark appearance changes')
     expect(guide).toContain('Coordinates must be finite and within latitude [-90, 90]')
     expect(iosReadme).toContain('Map coordinates are finite and range-checked at the native boundary')
     expect(androidReadme).toContain('Coordinates must be JSON numbers (numeric strings are not coerced)')
