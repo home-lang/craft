@@ -2209,6 +2209,36 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(toggle.isOn)
     }
 
+    func testSwitchReceivesNativeTouchesWhenMountedInAFlowView() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([[
+            "type": "View",
+            "props": ["key": "root"],
+            "children": [["type": "Switch", "props": ["testID": "native-switch"]]],
+        ]]))
+        let toggle = try XCTUnwrap(find(UISwitch.self, key: "native-switch", below: controller.view))
+        XCTAssertTrue(toggle.isUserInteractionEnabled)
+        XCTAssertTrue(toggle.isEnabled)
+        let point = toggle.convert(CGPoint(x: toggle.bounds.midX, y: toggle.bounds.midY), to: controller.view)
+        let hit = controller.view.hitTest(point, with: nil)
+        XCTAssertTrue(hit === toggle || hit?.isDescendant(of: toggle) == true)
+    }
+
+    func testUncontrolledSwitchKeepsItsNativeValueAcrossReconciliation() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        let screen = document([[
+            "type": "Switch",
+            "props": ["key": "uncontrolled-switch"],
+        ]])
+        controller.render(screen)
+        let toggle = try XCTUnwrap(find(UISwitch.self, key: "uncontrolled-switch", below: controller.view))
+        toggle.setOn(true, animated: false)
+        controller.render(screen)
+        XCTAssertTrue(toggle.isOn)
+    }
+
     func testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

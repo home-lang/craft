@@ -203,7 +203,7 @@ describe('native renderer component contract', () => {
 
   it('keeps Switch checked compatibility aligned with both hosts', () => {
     expect(componentTypes).toContain('checked?: boolean')
-    expect(ios).toContain('props["value"] as? Bool ?? props["checked"] as? Bool ?? false')
+    expect(ios).toContain('if let value = props["value"] as? Bool ?? props["checked"] as? Bool')
     expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
     expect(guide).toContain('`checked` is a compatibility alias')
     expect(guide).toContain('`value` is null, and `value` takes precedence')
@@ -1349,6 +1349,8 @@ describe('native renderer component contract', () => {
 
   it('preserves UIKit interaction traits for native controls without authored roles', () => {
     expect(ios).toContain('case "Slider", "Picker", "DatePicker": traits.insert(.adjustable)')
+    expect(iosNativeUnitTests).toContain('testSwitchReceivesNativeTouchesWhenMountedInAFlowView')
+    expect(iosNativeUnitTests).toContain('testUncontrolledSwitchKeepsItsNativeValueAcrossReconciliation')
     expect(iosNativeUnitTests).toContain('testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges')
     expect(iosNativeUnitTests).toContain('testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles')
   })
@@ -3416,7 +3418,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps malformed Switch state deterministic across native hosts', () => {
-    expect(ios).toContain('let value = props["value"] as? Bool ?? props["checked"] as? Bool ?? false')
+    expect(ios).toContain('if let value = props["value"] as? Bool ?? props["checked"] as? Bool')
     expect(ios).toContain('if toggle.isOn != value { toggle.isOn = value }')
     expect(android).toContain('requestedValue as? Boolean ?: false')
     expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
