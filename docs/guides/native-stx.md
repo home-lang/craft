@@ -748,6 +748,10 @@ Android also detaches control-specific listeners from released checkboxes,
 switches, sliders, and pickers so a retained native control cannot dispatch the
 previous identity's callback during reuse.
 
+Text-input watchers are detached too. A released Android `EditText` therefore
+cannot retain the old screen's draft and change handler through a closure after
+its row or screen has been recycled.
+
 When an iOS screen is popped or replaced, its rendered tree is torn down before
 the JavaScript runtime closes. That includes rows kept in a `FlatList` recycle
 pool, so UIKit delegates, control targets, media, and map callbacks cannot keep

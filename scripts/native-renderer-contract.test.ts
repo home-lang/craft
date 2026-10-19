@@ -3146,6 +3146,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('released.filterIsInstance<EditText>().forEach { it.setOnEditorActionListener(null) }')
   })
 
+  it('detaches Android text watchers before released inputs can retain a screen', () => {
+    expect(android).toContain('val inputWatchers = mutableMapOf<EditText, TextWatcher>()')
+    expect(android).toContain('if (screen.inputWatchers[this] == null) {\n                    val watcher = object : TextWatcher')
+    expect(android).toContain('screen.inputWatchers.remove(it)?.let(it::removeTextChangedListener)')
+    expect(guide).toContain('Text-input watchers are detached too.')
+  })
+
   it('invalidates Android scroll callbacks when a native scroll host is released', () => {
     expect(android).toContain('private var scrollListenerGeneration = 0')
     expect(android).toContain('val generation = ++scrollListenerGeneration')
