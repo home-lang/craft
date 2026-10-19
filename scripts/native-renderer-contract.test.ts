@@ -1572,8 +1572,11 @@ describe('native renderer component contract', () => {
   it('lets native dialog capabilities replace a preinstalled DOM fallback', () => {
     expect(ios).toContain("bridge.capabilities.indexOf('dialog') >= 0) {")
     expect(ios).not.toContain("bridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog")
+    expect(ios).toContain('__craftInstallNativeDialog = installNativeDialog')
     expect(androidShell).toContain("__stxNativeBridge.capabilities.indexOf('dialog') >= 0) {")
     expect(androidShell).not.toContain("__stxNativeBridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog")
+    expect(androidShell).toContain('__craftInstallNativeDialog = installNativeDialog')
+    expect(android).toContain('__craftInstallNativeDialog === \'function\'')
   })
 
   it('preserves Android native launch query parameters like iOS', () => {

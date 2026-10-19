@@ -4389,6 +4389,12 @@ class MainActivity : AppCompatActivity() {
                 load.addListener({
                     try {
                         load.get()
+                        // The STX runtime may install its browser-shaped
+                        // craft.dialog after the host prelude. Re-assert the
+                        // native capability once the bundle has finished.
+                        isolate.evaluateJavaScriptAsync(
+                            "if (typeof globalThis.__craftInstallNativeDialog === 'function') globalThis.__craftInstallNativeDialog();"
+                        ).get()
                         if (activeScreen.headless) {
                             CraftNativeBackground.foreground = { event, id, done ->
                                 val app = appScreen

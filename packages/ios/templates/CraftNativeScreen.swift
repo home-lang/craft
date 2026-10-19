@@ -5290,18 +5290,22 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                         }));
                     });
                 }
-                var craft = globalThis.craft = globalThis.craft || {};
                 // Native capability ownership wins over any browser-shaped
                 // dialog object the bundle installed before the bridge ran.
                 // Leaving the old guard here sends actionSheet through the
                 // DOM fallback even though this screen can present UIKit.
-                if (Array.isArray(bridge.capabilities) && bridge.capabilities.indexOf('dialog') >= 0) {
-                    craft.dialog = {
-                        alert: function(options) { return request('alert', [options || {}]).then(function() {}); },
-                        confirm: function(options) { return request('confirm', [options || {}]).then(Boolean); },
-                        actionSheet: function(options) { return request('actionSheet', [options || {}]).then(function(id) { return typeof id === 'string' ? id : null; }); }
-                    };
+                function installNativeDialog() {
+                    var craft = globalThis.craft = globalThis.craft || {};
+                    if (Array.isArray(bridge.capabilities) && bridge.capabilities.indexOf('dialog') >= 0) {
+                        craft.dialog = {
+                            alert: function(options) { return request('alert', [options || {}]).then(function() {}); },
+                            confirm: function(options) { return request('confirm', [options || {}]).then(Boolean); },
+                            actionSheet: function(options) { return request('actionSheet', [options || {}]).then(function(id) { return typeof id === 'string' ? id : null; }); }
+                        };
+                    }
                 }
+                globalThis.__craftInstallNativeDialog = installNativeDialog;
+                installNativeDialog();
             })();
         """)
         // `AudioContext` and the rest of Web Audio, rendered natively.
@@ -5515,6 +5519,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             jsContext.evaluateScript(runtime.source, withSourceURL: runtime.url)
         }
         jsContext.evaluateScript(bundle.source, withSourceURL: bundle.url)
+        // The STX runtime may install its browser-shaped craft.dialog after
+        // the host prelude. Re-assert the native capability once the bundle
+        // has finished so native screens cannot fall through to a DOM sheet.
+        jsContext.evaluateScript("if (typeof globalThis.__craftInstallNativeDialog === 'function') globalThis.__craftInstallNativeDialog();")
         // A bundle that names no route leaves `__stxNativeRoute` undefined;
         // its title is the app's, not the word "undefined". A title the
         // script set with `navigation.setOptions` wins over both.
