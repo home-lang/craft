@@ -158,6 +158,21 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(home.frame.minX, baseline.minX, accuracy: 1)
     }
 
+    func testMultilineInputKeepsKeyboardFocusWhenTapped() {
+        let app = XCUIApplication()
+        app.launch()
+        let root = app.scrollViews["native-root-scroll"]
+        XCTAssertTrue(root.waitForExistence(timeout: 10))
+        let notes = app.textViews["notes-input"]
+        reveal(notes, in: root)
+        notes.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "The scroll container dismissed the text area's keyboard")
+        notes.typeText(" edited")
+        XCTAssertEqual(notes.value as? String, "Draft edited")
+        notes.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "Tapping the text area again must preserve editing")
+    }
+
     func testHorizontalCarouselKeepsItsSwipe() {
         let app = XCUIApplication()
         app.launch()

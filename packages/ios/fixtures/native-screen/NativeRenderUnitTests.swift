@@ -1749,6 +1749,36 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(proof.font?.pointSize, 22)
     }
 
+    func testScrollKeyboardTapPreservesTextAreaFocusAndSelectionButDismissesBackground() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["type": "ScrollView", "props": ["key": "form"], "style": ["height": 300], "children": [
+                ["type": "TextInput", "props": ["key": "review", "multiline": true, "value": "A beautiful ridge"], "style": ["height": 120]],
+            ]],
+        ]))
+        let form = try XCTUnwrap(find(UIScrollView.self, key: "form", below: controller.view))
+        let review = try XCTUnwrap(find(UITextView.self, key: "review", below: controller.view))
+        XCTAssertTrue(review.becomeFirstResponder())
+        review.selectedRange = NSRange(location: 2, length: 9)
+        let selectionSurface = UIView()
+        selectionSurface.addGestureRecognizer(UITapGestureRecognizer())
+        review.addSubview(selectionSurface)
+        var forgotFocus = false
+        for policy in ["never", "handled", "always"] {
+            craftHandleKeyboardTap(in: form, hit: selectionSurface, persistTaps: policy) { forgotFocus = true }
+            XCTAssertTrue(review.isFirstResponder, policy)
+            XCTAssertEqual(review.selectedRange, NSRange(location: 2, length: 9), policy)
+            XCTAssertFalse(forgotFocus, policy)
+        }
+        craftHandleKeyboardTap(in: form, hit: form, persistTaps: "never") { forgotFocus = true }
+        XCTAssertFalse(review.isFirstResponder)
+        XCTAssertTrue(forgotFocus)
+    }
+
     func testTextInputsPadTheirTextAndAskForAutofill() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
