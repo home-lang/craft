@@ -264,8 +264,8 @@ protocol CraftHybridScreenEvents: AnyObject {
     func nativeScreenDidRender(_ screen: CraftNativeScreenController)
     /// The screen could not draw its first frame: no bundle, or its script threw.
     func nativeScreen(_ screen: CraftNativeScreenController, didFail message: String)
-    /// `craft.navigation.open(path)`.
-    func nativeScreen(_ screen: CraftNativeScreenController, open path: String)
+    /// `craft.navigation.open(path, props)`.
+    func nativeScreen(_ screen: CraftNativeScreenController, open path: String, props: [String: Any])
     /// `craft.navigation.replace(path)`: finish the current flow atomically.
     func nativeScreen(_ screen: CraftNativeScreenController, replace path: String)
 }
@@ -446,11 +446,11 @@ final class CraftHybrid: NSObject {
     /// A path or a web address opened by the app script or a single-stack
     /// screen: the shell opens it (holding it until the shell exists); an app
     /// with no shell opens a web address in the in-app browser.
-    func open(_ path: String) {
+    func open(_ path: String, props: [String: Any] = [:]) {
         if let controller {
-            controller.open(path)
+            controller.open(path, props: props)
         } else if isEnabled {
-            untilShell.append { $0.open(path) }
+            untilShell.append { $0.open(path, props: props) }
         } else {
             openOutside(path)
         }
@@ -976,8 +976,8 @@ extension CraftHybrid: CraftHybridScreenEvents {
         DispatchQueue.main.async { self.startAppScript() }
     }
 
-    func nativeScreen(_ screen: CraftNativeScreenController, open path: String) {
-        open(path)
+    func nativeScreen(_ screen: CraftNativeScreenController, open path: String, props: [String: Any]) {
+        open(path, props: props)
     }
 
     func nativeScreen(_ screen: CraftNativeScreenController, replace path: String) {
@@ -1585,11 +1585,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     /// The entry for a path: its native screen, or a web entry.
-    private func entry(for path: String, isTabRoot: Bool, depth: Int?, params extra: [String: Any] = [:]) -> UIViewController {
+    private func entry(for path: String, isTabRoot: Bool, depth: Int?, props: [String: Any] = [:]) -> UIViewController {
         if hybrid.isEnabled, let match = hybrid.routes.match(path) {
-            var params = self.params(for: path, match)
-            extra.forEach { params[$0.key] = $0.value }
-            let screen = CraftNativeScreenController(config: config, routeName: match.screen, routeParams: params)
+            let params = self.params(for: path, match)
+            let screen = CraftNativeScreenController(config: config, routeName: match.screen, routeParams: params, routeProps: props)
             screen.hybridEvents = self
             nativePaths[ObjectIdentifier(screen)] = match.path
             return screen
@@ -1734,7 +1733,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     /// an app with no web view, a path no screen draws opens in the in-app
     /// browser on the app's site. A web address on the app's site is its
     /// path; one anywhere else opens in the in-app browser.
-    func open(_ raw: String) {
+    func open(_ raw: String, props: [String: Any] = [:]) {
         if let url = URL(string: raw), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
             guard CraftHybridRoutes.isSite(url, site: hybrid.siteURL) else {
                 hybrid.openOutside(raw)
@@ -1749,7 +1748,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             return
         }
         if hybrid.routes.match(raw) != nil {
-            showNative(path: raw, replace: false)
+            showNative(path: raw, replace: false, props: props)
             return
         }
         if hybrid.hasWeb {
@@ -1769,7 +1768,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     /// The native screen for `raw`: the one already in the stack (popping to
     /// it), a tab's root, or a new one pushed.
-    func showNative(path raw: String, replace: Bool, fromLink: Bool = false) {
+    func showNative(path raw: String, replace: Bool, fromLink: Bool = false, props: [String: Any] = [:]) {
         guard let match = hybrid.routes.match(raw) else { return }
         interruptTabSwipe(restoringSelection: true)
         let tabs = hybrid.tabIds
@@ -1785,7 +1784,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
                 nav.popToRootViewController(animated: !fromLink)
             }
             // `/m/store?coach=5`: the tab's own screen, with the query.
-            (stacks[tab]?.viewControllers.first as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match))
+            (stacks[tab]?.viewControllers.first as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match), props: props)
             return
         }
         if fromLink, let owner = CraftHybridRoutes.tab(owning: match.path, among: tabs), owner != currentTab {
@@ -1796,10 +1795,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             if existing !== nav.topViewController { nav.popToViewController(existing, animated: true) }
             // Opened again, perhaps with another query (`?person=8`): the
             // screen hears the params it was opened with this time.
-            (existing as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match))
+            (existing as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match), props: props)
             return
         }
-        let screen = entry(for: raw, isTabRoot: false, depth: nil)
+        let screen = entry(for: raw, isTabRoot: false, depth: nil, props: props)
         let show = { [weak nav] in
             guard let nav else { return }
             if replace, !nav.viewControllers.isEmpty {
@@ -2175,8 +2174,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         }
     }
 
-    func nativeScreen(_ screen: CraftNativeScreenController, open path: String) {
-        open(path)
+    func nativeScreen(_ screen: CraftNativeScreenController, open path: String, props: [String: Any]) {
+        open(path, props: props)
     }
 
     func nativeScreen(_ screen: CraftNativeScreenController, replace path: String) {

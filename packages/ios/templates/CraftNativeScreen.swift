@@ -4710,6 +4710,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private let config: CraftConfig
     private let routeName: String?
     private(set) var routeParams: [String: Any]
+    private(set) var routeProps: [String: Any]
     private let jsContext = JSContext(virtualMachine: CraftNativeBundle.virtualMachine)!
     private let rootStack = CraftNativeFlowView()
     private var handlers: [ObjectIdentifier: String] = [:]
@@ -4821,10 +4822,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// `DEEP_LINK`; it can open paths but not push, pop or style a bar.
     let isAppScript: Bool
 
-    init(config: CraftConfig, routeName: String? = nil, routeParams: [String: Any] = [:], isAppScript: Bool = false) {
+    init(config: CraftConfig, routeName: String? = nil, routeParams: [String: Any] = [:], routeProps: [String: Any] = [:], isAppScript: Bool = false) {
         self.config = config
         self.routeName = routeName
         self.routeParams = routeParams
+        self.routeProps = routeProps
         self.isAppScript = isAppScript
         super.init(nibName: nil, bundle: nil)
     }
@@ -4999,17 +5001,19 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         send(type: "SCREEN_FOCUS", payload: ["focused": visible])
     }
 
-    /// New params for the screen already showing a path: opened again with
-    /// another query (`/m/messages?person=8`), or a tab's root opened with
-    /// one (`/m/store?coach=5`). The script's `craft.route.params` changes
-    /// and it hears `ROUTE_PARAMS`; before the script has run, it simply
-    /// starts with them.
-    func receiveRouteParams(_ params: [String: Any]) {
+    /// New params or props for the screen already showing a path: opened
+    /// again with another query or a structured handoff. The two namespaces
+    /// stay separate so props cannot collide with path/query params.
+    func receiveRouteParams(_ params: [String: Any], props: [String: Any] = [:]) {
         routeParams = params
+        routeProps = props
         guard isViewLoaded, !runtimeDisposed else { return }
         let context = jsContext
-        CraftNativeScriptThread.run { context.setObject(params as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString) }
-        send(type: "ROUTE_PARAMS", payload: ["params": params])
+        CraftNativeScriptThread.run {
+            context.setObject(params as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString)
+            context.setObject(props as NSDictionary, forKeyedSubscript: "__stxNativeProps" as NSString)
+        }
+        send(type: "ROUTE_PARAMS", payload: ["params": params, "props": props])
     }
 
     private func disposeRuntime() {
@@ -5122,6 +5126,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             jsContext.setObject(routeName, forKeyedSubscript: "__stxNativeRoute" as NSString)
         }
         jsContext.setObject(routeParams as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString)
+        jsContext.setObject(routeProps as NSDictionary, forKeyedSubscript: "__stxNativeProps" as NSString)
         jsContext.exceptionHandler = { [weak self] context, exception in
             // Never stringify an arbitrary JS object here. JavaScriptCore can
             // re-enter this handler while coercing an exception whose
@@ -6401,7 +6406,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             // A path rather than a screen: the hybrid shell opens it, natively
             // or in the web view.
             guard let path = payload["path"] as? String, !path.isEmpty else { return }
-            hybridEvents?.nativeScreen(self, open: path)
+            hybridEvents?.nativeScreen(self, open: path, props: payload["props"] as? [String: Any] ?? [:])
         case "NAVIGATE_BACK":
             if !isAppScript, navigationController?.topViewController === self {
                 navigationController?.popViewController(animated: true)
@@ -8886,7 +8891,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     @objc private func buttonPressed(_ sender: UIButton) {
         let focused = firstResponder(in: rootStack) ?? lastFocusedInput
         if let target = linkTargets[ObjectIdentifier(sender)] {
-            hybridEvents?.nativeScreen(self, open: target)
+        hybridEvents?.nativeScreen(self, open: target, props: [:])
             return
         }
         guard let handler = handlers[ObjectIdentifier(sender)] else { return }
@@ -9177,7 +9182,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard let view = sender.view else { return }
         let id = ObjectIdentifier(view)
         if let target = linkTargets[id] {
-            hybridEvents?.nativeScreen(self, open: target)
+        hybridEvents?.nativeScreen(self, open: target, props: [:])
             return
         }
         guard let handler = handlers[id] else { return }
