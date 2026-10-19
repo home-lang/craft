@@ -137,8 +137,12 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
       serial = options.device || ''
       if (!/^emulator-\d+$/.test(serial)) throw new Error('Select a disposable Android emulator with ANDROID_SERIAL')
       const shell = await Bun.file(join(root, 'android/templates/CraftNativeShell.kt.template')).text()
-      const media = shell.match(/internal object CraftNativeMedia \{[\s\S]*?\n\}/)?.[0]
-      if (!media) throw new Error('Android media implementation missing')
+      // The media object, and what it hands transfers to: the WorkManager
+      // worker that runs each keep and the resumable fetch it makes.
+      const pieces = ['internal object CraftNativeMedia {', 'internal class CraftResumableDownload(', 'internal class CraftNativeMediaWorker(']
+        .map(start => shell.match(new RegExp(`${start.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?\\n\\}`))?.[0])
+      if (pieces.some(piece => !piece)) throw new Error('Android media implementation missing')
+      const media = pieces.join('\n\n')
       const android = join(scratch, 'android')
       const app = join(android, 'app')
       const sources = join(app, 'src/main/java/dev/craft/mediaprobe')
@@ -155,9 +159,10 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
   targetSdk = 35 };
   compileOptions { sourceCompatibility = JavaVersion.VERSION_17;
   targetCompatibility = JavaVersion.VERSION_17 };
-  kotlinOptions { jvmTarget = "17" } }`)
+  kotlinOptions { jvmTarget = "17" } }
+dependencies { implementation("androidx.work:work-runtime-ktx:2.9.1") }`)
       await Bun.write(join(app, 'src/main/AndroidManifest.xml'), `<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/><application android:usesCleartextTraffic="true" android:label="HQ Download Probe"/><instrumentation android:name=".DownloadProbe" android:targetPackage="${packageName}"/></manifest>`)
-      await Bun.write(join(sources, 'DownloadProbe.kt'), `package ${packageName}\nimport android.content.Context\nimport android.net.Uri\nimport android.os.Handler\nimport android.os.Looper\nimport org.json.JSONObject\nimport java.io.File\nimport java.util.concurrent.Executors\ninternal data class CraftNativeCapabilityResult(val data: Any? = null, val code: String? = null, val message: String? = null)\n${media}\n${await Bun.file(join(fixtures, 'media-cache.kt')).text()}`)
+      await Bun.write(join(sources, 'DownloadProbe.kt'), `package ${packageName}\nimport android.content.Context\nimport android.content.SharedPreferences\nimport android.net.Uri\nimport android.os.Handler\nimport android.os.Looper\nimport org.json.JSONObject\nimport java.io.File\nimport java.util.concurrent.ConcurrentHashMap\nimport java.util.concurrent.Executors\ninternal data class CraftNativeCapabilityResult(val data: Any? = null, val code: String? = null, val message: String? = null)\n${media}\n${await Bun.file(join(fixtures, 'media-cache.kt')).text()}`)
       await run([options.gradle || process.env.GRADLE_EXECUTABLE || 'gradle', ...(options.online ? [] : ['--offline']), '--no-daemon', ':app:assembleDebug'], android)
       print(await run([adb, '-s', serial, 'install', '-r', join(app, 'build/outputs/apk/debug/app-debug.apk')]))
       const base = `http://10.0.2.2:${server.port}/android`
