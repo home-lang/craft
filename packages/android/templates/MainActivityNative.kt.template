@@ -5053,12 +5053,11 @@ class MainActivity : AppCompatActivity() {
         val children = node.optJSONArray("children") ?: JSONArray()
         val protocolId = node.optString("id").takeIf { it.isNotBlank() }
         val explicitKey = authoredKey(node, props)
-        // Descendants are scoped to this retained identity, not its sibling
-        // position. Moving a keyed parent must retain its nested inputs too.
-        // A test selector may intentionally identify several list rows. The
-        // compiler's unique protocol ID must win over that legacy fallback.
-        val identity = explicitKey?.let { "${path.substringBeforeLast('.', "")}/$it" }
-            ?: protocolId?.let { "id:$it" }
+        // Protocol IDs are global to the committed native tree. Prefer them
+        // over parent-local keys so a reparented popup retains its live view,
+        // draft, focus and selection across the full render.
+        val identity = protocolId?.let { "id:$it" }
+            ?: explicitKey?.let { "${path.substringBeforeLast('.', "")}/$it" }
             ?: props.optString("testID").takeIf { it.isNotBlank() }?.let { "${path.substringBeforeLast('.', "")}/$it" }
             ?: path
         val previous = previousControls[identity]

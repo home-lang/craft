@@ -422,13 +422,21 @@ describe('native renderer component contract', () => {
     // A node the batch created is drawn by its nearest drawn ancestor, not by
     // reconciling the whole screen again.
     expect(iosMutation).toContain('func parentId(of id: String) -> String?')
+    expect(iosMutation).toContain('case "reparentChild":')
+    expect(iosMutation).toContain('throw CraftNativeMutationFailure("SAME_PARENT"')
+    expect(ios).toContain('private var previousNodesByProtocolID: [String: RenderedNode] = [:]')
+    expect(ios).toContain('indexPreviousNodes(previous)')
     expect(ios).toContain('guard let target = drawnTarget(id) else { return false }')
     expect(iosNativeUnitTests).toContain('func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace()')
     expect(iosNativeUnitTests).toContain('func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot()')
     expect(iosNativeUnitTests).toContain('func testMapOverlayMutationStaysAddressableToItsMap()')
+    expect(iosNativeUnitTests).toContain('func testReparentChildMovesAcrossParentsAtomically()')
     expect(androidMutationTest).toContain('fun keepsMapOverlayParentsAddressableForTargetedUpdates()')
+    expect(androidMutationTest).toContain('fun reparentsChildAcrossParentsAtomically()')
     expect(iosMutation).toContain('"Fragment", "Svg", "G", "Map"')
     expect(androidMutation).toContain('"Fragment", "Svg", "G", "Map"')
+    expect(androidMutation).toContain('"reparentChild" -> {')
+    expect(android).toContain('val identity = protocolId?.let { "id:$it" }')
   })
 
   it('exports the flat flex ABI for mobile hosts', () => {

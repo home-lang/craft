@@ -4924,6 +4924,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
+    // A reparented popup must keep the live native view that owns its draft,
+    // focus and selection. The mutation protocol identifies nodes globally;
+    // retain the previous render by that ID when the new parent has no local
+    // identity entry for it.
+    private var previousNodesByProtocolID: [String: RenderedNode] = [:]
+    private var adoptedPreviousProtocolIDs = Set<String>()
+
     private let config: CraftConfig
     private let routeName: String?
     private(set) var routeParams: [String: Any]
@@ -6984,7 +6991,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         statusBarStyleOverride = nil
         statusBarHiddenOverride = nil
         let previous = renderedRoot
+        previousNodesByProtocolID.removeAll(keepingCapacity: true)
+        adoptedPreviousProtocolIDs.removeAll(keepingCapacity: true)
+        indexPreviousNodes(previous)
         let next = reconcile(document, identity: "root", path: "root", previous: previous)
+        previousNodesByProtocolID.removeAll(keepingCapacity: true)
+        adoptedPreviousProtocolIDs.removeAll(keepingCapacity: true)
         if previous?.view !== next.view {
             if let old = previous { detach(old, from: rootStack) }
         }
@@ -7076,16 +7088,23 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let style = node["style"] as? [String: Any] ?? [:]
         let events = node["events"] as? [String: String] ?? [:]
         let children = node["children"] as? [Any] ?? []
+        let protocolId = node["id"] as? String
+        let retained = previous ?? protocolId.flatMap { id in
+            guard !adoptedPreviousProtocolIDs.contains(id) else { return nil }
+            return previousNodesByProtocolID[id]
+        }
+        let adopted = previous == nil && retained != nil
         let current: RenderedNode
-        if let previous = previous, previous.identity == identity || adopting, canReuseView(node, previous: previous) {
-            current = previous
+        if let retained, (retained.identity == identity || adopting || adopted), canReuseView(node, previous: retained) {
+            current = retained
+            if let protocolId { adoptedPreviousProtocolIDs.insert(protocolId) }
             current.identity = identity
         } else {
             current = RenderedNode(identity: identity, type: type, view: makeView(type, props: props))
         }
 
         let result = current.view
-        current.protocolId = node["id"] as? String
+        current.protocolId = protocolId
         current.style = style
         let linkTarget = ["href", "to"].lazy.compactMap { props[$0] as? String }
             .first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?
@@ -7979,14 +7998,23 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func detach(_ node: RenderedNode, from stack: CraftNativeFlowView) {
-        forgetHandlers(node)
+        let retainedByReparent = node.protocolId.map { adoptedPreviousProtocolIDs.contains($0) } == true
+        if !retainedByReparent { forgetHandlers(node) }
         if node.type == "Modal" {
-            node.view.removeFromSuperview()
+            if node.view.superview === stack { node.view.removeFromSuperview() }
             return
         }
-        stack.removeLayoutStyle(for: node.view)
-        stack.removeArrangedSubview(node.view)
-        node.view.removeFromSuperview()
+        if node.view.superview === stack {
+            stack.removeLayoutStyle(for: node.view)
+            stack.removeArrangedSubview(node.view)
+            node.view.removeFromSuperview()
+        }
+    }
+
+    private func indexPreviousNodes(_ node: RenderedNode?) {
+        guard let node else { return }
+        if let id = node.protocolId, !id.isEmpty { previousNodesByProtocolID[id] = node }
+        node.children.forEach { indexPreviousNodes($0) }
     }
 
     private func forgetHandlers(_ node: RenderedNode, preservingInputDrafts: Bool = false) {
