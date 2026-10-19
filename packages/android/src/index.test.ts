@@ -1492,9 +1492,12 @@ describe('Craft Android builder', () => {
     const shell = readFileSync(join(output, 'app/src/main/java/dev/craft/media/CraftNativeShell.kt'), 'utf8')
     const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
     expect(gradle).toContain('androidx.work:work-runtime-ktx')
-    // A job per address and connection rule, joined rather than started twice, run when its network is there.
+    // A job per address and connection rule: a running one is joined, one waiting (or in a retry's backoff) runs now.
     expect(shell).toContain('internal class CraftNativeMediaWorker(')
-    expect(shell).toContain('work.enqueueUniqueWork(workName(address, wifiOnly), androidx.work.ExistingWorkPolicy.KEEP, request)')
+    expect(shell).toContain('work.enqueueUniqueWork(name, if (running) androidx.work.ExistingWorkPolicy.KEEP else androidx.work.ExistingWorkPolicy.REPLACE, request)')
+    // A prune never stops the transfer a keep still waits on; a 206 nobody asked for is refused.
+    expect(shell).toContain('owner in wanted || owner in active')
+    expect(shell).toContain('if (status == 206 && have == 0L) return Fetched.Refused(status)')
     expect(shell).toContain('if (wifiOnly) androidx.work.NetworkType.UNMETERED else androidx.work.NetworkType.CONNECTED')
     // Resumed from the part file an earlier attempt left.
     expect(shell).toContain('connection.setRequestProperty("Range", "bytes=$have-")')
@@ -2486,4 +2489,69 @@ it('emits native Bluetooth GATT support and versioned permissions only when enab
     expect(renderAndroidPermissions({ appName: 'Off', packageName: 'dev.craft.off' })).not.toContain('BLUETOOTH')
   }
   finally { rmSync(output, { recursive: true, force: true }) }
+})
+
+it('reads a heart-rate strap on the page and on native screens alike, declared only when enabled', async () => {
+  for (const renderer of ['native', 'web'] as const) {
+    const output = createTempDir(`craft-android-heart-rate-${renderer}-`)
+    const off = createTempDir(`craft-android-heart-rate-off-${renderer}-`)
+    try {
+      await init({ name: 'Strap', output, packageName: 'dev.craft.strap', runtimeDir: null, config: { renderer, enableHeartRate: true } })
+      const java = join(output, 'app/src/main/java/dev/craft/strap')
+      const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
+      // Nearby devices on Android 12+, never for location; location below it.
+      expect(manifest).toContain('<uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />')
+      expect(manifest).toContain('<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />')
+      expect(manifest).toContain('<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />')
+      expect(manifest).toContain('<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />')
+      // The recording keeps the process in the foreground as a connectedDevice service.
+      expect(manifest).toContain('<uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />')
+      expect(manifest).toContain('<service android:name=".CraftHeartRateService" android:exported="false" android:foregroundServiceType="connectedDevice" />')
+      const service = readFileSync(join(java, 'CraftHeartRate.kt'), 'utf8')
+      const core = readFileSync(join(java, 'CraftHeartRateCore.kt'), 'utf8')
+      expect(service.startsWith('package dev.craft.strap\n')).toBe(true)
+      expect(core.startsWith('package dev.craft.strap\n')).toBe(true)
+      expect(service).toContain('UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb")')
+      expect(service).toContain('UUID.fromString("00002a37-0000-1000-8000-00805f9b34fb")')
+      expect(service).toContain('peer.setCharacteristicNotification(measurement, true)')
+      expect(service).toContain('BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE')
+      // A dropped link: the old client closed, an automatic connection asked for.
+      expect(service).toMatch(/closeGatt\(\)\n\s+if \(wantsConnection\) \{\n\s+connection = "reconnecting"\n\s+scheduleReconnect\(\)/)
+      expect(service).toContain('openGatt(automatic = true)')
+      // The stand-in strap is an emulator's only.
+      expect(service).toContain('isEmulator() && File(context.filesDir, "CraftFakeHeartRateMonitor").exists()')
+      const bridge = readFileSync(join(java, 'CraftBridge.kt'), 'utf8')
+      expect(bridge).toContain('heartRate: true,')
+      expect(bridge).toContain('private val heartRateEnabled = true')
+      if (renderer === 'native') {
+        const services = readFileSync(join(java, 'CraftNativeServices.kt'), 'utf8')
+        expect(services).toContain('if (heartRateEnabled) addAll(listOf("heartRate", "heartRateRecordingOwnership", "heartRateRecordingIntentIdentity"))')
+        expect(services).toContain('"Location", "Media", "CrashReporter", "HeartRate",')
+        expect(services).toContain('if (!heartRateEnabled) return done(failure("CAPABILITY_DISABLED", "Heart rate is disabled"))')
+        expect(services).toContain('CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftHeartRate").put("detail", detail))')
+        expect(JSON.parse(readFileSync(join(output, 'app/src/main/assets/craft.config.json'), 'utf8')).enableHeartRate).toBe(true)
+      }
+
+      // Without the flag the sources still compile in (the bridge names
+      // them), but nothing is declared, advertised or asked for.
+      await init({ name: 'Plain', output: off, packageName: 'dev.craft.plain', runtimeDir: null, config: { renderer } })
+      const plain = readFileSync(join(off, 'app/src/main/AndroidManifest.xml'), 'utf8')
+      expect(plain).not.toContain('BLUETOOTH')
+      expect(plain).not.toContain('CraftHeartRateService')
+      expect(plain).not.toContain('FOREGROUND_SERVICE_CONNECTED_DEVICE')
+      expect(existsSync(join(off, 'app/src/main/java/dev/craft/plain/CraftHeartRate.kt'))).toBe(true)
+      expect(readFileSync(join(off, 'app/src/main/java/dev/craft/plain/CraftBridge.kt'), 'utf8')).toContain('heartRate: false,')
+    }
+    finally {
+      rmSync(output, { recursive: true, force: true })
+      rmSync(off, { recursive: true, force: true })
+    }
+  }
+})
+
+it('declares the Bluetooth permissions once for a strap and a GATT channel together', () => {
+  const both = renderAndroidPermissions({ appName: 'Both', packageName: 'dev.craft.both', enableBluetooth: true, enableHeartRate: true })
+  expect(both.match(/BLUETOOTH_CONNECT/g)?.length).toBe(1)
+  expect(both).toContain('android.permission.FOREGROUND_SERVICE"')
+  expect(renderAndroidPermissions({ appName: 'Gatt', packageName: 'dev.craft.gatt', enableBluetooth: true })).not.toContain('FOREGROUND_SERVICE_CONNECTED_DEVICE')
 })

@@ -1258,8 +1258,15 @@ internal object CraftNativeMedia {
             .addTag(TAG)
             .addTag("$TAG:${digest(address)}")
             .build()
-        // KEEP: a transfer already queued or running for this address is joined, not started again.
-        work.enqueueUniqueWork(workName(address, wifiOnly), androidx.work.ExistingWorkPolicy.KEEP, request)
+        // A transfer running for this address is joined (KEEP), not started again. One
+        // only queued, or waiting out a retry's backoff, is replaced: asked for again,
+        // it runs now and resumes the part the last attempt left.
+        val name = workName(address, wifiOnly)
+        background.execute {
+            val running = runCatching { work.getWorkInfosForUniqueWork(name).get() }.getOrDefault(emptyList())
+                .any { it.state == androidx.work.WorkInfo.State.RUNNING }
+            work.enqueueUniqueWork(name, if (running) androidx.work.ExistingWorkPolicy.KEEP else androidx.work.ExistingWorkPolicy.REPLACE, request)
+        }
         val reason = when {
             !online(app) -> "offline"
             wifiOnly && metered(app) -> "cellular"
@@ -1298,8 +1305,13 @@ internal object CraftNativeMedia {
             val target = file(context, address)
             val staging = part(context, address)
             target.parentFile?.mkdirs()
+            val download = CraftResumableDownload()
+            val asked = headers.keys().asSequence().associateWith { headers.optString(it) }
             val fetched = try {
-                CraftResumableDownload().fetch(address, headers.keys().asSequence().associateWith { headers.optString(it) }, staging, stopped)
+                // A part that no longer lines up was dropped: the whole file, now, not after a backoff.
+                download.fetch(address, asked, staging, stopped).let { first ->
+                    if (first is CraftResumableDownload.Fetched.Restart) download.fetch(address, asked, staging, stopped) else first
+                }
             } catch (error: Exception) {
                 val full = generateSequence<Throwable>(error) { it.cause }.take(16).any {
                     it is android.system.ErrnoException && it.errno == android.system.OsConstants.ENOSPC
@@ -1360,9 +1372,9 @@ internal object CraftNativeMedia {
     fun prune(context: Context, keep: List<String>): Int {
         val wanted = keep.map { digest(it) }.toSet()
         var removed = 0
+        // A keep still waiting owns its address's files and its transfer until it is answered.
+        val active = synchronized(lock) { waiting.keys.map { digest(it) }.toSet() }
         synchronized(lock) {
-            // A keep still waiting owns its address's files until it is answered.
-            val active = waiting.keys.map { digest(it) }.toSet()
             root(context).listFiles()?.forEach { file ->
                 val owner = file.name.substringBefore('.')
                 // Part files from before transfers resumed (`<sha>.<ext>.<id>.part`) are never picked up again.
@@ -1375,7 +1387,7 @@ internal object CraftNativeMedia {
             runCatching {
                 androidx.work.WorkManager.getInstance(app).getWorkInfosByTag(TAG).get()
                     .filter { !it.state.isFinished }
-                    .filter { info -> info.tags.none { it.startsWith("$TAG:") && it.removePrefix("$TAG:") in wanted } }
+                    .filter { info -> info.tags.none { it.startsWith("$TAG:") && it.removePrefix("$TAG:").let { owner -> owner in wanted || owner in active } } }
                     .forEach { androidx.work.WorkManager.getInstance(app).cancelWorkById(it.id) }
             }
         }
@@ -1435,6 +1447,8 @@ internal class CraftResumableDownload(
         if (have > 0) connection.setRequestProperty("Range", "bytes=$have-")
         try {
             val status = connection.responseCode
+            // Part of a file nobody asked a part of: not something to keep.
+            if (status == 206 && have == 0L) return Fetched.Refused(status)
             val resumed = status == 206 && have > 0 && rangeStart(connection.getHeaderField("Content-Range")) == have
             if (status == 416 || (status == 206 && !resumed)) {
                 part.delete()

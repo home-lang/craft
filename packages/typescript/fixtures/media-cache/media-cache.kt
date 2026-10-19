@@ -98,8 +98,10 @@ class DownloadProbe : android.app.Instrumentation() {
                     check(!keep(broken), "truncated transfer fails")
                     check(CraftNativeMedia.local(targetContext, broken) == null, "truncated transfer is not playable cache")
                     val root = CraftNativeMedia.file(targetContext, broken).parentFile!!
-                    check(root.listFiles()?.none { it.name.endsWith(".part") } != false, "failed transfer cleans staging files")
-                    check(keep(broken), "same URL retries successfully")
+                    val brokenTarget = CraftNativeMedia.file(targetContext, broken)
+                    check(root.listFiles()?.none { it.name.endsWith(".part") && it.name != "${brokenTarget.name}.part" } != false, "a failed transfer leaves only its own part, to resume")
+                    check(keep(broken), "same URL retries successfully, at once")
+                    check(root.listFiles()?.none { it.name.endsWith(".part") } != false, "a finished transfer leaves no staging files")
                     check(!keep("$base/partial.mp4"), "unsolicited partial response is refused")
                     check(!keep("$base/empty.mp4"), "empty file is refused")
                     val slow = "$base/slow.mp4"

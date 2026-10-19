@@ -33,6 +33,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
   const scratch = await mkdtemp(join(tmpdir(), 'craft-media-probe-'))
   const bytes = new Uint8Array(await Bun.file(join(fixtures, 'demo.mp4')).arrayBuffer())
   const counts = new Map<string, number>()
+  const resumed = new Set<string>()
   const timers = new Set<ReturnType<typeof setTimeout>>()
   const server = Bun.listen<{ request: string, answered: boolean }>({
     hostname: '0.0.0.0', port: 0,
@@ -45,6 +46,15 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
         const path = socket.data.request.split(' ')[1]!
         const n = (counts.get(path) || 0) + 1
         counts.set(path, n)
+        // Android resumes the download its process died in (CraftResumableDownload): the rest, from where its part stopped.
+        const from = Number(/^range:\s*bytes=(\d+)-\s*$/im.exec(socket.data.request)?.[1] ?? Number.NaN)
+        if (path === '/android/restart.mp4' && n > 1 && from > 0 && from < bytes.length) {
+          resumed.add(path)
+          socket.write(`HTTP/1.1 206 Partial Content\r\nContent-Type: video/mp4\r\nContent-Range: bytes ${from}-${bytes.length - 1}/${bytes.length}\r\nContent-Length: ${bytes.length - from}\r\nConnection: close\r\n\r\n`)
+          socket.write(bytes.subarray(from))
+          socket.end()
+          return
+        }
         const empty = path.endsWith('/empty.mp4')
         const partial = path.endsWith('/partial.mp4')
         const cut = (path.endsWith('/broken.mp4') || path.endsWith('/restart.mp4')) && n === 1
@@ -150,7 +160,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
       await Bun.write(join(android, 'settings.gradle.kts'), 'pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositories { google(); mavenCentral() } }\nrootProject.name = "HQDownloadProbe"\ninclude(":app")')
       await Bun.write(join(android, 'build.gradle.kts'), 'plugins { id("com.android.application") version "8.9.1" apply false; id("org.jetbrains.kotlin.android") version "2.0.21" apply false }')
       await Bun.write(join(android, 'local.properties'), `sdk.dir=${sdk}\n`)
-      await Bun.write(join(android, 'gradle.properties'), 'org.gradle.jvmargs=-Xmx768m\norg.gradle.workers.max=2\n')
+      await Bun.write(join(android, 'gradle.properties'), 'org.gradle.jvmargs=-Xmx768m\norg.gradle.workers.max=2\nandroid.useAndroidX=true\n')
       await Bun.write(join(app, 'build.gradle.kts'), `plugins { id("com.android.application");
   id("org.jetbrains.kotlin.android") }\nandroid { namespace = "${packageName}";
   compileSdk = 36;
@@ -192,9 +202,10 @@ dependencies { implementation("androidx.work:work-runtime-ktx:2.9.1") }`)
         await probe('interrupt', true)
         if (counts.get('/android/restart.mp4') !== 1) throw new Error('Android process did not start interrupted download')
         await probe('recover')
+        if (!resumed.has('/android/restart.mp4')) throw new Error('Android did not resume the interrupted download from its part file')
         if (counts.get('/android/slow.mp4') !== 1) throw new Error('Android duplicate fetch: keep did not coalesce')
         if (counts.get('/android/account/slow.mp4') !== 2) throw new Error('Android account switch did not start a fresh transfer')
-        print('PASS: Android emulator interruption, restart, retry, prune and cached video decode')
+        print('PASS: Android emulator interruption, resumed restart, retry, prune and cached video decode')
       }
     }
   }

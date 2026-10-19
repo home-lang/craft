@@ -637,7 +637,7 @@ export interface CraftBridge {
 
   /**
    * A Bluetooth heart-rate strap, or a watch broadcasting its heart rate
-   * (iOS, `enableHeartRate`): scan, connect, live readings as
+   * (iOS and Android, `enableHeartRate`): scan, connect, live readings as
    * `craftHeartRate` events, and a recording kept natively.
    */
   heartRate?: CraftHeartRate;
@@ -1368,7 +1368,7 @@ export type CraftHeartRateConnection = 'disconnected' | 'connecting' | 'connecte
 
 /** A device advertising the Heart Rate Service (0x180D). */
 export interface CraftHeartRateDevice {
-  /** CoreBluetooth's identifier for it on this phone. */
+  /** Its identifier on this phone: CoreBluetooth's UUID on iOS, its Bluetooth address on Android. */
   id: string;
   name: string;
   /** Signal strength, dBm; 0 for a strap the phone is already connected to. */
@@ -1429,7 +1429,10 @@ export type CraftHeartRateEventDetail =
 
 export interface CraftHeartRate {
   getState(): Promise<CraftHeartRateState>;
-  /** Shows iOS's Bluetooth prompt the first time; after that answers from memory. */
+  /**
+   * Shows the Bluetooth prompt the first time (iOS's, or Android's Nearby
+   * devices; location before Android 12); after that answers from memory.
+   */
   requestAuthorization(): Promise<CraftHeartRateAuthorization>;
   /** Look for straps for `timeout` seconds (15); each one found is a `device` event. */
   scan(options?: { timeout?: number }): Promise<CraftHeartRateState>;
@@ -1444,7 +1447,10 @@ export interface CraftHeartRate {
   /** Ask for the remembered strap again, without waiting for it. */
   reconnect(): Promise<CraftHeartRateState>;
   disconnect(options?: { forget?: boolean }): Promise<CraftHeartRateState>;
-  /** Keep every reading natively from now on, screen locked or app closed. */
+  /**
+   * Keep every reading natively from now on, screen locked or app closed.
+   * On Android a foreground service (a notification) keeps it running.
+   */
   startRecording(options?: { recordingId?: string }): Promise<CraftHeartRateRecordingState>;
   pauseRecording(options?: { expectedId: string }): Promise<CraftHeartRateRecordingState>;
   resumeRecording(options?: { expectedId: string }): Promise<CraftHeartRateRecordingState>;
@@ -1614,7 +1620,7 @@ export interface CraftCapabilities {
   brightness?: boolean;
   /** The Music app's song and transport through `craft.music` (iOS, `enableAppleMusic`). */
   music?: boolean;
-  /** A Bluetooth heart-rate strap through `craft.heartRate` (iOS, `enableHeartRate`). */
+  /** A Bluetooth heart-rate strap through `craft.heartRate` (iOS and Android, `enableHeartRate`). */
   heartRate?: boolean;
   heartRateRecordingOwnership?: boolean;
   heartRateRecordingIntentIdentity?: boolean;

@@ -50,6 +50,8 @@ const fixtures: CompileFixture[] = [
     config: {
       renderer: 'native',
       enableHealthConnect: true,
+      // A native screen's HeartRate module (CraftHeartRate.kt).
+      enableHeartRate: true,
       enableHaptics: true,
       enableShare: true,
       enableSecureStorage: true,
@@ -83,6 +85,8 @@ const fixtures: CompileFixture[] = [
       enableGeolocation: true,
       enableHaptics: true,
       enableHealthConnect: true,
+      // The page's craft.heartRate and its foreground service.
+      enableHeartRate: true,
       enableKeepAwake: true,
       enablePushNotifications: true,
       enableSecureStorage: true,

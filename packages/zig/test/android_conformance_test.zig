@@ -140,8 +140,11 @@ const zig_sources = [_][]const u8{
 /// that dims the screen while it shows little (a workout's big timer);
 /// 41 when the five crashReporter* methods arrived in the Kotlin first, as
 /// iOS's did: they queue the page's error events in CraftCrashReporter.kt's
-/// on-disk outbox, which the uncaught-exception handler also writes to.
-const max_not_yet_migrated: usize = 41;
+/// on-disk outbox, which the uncaught-exception handler also writes to;
+/// 42 when heartRate did, as iOS's did (CraftHeartRate.swift): one GATT
+/// session, its reconnects and a recording kept on disk, owned by
+/// CraftHeartRate.kt and the foreground service that keeps it reading.
+const max_not_yet_migrated: usize = 42;
 
 /// Every `@JavascriptInterface fun <name>(` in the Kotlin bridge.
 ///
@@ -430,6 +433,14 @@ const deliberate_deferrals = [_]Deferral{
     .{ .action = "crashReporterAddBreadcrumb", .reason = "appends to the trail a crash report carries, held by the reporter" },
     .{ .action = "crashReporterFlush", .reason = "drives the reporter's own delivery thread and backoff" },
     .{ .action = "crashReporterContext", .reason = "answers the reporter's session and release, which only it holds" },
+
+    // ---- Heart rate, which arrived in the Kotlin first ---------------
+    //
+    // One Bluetooth GATT session for the whole app, its reconnects, and a
+    // recording kept on disk while a foreground service keeps the strap
+    // reading with the screen locked. The native screens reach the same
+    // object through CraftNativeServices, so the page's door stays with it.
+    .{ .action = "heartRate", .reason = "drives the app-wide GATT session and recording CraftHeartRate.kt and its service own" },
 
     // The auth-persistence trio shares one timestamp in Kotlin-configured
     // EncryptedSharedPreferences. It now survives process death, but migrating
