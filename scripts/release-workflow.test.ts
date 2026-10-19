@@ -1,6 +1,7 @@
 import { afterAll, expect, test } from 'bun:test'
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { runInNewContext } from 'node:vm'
 import { requiredReleaseAssets } from './release-manifest'
 import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
 
@@ -53,6 +54,19 @@ test('shared native layout changes trigger mobile acceptance for pushes and pull
     const matchesLayout = workflow.on[event].paths.some(pattern => new Bun.Glob(pattern).match('packages/zig/src/native_layout.zig'))
     expect(matchesLayout, `${event} must exercise the shared iOS and Android layout engine`).toBe(true)
   }
+})
+
+test.each(['ci.yml', 'mobile-e2e.yml'])('%s lets Main acceptance finish while superseding pull request runs', (file) => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows', file), 'utf8')) as {
+    concurrency: { 'group': string, 'cancel-in-progress': boolean | string, 'queue'?: string }
+  }
+  const policy = workflow.concurrency
+  const expression = String(policy['cancel-in-progress']).replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+  for (const [event, cancel] of [['push', false], ['workflow_dispatch', false], ['pull_request', true]] as const)
+    expect(runInNewContext(expression, { github: { event_name: event } }), `${file}: ${event}`).toBe(cancel)
+  // Keep one active run and GitHub's single pending slot, without adding runners.
+  expect(policy.group).toContain('github.ref')
+  expect(policy.queue ?? 'single').toBe('single')
 })
 
 test('mobile device jobs use the same pinned stx compiler', () => {
