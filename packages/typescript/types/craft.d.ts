@@ -668,6 +668,9 @@ export interface CraftBridge {
    */
   health?: CraftHealth;
 
+  /** Apple Wallet pass presentation and lookup (iOS, `enableWallet`). */
+  wallet?: CraftWallet;
+
   /**
    * Request health data authorization (iOS)
    * @param types - Data types to request
@@ -1562,6 +1565,15 @@ export interface CraftHealth {
   stopHeartRateUpdates?(): Promise<boolean>;
 }
 
+export interface CraftWallet {
+  /** Whether this device can present Apple Wallet passes. */
+  isAvailable(): Promise<boolean>;
+  /** Whether a pass with this serial number is already present. */
+  has(serialNumber: string): Promise<boolean>;
+  /** Presents Apple's add-pass sheet for base64 `.pkpass` data or an HTTPS URL. */
+  add(source: { data: string } | { url: string }): Promise<boolean>;
+}
+
 export interface CraftCrashReporter {
   /** Queue an event (the bughq ingest shape). Resolves true when it was queued. */
   capture(event: Record<string, unknown>): Promise<boolean>;
@@ -1594,6 +1606,8 @@ export interface CraftCapabilities {
   share: boolean;
   camera: boolean;
   biometric: boolean;
+  /** Apple Wallet pass presentation and lookup (iOS, `enableWallet`). */
+  wallet?: boolean;
   pushNotifications: boolean;
   secureStorage: boolean;
   /** JSON key-value persistence in WebView-free STX screens. */
