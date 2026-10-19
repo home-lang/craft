@@ -57,9 +57,21 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
             rightMargin = (8 * resources.displayMetrics.density).roundToInt()
             bottomMargin = (8 * resources.displayMetrics.density).roundToInt()
         })
+        refreshThemeDefaults()
         mapView.onCreate(null)
         mapView.addOnDidFinishLoadingMapListener { if (!destroyed && initialCameraKey == null) applyPending() }
         mapView.getMapAsync(this)
+    }
+
+    fun refreshThemeDefaults() {
+        val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        val foreground = if (dark) Color.rgb(245, 245, 245) else Color.rgb(37, 51, 33)
+        val surface = if (dark) Color.argb(230, 38, 38, 38) else Color.argb(230, 255, 255, 255)
+        attribution.setTextColor(foreground)
+        attribution.setBackgroundColor(surface)
+        scale.setBackgroundColor(surface)
+        scaleLabel.setTextColor(foreground)
+        scaleLine.setBackgroundColor(foreground)
     }
 
     override fun onMapReady(nativeMap: MapLibreMap) {

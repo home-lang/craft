@@ -17,6 +17,7 @@ const iosHeartRate = readFileSync(join(root, 'packages/ios/templates/CraftHeartR
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
   .replace('{{NATIVE_MAP_HOST}}', () => readFileSync(join(root, 'packages/android/templates', androidMapHost('google').template), 'utf8'))
   .replace('{{NATIVE_MAP_IMPORTS}}', () => androidMapHost('google').imports)
+const androidMapLibre = readFileSync(join(root, 'packages/android/templates/CraftNativeMapLibre.kt.template'), 'utf8')
 const androidMutation = readFileSync(join(root, 'packages/android/templates/CraftNativeMutation.kt.template'), 'utf8')
 const androidBuild = readFileSync(join(root, 'packages/android/templates/build.gradle.kts.app.template'), 'utf8')
 const androidBuilder = readFileSync(join(root, 'packages/android/src/index.ts'), 'utf8')
@@ -36,6 +37,7 @@ const androidFlatList = readFileSync(join(root, 'packages/android/templates/Craf
 const androidRefreshableFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeRefreshableFlatList.kt.template'), 'utf8')
 const iosNotifCancel = readFileSync(join(root, 'packages/zig/src/bridge_mobile_notifcancel.zig'), 'utf8')
 const androidNavigationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeNavigationTest.kt'), 'utf8')
+const androidMapTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeMapTest.kt'), 'utf8')
 const androidShell = readFileSync(join(root, 'packages/android/templates/CraftNativeShell.kt.template'), 'utf8')
 const androidCapabilityTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeCapabilityUiTest.kt'), 'utf8')
 const androidMutationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeMutationTest.kt'), 'utf8')
@@ -653,6 +655,13 @@ describe('native renderer component contract', () => {
     expect(androidReadme).toContain('`strokeWidth` is expressed in logical')
     expect(iosReadme).toContain('`Map`')
     expect(androidReadme).toContain('`Map`')
+  })
+
+  it('refreshes Android map utility chrome for night mode', () => {
+    expect(android).toContain('fun refreshThemeDefaults()')
+    expect(android).toContain('mapViews().forEach { it.refreshThemeDefaults() }')
+    expect(androidMapLibre).toContain('fun refreshThemeDefaults()')
+    expect(androidMapTest).toContain('fun mapUtilityChromeRefreshesForNightMode()')
   })
 
   it('retries iOS map fitting after the native viewport is measured', () => {

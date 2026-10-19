@@ -4598,6 +4598,7 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.requestApplyInsets(root)
         refreshInputDefaultsForTraitChange()
         chrome?.refreshColors()
+        mapViews().forEach { it.refreshThemeDefaults() }
         // Every screen follows light and dark, the ones in other tabs and
         // under the one on display too, and the app script hears it.
         val appearance = appearance()

@@ -3,8 +3,10 @@ package dev.craft.navigationtest
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
@@ -289,6 +291,27 @@ class NativeMapTest {
             assertEquals(camera.target!!.longitude, map.cameraPosition.target!!.longitude, 0.000001)
         }
         evidence("map-resumed-after-home")
+    }
+
+    @Test
+    fun mapUtilityChromeRefreshesForNightMode() = withMap { activity, host, _, _, _ ->
+        val originalMode = activity.resources.configuration.uiMode
+        fun setNightMode(mode: Int): Int {
+            return main {
+                val configuration = Configuration(activity.resources.configuration)
+                configuration.uiMode = (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or mode
+                activity.resources.updateConfiguration(configuration, activity.resources.displayMetrics)
+                host.refreshThemeDefaults()
+                (host.getChildAt(1).background as ColorDrawable).color
+            }
+        }
+        try {
+            val lightSurface = setNightMode(Configuration.UI_MODE_NIGHT_NO)
+            val darkSurface = setNightMode(Configuration.UI_MODE_NIGHT_YES)
+            assertNotEquals("Map scale chrome must change surface for dark mode", lightSurface, darkSurface)
+        } finally {
+            setNightMode(originalMode and Configuration.UI_MODE_NIGHT_MASK)
+        }
     }
 
     @Test

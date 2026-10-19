@@ -40,8 +40,20 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         })
         scaleView.visibility = View.GONE
         addView(tileAttribution, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.END).apply { rightMargin = (8 * resources.displayMetrics.density).roundToInt(); bottomMargin = (8 * resources.displayMetrics.density).roundToInt() })
+        refreshThemeDefaults()
         mapView.onCreate(null)
         mapView.getMapAsync(this)
+    }
+
+    fun refreshThemeDefaults() {
+        val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        val foreground = if (dark) Color.rgb(245, 245, 245) else Color.rgb(37, 51, 33)
+        val surface = if (dark) Color.argb(230, 38, 38, 38) else Color.argb(230, 255, 255, 255)
+        scaleView.background = GradientDrawable().apply { setColor(surface); cornerRadius = 4f }
+        scaleLabel.setTextColor(foreground)
+        scaleLine.setBackgroundColor(foreground)
+        tileAttribution.setTextColor(foreground)
+        tileAttribution.setBackgroundColor(surface)
     }
 
     override fun onMapReady(map: GoogleMap) {
