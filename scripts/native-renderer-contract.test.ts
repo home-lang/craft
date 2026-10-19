@@ -404,7 +404,7 @@ describe('native renderer component contract', () => {
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
-    expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(13)
+    expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(17)
   })
 
   it('lets every container both hosts draw take children in a mutation', () => {
