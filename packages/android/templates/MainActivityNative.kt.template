@@ -3005,6 +3005,8 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
             pictureInPicture = false
             onPictureInPictureChanged?.invoke()
         }
+        onPictureInPictureChanged = null
+        handlers = JSONObject()
     }
 
     private fun applyScalingMode() {

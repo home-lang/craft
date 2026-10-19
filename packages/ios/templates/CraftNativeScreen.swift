@@ -1140,10 +1140,13 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
     func stop() {
         detachPlayer()
         playerController.player = nil
+        playerController.delegate = nil
         sourceURI = ""
         playIntent = nil
         userPaused = false
         ended = false
+        handlers.removeAll()
+        emit = nil
         if playerController.parent != nil {
             playerController.willMove(toParent: nil)
             playerController.view.removeFromSuperview()

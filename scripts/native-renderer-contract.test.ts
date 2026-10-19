@@ -3134,6 +3134,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach {\n            it.setRefreshHandler(null, false)\n            it.clearScrollListeners()')
   })
 
+  it('releases native video event bridges with the video view', () => {
+    expect(android).toContain('onPictureInPictureChanged = null')
+    expect(android).toContain('handlers = JSONObject()')
+    expect(ios).toContain('playerController.delegate = nil')
+    expect(ios).toContain('handlers.removeAll()')
+    expect(ios).toContain('emit = nil')
+  })
+
   it('prefers authored keys over compiler ids when reconciling native rows', () => {
     expect(ios).toContain('let direct = [node["key"], props["key"]]')
     expect(ios).toContain('[node["id"], props["testID"]]')

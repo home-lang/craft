@@ -728,6 +728,10 @@ Android scroll hosts also invalidate their callback generation when released, so
 queued momentum polling and touch callbacks cannot report events through a
 previous screen after the host is recycled.
 
+Video teardown releases its event bridge and picture-in-picture callback on both
+hosts as playback stops, so a removed native video cannot retain its screen or
+deliver media events after recycling.
+
 ## Events, accessibility, and navigation
 
 `defaultValue` initializes an uncontrolled `TextInput` once; controlled
