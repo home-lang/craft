@@ -501,6 +501,14 @@ final class NativeNavigationUITests: XCTestCase {
         reveal(intrinsicImageToggle, in: scroll, within: rootScroll)
         intrinsicImageToggle.tap()
         XCTAssertTrue(app.staticTexts["intrinsic image resized"].waitForExistence(timeout: 5), "intrinsic image source change did not invalidate its parent measurement")
+        let resizeToggle = app.buttons["toggle-image-resize-mode"]
+        XCTAssertTrue(resizeToggle.waitForExistence(timeout: 5), "dynamic image resize fixture did not mount")
+        XCTAssertTrue(app.staticTexts["cover"].waitForExistence(timeout: 5), "dynamic image did not start in cover mode")
+        reveal(resizeToggle, in: scroll, within: rootScroll)
+        resizeToggle.tap()
+        XCTAssertTrue(app.staticTexts["contain"].waitForExistence(timeout: 5), "dynamic image resize mode did not reconcile")
+        resizeToggle.tap()
+        XCTAssertTrue(app.staticTexts["cover"].waitForExistence(timeout: 5), "dynamic image resize mode did not restore cover")
         let imageBackground = app.images["native-image-background"]
         XCTAssertTrue(imageBackground.waitForExistence(timeout: 10), "ImageBackground did not mount as a native image container")
         let unsupportedBackground = app.images["unsupported-image-background"]
@@ -536,6 +544,7 @@ final class NativeNavigationUITests: XCTestCase {
         let indeterminateCheckbox = app.buttons["native-checkbox-indeterminate"]
         XCTAssertTrue(indeterminateCheckbox.waitForExistence(timeout: 5))
         XCTAssertEqual(indeterminateCheckbox.value as? String, "mixed")
+        XCTAssertEqual(app.buttons["checkbox-checked-precedence"].value as? String, "0")
         XCTAssertTrue(app.buttons["disabled-button"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["disabled-button"].isEnabled)
         XCTAssertEqual(image.label, "Native pixel")
@@ -712,6 +721,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertFalse(link.isEnabled)
         accessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["link accessibility enabled"].waitForExistence(timeout: 5))
+        XCTAssertTrue(link.isEnabled, "clearing accessibilityState.disabled should restore the link")
+        link.tap()
+        XCTAssertTrue(app.staticTexts["link pressed"].waitForExistence(timeout: 5))
 
         let panel = app.otherElements["native-panel"]
         reveal(panel, in: rootScroll)
@@ -723,6 +735,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["panel accessibility disabled"].waitForExistence(timeout: 5))
         panelAccessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["panel accessibility enabled"].waitForExistence(timeout: 5))
+        XCTAssertTrue(panel.isEnabled, "clearing accessibilityState.disabled should restore a generic pressable")
         panel.tap()
         XCTAssertTrue(app.staticTexts["panel pressed"].waitForExistence(timeout: 5))
         let pressable = app.otherElements["native-pressable"]
@@ -766,6 +779,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "0")
         XCTAssertTrue(toggle.isEnabled)
         XCTAssertEqual(app.switches["nullable-switch"].value as? String, "1")
+        XCTAssertEqual(app.switches["switch-value-precedence"].value as? String, "0")
         toggle.tap()
         XCTAssertTrue(app.staticTexts["switch on"].waitForExistence(timeout: 5))
         XCTAssertEqual(toggle.value as? String, "1")
@@ -780,6 +794,7 @@ final class NativeNavigationUITests: XCTestCase {
         let itemsPicker = app.pickers["native-items-picker"]
         XCTAssertTrue(itemsPicker.waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["items-picker-value"].label, "one")
+        XCTAssertEqual(itemsPicker.value as? String, "One item")
         let modalToggle = app.buttons["toggle-modal"]
         reveal(modalToggle, in: rootScroll)
         modalToggle.tap()
@@ -818,6 +833,13 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(booleanIndicator.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(booleanIndicator.frame.width, 12, "Boolean ActivityIndicator size was treated as numeric")
         XCTAssertTrue(app.activityIndicators["stopped-indicator"].waitForExistence(timeout: 5))
+        let stoppedIndicator = app.activityIndicators["stopped-indicator"]
+        let toggleIndicatorHide = app.buttons["toggle-indicator-hide"]
+        reveal(toggleIndicatorHide, in: rootScroll)
+        toggleIndicatorHide.tap()
+        XCTAssertFalse(stoppedIndicator.isHittable, "a stopped indicator should hide when the prop changes dynamically")
+        toggleIndicatorHide.tap()
+        XCTAssertTrue(stoppedIndicator.isHittable, "a stopped indicator should reappear when hidesWhenStopped is cleared")
         XCTAssertFalse(app.activityIndicators["hidden-indicator"].isHittable)
         // display:none hides the view, and a hidden view is not in the
         // accessibility tree at all (Android checks View.GONE instead).

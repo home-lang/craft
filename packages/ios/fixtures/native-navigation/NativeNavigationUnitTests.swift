@@ -196,7 +196,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         controller.loadViewIfNeeded()
         func document(_ count: Int, enabled: Bool = true) -> [String: Any] {
             ["type": "View", "children": [
-                ["type": "TouchableOpacity", "props": ["testID": "link-probe", "href": "/linked-details", "accessibilityRole": "link", "accessibilityLabel": "Open details", "disabled": !enabled],
+                ["type": "TouchableOpacity", "props": ["testID": "link-probe", "href": "/linked-details", "accessibilityLabel": "Open details", "disabled": !enabled],
                  "children": [["type": "Text", "children": ["Open details"]]]],
                 ["type": "Text", "props": ["testID": "unrelated-count"], "children": ["Count: \(count)"]],
             ]]
@@ -207,6 +207,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         }
         controller.render(document(0))
         let link = try XCTUnwrap(find(controller.view))
+        XCTAssertTrue(link.accessibilityTraits.contains(.link), "an href-bearing pressable should be exposed as a link")
         for count in 1...4 {
             controller.render(document(count))
             XCTAssertTrue(find(controller.view) === link, "a count update replaced the native link")

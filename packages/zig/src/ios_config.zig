@@ -774,7 +774,12 @@ test "string arrays are checked element by element" {
 }
 
 test "optional fields are type-checked when present" {
-    inline for (.{ "\"appearance\":7", "\"backgroundColorDark\":false", "\"swipeNavigation\":\"true\"", "\"renderer\":true", "\"disableZoom\":1", "\"allowsLinkPreview\":\"yes\"" }) |bad| {
+    inline for (.{ "\"nativeScriptThread\":\"main\"", "\"nativeScriptThread\":\"background\"", "\"nativeScriptThread\":null" }) |good| {
+        const json = try completeConfig(testing.allocator, good);
+        defer testing.allocator.free(json);
+        try testing.expectEqual(std.enums.values(Feature).len, parse(testing.allocator, json).count());
+    }
+    inline for (.{ "\"appearance\":7", "\"backgroundColorDark\":false", "\"swipeNavigation\":\"true\"", "\"renderer\":true", "\"disableZoom\":1", "\"allowsLinkPreview\":\"yes\"", "\"nativeScriptThread\":7" }) |bad| {
         const json = try completeConfig(testing.allocator, bad);
         defer testing.allocator.free(json);
         try testing.expectEqual(@as(usize, 0), parse(testing.allocator, json).count());

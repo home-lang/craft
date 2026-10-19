@@ -1140,10 +1140,13 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
     func stop() {
         detachPlayer()
         playerController.player = nil
+        playerController.delegate = nil
         sourceURI = ""
         playIntent = nil
         userPaused = false
         ended = false
+        handlers.removeAll()
+        emit = nil
         if playerController.parent != nil {
             playerController.willMove(toParent: nil)
             playerController.view.removeFromSuperview()
@@ -1193,6 +1196,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     override init(frame: CGRect) {
         super.init(frame: frame)
         delegate = self
+        refreshThemeDefaults()
         showsCompass = false
         showsScale = false
         isRotateEnabled = false
@@ -1204,9 +1208,29 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         delegate = self
+        refreshThemeDefaults()
+    }
+
+    func refreshThemeDefaults() {
+        tileAttribution.textColor = .secondaryLabel
+        tileAttribution.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.85)
+        // Marker images are rasterized from the resolved trait color. Refresh
+        // mounted annotations as well as the utility chrome so a retained map
+        // does not keep light-trait artwork after a dark-mode switch.
+        Self.markerImages.removeAllObjects()
+        for (id, annotation) in annotationsByID {
+            if let view = view(for: annotation) { configureMarkerView(view, id: id) }
+        }
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
+        refreshThemeDefaults()
     }
 
     func configure(props: [String: Any], children: [Any], markerHandler: @escaping (String) -> Void) {
+        delegate = self
         onMarkerTap = markerHandler
         isScrollEnabled = props["scrollEnabled"] as? Bool ?? true
         isZoomEnabled = props["zoomEnabled"] as? Bool ?? true
@@ -1366,6 +1390,33 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             pendingFitKey = nil
         }
         applyCameraOrientation()
+    }
+
+    /// Release callbacks and native overlays before a map leaves a screen or
+    /// is recycled for another row. `configure` restores the delegate when
+    /// the view is adopted again.
+    func destroy() {
+        delegate = nil
+        onMarkerTap = nil
+        onMapPress = nil
+        onRegionChangeComplete = nil
+        markerHandlers.removeAll()
+        markerBearings.removeAll()
+        markerPinColors.removeAll()
+        removeAnnotations(Array(annotationsByID.values))
+        annotationsByID.removeAll()
+        removeOverlays(Array(overlaysByID.values))
+        overlaysByID.removeAll()
+        overlayCoordinatesByID.removeAll()
+        overlayColors.removeAll()
+        overlayWidths.removeAll()
+        if let tileOverlay {
+            removeOverlay(tileOverlay)
+            self.tileOverlay = nil
+        }
+        tileTemplate = nil
+        tileAttribution.text = nil
+        tileAttribution.isHidden = true
     }
 
     private func configureTiles(_ options: [String: Any]?) {
@@ -1615,6 +1666,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     private static func color(_ value: String?) -> UIColor {
         switch value?.lowercased() {
+        case "label": return .label
+        case "secondarylabel", "secondary-label": return .secondaryLabel
         case "red": return .systemRed
         case "green": return .systemGreen
         case "orange": return .systemOrange
@@ -2450,6 +2503,11 @@ private class CraftNativeFlowView: UIStackView {
 
     func removeLayoutStyle(for view: UIView) {
         view.craftLayoutStyle = .empty
+        // Detaching a retained child must invalidate the parent's cached
+        // intrinsic measurements too. The normal arranged-subview path does
+        // this after removal, but callers that clear a style before deciding
+        // whether to detach must not leave the old dimensions memoized.
+        invalidateMeasurements()
     }
 
     /// Forgets measured sizes and lays out again on the next pass.
@@ -4836,6 +4894,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func disposeRuntime() {
         guard !runtimeDisposed else { return }
         runtimeDisposed = true
+        disposeRenderedTree()
         let context = jsContext
         CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }
         audio.close()
@@ -4843,6 +4902,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         streams.close()
         screenRequestCancellers.values.forEach { $0() }
         screenRequestCancellers.removeAll()
+    }
+
+    /// Runtime disposal happens before UIKit necessarily deallocates the
+    /// controller. Release the rendered tree now so recycled rows, native
+    /// delegates, media, and map callbacks cannot outlive their screen.
+    private func disposeRenderedTree() {
+        guard let root = renderedRoot else { return }
+        forgetHandlers(root)
+        rootStack.removeArrangedSubview(root.view)
+        root.view.removeFromSuperview()
+        renderedRoot = nil
+        flatListRows.removeAll()
+        flatListRecycled.removeAll()
+        flatListOwners.removeAll()
+        svgOwners.removeAll()
     }
 
     private var appliedTraitDefaults: String?
@@ -4865,6 +4939,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func refreshTraitDefaults(in node: RenderedNode?) {
         guard let node else { return }
+        (node.view as? CraftNativeMapView)?.refreshThemeDefaults()
         (node.view as? CraftNativeFlatList)?.refreshThemeDefaults()
         node.children.forEach { refreshTraitDefaults(in: $0) }
     }
@@ -5240,14 +5315,22 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                         }));
                     });
                 }
-                var craft = globalThis.craft = globalThis.craft || {};
-                if (Array.isArray(bridge.capabilities) && bridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog) {
-                    craft.dialog = {
-                        alert: function(options) { return request('alert', [options || {}]).then(function() {}); },
-                        confirm: function(options) { return request('confirm', [options || {}]).then(Boolean); },
-                        actionSheet: function(options) { return request('actionSheet', [options || {}]).then(function(id) { return typeof id === 'string' ? id : null; }); }
-                    };
+                // Native capability ownership wins over any browser-shaped
+                // dialog object the bundle installed before the bridge ran.
+                // Leaving the old guard here sends actionSheet through the
+                // DOM fallback even though this screen can present UIKit.
+                function installNativeDialog() {
+                    var craft = globalThis.craft = globalThis.craft || {};
+                    if (Array.isArray(bridge.capabilities) && bridge.capabilities.indexOf('dialog') >= 0) {
+                        craft.dialog = {
+                            alert: function(options) { return request('alert', [options || {}]).then(function() {}); },
+                            confirm: function(options) { return request('confirm', [options || {}]).then(Boolean); },
+                            actionSheet: function(options) { return request('actionSheet', [options || {}]).then(function(id) { return typeof id === 'string' ? id : null; }); }
+                        };
+                    }
                 }
+                globalThis.__craftInstallNativeDialog = installNativeDialog;
+                installNativeDialog();
             })();
         """)
         // `AudioContext` and the rest of Web Audio, rendered natively.
@@ -5461,6 +5544,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             jsContext.evaluateScript(runtime.source, withSourceURL: runtime.url)
         }
         jsContext.evaluateScript(bundle.source, withSourceURL: bundle.url)
+        // The STX runtime may install its browser-shaped craft.dialog after
+        // the host prelude. Re-assert the native capability once the bundle
+        // has finished so native screens cannot fall through to a DOM sheet.
+        jsContext.evaluateScript("if (typeof globalThis.__craftInstallNativeDialog === 'function') globalThis.__craftInstallNativeDialog();")
         // A bundle that names no route leaves `__stxNativeRoute` undefined;
         // its title is the app's, not the word "undefined". A title the
         // script set with `navigation.setOptions` wins over both.
@@ -6813,8 +6900,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             indicator.hidesWhenStopped = props["hidesWhenStopped"] as? Bool ?? true
             if props["animating"] as? Bool == false {
                 indicator.stopAnimating()
+                // UIKit does not retroactively reveal an indicator when an
+                // already-stopped view changes hidesWhenStopped to false.
+                // Android applies the requested visibility on every render;
+                // keep the two hosts in lockstep for dynamic prop changes.
+                indicator.isHidden = indicator.hidesWhenStopped
             } else {
                 indicator.startAnimating()
+                indicator.isHidden = false
             }
         case "Svg":
             let drawing = result as! CraftNativeSvgView
@@ -6840,7 +6933,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if let current = image.image { image.image = imageForDisplay(current, view: image) }
             let requestedResizeMode = style["resizeMode"] as? String ?? props["resizeMode"] as? String
             image.contentMode = imageContentMode(requestedResizeMode)
-            image.clipsToBounds = image.clipsToBounds || image.contentMode == .scaleAspectFill
+            applyImageClipping(image, contentMode: image.contentMode, style: style)
             updateAuxiliaryHandler(events["onLoadStart"], in: &imageLoadStartHandlers, for: image)
             updateAuxiliaryHandler(events["onLoad"], in: &imageLoadHandlers, for: image)
             updateAuxiliaryHandler(events["onLoadEnd"], in: &imageLoadEndHandlers, for: image)
@@ -6859,7 +6952,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if let current = background.image { background.image = imageForDisplay(current, view: background) }
             let requestedResizeMode = style["resizeMode"] as? String ?? props["resizeMode"] as? String
             background.contentMode = imageContentMode(requestedResizeMode)
-            background.clipsToBounds = background.clipsToBounds || background.contentMode == .scaleAspectFill
+            applyImageClipping(background, contentMode: background.contentMode, style: style)
             updateAuxiliaryHandler(events["onLoadStart"], in: &imageLoadStartHandlers, for: background)
             updateAuxiliaryHandler(events["onLoad"], in: &imageLoadHandlers, for: background)
             updateAuxiliaryHandler(events["onLoadEnd"], in: &imageLoadEndHandlers, for: background)
@@ -7187,7 +7280,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let key = explicitKey(node, props: node["props"] as? [String: Any] ?? [:])
             // Keys are local to a parent. Ambiguous sibling keys fall back to
             // position so a move never attaches the wrong live control.
-            let identity = key.flatMap { counts[$0] == 1 ? "key:\($0)" : nil } ?? "index:\(index)"
+            let localIdentity = key.flatMap { counts[$0] == 1 ? "key:\($0)" : nil } ?? "index:\(index)"
+            // A keyed row can live in either FlatList or an ordinary
+            // ScrollView. Scope its descendants to the row so two rows cannot
+            // share an uncontrolled input draft or retained native handler.
+            let identity = parent.identity.hasPrefix("list:") || parent.identity.hasPrefix("key:")
+                ? "\(parent.identity)/\(localIdentity)"
+                : localIdentity
             let child = reconcile(node, identity: identity, path: "\(path).\(index)", previous: old[identity])
             next.append(child)
         }
@@ -7320,6 +7419,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 recycled[ObjectIdentifier(row.view)] = row
                 self.flatListRecycled[listKey] = recycled
             },
+            removeItem: { [weak self] identity in
+                guard let self else { return }
+                let scopedIdentity = "list:\(identity)"
+                if let row = self.flatListRows[listKey]?.removeValue(forKey: identity) {
+                    self.forgetHandlers(row)
+                }
+                guard var recycled = self.flatListRecycled[listKey] else { return }
+                let staleViewIDs = recycled.compactMap { viewID, row in
+                    row.identity == scopedIdentity ? viewID : nil
+                }
+                for viewID in staleViewIDs {
+                    if let row = recycled.removeValue(forKey: viewID) { self.forgetHandlers(row) }
+                }
+                self.flatListRecycled[listKey] = recycled
+            },
             endReached: nonEmptyHandler(events["onEndReached"]).map { [weak self] handler in
                 { self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
             }
@@ -7363,12 +7477,31 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func forgetHandlers(_ node: RenderedNode, preservingInputDrafts: Bool = false) {
         (node.view as? CraftNativeScrollView)?.setRefreshHandler(nil, refreshing: false)
+        // Recycled list rows keep their native delegates and targets until
+        // they are rebound. A permanently detached node must release those
+        // UIKit hooks as well as the handler maps below, otherwise a picker,
+        // text view, or control can still call back into this screen after
+        // its subtree is gone.
+        if !preservingInputDrafts {
+            if let textView = node.view as? UITextView { textView.delegate = nil }
+            if let picker = node.view as? UIPickerView {
+                picker.delegate = nil
+                picker.dataSource = nil
+            }
+            if let scroll = node.view as? UIScrollView { scroll.delegate = nil }
+            (node.view as? UIControl)?.removeTarget(self, action: nil, for: .allEvents)
+        }
         if let list = node.view as? CraftNativeFlatList {
             let listKey = ObjectIdentifier(list)
             list.setRefreshHandler(nil, refreshing: false)
             list.discardAll()
+            if !preservingInputDrafts { list.resetForTeardown() }
             flatListRows.removeValue(forKey: listKey)
-            flatListRecycled.removeValue(forKey: listKey)
+            if !preservingInputDrafts {
+                flatListRecycled.removeValue(forKey: listKey)?.values.forEach { forgetHandlers($0) }
+            } else {
+                flatListRecycled.removeValue(forKey: listKey)
+            }
             if let owner = node.protocolId { flatListOwners = flatListOwners.filter { $0.value != owner } }
         }
         if node.view is CraftNativeSvgView, let owner = node.protocolId { svgOwners = svgOwners.filter { $0.value != owner } }
@@ -7426,6 +7559,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         imageErrorHandlers.removeValue(forKey: id)
         checkboxIndeterminate.removeValue(forKey: id)
         if let video = node.view as? CraftNativeVideoView { video.stop() }
+        if let map = node.view as? CraftNativeMapView { map.destroy() }
         for child in node.children { forgetHandlers(child, preservingInputDrafts: preservingInputDrafts) }
     }
 
@@ -8202,6 +8336,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard scheme == "http", let host = url.host?.lowercased() else { return false }
         let bare = host.hasPrefix("[") && host.hasSuffix("]") ? String(host.dropFirst().dropLast()) : host
         return ["localhost", "127.0.0.1", "::1"].contains(bare) || bare.hasSuffix(".localhost")
+    }
+
+    private func applyImageClipping(_ view: UIImageView, contentMode: UIView.ContentMode, style: [String: Any]) {
+        let authored = (style["overflow"] as? String) == "hidden"
+            || (view.craftRequestedCornerRadius ?? 0) > 0
+            || view.craftRequestedCornerRadii != nil
+        let clips = authored || contentMode == .scaleAspectFill
+        view.clipsToBounds = clips
+        view.layer.masksToBounds = clips
     }
 
     private func updateImage(_ view: UIImageView, source: Any?, defaultSource: Any? = nil) {

@@ -276,6 +276,7 @@ final class DriverTests: XCTestCase {
             let host = XCUIApplication(bundleIdentifier: "{{BUNDLE_PREFIX}}.host")
             host.launchArguments = ["--craft-universal-link", url.absoluteString]
             host.launch()
+            host.buttons["craft-driver-open-universal-link"].tap()
             let opened = app.wait(for: .runningForeground, timeout: 75)
             if !opened {
                 post("/save?name=universal-link-host.txt", Data(host.debugDescription.utf8))

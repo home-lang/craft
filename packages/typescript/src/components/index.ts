@@ -634,6 +634,8 @@ export interface MapProps extends BaseProps {
   mapType?: 'standard' | 'satellite' | 'hybrid'
   showsCompass?: boolean
   showsScale?: boolean
+  /** Allow tilt gestures and camera pitch updates on the native map. */
+  pitchEnabled?: boolean
   /** Requested tilt in degrees; the platform may lower it for the current altitude or map type. */
   cameraPitch?: number
   cameraHeading?: number
@@ -654,6 +656,8 @@ export interface MapMarkerProps extends BaseProps {
   geometry: number[]
   id: string
   title?: string
+  /** Tint for the native marker pin; `label` and `secondaryLabel` follow the current system appearance. */
+  pinColor?: string
   /** A direction arrow in place of the default marker, clockwise from north. */
   bearing?: number
   onPress?: (event: { nativeEvent: { id: string } }) => void
@@ -715,10 +719,8 @@ export interface SvgTextProps extends SvgPaintProps {
   dominantBaseline?: string
 }
 
-/**
- * ScrollView component props.
- */
-export interface ScrollViewProps extends ViewProps {
+/** Shared scroll-container props consumed by ScrollView and FlatList. */
+interface ScrollViewBaseProps extends ViewProps {
   /** Horizontal scrolling */
   horizontal?: boolean
   /** Show horizontal scroll indicator */
@@ -751,14 +753,18 @@ export interface ScrollViewProps extends ViewProps {
   keyboardDismissMode?: 'none' | 'on-drag' | 'interactive'
   /** Keyboard should persist taps */
   keyboardShouldPersistTaps?: 'always' | 'never' | 'handled'
-  /** Keep indexed vertical children pinned while scrolling. */
-  stickyHeaderIndices?: number[]
   /** Scroll a child into view when this target changes. */
   scrollTarget?: string | { id: string; animated?: boolean; key?: string } | null
-  /** Render content in reverse order along the scroll axis. */
-  inverted?: boolean
   /** Controlled native pull-to-refresh component. */
   refreshControl?: RefreshControlProps
+}
+
+/**
+ * ScrollView component props.
+ */
+export interface ScrollViewProps extends ScrollViewBaseProps {
+  /** Keep indexed vertical children pinned while scrolling. */
+  stickyHeaderIndices?: number[]
 }
 
 /**
@@ -854,6 +860,8 @@ export interface SwitchProps extends BaseProps {
   style?: StyleValue<ViewStyle>
   /** Controlled boolean state; malformed native bridge values stay off. */
   value?: boolean
+  /** Compatibility alias used when `value` is null; `value` takes precedence. */
+  checked?: boolean
   onValueChange?: (value: boolean) => void
   onChange?: (value: boolean) => void
   disabled?: boolean
@@ -866,6 +874,7 @@ export interface CheckboxProps extends BaseProps {
   style?: StyleValue<ViewStyle>
   /** Controlled boolean state; malformed native bridge values stay off. */
   value?: boolean
+  /** Compatibility alias; `checked` takes precedence when both are provided. */
   checked?: boolean
   indeterminate?: boolean
   label?: string
@@ -900,6 +909,8 @@ export interface PickerProps extends BaseProps {
   style?: StyleValue<ViewStyle>
   /** Typed options; child options remain supported when omitted. */
   items?: PickerOption[]
+  /** Controlled selection alias; `selectedValue` takes precedence when set. */
+  value?: string | number
   selectedValue?: string | number
   onValueChange?: (value: string | number, index: number) => void
   onChange?: (value: string | number, index: number) => void
@@ -935,7 +946,7 @@ export interface ActivityIndicatorProps extends BaseProps {
 /**
  * FlatList component props.
  */
-export interface FlatListProps<T> extends ScrollViewProps {
+export interface FlatListProps<T> extends ScrollViewBaseProps {
   /** Data array */
   data: T[]
   /** Render item function */
@@ -944,6 +955,8 @@ export interface FlatListProps<T> extends ScrollViewProps {
   keyExtractor?: (item: T, index: number) => string
   /** Number of columns */
   numColumns?: number
+  /** Render rows in reverse order along the scroll axis. */
+  inverted?: boolean
   /** End reached handler */
   onEndReached?: () => void
   /** End reached threshold */

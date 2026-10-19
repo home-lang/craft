@@ -34,6 +34,7 @@ const modalStatus = state('')
 const modalOpacity = state(1)
 const sliderValue = state(0.5)
 const indicatorSize = state('small')
+const indicatorHidesWhenStopped = state(false)
 const sliderCompletions = state(0)
 const invalidSliderColors = state(false)
 const invalidSliderStyleStatus = state('')
@@ -50,6 +51,7 @@ const imageBackgroundErrorStatus = state('')
 const imageFailureCount = state(0)
 const imageTinted = state(true)
 const invalidImageTint = state(false)
+const imageResizeMode = state('cover')
 const imageSource = state('http://example.com/image.png')
 const validImageSource = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
 const intrinsicImageWide = state(false)
@@ -263,6 +265,10 @@ function toggleImageTint() {
 
 function toggleInvalidImageTint() {
   invalidImageTint.update(value => !value)
+}
+
+function toggleImageResizeMode() {
+  imageResizeMode.set(imageResizeMode() === 'cover' ? 'contain' : 'cover')
 }
 
 function captureIntrinsicImageLayout(event) {
@@ -596,6 +602,13 @@ function openDetailsThenUpdateBackground() {
         @load-end="imageLoadEnded()"
         style={{"width":24,"height":24,"borderRadius":12,"resizeMode":"cover","tintColor":imageTinted ? "#2563eb" : null}}
       />
+      <Image
+        testID="dynamic-resize-image"
+        source={validImage()}
+        style={{"width":48,"height":32,"borderRadius":8,"resizeMode":imageResizeMode()}}
+      />
+      <Button testID="toggle-image-resize-mode" @click="toggleImageResizeMode()">Toggle image resize mode</Button>
+      <Text testID="image-resize-mode-status" :text="imageResizeMode()" />
       <Image testID="intrinsic-image" source={intrinsicImage()} style={{"alignSelf":"flex-start"}} @layout="captureIntrinsicImageLayout($event)" />
       <Text testID="intrinsic-image-status" :text="intrinsicImageStatus" />
       <Button testID="toggle-intrinsic-image" @click="toggleIntrinsicImage()">Resize intrinsic image</Button>
@@ -779,6 +792,7 @@ function openDetailsThenUpdateBackground() {
     <Button testID="toggle-link-accessibility" @click="toggleLinkAccessibility()">Toggle link accessibility</Button>
     <View testID="native-panel" accessibilityState={panelAccessibilityState()} @click="pressPanel()" style={{"height":24}}><Text>Native panel</Text></View>
     <Pressable testID="native-pressable" @click="pressNativePressable()" @press-in="pressNativePressableIn()" @press-out="pressNativePressableOut()" style={{"height":24}}><Text>Native pressable</Text></Pressable>
+    <Pressable testID="native-linked-pressable" href="/linked-details" style={{"height":24}}><Text>Linked pressable</Text></Pressable>
     <Pressable testID="native-raw-pressable" style={{"height":24,"color":"#ef4444","fontSize":18,"textTransform":"uppercase"}}>Raw pressable</Pressable>
     <Text testID="pressable-lifecycle" :text="'Press lifecycle: ' + pressIns + '/' + pressOuts" />
     <Pressable testID="disabled-pressable" disabled @click="pressNativePressable()" style={{"height":24}}><Text>Disabled pressable</Text></Pressable>
@@ -795,13 +809,14 @@ function openDetailsThenUpdateBackground() {
     <Switch testID="native-switch" value={switchValue} accessibilityState={switchAccessibilityState()} trackColor={switchTrackColor()} thumbColor={switchThumbColor()} ios_backgroundColor="#475569" @value-change="toggleSwitch($event)" />
     <Button testID="toggle-invalid-switch-colors" @click="toggleInvalidSwitchColors()">Toggle invalid switch colors</Button>
     <Switch testID="nullable-switch" :value="null" :checked="true" />
+    <Switch testID="switch-value-precedence" :value="false" :checked="true" />
     <select testID="native-picker" :value="pickerValue" @change="choosePicker($event)">
       <option value="one">One</option>
       <option value="two">Two</option>
       <option value="three">Three</option>
     </select>
     <Text testID="picker-value" :text="pickerValue" />
-    <select testID="native-items-picker" :items="pickerItems" :value="itemsPickerValue" @change="chooseItemsPicker($event)"></select>
+    <select testID="native-items-picker" :items="pickerItems" :selectedValue="itemsPickerValue" :value="'two'" @change="chooseItemsPicker($event)"></select>
     <Text testID="items-picker-value" :text="itemsPickerValue" />
     <DatePicker testID="native-date-picker" value="2026-10-12" minimumDate="2026-10-01" maximumDate="2026-12-31" @value-change="chooseDate($event)" />
     <Text testID="date-value" :text="dateValue" />
@@ -812,6 +827,7 @@ function openDetailsThenUpdateBackground() {
     <Checkbox testID="native-checkbox" label="Accept terms" :value="checkboxValue" :color="invalidControlColors ? 'not-a-color' : '#22c55e'" @value-change="chooseCheckbox($event)" />
     <Text testID="checkbox-status" :text="checkboxStatus" />
     <Checkbox testID="native-checkbox-indeterminate" label="Mixed terms" indeterminate />
+    <Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" />
     <Button testID="toggle-invalid-control-colors" @click="toggleInvalidControlColors()">Toggle invalid control colors</Button>
     <Text testID="invalid-control-style-status" :text="invalidControlStyleStatus" />
     <Text testID="date-event-status" :text="dateEventStatus" />
@@ -831,8 +847,9 @@ function openDetailsThenUpdateBackground() {
     <Text testID="invalid-slider-style-status" :text="invalidSliderStyleStatus" />
     <ActivityIndicator testID="native-indicator" color={invalidControlColors ? "not-a-color" : "#22c55e"} size="large" />
     <ActivityIndicator testID="boolean-indicator" size={true} />
-    <ActivityIndicator testID="stopped-indicator" color="#ef4444" :size="indicatorSize" :animating="false" :hides-when-stopped="false" />
+    <ActivityIndicator testID="stopped-indicator" color="#ef4444" :size="indicatorSize" :animating="false" :hides-when-stopped="indicatorHidesWhenStopped" />
     <Button testID="toggle-indicator-size" @click="indicatorSize.set(indicatorSize() === 'small' ? 'large' : 'small')">Toggle indicator size</Button>
+    <Button testID="toggle-indicator-hide" @click="indicatorHidesWhenStopped.set(!indicatorHidesWhenStopped())">Toggle stopped indicator visibility</Button>
     <ActivityIndicator testID="scaled-indicator" size={48} style={{"transform":[{"scale":0.5}]}} />
     <ActivityIndicator testID="hidden-indicator" color="#ef4444" size="small" :animating="false" hidesWhenStopped />
     <ActivityIndicator testID="display-none-indicator" style={{"display":"none"}} />

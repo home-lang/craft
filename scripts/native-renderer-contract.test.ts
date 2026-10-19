@@ -11,9 +11,13 @@ const iosActions = readFileSync(join(root, 'packages/ios/templates/CraftNativeAc
 const iosHealth = readFileSync(join(root, 'packages/ios/templates/CraftHealth.swift'), 'utf8')
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
+const iosFiles = readFileSync(join(root, 'packages/ios/templates/CraftNativeFiles.swift'), 'utf8')
+const iosLiveActivities = readFileSync(join(root, 'packages/ios/templates/CraftLiveActivities.swift'), 'utf8')
+const iosHeartRate = readFileSync(join(root, 'packages/ios/templates/CraftHeartRate.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
   .replace('{{NATIVE_MAP_HOST}}', () => readFileSync(join(root, 'packages/android/templates', androidMapHost('google').template), 'utf8'))
   .replace('{{NATIVE_MAP_IMPORTS}}', () => androidMapHost('google').imports)
+const androidMapLibre = readFileSync(join(root, 'packages/android/templates/CraftNativeMapLibre.kt.template'), 'utf8')
 const androidMutation = readFileSync(join(root, 'packages/android/templates/CraftNativeMutation.kt.template'), 'utf8')
 const androidBuild = readFileSync(join(root, 'packages/android/templates/build.gradle.kts.app.template'), 'utf8')
 const androidBuilder = readFileSync(join(root, 'packages/android/src/index.ts'), 'utf8')
@@ -33,12 +37,14 @@ const androidFlatList = readFileSync(join(root, 'packages/android/templates/Craf
 const androidRefreshableFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeRefreshableFlatList.kt.template'), 'utf8')
 const iosNotifCancel = readFileSync(join(root, 'packages/zig/src/bridge_mobile_notifcancel.zig'), 'utf8')
 const androidNavigationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeNavigationTest.kt'), 'utf8')
+const androidMapTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeMapTest.kt'), 'utf8')
 const androidShell = readFileSync(join(root, 'packages/android/templates/CraftNativeShell.kt.template'), 'utf8')
 const androidCapabilityTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeCapabilityUiTest.kt'), 'utf8')
 const androidMutationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeMutationTest.kt'), 'utf8')
 const androidBuilderTest = readFileSync(join(root, 'packages/android/src/index.test.ts'), 'utf8')
 const androidFlatListTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeFlatListTest.kt'), 'utf8')
 const iosNavigationTest = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/NativeNavigationUITests.swift'), 'utf8')
+const iosNavigationUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/NativeNavigationUnitTests.swift'), 'utf8')
 const navigationHome = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/Home.stx'), 'utf8')
 const navigationDetails = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/Details.stx'), 'utf8')
 const iosNavigationScript = readFileSync(join(root, 'packages/ios/scripts/test-native-navigation.ts'), 'utf8')
@@ -86,6 +92,7 @@ const COMPONENTS: Array<[string, string, string]> = [
   ['Image', 'case "Image":', '"Image" ->'],
   ['ImageBackground', 'case "ImageBackground":', '"ImageBackground" ->'],
   ['Video', 'case "Video":', '"Video" ->'],
+  ['Map', 'case "Map":', '"Map" ->'],
   ['ScrollView', 'case "ScrollView"', '"ScrollView"'],
   ['SectionList', 'case "ScrollView", "SectionList":', '"ScrollView", "SectionList" ->'],
   ['FlatList', 'case "FlatList":', '"FlatList" ->'],
@@ -155,6 +162,19 @@ describe('native renderer component contract', () => {
     expect(android).toContain('drawing.optJSONObject("props")?.optJSONArray("viewBox")')
   })
 
+  it('keeps grouped SVG text exercised by the native fixture and both hosts', () => {
+    expect(navigationHome).toContain('<g stroke="#2563eb">')
+    expect(navigationHome).toContain('<text x="12" y="21"')
+    expect(navigationHome).toContain('<g font-weight="500">')
+    expect(ios).toContain('case "G":')
+    expect(ios).toContain('case "SvgText":')
+    expect(android).toContain('"G" -> drawNodes')
+    expect(android).toContain('"SvgText" -> drawText')
+    expect(iosNativeUnitTests).toContain('func testSvgGroupsAndTextDrawIntoTheNativeView()')
+    expect(androidNavigationTest).toContain('val svgBitmap = Bitmap.createBitmap(svg.width, svg.height, Bitmap.Config.ARGB_8888)')
+    expect(androidNavigationTest).toContain('SVG text did not draw its authored dark fill')
+  })
+
   it('types ordinary native text weights the hosts accept', () => {
     expect(componentTypes).toContain("fontWeight?: number | 'normal' | 'bold'")
     expect(guide).toContain('`fontWeight` accepts `normal`, `bold`, and numeric `100`–`900` values')
@@ -179,6 +199,39 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<Video testID="native-video"')
     expect(navigationHome).toContain('<Modal testID="native-modal"')
     expect(navigationHome).toContain('<ActivityIndicator testID="scaled-indicator"')
+  })
+
+  it('keeps Switch checked compatibility aligned with both hosts', () => {
+    expect(componentTypes).toContain('checked?: boolean')
+    expect(ios).toContain('props["value"] as? Bool ?? props["checked"] as? Bool ?? false')
+    expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
+    expect(guide).toContain('`checked` is a compatibility alias')
+    expect(guide).toContain('`value` is null, and `value` takes precedence')
+    expect(navigationHome).toContain('<Switch testID="switch-value-precedence" :value="false" :checked="true" />')
+    expect(androidNavigationTest).toContain('non-null switch value should take precedence over checked')
+    expect(iosNavigationTest).toContain('app.switches["switch-value-precedence"].value as? String, "0"')
+  })
+
+  it('keeps Checkbox checked precedence aligned with both hosts', () => {
+    expect(componentTypes).toContain('checked?: boolean')
+    expect(ios).toContain('props["checked"] as? Bool) ?? (props["value"] as? Bool) ?? false')
+    expect(android).toContain('checkboxChecked is Boolean -> checkboxChecked')
+    expect(navigationHome).toContain('<Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" />')
+    expect(androidNavigationTest).toContain('checked should take precedence over value')
+    expect(iosNavigationTest).toContain('app.buttons["checkbox-checked-precedence"].value as? String, "0"')
+    expect(guide).toContain('controlled values are present,')
+    expect(guide).toContain('`checked` takes precedence. It delivers')
+  })
+
+  it('keeps Picker value compatibility aligned with both hosts', () => {
+    expect(componentTypes).toContain('value?: string | number')
+    expect(ios).toContain('craftNativePickerValue(props["selectedValue"]) ?? craftNativePickerValue(props["value"])')
+    expect(android).toContain('craftNativePickerValue(props.opt("selectedValue"))')
+    expect(android).toContain('craftNativePickerValue(props.opt("value"))')
+    expect(guide).toContain('accepts an `items` array or child options plus `value`/`selectedValue`')
+    expect(navigationHome).toContain(':selectedValue="itemsPickerValue" :value="\'two\'"')
+    expect(androidNavigationTest).toContain('selectedValue should take precedence over value')
+    expect(iosNavigationTest).toContain('itemsPicker.value as? String, "One item"')
   })
 
   it('keeps composed native styles recursively flattenable', () => {
@@ -216,7 +269,12 @@ describe('native renderer component contract', () => {
   it('types the implemented native scroll targeting controls', () => {
     expect(componentTypes).toContain('stickyHeaderIndices?: number[]')
     expect(componentTypes).toContain('scrollTarget?: string | { id: string; animated?: boolean; key?: string } | null')
-    expect(componentTypes).toContain('inverted?: boolean')
+    const scrollViewProps = componentTypes.match(/export interface ScrollViewProps extends ScrollViewBaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewBaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(scrollViewProps).not.toContain('inverted?: boolean')
+    expect(scrollViewProps).toContain('stickyHeaderIndices?: number[]')
+    expect(flatListProps).toContain('inverted?: boolean')
+    expect(flatListProps).not.toContain('stickyHeaderIndices?: number[]')
     expect(ios).toContain('scroll.setStickyHeaderIndices(props["stickyHeaderIndices"])')
     expect(ios).toContain('scroll.setScrollTarget(props["scrollTarget"])')
     expect(android).toContain('setStickyHeaderIndices(props.optJSONArray("stickyHeaderIndices"))')
@@ -236,7 +294,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps FlatList chrome and virtualization on the native child protocol', () => {
-    const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewBaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(flatListProps).toContain('data: T[]')
     expect(flatListProps).toContain('numColumns?: number')
     expect(flatListProps).not.toContain('ItemSeparatorComponent?:')
@@ -248,6 +306,14 @@ describe('native renderer component contract', () => {
     expect(flatListProps).not.toContain('windowSize?:')
     expect(flatListProps).not.toContain('getItemLayout?:')
     expect(guide).toContain('listRole="header"')
+  })
+
+  it('verifies Android inverted FlatList order through mounted identities', () => {
+    expect(androidFlatList).toContain('val visibleItemIdentities: List<String>')
+    expect(androidFlatList).toContain('val child = getChildAt(index)')
+    expect(androidFlatListTest).toContain('assertEquals("row-7", invertedIdentities.first())')
+    expect(androidFlatListTest).toContain('mounted identities must stay in adapter order')
+    expect(iosNativeUnitTests).toContain('testFlatListRetainsAHorizontalViewportAcrossInvertedMoves')
   })
 
   it('keeps DatePicker presentation platform-neutral', () => {
@@ -427,6 +493,25 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)')
   })
 
+  it('infers link semantics for href-bearing native pressables on both hosts', () => {
+    expect(android).toContain('val linkedControl = type in setOf("Link", "TouchableOpacity", "TouchableHighlight", "Pressable") && hasLinkTarget')
+    expect(iosNavigationUnitTests).toContain('XCTAssertTrue(link.accessibilityTraits.contains(.link)')
+    expect(androidNavigationTest).toContain('getCharSequence("AccessibilityNodeInfo.roleDescription")')
+    expect(navigationHome).toContain('<Pressable testID="native-linked-pressable" href="/linked-details" style=')
+  })
+
+  it('refreshes native map utility chrome when iOS traits change', () => {
+    expect(ios).toContain('func refreshThemeDefaults()')
+    expect(ios).toContain('tileAttribution.textColor = .secondaryLabel')
+    expect(ios).toContain('UIColor.secondarySystemBackground.withAlphaComponent(0.85)')
+    expect(ios).toContain('Self.markerImages.removeAllObjects()')
+    expect(ios).toContain('for (id, annotation) in annotationsByID')
+    expect(ios).toContain('configureMarkerView(view, id: id)')
+    expect(ios).toContain('(node.view as? CraftNativeMapView)?.refreshThemeDefaults()')
+    expect(iosNativeUnitTests).toContain('func testMapAttributionFollowsLightAndDarkTraits()')
+    expect(iosNativeUnitTests).toContain('retained map markers must remain configured after a changed color trait')
+  })
+
   it('waits for asynchronous capability text before asserting it', () => {
     expect(androidCapabilityTest).toContain('awaitText(activity, "capabilities-platform", "Platform: android")')
     expect(androidCapabilityTest).not.toContain('assertEquals("Platform: android", (await(activity, "capabilities-platform") as TextView).text.toString())')
@@ -496,6 +581,9 @@ describe('native renderer component contract', () => {
   it('keeps the native trail map contract host-neutral', () => {
     expect(componentTypes).toContain('initialRegion?: MapRegion')
     expect(componentTypes).toContain("mapType?: 'standard' | 'satellite' | 'hybrid'")
+    expect(componentTypes).toContain('pitchEnabled?: boolean')
+    expect(componentTypes).toContain('pinColor?: string')
+    expect(componentTypes).toContain('`label` and `secondaryLabel` follow the current system appearance')
     expect(componentTypes).not.toContain("mapType?: 'standard' | 'satellite' | 'hybrid' | 'terrain'")
     expect(componentTypes).toContain("resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'")
     const imageProps = componentTypes.match(/export interface ImageProps extends BaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
@@ -542,7 +630,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val mapMarkerHandler = craftNativeOptionalString(events.opt("onMarkerPress"))')
     expect(android).toContain('(markerHandler(markerId) ?: mapMarkerHandler)?.let')
     expect(android).toContain('mutableMapOf<String, Triple<List<LatLng>, Int, Float>>()')
-    expect(android).toContain('private fun color(value: String): Int = runCatching { craftNativeColor(value) }')
+    expect(android).toContain('private fun color(value: String): Int {')
     expect(android).toContain('PolylineOptions().addAll(value.first).color(value.second).width(value.third)')
     expect(android).toContain('polylines.keys.filter { nextPolylines[it] == null }.forEach')
     expect(android).toContain('polyline.points = value.first')
@@ -551,6 +639,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val rawWidth = props.opt("strokeWidth")')
     expect(android).toContain('null, JSONObject.NULL -> 3.0')
     expect(android).toContain('authoredWidth * resources.displayMetrics.density')
+    expect(androidMapLibre).toContain('val logicalWidth = if (authoredWidth == null || authoredWidth == JSONObject.NULL) 3.0 else finiteNumber(authoredWidth) ?: continue')
+    expect(androidMapLibre).toContain('logicalWidth * resources.displayMetrics.density')
     expect(android).toContain('if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue')
     expect(android).toContain('latitude >= -90.0 && latitude <= 90.0')
     expect(android).toContain('longitude >= -180.0 && longitude <= 180.0')
@@ -578,6 +668,7 @@ describe('native renderer component contract', () => {
     expect(androidManifest).toContain('{{GOOGLE_MAPS_API_KEY}}')
     expect(guide).toContain('| `Map` | `CraftNativeMapView` (`MKMapView`) |')
     expect(guide).toContain('flat latitude,\nlongitude `geometry` array')
+    expect(guide).toContain('`label` and `secondaryLabel` follow light/dark appearance changes')
     expect(guide).toContain('Coordinates must be finite and within latitude [-90, 90]')
     expect(iosReadme).toContain('Map coordinates are finite and range-checked at the native boundary')
     expect(androidReadme).toContain('Coordinates must be JSON numbers (numeric strings are not coerced)')
@@ -587,6 +678,20 @@ describe('native renderer component contract', () => {
     expect(androidReadme).toContain('`strokeWidth` is expressed in logical')
     expect(iosReadme).toContain('`Map`')
     expect(androidReadme).toContain('`Map`')
+    expect(androidMapTest).toContain('nativeMapStrokeWidthsStayInLogicalPointsAcrossDensities')
+    expect(mobileE2EWorkflow).toContain('NativeMapTest#nativeMapStrokeWidthsStayInLogicalPointsAcrossDensities')
+  })
+
+  it('refreshes Android map utility chrome for night mode', () => {
+    expect(android).toContain('fun refreshThemeDefaults()')
+    expect(android).toContain('mapViews().forEach { it.refreshThemeDefaults() }')
+    expect(androidMapLibre).toContain('fun refreshThemeDefaults()')
+    expect(androidMapLibre).toContain('readyStyle?.let { updateOverlays(it) }')
+    expect(androidMapLibre).toContain('"label" -> if (dark) Color.WHITE else Color.BLACK')
+    expect(android).toContain('applyPending(refreshCamera = false)')
+    expect(android).toContain('"label" -> if (dark) Color.WHITE else Color.BLACK')
+    expect(androidMapTest).toContain('fun mapUtilityChromeRefreshesForNightMode()')
+    expect(androidMapTest).toContain('fun dynamicMapOverlayColorsRefreshForNightMode()')
   })
 
   it('retries iOS map fitting after the native viewport is measured', () => {
@@ -1519,6 +1624,16 @@ describe('native renderer component contract', () => {
     expect(android).toContain('Missing native-screen.js')
   })
 
+  it('lets native dialog capabilities replace a preinstalled DOM fallback', () => {
+    expect(ios).toContain("bridge.capabilities.indexOf('dialog') >= 0) {")
+    expect(ios).not.toContain("bridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog")
+    expect(ios).toContain('__craftInstallNativeDialog = installNativeDialog')
+    expect(androidShell).toContain("__stxNativeBridge.capabilities.indexOf('dialog') >= 0) {")
+    expect(androidShell).not.toContain("__stxNativeBridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog")
+    expect(androidShell).toContain('__craftInstallNativeDialog = installNativeDialog')
+    expect(android).toContain('__craftInstallNativeDialog === \'function\'')
+  })
+
   it('preserves Android native launch query parameters like iOS', () => {
     expect(androidShell).toContain('val path = uri.encodedPath?.takeIf { it.isNotBlank() } ?: "/"')
     expect(androidShell).toContain('val query = uri.encodedQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""')
@@ -1613,8 +1728,8 @@ describe('native renderer component contract', () => {
       'CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }',
       'let inStack = navigationController?.viewControllers.contains(where: { $0 === self }) ?? false',
       'if !inStack {',
-      'self.disposeRuntime()\n                    navigation.setViewControllers',
     ]) expect(ios, `${marker} missing from iOS teardown`).toContain(marker)
+    expect(ios).toMatch(/self\.disposeRuntime\(\)\s+navigation\.setViewControllers/)
 
     for (const marker of [
       'screen.capabilityTimeouts.values.forEach(capabilityHandler::removeCallbacks)',
@@ -1636,10 +1751,32 @@ describe('native renderer component contract', () => {
     expect(androidNavigationScript).toContain("source.includes('__stxNativeUnmount') || source.includes('mutationProtocolVersion')")
   })
 
+  it('releases iOS UIKit delegates and targets on permanent node disposal', () => {
+    expect(ios).toContain('if !preservingInputDrafts {')
+    expect(ios).toContain('if let textView = node.view as? UITextView { textView.delegate = nil }')
+    expect(ios).toContain('picker.delegate = nil')
+    expect(ios).toContain('picker.dataSource = nil')
+    expect(ios).toContain('if let scroll = node.view as? UIScrollView { scroll.delegate = nil }')
+    expect(ios).toContain('(node.view as? UIControl)?.removeTarget(self, action: nil, for: .allEvents)')
+  })
+
+  it('keeps iOS FlatList recycle cleanup separate from permanent teardown', () => {
+    expect(iosFlatList).toContain('func resetForTeardown()')
+    expect(iosFlatList).toContain('onFittingHeightChanged = nil')
+    expect(iosFlatList).toContain('delegate = nil')
+    expect(iosFlatList).toContain('nativeRefreshControl.removeTarget(self, action: nil, for: .allEvents)')
+    expect(ios).toContain('if !preservingInputDrafts { list.resetForTeardown() }')
+    expect(ios).toContain('flatListRecycled.removeValue(forKey: listKey)?.values.forEach { forgetHandlers($0) }')
+    expect(ios).toContain('private func disposeRenderedTree()')
+    expect(ios).toContain('disposeRenderedTree()')
+  })
+
   it('keeps responsive layout events aligned across hosts', () => {
     expect(ios).toContain('events["onLayout"]')
     expect(ios).toContain('lastLayoutFrames[id] != frame')
     expect(ios).toContain('private func layoutFrame(of view: UIView) -> CGRect')
+    expect(ios).toContain('view.craftLayoutStyle = .empty\n        // Detaching a retained child must invalidate')
+    expect(ios).toContain('invalidateMeasurements()\n    }\n\n    /// Forgets measured sizes')
     expect(ios).toContain('guard !view.transform.isIdentity else { return view.frame }')
     expect(ios).toContain('let frame = layoutFrame(of: node.view)')
     expect(ios).toContain('if !applied.isEmpty {')
@@ -1730,6 +1867,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('safeArea.setSafeAreaEdges(props["edges"])')
     expect(ios).toContain('rootBottomToView?.isActive = fullEdgeToEdge')
     expect(android).toContain('fun setWindowSafeInsets(left: Int, top: Int, right: Int, bottom: Int)')
+    expect(android).toContain('// Appearance/configuration changes can arrive while this screen is')
+    expect(android).toContain('updateSafeAreaInsets(screen)\n        updateSafeAreaViews()')
     expect(android).toContain('updateSafeAreaViews()')
     expect(android).toContain('if (safeRoot) 0 else windowSafeInsets[0]')
     expect(android).toContain('if (type == "SafeAreaView") setSafeAreaEdges(props.optJSONArray("edges"))')
@@ -1742,6 +1881,7 @@ describe('native renderer component contract', () => {
     expect(iosReadme).toContain("Keyboard frame changes update the native controller's additional safe area")
     expect(navigationHome).toContain('<SafeAreaView testID="root" :edges="safeAreaBottomOnly() ? [\'bottom\'] : [\'top\', \'bottom\']"')
     expect(iosNavigationTest).toContain('testSafeAreaEdgesUpdateTheNativeRootWithoutRecreatingItsScrollView')
+    expect(androidNavigationTest).toContain('safeAreaInsetsPreserveAuthoredPaddingWhenRetained')
     expect(androidNavigationTest).toContain('Removing the top edge did not remove the window inset')
   })
 
@@ -1869,6 +2009,37 @@ describe('native renderer component contract', () => {
     expect(android).toContain('keyboardVerticalOffset = pixelOffset.roundToInt()')
   })
 
+  it('rejects boolean and non-finite iOS presenter anchor geometry', () => {
+    expect(ios).toContain('import CoreFoundation')
+    expect(readFileSync(join(root, 'packages/ios/templates/CraftNativeUI.swift'), 'utf8')).toContain('CFGetTypeID(number) != CFBooleanGetTypeID()')
+    expect(iosNativeUnitTests).toContain('testPresenterRectRejectsBooleanCoordinatesAndNonFiniteNumbers')
+  })
+
+  it('keeps iOS native service numbers strict at the bridge boundary', () => {
+    expect(iosActions).toContain('guard let level = craftNativeNumber(args.first)?.doubleValue, level.isFinite')
+    expect(iosActions).toContain('guard let value = craftNativeNumber(args.first),')
+    expect(iosActions).toContain('if let badge = craftNativeNumber(value["badge"])')
+    expect(iosActions).toContain('let delay = craftNativeNumber(value["delay"]).map { $0.doubleValue }')
+    expect(readFileSync(join(root, 'packages/ios/templates/CraftNativeServices.swift'), 'utf8')).toContain('craftNativeNumber(options["volume"]).map { $0.doubleValue }')
+    expect(readFileSync(join(root, 'packages/ios/templates/CraftNativeUI.swift'), 'utf8')).toContain('craftNativeNumber(options["pointSize"])')
+  })
+
+  it('keeps iOS native media limits strict and finite', () => {
+    expect(iosFiles).toContain('craftNativeNumber(options["maxPixels"])')
+    expect(iosFiles).toContain('Double(largestMaxPixels)')
+    expect(iosFiles).toContain('craftNativeNumber(options["quality"])')
+    expect(iosFiles).toContain('craftNativeNumber(options["maxBytes"])')
+  })
+
+  it('keeps iOS Live Activity numeric state strict', () => {
+    expect(iosLiveActivities).toContain('guard let number = craftNativeNumber(body[key]), number.doubleValue.isFinite else { return nil }')
+  })
+
+  it('keeps iOS heart-rate numeric filters strict', () => {
+    expect(iosHeartRate).toContain('craftNativeNumber(options["timeout"]).map { $0.doubleValue }')
+    expect(iosHeartRate).toContain('craftNativeNumber(options["since"]).map { $0.doubleValue }')
+  })
+
   it('keeps native iOS passkeys capability-gated and domain-bound', () => {
     expect(iosActions).toContain('case ("Passkeys", "isAvailable"):')
     expect(iosActions).toContain('case ("Passkeys", "create"), ("Passkeys", "get"):')
@@ -1913,7 +2084,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('setRefreshAppearance(refreshProps, resources.displayMetrics.density, refreshTintFallback(screen))')
     expect(android).toContain('background?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: Color.TRANSPARENT')
     expect(android).toContain('setRefreshHandler(refreshHandler, craftNativeBoolean(refreshProps.opt("refreshing"), craftNativeBoolean(props.opt("refreshing"))))')
-    expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }')
+    expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach {\n            it.setRefreshHandler(null, false)')
     const scrollStart = android.indexOf('private class CraftNativeScrollView')
     const scrollEnd = android.indexOf('private class CraftNativeFlexSpacer', scrollStart)
     const scroll = android.slice(scrollStart, scrollEnd)
@@ -2328,6 +2499,11 @@ describe('native renderer component contract', () => {
     expect(androidFlatList).toContain('holder.host.addView(view, hostedLayout)')
   })
 
+  it('keeps iOS FlatList fixtures aligned with the removal callback contract', () => {
+    expect(iosFlatList).toContain('removeItem: @escaping (String) -> Void')
+    expect((iosNativeUnitTests.match(/recycleItem:/g) ?? []).length).toBe((iosNativeUnitTests.match(/removeItem:/g) ?? []).length)
+  })
+
   it('keeps image source lifecycles and resize modes aligned', () => {
     expect(ios).toContain('imageTasks.removeValue(forKey: id)?.cancel()')
     expect(ios).toContain('guard self.imageSources[ObjectIdentifier(view)] == requestKey else { return }')
@@ -2370,6 +2546,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('isIndeterminate = animating')
     expect(ios).toContain('scale = value.isFinite ? max(0.5, value) : 1')
     expect(android).toContain('takeIf { it.isFinite() }?.toFloat()?.coerceAtLeast(0.5f) ?: 1f')
+    expect(ios).toContain('indicator.isHidden = indicator.hidesWhenStopped')
+    expect(ios).toContain('indicator.isHidden = false')
+    expect(navigationHome).toContain('testID="toggle-indicator-hide"')
+    expect(iosNavigationTest).toContain('a stopped indicator should reappear when hidesWhenStopped is cleared')
+    expect(androidNavigationTest).toContain('hidden after dynamic prop change')
   })
 
   it('keeps account navigation buttons compatible with the release SDK', () => {
@@ -2429,6 +2610,20 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('image.contentMode = imageContentMode(requestedResizeMode)')
     expect(android).toContain('scaleType = when (craftNativeResizeMode(style, props))')
     expect(android).toContain('image.scaleType = when (craftNativeResizeMode(style, props))')
+  })
+
+  it('recomputes iOS image clipping when resize mode changes', () => {
+    expect(ios).toContain('applyImageClipping(image, contentMode: image.contentMode, style: style)')
+    expect(ios).toContain('applyImageClipping(background, contentMode: background.contentMode, style: style)')
+    expect(ios).toContain('let clips = authored || contentMode == .scaleAspectFill')
+    expect(ios).not.toContain('image.clipsToBounds = image.clipsToBounds || image.contentMode == .scaleAspectFill')
+    expect(guide).toContain('Changing `resizeMode` during reconciliation recomputes image clipping')
+    expect(navigationHome).toContain('testID="dynamic-resize-image"')
+    expect(navigationHome).toContain('testID="toggle-image-resize-mode"')
+    expect(iosNavigationTest).toContain('dynamic image resize mode did not reconcile')
+    expect(androidNavigationTest).toContain('dynamic image resize mode was not reconciled')
+    expect(android).toContain('"cover" -> ImageView.ScaleType.CENTER_CROP')
+    expect(android).toContain('else -> ImageView.ScaleType.CENTER_INSIDE')
   })
 
   it('shows local Image defaultSource placeholders before async loads', () => {
@@ -2536,6 +2731,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('else if handlers[ObjectIdentifier(view)] != nil || longPressHandlers[ObjectIdentifier(view)] != nil {')
     expect(android).toContain('} else if (disabled) {\n            view.isEnabled = false')
     expect(android).not.toContain('if (state != null && state.has("disabled")) view.isEnabled = !disabled')
+    expect(iosNavigationTest).toContain('clearing accessibilityState.disabled should restore the link')
+    expect(iosNavigationTest).toContain('clearing accessibilityState.disabled should restore a generic pressable')
   })
 
   it('restores generic Android pressables when accessibility disabled clears', () => {
@@ -2602,6 +2799,7 @@ describe('native renderer component contract', () => {
     expect(iosLayoutUnitTests).toContain('absolute sibling followed scroll content')
     expect(navigationDetails).toContain('<ScrollView')
     expect(navigationDetails).toContain(':for="(item, index) in people"')
+    expect(navigationDetails).toContain(':stickyHeaderIndices="[0]"')
     expect(navigationDetails).toContain(':key="item.id"')
     expect(navigationDetails).toContain(':text="\'People: \' + people().length + \'; events: \' + listEvents"')
     expect(navigationDetails).toContain('testID="load-more-people"')
@@ -2822,6 +3020,16 @@ describe('native renderer component contract', () => {
     expect(androidFlatListTest).toContain('preservesRowTouchTargetsWhenScrollingIsDisabled')
   })
 
+  it('keeps non-scrolling FlatList intrinsic height aligned across hosts', () => {
+    expect(iosFlatList).toContain('func fittingHeight(width: CGFloat)')
+    expect(ios).toContain('list.onFittingHeightChanged = { [weak list] in')
+    expect(androidFlatList).toContain('if (!scrollEnabled && !horizontal && heightMode != MeasureSpec.EXACTLY)')
+    expect(androidFlatList).toContain('computeVerticalScrollRange()')
+    expect(androidFlatList).toContain('var onContentSizeChanged: (() -> Unit)? = null')
+    expect(android).toContain('CraftNativeFlexLayout.invalidateMeasurementAncestors(list.parent)')
+    expect(androidFlatListTest).toContain('nonScrollingListMeasuresItsFullContentHeight')
+  })
+
   it('keeps FlatList paging enabled through both native hosts', () => {
     expect(ios).toContain('list.isPagingEnabled = props["pagingEnabled"] as? Bool ?? false')
     expect(android).toContain('list.setPagingEnabled(craftNativeBoolean(props.opt("pagingEnabled")))')
@@ -3003,6 +3211,91 @@ describe('native renderer component contract', () => {
     expect(android).toContain('releaseViewState(screen, controls.values.toList(), preservingInputDrafts = true)')
   })
 
+  it('clears drafts when FlatList identities are permanently removed', () => {
+    expect(iosFlatList).toContain('private var removeItem: ((String) -> Void)?')
+    expect(iosFlatList).toContain('for identity in oldItems.keys where !nextIds.contains(identity) { removeItem(identity) }')
+    expect(androidFlatList).toContain('private var removeItem: ((String) -> Unit)? = null')
+    expect(androidFlatList).toContain('(oldIds - nextIds).forEach(removeItem)')
+    expect(ios).toContain('let scopedIdentity = "list:\\(identity)"')
+    expect(ios).toContain('self.forgetHandlers(row)')
+    expect(android).toContain('releaseViewState(screen, controls.values.toList(), preservingInputDrafts = false)')
+  })
+
+  it('scopes iOS keyed row descendants to their row identity', () => {
+    expect(ios).toContain('let identity = parent.identity.hasPrefix("list:") || parent.identity.hasPrefix("key:")')
+    expect(ios).toContain('"\\(parent.identity)/\\(localIdentity)"')
+  })
+
+  it('detaches Android listeners before recycled rows can change identity', () => {
+    expect(android).toContain('released.forEach {\n            it.setOnClickListener(null)')
+    expect(android).toContain('it.setOnTouchListener(null)')
+    expect(android).toContain('it.setOnLongClickListener(null)')
+    expect(android).toContain('it.setOnFocusChangeListener(null)')
+    expect(android).toContain('released.filterIsInstance<EditText>().forEach { it.setOnEditorActionListener(null) }')
+  })
+
+  it('detaches Android text watchers before released inputs can retain a screen', () => {
+    expect(android).toContain('val inputWatchers = mutableMapOf<EditText, TextWatcher>()')
+    expect(android).toContain('if (screen.inputWatchers[this] == null) {\n                    val watcher = object : TextWatcher')
+    expect(android).toContain('screen.inputWatchers.remove(it)?.let(it::removeTextChangedListener)')
+    expect(android).toContain('screen.inputWatchers.forEach { (input, watcher) -> input.removeTextChangedListener(watcher) }')
+    expect(guide).toContain('Text-input watchers are detached too.')
+  })
+
+  it('invalidates Android scroll callbacks when a native scroll host is released', () => {
+    expect(android).toContain('private var scrollListenerGeneration = 0')
+    expect(android).toContain('val generation = ++scrollListenerGeneration')
+    expect(android).toContain('if (generation != scrollListenerGeneration || !momentumActive) return')
+    expect(android).toContain('fun clearScrollListeners()')
+    expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach {\n            it.setRefreshHandler(null, false)\n            it.clearScrollListeners()')
+  })
+
+  it('releases native video event bridges with the video view', () => {
+    expect(android).toContain('onPictureInPictureChanged = null')
+    expect(android).toContain('handlers = JSONObject()')
+    expect(android).toContain('setOnPreparedListener(null)')
+    expect(android).toContain('setOnCompletionListener(null)')
+    expect(android).toContain('setOnErrorListener(null)')
+    expect(ios).toContain('playerController.delegate = nil')
+    expect(ios).toContain('handlers.removeAll()')
+    expect(ios).toContain('emit = nil')
+  })
+
+  it('releases iOS map callbacks and overlays with the map view', () => {
+    expect(ios).toContain('func destroy()')
+    expect(ios).toContain('delegate = nil')
+    expect(ios).toContain('onMarkerTap = nil')
+    expect(ios).toContain('removeOverlays(Array(overlaysByID.values))')
+    expect(ios).toContain('if let map = node.view as? CraftNativeMapView { map.destroy() }')
+    expect(ios).toContain('delegate = self\n        onMarkerTap = markerHandler')
+  })
+
+  it('releases Android date-picker event bridges with the picker view', () => {
+    expect(android).toContain('fun resetForTeardown()')
+    expect(android).toContain('suppressChanges = true\n        onValueChanged = null')
+    expect(android).toContain('released.filterIsInstance<CraftNativeDatePickerView>().forEach { it.resetForTeardown() }')
+  })
+
+  it('releases the Android refreshable FlatList wrapper before its recycler', () => {
+    expect(androidRefreshableFlatList).toContain('fun resetForTeardown()')
+    expect(androidRefreshableFlatList).toContain('refreshHandler = null')
+    expect(android).toContain('released.filterIsInstance<CraftNativeRefreshableFlatList>().forEach { it.resetForTeardown() }')
+  })
+
+  it('detaches Android FlatList scroll listeners during permanent teardown', () => {
+    expect(androidFlatList).toContain('private val scrollListener = object : OnScrollListener()')
+    expect(androidFlatList).toContain('addOnScrollListener(scrollListener)')
+    expect(androidFlatList).toContain('fun resetForTeardown()')
+    expect(androidFlatList).toContain('removeOnScrollListener(scrollListener)')
+    expect(android).toContain('val owner = screen.flatListOwnerByView.remove(list)\n        list.resetForTeardown()')
+  })
+
+  it('detaches Android control-specific listeners during native release', () => {
+    expect(android).toContain('released.filterIsInstance<android.widget.CompoundButton>().forEach { it.setOnCheckedChangeListener(null) }')
+    expect(android).toContain('released.filterIsInstance<SeekBar>().forEach { it.setOnSeekBarChangeListener(null) }')
+    expect(android).toContain('released.filterIsInstance<Spinner>().forEach { it.onItemSelectedListener = null }')
+  })
+
   it('prefers authored keys over compiler ids when reconciling native rows', () => {
     expect(ios).toContain('let direct = [node["key"], props["key"]]')
     expect(ios).toContain('[node["id"], props["testID"]]')
@@ -3018,6 +3311,9 @@ describe('native renderer component contract', () => {
     expect(iosFlatList).toContain('guard hostedView !== view else { return }')
     expect(iosFlatList).toContain('hostedView?.removeFromSuperview()\n            hostedView = view')
     expect(iosFlatList).toContain('contentView.addSubview(view)')
+    expect(ios).toContain('self.forgetHandlers(row, preservingInputDrafts: true)')
+    expect(ios).toContain('for child in rootStack.arrangedSubviews where child !== next.view')
+    expect(ios).toContain('if next.view.superview !== rootStack { rootStack.addArrangedSubview(next.view) }')
   })
 
   it('waits for asynchronous Android native fixture updates before asserting', () => {
@@ -3318,6 +3614,8 @@ describe('native renderer component contract', () => {
     expect(nativeScreen).toContain('if let tabSwipeEnabled = options["tabSwipeEnabled"] as? Bool {')
     expect(nativeScreen).toContain('private var navigationBarSolid = false')
     expect(nativeScreen).toContain('appearance.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor')
+    expect(nativeScreen).toContain('let colorChanged = previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle')
+    expect(nativeScreen).toContain('appliedTraitDefaults = traits\n        view.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor\n        applyNavigationBarAppearance()')
     expect(nativeScreen).toContain('override func viewWillAppear(_ animated: Bool)')
     expect(nativeScreen).toContain('        applyNavigationBarAppearance()\n        // Each screen says whether it wants the tab bar')
     expect(iosLayoutUnitTests).toContain('try assertColor(light, red: 1, green: 1, blue: 1)')

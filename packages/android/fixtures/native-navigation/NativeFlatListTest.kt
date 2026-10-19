@@ -147,7 +147,7 @@ class NativeFlatListTest {
         instrumentation.runOnMainSync {
             list = CraftNativeFlatList(context)
             attach(list)
-            list.apply(rows, false, 1, false, 0.1, renderer(context, renders), { _ -> }, null)
+            list.apply(rows, false, 1, false, 0.1, renderer(context, renders), { _ -> }, null, null)
         }
         awaitCount(list, 10_000)
         instrumentation.runOnMainSync {
@@ -163,7 +163,7 @@ class NativeFlatListTest {
 
         val moved = listOf(rows[1], rows[0]) + rows.drop(2)
         instrumentation.runOnMainSync {
-            list.apply(moved, false, 1, false, 0.1, renderer(context, renders), { _ -> }, null)
+            list.apply(moved, false, 1, false, 0.1, renderer(context, renders), { _ -> }, null, null)
         }
         awaitCount(list, 10_000)
         instrumentation.runOnMainSync { attach(list) }
@@ -186,7 +186,7 @@ class NativeFlatListTest {
                 list.onScrollEvent = { scrollCount.incrementAndGet() }
                 list.onMomentumScrollBegin = { momentumBeginCount.incrementAndGet() }
                 list.onMomentumScrollEnd = { momentumEndCount.incrementAndGet() }
-                list.apply(rows, false, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, null)
+                list.apply(rows, false, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, null, null)
             }
             awaitCount(list, 100)
             instrumentation.runOnMainSync {
@@ -214,14 +214,17 @@ class NativeFlatListTest {
         instrumentation.runOnMainSync {
             list = CraftNativeFlatList(context)
             attach(list)
-            list.apply(nodes, true, 1, true, 0.1, renderer(context, renders), { _ -> }, null)
+            list.apply(nodes, true, 1, true, 0.1, renderer(context, renders), { _ -> }, null, null)
         }
         awaitCount(list, 9)
         val horizontal = list.layoutManager as LinearLayoutManager
         assertEquals(LinearLayoutManager.HORIZONTAL, horizontal.orientation)
+        val invertedIdentities = list.visibleItemIdentities
+        assertEquals("row-7", invertedIdentities.first())
+        assertEquals("mounted identities must stay in adapter order", invertedIdentities, invertedIdentities.sortedBy { it.substringAfter('-').toInt() })
 
         instrumentation.runOnMainSync {
-            list.apply(nodes, false, 3, false, 0.1, renderer(context, renders), { _ -> }, null)
+            list.apply(nodes, false, 3, false, 0.1, renderer(context, renders), { _ -> }, null, null)
         }
         awaitCount(list, 9)
         SystemClock.sleep(200)
@@ -233,7 +236,7 @@ class NativeFlatListTest {
         val updated = listOf(chrome("header", "header"), row(0).put("children", JSONArray().put("Updated"))) +
             (1 until 8).map(::row)
         instrumentation.runOnMainSync {
-            list.apply(updated, false, 3, false, 0.1, renderer(context, renders), { _ -> }, null)
+            list.apply(updated, false, 3, false, 0.1, renderer(context, renders), { _ -> }, null, null)
         }
         SystemClock.sleep(300)
         instrumentation.runOnMainSync { attach(list) }
@@ -245,7 +248,7 @@ class NativeFlatListTest {
             chrome("footer", "footer"),
         )
         instrumentation.runOnMainSync {
-            list.apply(chromeOnly, false, 1, false, 0.1, renderer(context, renders), { _ -> }, {
+            list.apply(chromeOnly, false, 1, false, 0.1, renderer(context, renders), { _ -> }, null, {
                 chromeEndReached.incrementAndGet()
             })
         }
@@ -263,7 +266,7 @@ class NativeFlatListTest {
         assertTrue("vertical indicator should be hidden", !list.isVerticalScrollBarEnabled)
         assertTrue("horizontal indicator should be visible", list.isHorizontalScrollBarEnabled)
         assertEquals(View.OVER_SCROLL_NEVER, list.overScrollMode)
-        list.apply(emptyList(), true, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, null)
+        list.apply(emptyList(), true, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, null, null)
         list.setBounceOptions(enabled = true, vertical = false, horizontal = true)
         assertEquals(View.OVER_SCROLL_ALWAYS, list.overScrollMode)
         list.setBounceOptions(enabled = false, vertical = true, horizontal = true)
@@ -277,6 +280,33 @@ class NativeFlatListTest {
         assertTrue("scrollEnabled should be false", !list.isScrollEnabledForTest)
         list.setScrollEnabled(true)
         assertTrue("scrollEnabled should be restored", list.isScrollEnabledForTest)
+    }
+
+    @Test
+    fun nonScrollingListMeasuresItsFullContentHeight() {
+        val context = instrumentation.targetContext
+        val list = CraftNativeFlatList(context)
+        val rows = (0 until 3).map(::row)
+        val contentSizeChanges = AtomicInteger()
+        instrumentation.runOnMainSync {
+            list.setScrollEnabled(false)
+            list.onContentSizeChanged = { contentSizeChanges.incrementAndGet() }
+            list.apply(rows, false, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, null, null)
+        }
+        awaitCount(list, rows.size)
+        instrumentation.runOnMainSync {
+            list.measure(
+                View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(1_000, View.MeasureSpec.AT_MOST),
+            )
+            list.layout(0, 0, list.measuredWidth, list.measuredHeight)
+        }
+        assertTrue("non-scrolling FlatList should include every row", list.measuredHeight >= rows.size * 44)
+        repeat(100) {
+            if (contentSizeChanges.get() > 0) return@repeat
+            SystemClock.sleep(10)
+        }
+        assertTrue("non-scrolling FlatList should report content-size changes", contentSizeChanges.get() > 0)
     }
 
     @Test
@@ -358,6 +388,7 @@ class NativeFlatListTest {
                 },
                 { _ -> },
                 null,
+                null,
             )
         }
         awaitCount(list, 2)
@@ -393,6 +424,7 @@ class NativeFlatListTest {
                     }
                 },
                 { _ -> },
+                null,
                 null,
             )
         }
@@ -433,6 +465,7 @@ class NativeFlatListTest {
                     }
                 },
                 { _ -> },
+                null,
                 null,
             )
         }

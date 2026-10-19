@@ -179,6 +179,8 @@ generated renderers, so a platform can’t silently lose a native primitive.
 
 `Switch` accepts the shared `trackColor` object (`false` and `true` states) and
 `thumbColor`; iOS also honors `ios_backgroundColor` for the off-state track.
+Use `value` for the controlled state. `checked` is a compatibility alias when
+`value` is null, and `value` takes precedence when both are provided.
 `Slider` accepts `minimumTrackTintColor`, `maximumTrackTintColor`, and
 `thumbTintColor` on both hosts, with `step` snapping values before events are
 delivered.
@@ -206,8 +208,9 @@ and sends the selected option's `value` plus `index` through `onValueChange` or
 both hosts.
 `DatePicker` keeps the mode, bounds, and minute interval shared across hosts;
 its presentation style is platform-default rather than an iOS-only prop.
-`Checkbox` accepts `checked`/`value`, `indeterminate`, and `disabled`, and
-delivers a boolean `nativeEvent.value` through `onValueChange` or `onChange`.
+`Checkbox` accepts `checked`/`value`, `indeterminate`, and `disabled`; when both
+controlled values are present, `checked` takes precedence. It delivers a
+boolean `nativeEvent.value` through `onValueChange` or `onChange`.
 An indeterminate checkbox is announced as `mixed` and becomes checked or
 unchecked on the next user toggle.
 `ImageBackground` uses the shared image source and load/error lifecycle while
@@ -222,8 +225,8 @@ be `MapPolyline` or `MapMarker`; each overlay carries a flat latitude,
 longitude `geometry` array, so a signal update changes the existing native map
 without rebuilding the screen. `MapPolyline` also accepts `strokeColor` and a
 positive `strokeWidth` in logical points, which are preserved by both map
-hosts (the Android host converts points to the physical pixels expected by the
-Google Maps SDK). `Map` accepts a
+hosts (the Android hosts convert points to the physical pixels expected by
+their map renderers). `Map` accepts a
 controlled `region` (with `center` and `span`), an `initialRegion` applied once,
 or `fitToBounds`, which recenters only when its overlay geometry changes. Explicit regions use the
 authored camera bounds on both hosts; only `fitToBounds` adds framing padding. A marker's `onPress` or
@@ -241,7 +244,9 @@ template and its visible provider attribution. `edgePadding` reserves logical
 points around a fitted route for floating controls. `pitchEnabled` controls
 tilt gestures; `cameraPitch` and `cameraHeading` set the camera explicitly.
 Markers accept `pinColor` for trailheads and inspected profile positions, or
-`bearing` for a contrasting route-direction sign. Clustering, turn-by-turn
+`bearing` for a contrasting route-direction sign. The portable system colors
+`label` and `secondaryLabel` follow light/dark appearance changes and refresh
+retained overlays without moving the camera. Clustering, turn-by-turn
 directions, and offline tile downloads remain outside this view contract.
 Set `showsUserLocation` to opt into the
 platform location dot; the host only enables it when the app's existing
@@ -499,6 +504,9 @@ hosts normalize those forms before selecting the closest native type weight.
 justification on Android when the platform API supports it.
 Explicit `null` image style values are treated as unset, so a prop-level
 `resizeMode` remains effective during reconciliation.
+Changing `resizeMode` during reconciliation recomputes image clipping from the
+current mode and authored overflow/radius styles; a previous `cover` render does
+not permanently clip a later `contain` render.
 
 Colors use platform color syntax; hexadecimal colors are portable. Dimensions,
 spacing, and font sizes are points on iOS and density-independent units on
@@ -603,6 +611,9 @@ accepts `onRefresh` and controlled
 AndroidX `SwipeRefreshLayout` on Android. Use
 `ScrollView` for bounded content and `FlatList` for data sets that need
 recycling.
+When `scrollEnabled={false}`, the list is measured to its full vertical content
+height on both hosts, so it can be placed inside an outer native `ScrollView`
+without clipping rows.
 
 For a shared refresh configuration, `FlatList` also accepts the typed
 `refreshControl` prop. Its `refreshing` state and `tintColor` are applied to the
@@ -708,6 +719,54 @@ creates a control of the new type instead of reusing an incompatible view. This
 keeps a `Button` changed to a `Link` (or another component class) from retaining
 the old control's traits, listeners, or accessibility behavior.
 
+When a virtualized Android row leaves the viewport or is removed, its native
+interaction listeners are detached before the view can be reused for another
+identity. Handler cleanup therefore cannot leak the previous row's closure or
+event target into a recycled row.
+
+Native row descendants are scoped by their keyed parent on both hosts, including
+rows rendered in an ordinary `ScrollView`. Two rows can therefore use the same
+child `testID` or local key without sharing uncontrolled input drafts or retained
+native state.
+
+Android scroll hosts also invalidate their callback generation when released, so
+queued momentum polling and touch callbacks cannot report events through a
+previous screen after the host is recycled.
+
+Video teardown releases its event bridge and picture-in-picture callback on both
+hosts as playback stops, so a removed native video cannot retain its screen or
+deliver media events after recycling.
+
+Android also clears `VideoView`'s prepared, completion, and error listeners
+during that stop, preventing a late platform callback from reaching a released
+native node.
+
+Map teardown follows the same rule: iOS releases MapKit delegates, callbacks,
+markers, polylines, and tile overlays before a map leaves a row, then restores
+the delegate when that native view is adopted by a new row.
+
+Android date pickers clear their value-change bridge during teardown as well, so
+the platform picker cannot retain a screen callback after its native view is
+released.
+
+The Android refreshable `FlatList` wrapper clears its refresh closure before
+the inner recycler is released, keeping a keyed reconciliation from retaining
+the previous screen through the outer swipe host.
+
+Android also detaches control-specific listeners from released checkboxes,
+switches, sliders, and pickers so a retained native control cannot dispatch the
+previous identity's callback during reuse.
+
+Text-input watchers are detached too. A released Android `EditText` therefore
+cannot retain the old screen's draft and change handler through a closure after
+its row or screen has been recycled; screen disposal also sweeps any watcher
+that was not reachable through the retained view tree.
+
+When an iOS screen is popped or replaced, its rendered tree is torn down before
+the JavaScript runtime closes. That includes rows kept in a `FlatList` recycle
+pool, so UIKit delegates, control targets, media, and map callbacks cannot keep
+the old screen alive after navigation.
+
 ## Events, accessibility, and navigation
 
 `defaultValue` initializes an uncontrolled `TextInput` once; controlled
@@ -746,7 +805,8 @@ keyboard open while scrolling.
 
 Removing `placeholderTextColor` or `selectionColor` from a reused `TextInput`
 restores the platform theme default on both hosts instead of retaining the
-previous native color.
+previous native color. Removing `accessibilityState.disabled` likewise restores
+interaction for retained links and generic pressable containers.
 
 Changing a keyed `TextInput` between single-line and `multiline` mode recreates
 the platform control when its native class or mode is incompatible, while the
@@ -868,6 +928,8 @@ craft.navigation.setOptions({ navigationBarSolid: true })
 This applies to both standard and large-title bars, and remains in place while
 the screen is pushed, popped, or revealed by a tab swipe. The default remains
 UIKit's translucent material; pass `navigationBarSolid: false` to restore it.
+The host reapplies the dynamic app background when the system switches between
+Light and Dark mode, so the bar does not need to be set again.
 
 A screen's content stays inside the safe area. To colour the strips under the
 status bar and the home indicator too, such as a black full-screen timer with
@@ -1238,7 +1300,8 @@ capability persistence across relaunch, and notification cancellation.
 
 When a style or color prop is removed during reconciliation, reused native
 controls reset that value to the platform default instead of retaining stale
-state.
+state. Detaching a retained iOS child also clears its cached layout style and
+invalidates the parent measurement cache before the next responsive pass.
 
 ## The browser service host
 

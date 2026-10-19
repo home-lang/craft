@@ -161,7 +161,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('WindowInsetsCompat.Type.displayCutout()')
       expect(nativeActivity).toContain('ViewCompat.requestApplyInsets(root)')
       expect(nativeActivity).toContain('rows.add(mutableListOf())')
-      expect(nativeActivity).toContain('private class CraftNativeFlexLayout(context: Context) : LinearLayout(context)')
+      expect(nativeActivity).toContain('internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context)')
       expect(nativeActivity).toContain('private fun craftNativeNumber(value: Any?): Double?')
       expect(nativeActivity).toContain('craftNativeNumber(style?.opt(name))')
       expect(nativeActivity).toContain('private fun craftNativeFontWeight(value: Any?): String?')

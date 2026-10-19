@@ -70,6 +70,17 @@ describe('package-owned iOS shells', () => {
     expect(readFileSync(path, 'utf8')).toBe(source)
   })
 
+  it('starts a universal-link handoff after XCTest finishes launching the host', () => {
+    const output = folder()
+    initSimulatorDriver({ output, bundleId: 'org.example.app' })
+    const host = readFileSync(join(output, 'Host/HostApp.swift'), 'utf8')
+    const driver = readFileSync(join(output, 'UITests/DriverTests.swift'), 'utf8')
+    expect(host).toContain('.accessibilityIdentifier("craft-driver-open-universal-link")')
+    expect(host).not.toContain('.task { await openUniversalLinkIfRequested() }')
+    expect(host).toContain('[.universalLinksOnly: true]')
+    expect(driver).toMatch(/host\.launch\(\)\s+host\.buttons\["craft-driver-open-universal-link"\]\.tap\(\)\s+let opened = app\.wait\(for: \.runningForeground, timeout: 75\)/)
+  })
+
   it('serializes typed journeys and rejects extra wire commands and invalid coordinates', () => {
     expect(serializeSimulatorSteps([
       { command: 'launch' }, { command: 'field', index: 0, text: 'demo@example.org' },

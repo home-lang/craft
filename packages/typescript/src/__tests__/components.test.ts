@@ -16,6 +16,7 @@ import type {
   ImageStyle,
   FlexStyle,
   ButtonProps,
+  CheckboxProps,
   IconProps,
   VideoProps,
   ActivityIndicatorProps,
@@ -38,6 +39,7 @@ import type {
   SectionListProps,
   TextInputProps,
   ScrollViewProps,
+  SwitchProps,
   ViewProps,
   TextProps,
 } from '../components'
@@ -82,7 +84,6 @@ describe('Component System', () => {
       onScroll: event => expect(event.nativeEvent.contentOffset.x).toBe(0),
       onScrollBeginDrag: () => {},
       onScrollEndDrag: () => {},
-      inverted: true,
       stickyHeaderIndices: [0, 2],
       scrollTarget: { id: 'today', animated: false, key: 'today-v2' },
       refreshControl: { refreshing: false, tintColor: '#2563eb' },
@@ -93,6 +94,11 @@ describe('Component System', () => {
     expect(scroll.onScroll).toBeDefined()
     expect(scroll.scrollTarget).toMatchObject({ id: 'today', animated: false })
     expect(scroll.refreshControl?.tintColor).toBe('#2563eb')
+    const list: FlatListProps<string> = { data: ['today'], renderItem: ({ item }) => item, inverted: true }
+    expect(list.inverted).toBe(true)
+    // Sticky headers are implemented by ScrollView, not the virtualized FlatList hosts.
+    // @ts-expect-error stickyHeaderIndices is intentionally ScrollView-only.
+    list.stickyHeaderIndices = [0]
   })
 
   it('types the native renderer component contract', () => {
@@ -107,6 +113,10 @@ describe('Component System', () => {
     view.pointerEvents = 'none'
     expect(view.onPress).toBeDefined()
     expect(button.style).toHaveLength(2)
+    const toggle: SwitchProps = { value: undefined, checked: true, onValueChange: value => expect(typeof value).toBe('boolean') }
+    expect(toggle.checked).toBe(true)
+    const checkbox: CheckboxProps = { checked: false, value: true }
+    expect(checkbox.checked).toBe(false)
     const icon: IconProps = { symbol: 'sun.max', style: { width: 24, color: '#f59e0b' } }
     const video: VideoProps = { source: { uri: 'https://example.com/video.mp4' }, style: { width: 120, height: 68 } }
     const indicator: ActivityIndicatorProps = { size: 48, style: { transform: [{ scale: 0.5 }] } }
@@ -135,6 +145,7 @@ describe('Component System', () => {
       },
       fitToBounds: true,
       mapType: 'standard',
+      pitchEnabled: true,
       onMarkerPress: event => expect(event.nativeEvent.id).toBe('trailhead'),
     }
     // The shared public contract only exposes map styles both hosts implement.
@@ -142,9 +153,9 @@ describe('Component System', () => {
     const androidOnlyMap: MapProps = { mapType: 'terrain' }
     expect(androidOnlyMap).toBeDefined()
     const route: MapPolylineProps = { geometry: [47, 11, 47.1, 11.2], strokeWidth: 3 }
-    const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], onPress: () => {} }
-    const picker: PickerProps = { items: [{ label: 'One', value: 1 }], selectedValue: 1, onChange: () => {} }
-    const childPicker: PickerProps = { children: ['One', 'Two'], selectedValue: 'Two' }
+    const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], pinColor: '#24724b', onPress: () => {} }
+    const picker: PickerProps = { items: [{ label: 'One', value: 1 }], value: 1, selectedValue: 1, onChange: () => {} }
+    const childPicker: PickerProps = { children: ['One', 'Two'], value: 'Two' }
     const statusBar: StatusBarProps = { barStyle: 'dark-content', hidden: false }
     const refresh: RefreshControlProps = { refreshing: true, tintColor: '#2563eb', onRefresh: () => {} }
     // Host-specific refresh presentation stays out of the shared contract.
@@ -188,6 +199,7 @@ describe('Component System', () => {
     expect(route.geometry).toHaveLength(4)
     expect(marker.id).toBe('trailhead')
     expect(picker.selectedValue).toBe(1)
+    expect(childPicker.value).toBe('Two')
     expect(childPicker.items).toBeUndefined()
     expect(statusBar.barStyle).toBe('dark-content')
     expect(refresh.tintColor).toBe('#2563eb')

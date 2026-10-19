@@ -313,8 +313,10 @@ final class CraftNativeSounds {
     func play(id: String, url: URL, options: [String: Any], answer: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
         stop(id: id, fadeOut: 0)
         let loop = options["loop"] as? Bool ?? false
-        let volume = Float(min(max((options["volume"] as? NSNumber)?.doubleValue ?? 1, 0), 1))
-        let fadeIn = max(0, (options["fadeIn"] as? NSNumber)?.doubleValue ?? 0) / 1000
+        let volumeValue = craftNativeNumber(options["volume"]).map { $0.doubleValue }.flatMap { $0.isFinite ? $0 : nil } ?? 1
+        let fadeInValue = craftNativeNumber(options["fadeIn"]).map { $0.doubleValue }.flatMap { $0.isFinite ? $0 : nil } ?? 0
+        let volume = Float(min(max(volumeValue, 0), 1))
+        let fadeIn = max(0, fadeInValue) / 1000
         Self.claimSession(respectSilentSwitch: options["respectSilentSwitch"] as? Bool ?? true)
         let item = AVPlayerItem(url: url)
         let player = AVQueuePlayer()

@@ -1156,6 +1156,7 @@ describe('Craft iOS builder', () => {
     const widget = readFileSync(join(output, 'WidgetExtension', 'WildLoopLiveActivity.swift'), 'utf8')
     expect(activities).toContain('activities.first(where: { $0.id == id })')
     expect(activities).toContain('activities.first(where: { $0.attributes.activityId == key })')
+    expect(activities).toContain('guard let number = craftNativeNumber(body[key]), number.doubleValue.isFinite else { return nil }')
     expect(actions).toContain('values.append("liveActivities")')
     expect(actions).toContain('case ("LiveActivities", _):')
     expect(widget).toContain('Text(timerInterval:')
@@ -1409,6 +1410,38 @@ describe('Craft iOS builder', () => {
       expect(source).not.toContain('if let title = options["title"] as? String, !title.isEmpty { items.append(title) }')
     }
     expect(services).toContain('CraftPresenter.present(sheet, from: nil, anchor: CraftPresenter.rect(options["anchor"]))')
+    expect(ui).toContain('CFGetTypeID(number) != CFBooleanGetTypeID()')
+    expect(ui).toContain('return value.isFinite ? value : nil')
+  })
+
+  it('keeps generated iOS native service numbers strict at the bridge boundary', async () => {
+    const output = createTempDir('craft-ios-native-service-numbers-')
+    await init({ runtimeDir: null, name: 'NativeServiceNumbers', bundleId: 'org.example.nativeservicenumbers', output })
+    const ui = readFileSync(join(output, 'Sources', 'CraftNativeUI.swift'), 'utf8')
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const services = readFileSync(join(output, 'Sources', 'CraftNativeServices.swift'), 'utf8')
+    expect(ui).toContain('craftNativeNumber(options["pointSize"])')
+    expect(actions).toContain('craftNativeNumber(options["rate"]).map { $0.doubleValue }')
+    expect(actions).toContain('craftNativeNumber(value["badge"])')
+    expect(services).toContain('craftNativeNumber(options["volume"]).map { $0.doubleValue }')
+  })
+
+  it('generates the native Map node in iOS screen projects', async () => {
+    const output = createTempDir('craft-ios-native-map-')
+    await init({ runtimeDir: null, name: 'NativeMap', bundleId: 'org.example.nativemap', output, config: { renderer: 'native' } as any })
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    expect(screen).toContain('case "Map":')
+    expect(screen).toContain('private final class CraftNativeMapView: MKMapView, MKMapViewDelegate')
+  })
+
+  it('keeps generated iOS media limits strict and finite', async () => {
+    const output = createTempDir('craft-ios-native-media-numbers-')
+    await init({ runtimeDir: null, name: 'NativeMediaNumbers', bundleId: 'org.example.nativemedianumbers', output })
+    const files = readFileSync(join(output, 'Sources', 'CraftNativeFiles.swift'), 'utf8')
+    expect(files).toContain('craftNativeNumber(options["maxPixels"])')
+    expect(files).toContain('Double(largestMaxPixels)')
+    expect(files).toContain('craftNativeNumber(options["quality"])')
+    expect(files).toContain('craftNativeNumber(options["maxBytes"])')
   })
 
   it('makes the web view feel like the app: no previews, no zoom, no keyboard bar, an app user agent', async () => {
@@ -2018,12 +2051,15 @@ describe('Craft iOS builder', () => {
     const output = createTempDir('craft-ios-heart-rate-')
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableHeartRate: true, nativeScreens: { '/m/go/:id': 'Go' } } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const heartRate = readFileSync(join(output, 'Sources', 'CraftHeartRate.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
     expect(existsSync(join(output, 'Sources', 'CraftHeartRate.swift'))).toBe(true)
     // The app's own service: a native-only app has it too.
     expect(actions).toContain('if config.enableHeartRate { values.append(contentsOf: ["heartRate", "heartRateRecordingOwnership", "heartRateRecordingIntentIdentity"]) }')
     expect(actions).toContain('case ("HeartRate", _):')
     expect(actions).toContain('CraftHeartRate.shared.perform(method: method, args: args)')
+    expect(heartRate).toContain('craftNativeNumber(options["timeout"]).map { $0.doubleValue }')
+    expect(heartRate).toContain('craftNativeNumber(options["since"]).map { $0.doubleValue }')
     expect(app).toContain('case "heartRate", "heartRateRequestAuthorization":')
     expect(app).toContain('CraftHeartRate.shared.pageSink = { [weak self] detail in')
     const plist = readFileSync(join(output, 'Info.plist'), 'utf8')

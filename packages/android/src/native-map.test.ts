@@ -16,6 +16,8 @@ describe('native Android map provider generation', () => {
     expect(source).toContain('MapLibre.getInstance(context)')
     expect(source).toContain('MapView(context)')
     expect(source).toContain('GeoJsonSource("craft-map-overlays")')
+    expect(source).toContain('"Map" ->')
+    expect(source).toContain('CraftNativeMapView')
     expect(source).toContain('iconRotationAlignment("map")')
     expect(source).toContain('LocationComponentActivationOptions.builder(context, style)')
     expect(source).not.toContain('com.google.android.gms.maps')

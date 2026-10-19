@@ -2950,14 +2950,22 @@ export interface BackgroundWorkEvent {
  * `fallback` when it does not, when it fails, or when it answers nothing. The
  * new native UI never throws at a page: on the web every call resolves.
  */
-async function callNative<T>(namespace: string, method: string, args: unknown[], fallback: T): Promise<T> {
+interface NativeCallOptions {
+  /** Log a bridge exception before returning the documented fallback value. */
+  warnOnError?: boolean
+}
+
+async function callNative<T>(namespace: string, method: string, args: unknown[], fallback: T, options: NativeCallOptions = {}): Promise<T> {
   const target = getCraftRoot()?.[namespace]
   if (!target || typeof target[method] !== 'function') return fallback
   try {
     const value = await target[method](...args)
     return value === undefined || value === null ? fallback : value as T
   }
-  catch {
+  catch (error) {
+    if (options.warnOnError) {
+      console.warn(`[craft] Native ${namespace}.${method} failed; using its fallback value.`, error)
+    }
     return fallback
   }
 }
@@ -2983,7 +2991,7 @@ export const dialog = {
   },
   /** The chosen action's id, or null when dismissed. */
   actionSheet(options: ActionSheetOptions): Promise<string | null> {
-    return callNative<string | null>('dialog', 'actionSheet', [options], null)
+    return callNative<string | null>('dialog', 'actionSheet', [options], null, { warnOnError: true })
   },
 }
 

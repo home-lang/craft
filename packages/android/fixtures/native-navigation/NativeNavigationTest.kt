@@ -2,6 +2,8 @@ package dev.craft.navigationtest
 
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -39,6 +41,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.core.view.ViewCompat
+import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -68,6 +71,12 @@ class NativeNavigationTest {
         if (view is ViewGroup) {
             for (index in 0 until view.childCount) findAll(view.getChildAt(index), id, matches)
         }
+    }
+
+    private fun screenTop(view: View): Int {
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        return location[1]
     }
 
     private fun containsType(view: View, type: Class<out View>): Boolean {
@@ -774,6 +783,8 @@ class NativeNavigationTest {
             assertEquals("The test identity must not become a spoken label", null, title.contentDescription)
             val toggle = node("toggle-safe-area")
             assertEquals("Toggle safe edges", toggle.text.toString())
+            assertEquals("link", node("native-linked-pressable").extras
+                .getCharSequence("AccessibilityNodeInfo.roleDescription")?.toString())
             assertTrue("The identified native button did not accept its accessibility click",
                 toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK))
             awaitText(activity, "safe-area-status", "Safe edges: bottom")
@@ -1239,6 +1250,14 @@ class NativeNavigationTest {
             click(activity, "toggle-image-tint")
             awaitText(activity, "image-tint-status", "image tint off")
             awaitImageTintCleared(activity, "native-image")
+            val dynamicResizeImage = awaitView(activity, "dynamic-resize-image") as ImageView
+            assertEquals("dynamic image should start in cover mode", ImageView.ScaleType.CENTER_CROP, dynamicResizeImage.scaleType)
+            click(activity, "toggle-image-resize-mode")
+            awaitText(activity, "image-resize-mode-status", "contain")
+            assertEquals("dynamic image resize mode was not reconciled", ImageView.ScaleType.CENTER_INSIDE, dynamicResizeImage.scaleType)
+            click(activity, "toggle-image-resize-mode")
+            awaitText(activity, "image-resize-mode-status", "cover")
+            assertEquals("dynamic image resize mode did not restore cover", ImageView.ScaleType.CENTER_CROP, dynamicResizeImage.scaleType)
             val clearedBackgroundImage = (awaitView(activity, "native-image-background") as ViewGroup).getChildAt(0) as ImageView
             assertTrue("ImageBackground tint was not cleared", clearedBackgroundImage.colorFilter == null)
             val tintedUnsupported = awaitView(activity, "unsupported-image") as ImageView
@@ -1446,6 +1465,8 @@ class NativeNavigationTest {
             assertTrue("native switch should apply thumb tint", nativeSwitch.thumbTintList != null)
             val nullableSwitch = awaitView(activity, "nullable-switch") as Switch
             assertTrue("null switch value should fall back to checked", nullableSwitch.isChecked)
+            val precedenceSwitch = awaitView(activity, "switch-value-precedence") as Switch
+            assertTrue("non-null switch value should take precedence over checked", !precedenceSwitch.isChecked)
             var nullableSwitchInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { nullableSwitchInfo = nullableSwitch.createAccessibilityNodeInfo() }
             assertTrue("native checked state should remain accessible without accessibilityState", nullableSwitchInfo?.isChecked == true)
@@ -1472,6 +1493,7 @@ class NativeNavigationTest {
             instrumentation.waitForIdleSync()
             awaitText(activity, "items-picker-value", "one")
             assertEquals("reconciling another picker must not emit onChange", "picker two", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            assertEquals("selectedValue should take precedence over value", 0, (itemsPicker as Spinner).selectedItemPosition)
             instrumentation.runOnMainSync { (itemsPicker as Spinner).setSelection(1) }
             // Both native hosts serialize a numeric option through Double.
             awaitText(activity, "items-picker-value", "2.0")
@@ -1519,6 +1541,8 @@ class NativeNavigationTest {
             assertEquals("mixed", ViewCompat.getStateDescription(indeterminateCheckbox))
             instrumentation.runOnMainSync { indeterminateCheckbox.performClick() }
             assertTrue("indeterminate checkbox should become checked on first toggle", indeterminateCheckbox.isChecked)
+            val precedenceCheckbox = awaitView(activity, "checkbox-checked-precedence") as CheckBox
+            assertTrue("checked should take precedence over value", !precedenceCheckbox.isChecked)
             val styledIndicator = awaitView(activity, "native-indicator") as ProgressBar
             assertTrue("authored activity-indicator color should be applied", styledIndicator.indeterminateTintList != null)
             click(activity, "toggle-invalid-control-colors")
@@ -1613,6 +1637,10 @@ class NativeNavigationTest {
             assertTrue("stopped indicator should not animate", !stoppedIndicator.isIndeterminate)
             assertEquals(0.75f, stoppedIndicator.scaleX)
             assertEquals(0.75f, stoppedIndicator.scaleY)
+            click(activity, "toggle-indicator-hide")
+            awaitProgressBar(activity, "stopped-indicator", "hidden after dynamic prop change") { it.visibility == View.GONE }
+            click(activity, "toggle-indicator-hide")
+            awaitProgressBar(activity, "stopped-indicator", "visible after clearing hide prop") { it.isShown && !it.isIndeterminate }
             click(activity, "toggle-indicator-size")
             val enlargedIndicator = awaitProgressBar(activity, "stopped-indicator", "large size") { it.scaleX == 1.35f }
             assertEquals(1.35f, enlargedIndicator.scaleY)
@@ -1675,6 +1703,24 @@ class NativeNavigationTest {
             assertTrue("KeyboardAvoidingView child did not reconcile", awaitView(activity, "native-keyboard-avoiding-input") is EditText)
             assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)
             assertEquals("SVG accessibility metadata did not survive native mounting", "Native vector", svg.contentDescription?.toString())
+            assertTrue("SVG fixture did not receive a laid-out native surface", svg.width > 0 && svg.height > 0)
+            val svgBitmap = Bitmap.createBitmap(svg.width, svg.height, Bitmap.Config.ARGB_8888)
+            try {
+                instrumentation.runOnMainSync { svg.draw(Canvas(svgBitmap)) }
+                var bluePixels = 0
+                var darkPixels = 0
+                for (x in 0 until svgBitmap.width) {
+                    for (y in 0 until svgBitmap.height) {
+                        val pixel = svgBitmap.getPixel(x, y)
+                        if (Color.alpha(pixel) > 20 && Color.blue(pixel) > Color.red(pixel) + 20) bluePixels++
+                        if (Color.alpha(pixel) > 20 && Color.red(pixel) < 80 && Color.green(pixel) < 100 && Color.blue(pixel) < 160) darkPixels++
+                    }
+                }
+                assertTrue("SVG group did not draw its inherited blue stroke", bluePixels > 5)
+                assertTrue("SVG text did not draw its authored dark fill", darkPixels > 5)
+            } finally {
+                svgBitmap.recycle()
+            }
             assertEquals("CraftNativeIconView", icon.javaClass.simpleName)
             assertEquals("Native icon", icon.contentDescription?.toString())
             assertTrue("Icon fixture should expose a visible glyph", (icon as TextView).text.isNotBlank())
@@ -1806,6 +1852,16 @@ class NativeNavigationTest {
             awaitText(activity, "people-count", "People: 40; events: 1")
             val peopleHeader = awaitView(activity, "people-header") as TextView
             assertTrue("ScrollView contentContainerStyle did not add top padding", peopleHeader.top >= people.top + (8 * density).toInt())
+            val peopleContent = people.getChildAt(0)
+            assertTrue("people ScrollView did not lay out overflowing content", peopleContent != null && peopleContent.height > people.height)
+            instrumentation.runOnMainSync {
+                people.scrollTo(0, (peopleContent?.height ?: 0) - people.height)
+            }
+            SystemClock.sleep(150)
+            assertTrue(
+                "ScrollView sticky header did not remain pinned",
+                screenTop(peopleHeader) >= screenTop(people) + (8 * density).toInt() - 1,
+            )
             val peopleLayouts = awaitView(activity, "people-layout-status") as TextView
             val initialRowLayouts = peopleLayouts.text.toString().substringAfterLast(": ").toInt()
             assertTrue("ScrollView rows did not report layout", initialRowLayouts > 0)
@@ -1980,6 +2036,21 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
             instrumentation.waitForIdleSync()
         }
+    }
+
+    @Test
+    fun safeAreaInsetsPreserveAuthoredPaddingWhenRetained() {
+        lateinit var layout: CraftNativeFlexLayout
+        instrumentation.runOnMainSync {
+            layout = CraftNativeFlexLayout(instrumentation.targetContext)
+            layout.setPadding(3, 5, 7, 11)
+            layout.setSafeAreaEdges(JSONArray().put("top").put("bottom"))
+            layout.setWindowSafeInsets(13, 17, 19, 23)
+        }
+        assertEquals("left edge should keep authored padding", 3, layout.paddingLeft)
+        assertEquals("top edge should add the current window inset", 22, layout.paddingTop)
+        assertEquals("right edge should keep authored padding", 7, layout.paddingRight)
+        assertEquals("bottom edge should add the current window inset", 34, layout.paddingBottom)
     }
 
     private fun systemCommand(command: String): String =

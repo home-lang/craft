@@ -19,6 +19,14 @@ private final class UnitLocationManager: CLLocationManager {
 
 @MainActor
 final class NativeRenderUnitTests: XCTestCase {
+    func testPresenterRectRejectsBooleanCoordinatesAndNonFiniteNumbers() {
+        XCTAssertNil(CraftPresenter.rect(["x": true, "y": 20, "width": 30, "height": 40]))
+        XCTAssertNil(CraftPresenter.rect(["x": 10, "y": false, "width": 30, "height": 40]))
+        XCTAssertNil(CraftPresenter.rect(["x": Double.nan, "y": 20, "width": 30, "height": 40]))
+        XCTAssertEqual(CraftPresenter.rect(["x": 10, "y": 20, "width": 30, "height": 40]), CGRect(x: 10, y: 20, width: 30, height: 40))
+        XCTAssertEqual(CraftPresenter.rect(["x": 10, "y": 20, "width": true, "height": false]), CGRect(x: 10, y: 20, width: 0, height: 0))
+    }
+
     func testOneShotLocationWaitsForPermissionBeforeStartingItsFixAndTimeout() throws {
         var config = CraftConfig()
         config.enableGeolocation = true
@@ -1074,6 +1082,37 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertLessThanOrEqual(credit.frame.maxY, map.bounds.height - 160, "The floating profile must not cover map attribution")
     }
 
+    func testMapAttributionFollowsLightAndDarkTraits() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        controller.render([
+            "type": "Map", "props": ["key": "trait-map", "tileOverlay": ["urlTemplate": "https://example.org/tiles/{z}/{y}/{x}.png", "attribution": "Trait map data"]],
+            "style": ["width": 320, "height": 480],
+            "children": [["type": "MapMarker", "props": ["id": "trait-marker", "geometry": [37.7, -119.5], "pinColor": "label"]]],
+        ])
+        controller.view.layoutIfNeeded()
+        let map = try XCTUnwrap(find(MKMapView.self, key: "trait-map", below: controller.view))
+        let credit = try XCTUnwrap(map.subviews.compactMap { $0 as? UILabel }.first { $0.text == "Trait map data" && !$0.isHidden })
+        let annotation = try XCTUnwrap(map.annotations.first)
+        let marker = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+        let lightTrait = UITraitCollection(userInterfaceStyle: .light)
+        let darkTrait = UITraitCollection(userInterfaceStyle: .dark)
+        let lightText = try XCTUnwrap(credit.textColor).resolvedColor(with: lightTrait)
+        let darkText = try XCTUnwrap(credit.textColor).resolvedColor(with: darkTrait)
+        let lightBackground = try XCTUnwrap(credit.backgroundColor).resolvedColor(with: lightTrait)
+        let darkBackground = try XCTUnwrap(credit.backgroundColor).resolvedColor(with: darkTrait)
+        XCTAssertNotEqual(lightText, darkText)
+        XCTAssertNotEqual(lightBackground, darkBackground)
+        map.overrideUserInterfaceStyle = .dark
+        let darkMarker = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+        XCTAssertEqual(darkMarker.tintColor?.resolvedColor(with: darkTrait), UIColor.label.resolvedColor(with: darkTrait))
+        XCTAssertNotNil(darkMarker.image, "retained map markers must remain configured after a changed color trait")
+    }
+
     func testMapReservesRoomForFloatingControls() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
@@ -1164,6 +1203,43 @@ final class NativeRenderUnitTests: XCTestCase {
         controller.view.layoutIfNeeded()
         let svg = try XCTUnwrap(find(UIView.self, key: "boolean-svg", below: controller.view))
         XCTAssertLessThanOrEqual(svg.frame.height, 1, "Boolean SVG viewBox values were treated as numeric")
+    }
+
+    func testSvgGroupsAndTextDrawIntoTheNativeView() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        controller.render([
+            "type": "Svg",
+            "props": ["key": "svg-text", "viewBox": [0, 0, 24, 24]],
+            "style": ["width": 120, "height": 80],
+            "children": [[
+                "type": "G",
+                "props": ["fill": "#2563eb"],
+                "children": [[
+                    "type": "SvgText",
+                    "props": ["x": 12, "y": 14, "textAnchor": "middle", "fontSize": 8],
+                    "children": ["STX"],
+                ]],
+            ]],
+        ])
+        controller.view.layoutIfNeeded()
+        let svg = try XCTUnwrap(find(UIView.self, key: "svg-text", below: controller.view))
+        let image = UIGraphicsImageRenderer(size: svg.bounds.size).image { context in
+            svg.layer.render(in: context.cgContext)
+        }
+        let cgImage = try XCTUnwrap(image.cgImage)
+        var pixels = [UInt8](repeating: 0, count: cgImage.width * cgImage.height * 4)
+        try pixels.withUnsafeMutableBytes { bytes in
+            let context = try XCTUnwrap(CGContext(data: bytes.baseAddress, width: cgImage.width, height: cgImage.height,
+                bitsPerComponent: 8, bytesPerRow: cgImage.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+        }
+        let bluePixels = stride(from: 0, to: pixels.count, by: 4).filter { offset in
+            pixels[offset + 3] > 20 && pixels[offset + 2] > pixels[offset] + 20
+        }
+        XCTAssertGreaterThan(bluePixels.count, 5, "SVG group/text did not draw its inherited fill")
     }
 
     func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace() throws {
@@ -1301,6 +1377,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: nil
         )
         list.layoutIfNeeded()
@@ -1320,6 +1397,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: nil
         )
         list.layoutIfNeeded()
@@ -1354,6 +1432,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: nil
         )
         list.layoutIfNeeded()
@@ -1544,6 +1623,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: nil
         )
         list.layoutIfNeeded()
@@ -1576,6 +1656,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: nil
         )
         list.layoutIfNeeded()
@@ -1605,6 +1686,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: {
                 endReachedCount += 1
                 list.apply(
@@ -1615,6 +1697,7 @@ final class NativeRenderUnitTests: XCTestCase {
                     endReachedThreshold: 0.1,
                     renderItem: render,
                     recycleItem: { _ in },
+                    removeItem: { _ in },
                     endReached: nil
                 )
                 endReached.fulfill()
@@ -1640,6 +1723,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: { changedMiddle.fulfill() }
         )
         list.layoutIfNeeded()
@@ -1660,6 +1744,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: { chromeOnlyEndReached.fulfill() }
         )
         list.layoutIfNeeded()
@@ -1688,6 +1773,7 @@ final class NativeRenderUnitTests: XCTestCase {
                 endReachedThreshold: 0.1,
                 renderItem: render,
                 recycleItem: { _ in },
+                removeItem: { _ in },
                 endReached: nil
             )
             let settled = expectation(description: "horizontal snapshot settled")

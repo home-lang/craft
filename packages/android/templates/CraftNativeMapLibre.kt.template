@@ -57,9 +57,22 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
             rightMargin = (8 * resources.displayMetrics.density).roundToInt()
             bottomMargin = (8 * resources.displayMetrics.density).roundToInt()
         })
+        refreshThemeDefaults()
         mapView.onCreate(null)
         mapView.addOnDidFinishLoadingMapListener { if (!destroyed && initialCameraKey == null) applyPending() }
         mapView.getMapAsync(this)
+    }
+
+    fun refreshThemeDefaults() {
+        val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        val foreground = if (dark) Color.rgb(245, 245, 245) else Color.rgb(37, 51, 33)
+        val surface = if (dark) Color.argb(230, 38, 38, 38) else Color.argb(230, 255, 255, 255)
+        attribution.setTextColor(foreground)
+        attribution.setBackgroundColor(surface)
+        scale.setBackgroundColor(surface)
+        scaleLabel.setTextColor(foreground)
+        scaleLine.setBackgroundColor(foreground)
+        readyStyle?.let { updateOverlays(it) }
     }
 
     override fun onMapReady(nativeMap: MapLibreMap) {
@@ -231,8 +244,12 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
                 pointsForFit.add(point)
             } else if ((type == "mappolyline" || type == "polyline") && points.size > 1) {
                 val authoredWidth = props.opt("strokeWidth")
-                val width = if (authoredWidth == null || authoredWidth == JSONObject.NULL) 3.0 else finiteNumber(authoredWidth) ?: continue
-                if (width <= 0 || !width.toFloat().isFinite()) continue
+                val logicalWidth = if (authoredWidth == null || authoredWidth == JSONObject.NULL) 3.0 else finiteNumber(authoredWidth) ?: continue
+                // The shared contract is expressed in logical points. MapLibre's
+                // style line-width is in physical pixels, just like the Google
+                // Maps polyline width, so convert only at this host boundary.
+                val width = (logicalWidth * resources.displayMetrics.density)
+                    .takeIf { it.isFinite() && it > 0 } ?: continue
                 properties.put("kind", "line").put("color", cssColor(props.opt("strokeColor"), Color.BLUE)).put("width", width)
                 geometry.put("type", "LineString").put("coordinates", JSONArray().apply { points.forEach { put(JSONArray().put(it.longitude).put(it.latitude)) } })
                 pointsForFit.addAll(points)
@@ -244,8 +261,18 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
     }
 
     private fun cssColor(value: Any?, fallback: Int): String {
-        val color = (value as? String)?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: fallback
+        val color = (value as? String)?.let { mapColor(it, fallback) } ?: fallback
         return "rgba(${Color.red(color)},${Color.green(color)},${Color.blue(color)},${Color.alpha(color) / 255.0})"
+    }
+
+    private fun mapColor(raw: String, fallback: Int): Int {
+        val value = raw.trim().lowercase()
+        val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        return when (value) {
+            "label" -> if (dark) Color.WHITE else Color.BLACK
+            "secondarylabel", "secondary-label" -> if (dark) Color.LTGRAY else Color.DKGRAY
+            else -> runCatching { craftNativeColor(raw) }.getOrDefault(fallback)
+        }
     }
 
     private fun directionBitmap(): Bitmap {

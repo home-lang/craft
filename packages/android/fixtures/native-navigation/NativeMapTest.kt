@@ -3,8 +3,10 @@ package dev.craft.navigationtest
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
@@ -168,6 +170,18 @@ class NativeMapTest {
     }
 
     @Test
+    fun nativeMapStrokeWidthsStayInLogicalPointsAcrossDensities() = withMap { _, host, _, map, _ ->
+        awaitState("The native route did not publish its stroke width") {
+            features(map).firstOrNull { it.getStringProperty("craftOverlayId") == "route" }
+                ?.getNumberProperty("width") != null
+        }
+        val density = main { host.resources.displayMetrics.density.toDouble() }
+        val width = features(map).first { it.getStringProperty("craftOverlayId") == "route" }
+            .getNumberProperty("width").toDouble()
+        assertEquals("MapLibre must scale logical stroke points by display density", 5.0 * density, width, 0.001)
+    }
+
+    @Test
     fun nativeMapMutationsUpdateThePinAndCameraWithoutReloadingTheStyle() = withMap { _, host, _, map, _ ->
         val style = main { map.style }
         val pressed = AtomicReference<String?>()
@@ -289,6 +303,62 @@ class NativeMapTest {
             assertEquals(camera.target!!.longitude, map.cameraPosition.target!!.longitude, 0.000001)
         }
         evidence("map-resumed-after-home")
+    }
+
+    @Test
+    fun mapUtilityChromeRefreshesForNightMode() = withMap { activity, host, _, _, _ ->
+        val originalMode = activity.resources.configuration.uiMode
+        fun setNightMode(mode: Int): Int {
+            return main {
+                val configuration = Configuration(activity.resources.configuration)
+                configuration.uiMode = (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or mode
+                activity.resources.updateConfiguration(configuration, activity.resources.displayMetrics)
+                host.refreshThemeDefaults()
+                (host.getChildAt(1).background as ColorDrawable).color
+            }
+        }
+        try {
+            val lightSurface = setNightMode(Configuration.UI_MODE_NIGHT_NO)
+            val darkSurface = setNightMode(Configuration.UI_MODE_NIGHT_YES)
+            assertNotEquals("Map scale chrome must change surface for dark mode", lightSurface, darkSurface)
+        } finally {
+            setNightMode(originalMode and Configuration.UI_MODE_NIGHT_MASK)
+        }
+    }
+
+    @Test
+    fun dynamicMapOverlayColorsRefreshForNightMode() = withMap { activity, host, _, map, _ ->
+        val originalMode = activity.resources.configuration.uiMode
+        try {
+            main {
+                val light = Configuration(activity.resources.configuration)
+                light.uiMode = (light.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_NO
+                activity.resources.updateConfiguration(light, activity.resources.displayMetrics)
+                host.configure(props(), overlays("label")) {}
+                host.refreshThemeDefaults()
+            }
+            awaitState("The native map must resolve label markers in light mode") {
+                features(map).firstOrNull { it.getStringProperty("craftOverlayId") == "start" }
+                    ?.getStringProperty("color") == "rgba(0,0,0,1.0)"
+            }
+            main {
+                val dark = Configuration(activity.resources.configuration)
+                dark.uiMode = (dark.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_YES
+                activity.resources.updateConfiguration(dark, activity.resources.displayMetrics)
+                host.refreshThemeDefaults()
+            }
+            awaitState("The native map must refresh label markers in dark mode") {
+                features(map).firstOrNull { it.getStringProperty("craftOverlayId") == "start" }
+                    ?.getStringProperty("color") == "rgba(255,255,255,1.0)"
+            }
+        } finally {
+            main {
+                val restore = Configuration(activity.resources.configuration)
+                restore.uiMode = (restore.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or (originalMode and Configuration.UI_MODE_NIGHT_MASK)
+                activity.resources.updateConfiguration(restore, activity.resources.displayMetrics)
+                host.refreshThemeDefaults()
+            }
+        }
     }
 
     @Test

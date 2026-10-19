@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
 import org.json.JSONObject
 import kotlin.math.ceil
+import kotlin.math.max
 
 internal typealias CraftNativeRenderItem = (node: JSONObject, identity: String, previous: View?) -> View
 
@@ -96,6 +97,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
 
     private var renderItem: CraftNativeRenderItem? = null
     private var recycleItem: ((String) -> Unit)? = null
+    private var removeItem: ((String) -> Unit)? = null
     private var endReached: (() -> Unit)? = null
     private var threshold = 0.1
     private var endReachedSignature: String? = null
@@ -120,6 +122,48 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     var onMomentumScrollBegin: (() -> Unit)? = null
     var onMomentumScrollEnd: (() -> Unit)? = null
     var onLayoutChanged: (() -> Unit)? = null
+    var onContentSizeChanged: (() -> Unit)? = null
+    private var lastIntrinsicHeight = Int.MIN_VALUE
+
+    private val scrollListener = object : OnScrollListener() {
+        private var dragging = false
+        private var momentum = false
+
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            onScrollEvent?.invoke()
+            onLayoutChanged?.invoke()
+            evaluateEndReached()
+        }
+
+        override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+            when (newState) {
+                RecyclerView.SCROLL_STATE_DRAGGING -> if (!dragging) {
+                    dragging = true
+                    onScrollBeginDrag?.invoke()
+                }
+                RecyclerView.SCROLL_STATE_SETTLING -> {
+                    if (dragging) {
+                        dragging = false
+                        onScrollEndDrag?.invoke()
+                    }
+                    if (!momentum) {
+                        momentum = true
+                        onMomentumScrollBegin?.invoke()
+                    }
+                }
+                RecyclerView.SCROLL_STATE_IDLE -> {
+                    if (dragging) {
+                        dragging = false
+                        onScrollEndDrag?.invoke()
+                    }
+                    if (momentum) {
+                        momentum = false
+                        onMomentumScrollEnd?.invoke()
+                    }
+                }
+            }
+        }
+    }
 
     private fun holderLayoutParams() = LayoutParams(
         if (horizontal) LayoutParams.WRAP_CONTENT else LayoutParams.MATCH_PARENT,
@@ -132,7 +176,10 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     }
 
     fun setScrollEnabled(enabled: Boolean) {
+        if (scrollEnabled == enabled) return
         scrollEnabled = enabled
+        lastIntrinsicHeight = Int.MIN_VALUE
+        requestLayout()
     }
 
     val isScrollEnabledForTest: Boolean
@@ -151,6 +198,18 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     val isScrollTargetPendingForTest: Boolean
         get() = pendingScrollTarget != null
 
+    /** Stable identities currently mounted, in their adapter order. */
+    val visibleItemIdentities: List<String>
+        get() = (0 until childCount)
+            .mapNotNull { index ->
+                val child = getChildAt(index)
+                val position = getChildAdapterPosition(child)
+                if (position == RecyclerView.NO_POSITION) return@mapNotNull null
+                (getChildViewHolder(child) as? Holder)?.identity?.let { position to it }
+            }
+            .sortedBy { it.first }
+            .map { it.second }
+
     override fun onInterceptTouchEvent(event: android.view.MotionEvent): Boolean {
         if (!scrollEnabled) return false
         return super.onInterceptTouchEvent(event)
@@ -159,6 +218,29 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
         if (!scrollEnabled) return false
         return super.onTouchEvent(event)
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val heightMode = MeasureSpec.getMode(heightMeasureSpec)
+        if (!scrollEnabled && !horizontal && heightMode != MeasureSpec.EXACTLY) {
+            // A non-scrolling FlatList is content-sized on iOS. Let the
+            // RecyclerView measure its full adapter range instead of keeping
+            // the viewport height, which otherwise clips the list when it is
+            // nested in an outer native ScrollView.
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            val contentHeight = max(measuredHeight, computeVerticalScrollRange())
+            val resolvedHeight = resolveSize(contentHeight, heightMeasureSpec)
+            val contentChanged = resolvedHeight != lastIntrinsicHeight
+            lastIntrinsicHeight = resolvedHeight
+            setMeasuredDimension(
+                resolveSize(measuredWidth, widthMeasureSpec),
+                resolvedHeight,
+            )
+            if (contentChanged) post { onContentSizeChanged?.invoke() }
+            return
+        }
+        lastIntrinsicHeight = Int.MIN_VALUE
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 
     fun setBounceOptions(enabled: Boolean, vertical: Boolean, horizontal: Boolean) {
@@ -188,45 +270,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     init {
         adapter = listAdapter
         itemAnimator = null
-        addOnScrollListener(object : OnScrollListener() {
-            private var dragging = false
-            private var momentum = false
-
-            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                onScrollEvent?.invoke()
-                onLayoutChanged?.invoke()
-                evaluateEndReached()
-            }
-
-            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                when (newState) {
-                    RecyclerView.SCROLL_STATE_DRAGGING -> if (!dragging) {
-                        dragging = true
-                        onScrollBeginDrag?.invoke()
-                    }
-                    RecyclerView.SCROLL_STATE_SETTLING -> {
-                        if (dragging) {
-                            dragging = false
-                            onScrollEndDrag?.invoke()
-                        }
-                        if (!momentum) {
-                            momentum = true
-                            onMomentumScrollBegin?.invoke()
-                        }
-                    }
-                    RecyclerView.SCROLL_STATE_IDLE -> {
-                        if (dragging) {
-                            dragging = false
-                            onScrollEndDrag?.invoke()
-                        }
-                        if (momentum) {
-                            momentum = false
-                            onMomentumScrollEnd?.invoke()
-                        }
-                    }
-                }
-            }
-        })
+        addOnScrollListener(scrollListener)
     }
 
     fun setKeyboardDismissMode(mode: String, dismissKeyboard: () -> Unit) {
@@ -291,10 +335,12 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         endReachedThreshold: Double,
         renderItem: CraftNativeRenderItem,
         recycleItem: (String) -> Unit,
+        removeItem: (String) -> Unit,
         endReached: (() -> Unit)?,
     ) {
         this.renderItem = renderItem
         this.recycleItem = recycleItem
+        this.removeItem = removeItem
         this.endReached = endReached
         threshold = endReachedThreshold.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.1
 
@@ -321,7 +367,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
 
         val oldIds = listAdapter.currentList.mapTo(mutableSetOf()) { it.identity }
         val nextIds = next.mapTo(mutableSetOf()) { it.identity }
-        (oldIds - nextIds).forEach(recycleItem)
+        (oldIds - nextIds).forEach(removeItem)
         val dataItems = next.filterNot { it.chrome }
         val contentSignature = dataItems.joinToString("") {
             "${it.identity.length}:${it.identity}${it.signature.length}:${it.signature}"
@@ -386,6 +432,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         }
         renderItem = null
         recycleItem = null
+        removeItem = null
         endReached = null
         setPagingEnabled(false)
         scrollTargetKey = null
@@ -397,6 +444,15 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         onMomentumScrollBegin = null
         onMomentumScrollEnd = null
         onLayoutChanged = null
+        onContentSizeChanged = null
+        lastIntrinsicHeight = Int.MIN_VALUE
+    }
+
+    /** Releases callbacks owned by a permanently removed native list node. */
+    fun resetForTeardown() {
+        discardAll()
+        removeOnScrollListener(scrollListener)
+        setOnTouchListener(null)
     }
 
     fun refreshThemeDefaults() {

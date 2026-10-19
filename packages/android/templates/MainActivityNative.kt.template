@@ -709,7 +709,7 @@ internal class CraftNativeCelebration(private val view: View) {
 }
 
 /** A deterministic flex-shaped container shared by normal views and scroll content. */
-private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
+internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var celebration: CraftNativeCelebration? = null
     fun configureCelebration(raw: JSONObject?, radius: Float) {
         if (raw != null && celebration == null) celebration = CraftNativeCelebration(this)
@@ -2015,6 +2015,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
     private var stickyIndices = emptyList<Int>()
     private var scrollTargetKey: String? = null
     private var pendingScrollTarget: Pair<String, Boolean>? = null
+    private var scrollListenerGeneration = 0
 
     init {
         vertical.isNestedScrollingEnabled = true
@@ -2362,6 +2363,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         keyboardDismissMode: String,
         dismissKeyboard: (() -> Unit)?,
     ) {
+        val generation = ++scrollListenerGeneration
         fun attach(scroller: View) {
             var dismissed = false
             var moved = false
@@ -2370,7 +2372,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
             var lastY = 0
 
             fun pollMomentum() {
-                if (!momentumActive) return
+                if (generation != scrollListenerGeneration || !momentumActive) return
                 val x = scroller.scrollX
                 val y = scroller.scrollY
                 if (x == lastX && y == lastY) {
@@ -2425,6 +2427,14 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         }
         attach(vertical)
         attach(horizontal)
+    }
+
+    fun clearScrollListeners() {
+        scrollListenerGeneration += 1
+        vertical.setOnScrollChangeListener(null)
+        vertical.setOnTouchListener(null)
+        horizontal.setOnScrollChangeListener(null)
+        horizontal.setOnTouchListener(null)
     }
 }
 
@@ -2691,6 +2701,11 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
         val value = SimpleDateFormat(valueFormat, Locale.US).apply { isLenient = false }.format(current.time)
         val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(current.time)
         return JSONObject().put("value", value).put("iso", iso).put("timestamp", current.timeInMillis)
+    }
+
+    fun resetForTeardown() {
+        suppressChanges = true
+        onValueChanged = null
     }
 
     private fun changed() {
@@ -2983,6 +2998,12 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     fun stop() {
         // Released with its screen: nothing more is told to it.
         emit = null
+        // VideoView otherwise keeps these listener objects until its media
+        // player is replaced. Clear them before stopping so an asynchronous
+        // prepare/completion/error callback cannot outlive the native node.
+        setOnPreparedListener(null)
+        setOnCompletionListener(null)
+        setOnErrorListener(null)
         progressHandler.removeCallbacks(progressTick)
         stopPlayback()
         setPlaying(false)
@@ -2995,6 +3016,8 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
             pictureInPicture = false
             onPictureInPictureChanged?.invoke()
         }
+        onPictureInPictureChanged = null
+        handlers = JSONObject()
     }
 
     private fun applyScalingMode() {
@@ -3549,6 +3572,7 @@ class MainActivity : AppCompatActivity() {
         val drafts = mutableMapOf<String, String>()
         val inputIdentities = mutableMapOf<EditText, String>()
         val suppressedTextChanges = mutableSetOf<EditText>()
+        val inputWatchers = mutableMapOf<EditText, TextWatcher>()
         /**
          * The texts a field sent the screen that its `value` has not come
          * back as yet, oldest first. Typing faster than the round trip makes
@@ -3709,8 +3733,6 @@ class MainActivity : AppCompatActivity() {
     private val imageJobs = mutableMapOf<ImageView, Future<*>>()
     private val imageErrors = mutableMapOf<ImageView, String>()
     private val inputHintDefaults = mutableMapOf<EditText, ColorStateList>()
-    /** Fields that already carry their text watcher. */
-    private val watchedInputs: MutableSet<EditText> = java.util.Collections.newSetFromMap(WeakHashMap())
     private val inputHighlightDefaults = mutableMapOf<EditText, Int>()
     private val inputPaddingDefaults = mutableMapOf<EditText, IntArray>()
     private val defaultBackgrounds = mutableMapOf<View, Drawable?>()
@@ -4367,6 +4389,12 @@ class MainActivity : AppCompatActivity() {
                 load.addListener({
                     try {
                         load.get()
+                        // The STX runtime may install its browser-shaped
+                        // craft.dialog after the host prelude. Re-assert the
+                        // native capability once the bundle has finished.
+                        isolate.evaluateJavaScriptAsync(
+                            "if (typeof globalThis.__craftInstallNativeDialog === 'function') globalThis.__craftInstallNativeDialog();"
+                        ).get()
                         if (activeScreen.headless) {
                             CraftNativeBackground.foreground = { event, id, done ->
                                 val app = appScreen
@@ -4570,6 +4598,7 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.requestApplyInsets(root)
         refreshInputDefaultsForTraitChange()
         chrome?.refreshColors()
+        mapViews().forEach { it.refreshThemeDefaults() }
         // Every screen follows light and dark, the ones in other tabs and
         // under the one on display too, and the app script hears it.
         val appearance = appearance()
@@ -4589,6 +4618,10 @@ class MainActivity : AppCompatActivity() {
                 else -> null
             }
         }.forEach { it.refreshThemeDefaults() }
+        // Appearance/configuration changes can arrive while this screen is
+        // retained in another tab. Keep its SafeAreaView measured with the
+        // current window insets before the next interactive transition.
+        updateSafeAreaInsets(screen)
         updateSafeAreaViews()
     }
 
@@ -5163,21 +5196,27 @@ class MainActivity : AppCompatActivity() {
                 if (text.toString() == keptText && keptStart >= 0 && (selectionStart != keptStart || selectionEnd != keptEnd)) {
                     setSelection(keptStart.coerceAtMost(keptText.length), keptEnd.coerceAtMost(keptText.length))
                 }
-                // One watcher per field, however often it is reused.
-                if (watchedInputs.add(this)) addTextChangedListener(object : TextWatcher {
-                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                        val updated = s?.toString().orEmpty()
-                        (screen.inputIdentities[this@apply] ?: identity).let { screen.drafts[it] = updated }
-                        if (screen.suppressedTextChanges.remove(this@apply)) return
-                        val current = screen.handlers[this@apply] ?: return
-                        screen.inputEchoes.getOrPut(this@apply) { CraftNativeInputEcho() }.record(updated)
-                        send(screen, "EVENT", JSONObject()
-                            .put("handlerName", current)
-                            .put("nativeEvent", JSONObject().put("text", updated)))
+                // One watcher per field, however often it is reused. Keep the
+                // instance so releaseViewState can detach the closure when a
+                // row or screen goes away.
+                if (screen.inputWatchers[this] == null) {
+                    val watcher = object : TextWatcher {
+                        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                            val updated = s?.toString().orEmpty()
+                            (screen.inputIdentities[this@apply] ?: identity).let { screen.drafts[it] = updated }
+                            if (screen.suppressedTextChanges.remove(this@apply)) return
+                            val current = screen.handlers[this@apply] ?: return
+                            screen.inputEchoes.getOrPut(this@apply) { CraftNativeInputEcho() }.record(updated)
+                            send(screen, "EVENT", JSONObject()
+                                .put("handlerName", current)
+                                .put("nativeEvent", JSONObject().put("text", updated)))
+                        }
+                        override fun afterTextChanged(s: Editable?) {}
                     }
-                    override fun afterTextChanged(s: Editable?) {}
-                })
+                    screen.inputWatchers[this] = watcher
+                    addTextChangedListener(watcher)
+                }
             }
             "Picker" -> (previous as? Spinner ?: Spinner(this)).apply {
                 val itemOptions = props.optJSONArray("items")?.let { items ->
@@ -5916,6 +5955,9 @@ class MainActivity : AppCompatActivity() {
         list.onLayoutChanged = {
             if (screen.active) emitLayoutEvents(screen)
         }
+        list.onContentSizeChanged = {
+            if (screen.active) CraftNativeFlexLayout.invalidateMeasurementAncestors(list.parent)
+        }
         val nodes = (0 until children.length()).mapNotNull { children.optJSONObject(it) }
         nodes.forEach { registerFlatListOwnership(screen, it, owner) }
         list.onScrollEvent = craftNativeEventName(events, "onScroll").takeIf { it.isNotBlank() }?.let { handler ->
@@ -5954,6 +5996,10 @@ class MainActivity : AppCompatActivity() {
             recycleItem = { itemIdentity ->
                 val controls = screen.flatListRows[list]?.remove(itemIdentity).orEmpty()
                 releaseViewState(screen, controls.values.toList(), preservingInputDrafts = true)
+            },
+            removeItem = { itemIdentity ->
+                val controls = screen.flatListRows[list]?.remove(itemIdentity).orEmpty()
+                releaseViewState(screen, controls.values.toList(), preservingInputDrafts = false)
             },
             endReached = craftNativeEventName(events, "onEndReached").takeIf { it.isNotBlank() }?.let { handler ->
                 { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
@@ -6593,8 +6639,16 @@ class MainActivity : AppCompatActivity() {
             else -> null
         }
         view.tooltipText = craftNativeOptionalString(props.opt("accessibilityHint"))
+        val hasLinkTarget = listOf("href", "to").any { key ->
+            !craftNativeOptionalString(props.opt(key)).isNullOrBlank()
+        }
+        val linkedControl = type in setOf("Link", "TouchableOpacity", "TouchableHighlight", "Pressable") && hasLinkTarget
         val role = craftNativeOptionalString(props.opt("accessibilityRole")) ?: run {
-            if (type == "Icon") "image" else type.lowercase()
+            when {
+                linkedControl -> "link"
+                type == "Icon" -> "image"
+                else -> type.lowercase()
+            }
         }
         val state = props.optJSONObject("accessibilityState")
         val disabled = craftNativeBoolean(props.opt("disabled")) || craftNativeBoolean(state?.opt("disabled"))
@@ -7172,7 +7226,7 @@ class MainActivity : AppCompatActivity() {
         preservingInputDrafts: Boolean,
     ) {
         val owner = screen.flatListOwnerByView.remove(list)
-        list.discardAll()
+        list.resetForTeardown()
         screen.flatListRows.remove(list)?.values?.forEach {
             releaseViewState(screen, it.values, preservingInputDrafts)
         }
@@ -7196,13 +7250,35 @@ class MainActivity : AppCompatActivity() {
             releaseFlatList(screen, it, preservingInputDrafts)
         }
         released.filterIsInstance<CraftNativeModalView>().forEach { it.resetForTeardown() }
+        released.filterIsInstance<CraftNativeDatePickerView>().forEach { it.resetForTeardown() }
+        released.filterIsInstance<CraftNativeRefreshableFlatList>().forEach { it.resetForTeardown() }
         released.filterIsInstance<CraftNativeVideoView>().forEach { it.stop() }
         released.filterIsInstance<CraftNativeMapView>().forEach { it.destroy() }
         released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }
         released.filterIsInstance<CraftNativeKeyboardAvoidingView>().forEach { it.content.onLayoutChanged = null }
-        released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }
+        released.filterIsInstance<CraftNativeScrollView>().forEach {
+            it.setRefreshHandler(null, false)
+            it.clearScrollListeners()
+        }
         releaseImages(released)
+        // Clearing the handler maps is not enough: Android Views retain the
+        // listener objects themselves. Detach every interaction callback from
+        // released/recycled rows so a later identity cannot inherit a closure
+        // that still captures the previous row's screen state.
+        released.forEach {
+            it.setOnClickListener(null)
+            it.setOnTouchListener(null)
+            it.setOnLongClickListener(null)
+            it.setOnFocusChangeListener(null)
+            it.isClickable = false
+            it.isLongClickable = false
+        }
+        released.filterIsInstance<android.widget.CompoundButton>().forEach { it.setOnCheckedChangeListener(null) }
+        released.filterIsInstance<SeekBar>().forEach { it.setOnSeekBarChangeListener(null) }
+        released.filterIsInstance<Spinner>().forEach { it.onItemSelectedListener = null }
+        released.filterIsInstance<EditText>().forEach { it.setOnEditorActionListener(null) }
         released.filterIsInstance<EditText>().forEach {
+            screen.inputWatchers.remove(it)?.let(it::removeTextChangedListener)
             inputHintDefaults.remove(it)
             inputHighlightDefaults.remove(it)
             inputPaddingDefaults.remove(it)
@@ -7270,6 +7346,8 @@ class MainActivity : AppCompatActivity() {
         screen.pendingCapabilities.forEach(capabilities::cancel)
         screen.pendingCapabilities.clear()
         releaseViewState(screen, retainedViews(screen).toList())
+        screen.inputWatchers.forEach { (input, watcher) -> input.removeTextChangedListener(watcher) }
+        screen.inputWatchers.clear()
         screen.controls.clear()
         screen.nodeViews.clear()
         screen.nodePaths.clear()
