@@ -3103,6 +3103,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('releaseViewState(screen, controls.values.toList(), preservingInputDrafts = true)')
   })
 
+  it('detaches Android listeners before recycled rows can change identity', () => {
+    expect(android).toContain('released.forEach {\n            it.setOnClickListener(null)')
+    expect(android).toContain('it.setOnTouchListener(null)')
+    expect(android).toContain('it.setOnLongClickListener(null)')
+    expect(android).toContain('it.setOnFocusChangeListener(null)')
+    expect(android).toContain('released.filterIsInstance<EditText>().forEach { it.setOnEditorActionListener(null) }')
+  })
+
   it('prefers authored keys over compiler ids when reconciling native rows', () => {
     expect(ios).toContain('let direct = [node["key"], props["key"]]')
     expect(ios).toContain('[node["id"], props["testID"]]')

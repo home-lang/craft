@@ -7202,6 +7202,19 @@ class MainActivity : AppCompatActivity() {
         released.filterIsInstance<CraftNativeKeyboardAvoidingView>().forEach { it.content.onLayoutChanged = null }
         released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }
         releaseImages(released)
+        // Clearing the handler maps is not enough: Android Views retain the
+        // listener objects themselves. Detach every interaction callback from
+        // released/recycled rows so a later identity cannot inherit a closure
+        // that still captures the previous row's screen state.
+        released.forEach {
+            it.setOnClickListener(null)
+            it.setOnTouchListener(null)
+            it.setOnLongClickListener(null)
+            it.setOnFocusChangeListener(null)
+            it.isClickable = false
+            it.isLongClickable = false
+        }
+        released.filterIsInstance<EditText>().forEach { it.setOnEditorActionListener(null) }
         released.filterIsInstance<EditText>().forEach {
             inputHintDefaults.remove(it)
             inputHighlightDefaults.remove(it)

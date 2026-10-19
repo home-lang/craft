@@ -714,6 +714,11 @@ creates a control of the new type instead of reusing an incompatible view. This
 keeps a `Button` changed to a `Link` (or another component class) from retaining
 the old control's traits, listeners, or accessibility behavior.
 
+When a virtualized Android row leaves the viewport or is removed, its native
+interaction listeners are detached before the view can be reused for another
+identity. Handler cleanup therefore cannot leak the previous row's closure or
+event target into a recycled row.
+
 ## Events, accessibility, and navigation
 
 `defaultValue` initializes an uncontrolled `TextInput` once; controlled
