@@ -723,8 +723,10 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(panel.isEnabled, "clearing accessibilityState.disabled should restore a generic pressable")
         panel.tap()
         XCTAssertTrue(app.staticTexts["panel pressed"].waitForExistence(timeout: 5))
-        let pressable = app.otherElements["native-pressable"]
+        let pressable = app.buttons["native-pressable"]
         reveal(pressable, in: rootScroll)
+        XCTAssertTrue(app.links["native-linked-pressable"].exists, "a destination-bearing Pressable must expose the link role")
+        XCTAssertTrue(app.buttons["native-raw-pressable"].exists, "an unlinked Pressable must expose the button role")
         // Earlier reveal drags may start on the pressable and legitimately
         // deliver a cancelled press-in/out pair. Assert this tap's delta.
         let lifecycle = app.staticTexts["pressable-lifecycle"]
@@ -736,7 +738,7 @@ final class NativeNavigationUITests: XCTestCase {
         pressable.tap()
         XCTAssertTrue(app.staticTexts["pressable pressed"].waitForExistence(timeout: 5))
         XCTAssertEqual(lifecycle.label, "Press lifecycle: \(pressesIn + 1)/\(pressesOut + 1)")
-        let disabledPressable = app.otherElements["disabled-pressable"]
+        let disabledPressable = app.buttons["disabled-pressable"]
         XCTAssertTrue(disabledPressable.waitForExistence(timeout: 5))
         XCTAssertFalse(disabledPressable.isEnabled)
         let longPressPanel = app.otherElements["long-press-panel"]
