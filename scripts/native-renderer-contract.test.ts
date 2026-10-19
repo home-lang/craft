@@ -171,6 +171,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"G" -> drawNodes')
     expect(android).toContain('"SvgText" -> drawText')
     expect(iosNativeUnitTests).toContain('func testSvgGroupsAndTextDrawIntoTheNativeView()')
+    expect(androidNavigationTest).toContain('val svgBitmap = Bitmap.createBitmap(svg.width, svg.height, Bitmap.Config.ARGB_8888)')
+    expect(androidNavigationTest).toContain('SVG text did not draw its authored dark fill')
   })
 
   it('types ordinary native text weights the hosts accept', () => {

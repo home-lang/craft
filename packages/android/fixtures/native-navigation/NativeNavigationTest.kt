@@ -2,6 +2,8 @@ package dev.craft.navigationtest
 
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -1687,6 +1689,24 @@ class NativeNavigationTest {
             assertTrue("KeyboardAvoidingView child did not reconcile", awaitView(activity, "native-keyboard-avoiding-input") is EditText)
             assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)
             assertEquals("SVG accessibility metadata did not survive native mounting", "Native vector", svg.contentDescription?.toString())
+            assertTrue("SVG fixture did not receive a laid-out native surface", svg.width > 0 && svg.height > 0)
+            val svgBitmap = Bitmap.createBitmap(svg.width, svg.height, Bitmap.Config.ARGB_8888)
+            try {
+                instrumentation.runOnMainSync { svg.draw(Canvas(svgBitmap)) }
+                var bluePixels = 0
+                var darkPixels = 0
+                for (x in 0 until svgBitmap.width) {
+                    for (y in 0 until svgBitmap.height) {
+                        val pixel = svgBitmap.getPixel(x, y)
+                        if (Color.alpha(pixel) > 20 && Color.blue(pixel) > Color.red(pixel) + 20) bluePixels++
+                        if (Color.alpha(pixel) > 20 && Color.red(pixel) < 80 && Color.green(pixel) < 100 && Color.blue(pixel) < 160) darkPixels++
+                    }
+                }
+                assertTrue("SVG group did not draw its inherited blue stroke", bluePixels > 5)
+                assertTrue("SVG text did not draw its authored dark fill", darkPixels > 5)
+            } finally {
+                svgBitmap.recycle()
+            }
             assertEquals("CraftNativeIconView", icon.javaClass.simpleName)
             assertEquals("Native icon", icon.contentDescription?.toString())
             assertTrue("Icon fixture should expose a visible glyph", (icon as TextView).text.isNotBlank())
