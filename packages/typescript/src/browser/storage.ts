@@ -2,10 +2,21 @@ export interface BrowserStorageOptions {
   storage: Storage
   namespace: string
   tokenKey: string
+  /**
+   * The secure-storage name screens read the sign-in token under
+   * (`craft.secureStorage.getSync('auth.token')`), stored at `tokenKey`.
+   * Default `auth.token`.
+   */
+  sessionTokenKey?: string
   /** Existing website identity keys to forget whenever its token changes. */
   accountKeys?: string[]
   hash: (value: string) => Promise<string>
   changed: (name: string) => void
+  /**
+   * The sign-in token changed (a sign-in, a sign-out, another account), here
+   * or in another tab: called once the new account's storage is in place.
+   */
+  sessionChanged?: (token: string | null, previous: string | null) => void
   /** A host lock primitive; browsers use their native Web Locks implementation. */
   lock?: (<T>(name: string, operation: () => T | Promise<T>) => Promise<T>) | null
 }
@@ -25,6 +36,7 @@ export interface BrowserStorage {
 /** Browser persistence has browser security semantics; it does not claim to be a Keychain. */
 export async function createBrowserStorage(options: BrowserStorageOptions): Promise<BrowserStorage> {
   const { storage, namespace, tokenKey, changed } = options
+  const sessionTokenKey = options.sessionTokenKey || 'auth.token'
   const prefix = `${namespace}:`
   const lock = options.lock === null ? undefined : options.lock ?? (typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function'
     ? <T>(name: string, operation: () => T | Promise<T>) => navigator.locks.request(name, operation)
@@ -35,6 +47,7 @@ export async function createBrowserStorage(options: BrowserStorageOptions): Prom
   const scopeChanged = (): Error => Object.assign(new Error('The storage account changed'), { code: 'STORAGE_SCOPE_CHANGED' })
   const pending = new Map<string, { json: string | null }>()
   let token = storage.getItem(tokenKey)
+  let reported = token
   let scope = token ? await options.hash(token) : 'guest'
   let transitioning = false
   let revision = 0
@@ -96,17 +109,22 @@ export async function createBrowserStorage(options: BrowserStorageOptions): Prom
       scope = nextScope
       transitioning = false
       changed('session')
+      // Against the token last reported, so a superseded transition (two
+      // quick writes) still reads as one change from what listeners saw.
+      const before = reported
+      reported = next
+      if (before !== next) options.sessionChanged?.(next, before)
     })()
     await transition
   }
-  const secureKey = (name: string): string => name === 'auth.token' ? tokenKey : key(`credential:${name}`)
+  const secureKey = (name: string): string => name === sessionTokenKey ? tokenKey : key(`credential:${name}`)
   return {
     atomicStorage: lock !== undefined,
     scope: () => scope,
     accountChanged,
     craft: {
       storage: { getSync: read, setSync },
-      secureStorage: { getSync: name => name === 'auth.token' || available() ? storage.getItem(secureKey(name)) : null },
+      secureStorage: { getSync: name => name === sessionTokenKey || available() ? storage.getItem(secureKey(name)) : null },
       snapshots: {
         get: (name) => {
           if (!available() && name !== 'app') return null
@@ -153,7 +171,7 @@ export async function createBrowserStorage(options: BrowserStorageOptions): Prom
         if (!wasAvailable) throw scopeChanged()
         const result = await exclusive(() => {
           requireScope(captured)
-          const address = name === 'auth.token' ? tokenKey : `${prefix}account:${captured.scope}:credential:${name}`
+          const address = name === sessionTokenKey ? tokenKey : `${prefix}account:${captured.scope}:credential:${name}`
           if (method === 'get') return storage.getItem(address)
           if (method === 'set') { storage.setItem(address, String(args[1])); return true }
           if (method === 'remove') { storage.removeItem(address); return true }
@@ -166,7 +184,7 @@ export async function createBrowserStorage(options: BrowserStorageOptions): Prom
         })
         // Account cleanup takes the same lock. Start it only after releasing
         // this operation's lock, while stale queued calls already fail scope.
-        if (method === 'clear' || (name === 'auth.token' && (method === 'set' || method === 'remove')))
+        if (method === 'clear' || (name === sessionTokenKey && (method === 'set' || method === 'remove')))
           await accountChanged()
         return result
       }

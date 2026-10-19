@@ -838,6 +838,83 @@ export const secureStorage = {
 }
 
 // ============================================================================
+// Session API
+// ============================================================================
+
+/** `craft.session.onChange`'s listener: the token now, and the one before (null when signed out). */
+export type SessionListener = (token: string | null, previous: string | null) => void
+
+/**
+ * One change of the signed-in account, as the hosts report it: the
+ * `SESSION_CHANGED` message a native screen hears, and the detail of the
+ * page's `craftsession` event. `key` is the secure-storage name of the
+ * token (`sessionTokenKey` in the Craft config, `auth.token` by default).
+ */
+export interface SessionChange {
+  key: string
+  token: string | null
+  previous: string | null
+}
+
+/** The page event a host dispatches when the signed-in account changes. */
+export const SESSION_EVENT = 'craftsession'
+
+/** The bridge message a native screen's runtime hears when the signed-in account changes. */
+export const SESSION_MESSAGE = 'SESSION_CHANGED'
+
+/** The default secure-storage name of the sign-in token. */
+export const DEFAULT_SESSION_TOKEN_KEY = 'auth.token'
+
+const sessionToken = (value: unknown): string | null => typeof value === 'string' && value !== '' ? value : null
+
+/**
+ * The signed-in account, as the app's sign-in token in secure storage
+ * (`sessionTokenKey`, default `auth.token`). Every host reports a change of
+ * it, whoever made it: a native screen's `secureStorage.set`, the web page's
+ * own sign-in (a `shareStorage` key), a sign-out, or another browser tab.
+ * Use it to start a screen afresh for another account instead of comparing
+ * snapshots on every change.
+ *
+ * @example
+ * ```typescript
+ * import { session } from 'craft-native/mobile'
+ *
+ * let account = session.token()
+ * const stop = session.onChange((token, previous) => {
+ *   if (!token) return showSignIn()
+ *   if (previous && token !== previous) resetScreen()
+ *   account = token
+ * })
+ * ```
+ */
+export const session = {
+  /** The sign-in token now, or null when signed out or the host keeps none. */
+  token(): string | null {
+    const host = getCraftRoot()?.session
+    if (typeof host?.token !== 'function') return null
+    try { return sessionToken(host.token()) }
+    catch { return null }
+  },
+
+  /**
+   * Hear each change of the sign-in token, with the new token and the one
+   * before it. Fires once per change, after storage holds the new value, on
+   * every screen and the page (including the one that wrote it). Returns the
+   * unsubscribe function.
+   */
+  onChange(callback: SessionListener): () => void {
+    if (typeof callback !== 'function') throw new TypeError('session.onChange needs a function')
+    const host = getCraftRoot()?.session
+    if (typeof host?.onChange === 'function') {
+      const stop = host.onChange((token: unknown, previous: unknown) => callback(sessionToken(token), sessionToken(previous)))
+      return typeof stop === 'function' ? stop : () => {}
+    }
+    // A host that only dispatches the page event.
+    return onCraftEvent(SESSION_EVENT, detail => callback(sessionToken(detail.token), sessionToken(detail.previous)))
+  },
+}
+
+// ============================================================================
 // Location API
 // ============================================================================
 
@@ -2993,11 +3070,28 @@ export const refresh = {
 }
 
 /**
- * Background time on iOS: a silent push (`content-available`) and the
- * scheduled refresh (`backgroundRefresh.enabled` in the Craft config). Each
- * waits for `complete(ok)` from the page, or 25 seconds.
+ * Background time: a silent push (`content-available` on iOS, an FCM data
+ * message on Android) and the scheduled refresh (`backgroundRefresh.enabled`
+ * in the Craft config). Each event's detail carries an `id`; answer that one
+ * with `complete(ok, id)` once its work is done. iOS ends a task the page has
+ * not answered after 25 seconds.
+ *
+ * @example
+ * ```typescript
+ * background.onSilentPush(async ({ id, payload }) => {
+ *   const ok = await sync(payload).then(() => true, () => false)
+ *   await background.complete(ok, id)
+ * })
+ * ```
  */
 export const background = {
+  /**
+   * Finish background work: `ok` is whether it succeeded (iOS reports it to
+   * the system as the task's result). Pass the event's `id` to finish that
+   * task alone; without one, every pending task finishes, which also ends a
+   * refresh that is still working when a push's handler settles. Resolves
+   * whether the host took the answer (false off a Craft shell).
+   */
   complete(ok = true, id?: string): Promise<boolean> {
     return callNative('background', 'complete', [ok, id], false)
   },
@@ -3709,6 +3803,7 @@ const mobile: {
   chrome: typeof chrome
   refresh: typeof refresh
   background: typeof background
+  session: typeof session
   appearance: typeof appearance
 } = {
   crypto: crypto,
@@ -3749,6 +3844,7 @@ const mobile: {
   chrome: chrome,
   refresh: refresh,
   background: background,
+  session: session,
   appearance: appearance,
 }
 

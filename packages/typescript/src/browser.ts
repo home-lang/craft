@@ -4,7 +4,14 @@ import { showBrowserDialog, type BrowserDialogOptions } from './browser/dialogs'
 
 export interface BrowserPlatformOptions {
   namespace?: string
+  /** The localStorage key the website keeps its sign-in token under. Default `craft.auth.token`. */
   tokenKey?: string
+  /**
+   * The secure-storage name screens read that token by
+   * (`craft.secureStorage.getSync('auth.token')`), and the key
+   * `craft.session` follows. Default `auth.token`.
+   */
+  sessionTokenKey?: string
   accountKeys?: string[]
   /** App metadata shared with native hosts; no device capabilities are implied. */
   appURL?: string
@@ -45,10 +52,21 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
   const protocols = new Set(['https:', 'http:', 'mailto:', 'tel:', 'webcal:', ...(options.urlSchemes ?? []).filter(name => /^[a-z][a-z\d+.-]*$/i.test(name) && !/^(?:javascript|data|vbscript|file)$/i.test(name)).map(name => name + ':')])
   const listeners = new Set<(type: string, payload: unknown) => void>()
   const emit = (type: string, payload: unknown): void => { for (const listener of listeners) listener(type, payload) }
+  const sessionTokenKey = options.sessionTokenKey || 'auth.token'
+  const sessionListeners = new Set<(token: string | null, previous: string | null) => void>()
   const persistence = await createBrowserStorage({
-    storage: localStorage, namespace, tokenKey: options.tokenKey ?? 'craft.auth.token', accountKeys: options.accountKeys,
+    storage: localStorage, namespace, tokenKey: options.tokenKey ?? 'craft.auth.token', sessionTokenKey, accountKeys: options.accountKeys,
     hash: async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))), byte => byte.toString(16).padStart(2, '0')).join(''),
     changed: name => emit('SNAPSHOT_CHANGED', { name }),
+    // `SESSION_CHANGED { key, token, previous }`, as the iOS and Android
+    // hosts send it, then `craft.session.onChange` listeners.
+    sessionChanged: (token, previous) => {
+      emit('SESSION_CHANGED', { key: sessionTokenKey, token, previous })
+      for (const listener of [...sessionListeners]) {
+        try { listener(token, previous) }
+        catch (error) { console.error('craft.session.onChange listener failed', error) }
+      }
+    },
   })
   await persistence.craft.snapshots.set('app', { apiBase: `${location.origin}/api`, locale: options.locale ?? (navigator.language.startsWith('de') ? 'de' : 'en') })
   const files = new Map<string, File>()
@@ -140,7 +158,18 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
   if (typeof Audio === 'function') capabilityNames.push('audio')
 
   const platform: BrowserPlatform = {
-    craft: { ...persistence.craft },
+    craft: {
+      ...persistence.craft,
+      session: {
+        key: sessionTokenKey,
+        token: (): string | null => persistence.craft.secureStorage.getSync(sessionTokenKey),
+        onChange(callback: (token: string | null, previous: string | null) => void): () => void {
+          if (typeof callback !== 'function') throw new TypeError('craft.session.onChange needs a function')
+          sessionListeners.add(callback)
+          return () => { sessionListeners.delete(callback) }
+        },
+      },
+    },
     capabilities: capabilityNames,
     navigate,
     emit(listener) { listeners.add(listener); return () => listeners.delete(listener) },
@@ -167,9 +196,9 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
       signal = AbortSignal.any([signal, lifetime.signal, account.signal])
       const first = object(args[0])
       if (module === 'Storage' || module === 'SecureStorage') {
-        const before = persistence.craft.secureStorage.getSync('auth.token')
+        const before = persistence.craft.secureStorage.getSync(sessionTokenKey)
         const answer = await persistence.call(module, method, args)
-        if (before !== persistence.craft.secureStorage.getSync('auth.token')) await resetAccount()
+        if (before !== persistence.craft.secureStorage.getSync(sessionTokenKey)) await resetAccount()
         return answer
       }
       if (module === 'Crypto' && method === 'randomUUID') return secureUUID()
@@ -288,6 +317,7 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
       sounds.clear()
       void wakeLock?.release()
       listeners.clear()
+      sessionListeners.clear()
     },
   }
   return platform

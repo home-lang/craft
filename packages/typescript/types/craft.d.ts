@@ -1067,6 +1067,7 @@ export interface CraftBridge {
 
   /** Answer a `craftSilentPush` or `craftBackgroundRefresh`, by id or all pending. */
   background?: {
+    /** `id` is the event detail's: that task alone. Without it, every pending task. */
     complete(ok?: boolean, id?: string): Promise<boolean>;
     onRefresh(callback: (detail: CraftBackgroundWorkDetail) => void): () => void;
     onSilentPush(callback: (detail: CraftBackgroundWorkDetail) => void): () => void;
@@ -1075,6 +1076,31 @@ export interface CraftBridge {
   /** Text size, Reduce Motion, Reduce Transparency, Light or Dark, as last reported. */
   readonly appearance?: CraftAppearance | null;
   onAppearanceChange?(callback: (appearance: CraftAppearance) => void): () => void;
+
+  /**
+   * The signed-in account: the sign-in token in secure storage
+   * (`sessionTokenKey`, default `auth.token`), and each change of it, made by
+   * a native screen, the page or another tab. iOS hybrid pages (a
+   * `shareStorage` key mapped to the token), native screens on iOS and
+   * Android, and the browser host.
+   */
+  session?: CraftSession;
+}
+
+export interface CraftSession {
+  /** The secure-storage name followed (`auth.token` unless configured). */
+  key?: string;
+  /** The sign-in token now, or null. */
+  token(): string | null;
+  /** Each change, after storage holds it; returns the unsubscribe function. */
+  onChange(callback: (token: string | null, previous: string | null) => void): () => void;
+}
+
+/** `SESSION_CHANGED`'s payload on a native screen, and `craftsession`'s detail on the page. */
+export interface CraftSessionChange {
+  key: string;
+  token: string | null;
+  previous: string | null;
 }
 
 // ==================== Native UI types (iOS) ====================
@@ -2166,6 +2192,11 @@ export interface CraftBackgroundWorkEvent extends CustomEvent {
   detail: CraftBackgroundWorkDetail;
 }
 
+/** The signed-in account changed: a sign-in, a sign-out or another account. */
+export interface CraftSessionEvent extends CustomEvent {
+  detail: CraftSessionChange;
+}
+
 /** The native tab bar's current height in CSS pixels. iOS. */
 export interface CraftTabBarLayoutEvent extends CustomEvent {
   detail: {
@@ -2215,6 +2246,7 @@ declare global {
     craftSilentPush: CraftBackgroundWorkEvent;
     craftBackgroundRefresh: CraftBackgroundWorkEvent;
     craftRefresh: CustomEvent<Record<string, never>>;
+    craftsession: CraftSessionEvent;
   }
 }
 
