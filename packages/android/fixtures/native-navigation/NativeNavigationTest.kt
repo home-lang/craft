@@ -1232,6 +1232,14 @@ class NativeNavigationTest {
             click(activity, "toggle-image-tint")
             awaitText(activity, "image-tint-status", "image tint off")
             awaitImageTintCleared(activity, "native-image")
+            val dynamicResizeImage = awaitView(activity, "dynamic-resize-image") as ImageView
+            assertEquals("dynamic image should start in cover mode", ImageView.ScaleType.CENTER_CROP, dynamicResizeImage.scaleType)
+            click(activity, "toggle-image-resize-mode")
+            awaitText(activity, "image-resize-mode-status", "contain")
+            assertEquals("dynamic image resize mode was not reconciled", ImageView.ScaleType.CENTER_INSIDE, dynamicResizeImage.scaleType)
+            click(activity, "toggle-image-resize-mode")
+            awaitText(activity, "image-resize-mode-status", "cover")
+            assertEquals("dynamic image resize mode did not restore cover", ImageView.ScaleType.CENTER_CROP, dynamicResizeImage.scaleType)
             val clearedBackgroundImage = (awaitView(activity, "native-image-background") as ViewGroup).getChildAt(0) as ImageView
             assertTrue("ImageBackground tint was not cleared", clearedBackgroundImage.colorFilter == null)
             val tintedUnsupported = awaitView(activity, "unsupported-image") as ImageView

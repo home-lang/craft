@@ -50,6 +50,7 @@ const imageBackgroundErrorStatus = state('')
 const imageFailureCount = state(0)
 const imageTinted = state(true)
 const invalidImageTint = state(false)
+const imageResizeMode = state('cover')
 const imageSource = state('http://example.com/image.png')
 const validImageSource = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
 const intrinsicImageWide = state(false)
@@ -263,6 +264,10 @@ function toggleImageTint() {
 
 function toggleInvalidImageTint() {
   invalidImageTint.update(value => !value)
+}
+
+function toggleImageResizeMode() {
+  imageResizeMode.set(imageResizeMode() === 'cover' ? 'contain' : 'cover')
 }
 
 function captureIntrinsicImageLayout(event) {
@@ -596,6 +601,13 @@ function openDetailsThenUpdateBackground() {
         @load-end="imageLoadEnded()"
         style={{"width":24,"height":24,"borderRadius":12,"resizeMode":"cover","tintColor":imageTinted ? "#2563eb" : null}}
       />
+      <Image
+        testID="dynamic-resize-image"
+        source={validImage()}
+        style={{"width":48,"height":32,"borderRadius":8,"resizeMode":imageResizeMode()}}
+      />
+      <Button testID="toggle-image-resize-mode" @click="toggleImageResizeMode()">Toggle image resize mode</Button>
+      <Text testID="image-resize-mode-status" :text="imageResizeMode()" />
       <Image testID="intrinsic-image" source={intrinsicImage()} style={{"alignSelf":"flex-start"}} @layout="captureIntrinsicImageLayout($event)" />
       <Text testID="intrinsic-image-status" :text="intrinsicImageStatus" />
       <Button testID="toggle-intrinsic-image" @click="toggleIntrinsicImage()">Resize intrinsic image</Button>

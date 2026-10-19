@@ -480,6 +480,14 @@ final class NativeNavigationUITests: XCTestCase {
         reveal(intrinsicImageToggle, in: scroll, within: rootScroll)
         intrinsicImageToggle.tap()
         XCTAssertTrue(app.staticTexts["intrinsic image resized"].waitForExistence(timeout: 5), "intrinsic image source change did not invalidate its parent measurement")
+        let resizeToggle = app.buttons["toggle-image-resize-mode"]
+        XCTAssertTrue(resizeToggle.waitForExistence(timeout: 5), "dynamic image resize fixture did not mount")
+        XCTAssertTrue(app.staticTexts["cover"].waitForExistence(timeout: 5), "dynamic image did not start in cover mode")
+        reveal(resizeToggle, in: scroll, within: rootScroll)
+        resizeToggle.tap()
+        XCTAssertTrue(app.staticTexts["contain"].waitForExistence(timeout: 5), "dynamic image resize mode did not reconcile")
+        resizeToggle.tap()
+        XCTAssertTrue(app.staticTexts["cover"].waitForExistence(timeout: 5), "dynamic image resize mode did not restore cover")
         let imageBackground = app.images["native-image-background"]
         XCTAssertTrue(imageBackground.waitForExistence(timeout: 10), "ImageBackground did not mount as a native image container")
         let unsupportedBackground = app.images["unsupported-image-background"]

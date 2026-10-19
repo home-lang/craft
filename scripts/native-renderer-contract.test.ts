@@ -2518,6 +2518,12 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('let clips = authored || contentMode == .scaleAspectFill')
     expect(ios).not.toContain('image.clipsToBounds = image.clipsToBounds || image.contentMode == .scaleAspectFill')
     expect(guide).toContain('Changing `resizeMode` during reconciliation recomputes image clipping')
+    expect(navigationHome).toContain('testID="dynamic-resize-image"')
+    expect(navigationHome).toContain('testID="toggle-image-resize-mode"')
+    expect(iosNavigationTest).toContain('dynamic image resize mode did not reconcile')
+    expect(androidNavigationTest).toContain('dynamic image resize mode was not reconciled')
+    expect(android).toContain('"cover" -> ImageView.ScaleType.CENTER_CROP')
+    expect(android).toContain('else -> ImageView.ScaleType.CENTER_INSIDE')
   })
 
   it('shows local Image defaultSource placeholders before async loads', () => {
