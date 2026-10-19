@@ -73,7 +73,7 @@ renderer.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
-The current pair is pinned to `396cb876707e2b0668374c818ea93aa38dac04f8`,
+The current pair is pinned to `4b1a10b3d4b6b02e36612a7ba88fb8f5c922d7a1`,
 which preserves authored reconciliation keys and explicit grid row tracks in
 static and reactive native styles. The native fixtures qualify its compiled
 properties and mutation metadata together with both native models. Application
