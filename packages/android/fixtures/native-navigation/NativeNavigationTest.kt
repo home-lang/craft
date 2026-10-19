@@ -49,6 +49,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @RunWith(AndroidJUnit4::class)
 class NativeNavigationTest {
@@ -1006,7 +1007,7 @@ class NativeNavigationTest {
             awaitText(activity, "safe-area-status", "Safe edges: top,bottom")
             assertEquals("Restoring the top edge changed the original native safe-area padding", initialRootTop, root.paddingTop)
             val retained = awaitView(activity, "retained-safe-area")
-            val retainedAuthoredPadding = (4 * activity.resources.displayMetrics.density).toInt()
+            val retainedAuthoredPadding = (4 * activity.resources.displayMetrics.density).roundToInt()
             val plainRetainedPadding = retained.paddingTop
             assertEquals("plain retained container did not keep its authored padding", retainedAuthoredPadding, plainRetainedPadding)
             click(activity, "toggle-retained-safe-area")

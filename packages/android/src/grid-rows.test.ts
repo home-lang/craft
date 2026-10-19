@@ -2,6 +2,34 @@
 import { test } from 'bun:test'
 import { runKotlinFixture } from './testing'
 
+test('snaps authored padding to the nearest physical pixel at fractional density', async () => {
+  const template = await Bun.file(new URL('../templates/MainActivityNative.kt.template', import.meta.url)).text()
+  const padding = template.match(/internal fun craftNativePadding\([^]*?\n\}/)?.[0]
+  const number = template.match(/private fun craftNativeNumber\([^]*?\n    \?\.takeIf \{ it\.isFinite\(\) \}/)?.[0]
+  if (!padding || !number) throw new Error('Native padding normalization is missing')
+  await runKotlinFixture(`
+import kotlin.math.roundToInt
+
+class JSONObject(private val values: Map<String, Any?>) {
+    fun opt(name: String): Any? = values[name]
+}
+${number}
+${padding}
+
+fun main() {
+    val density = 2.625f
+    check(craftNativePadding(JSONObject(mapOf("padding" to 4)), "padding", 0, density) == 11)
+    check(craftNativePadding(JSONObject(mapOf("padding" to 8)), "padding", 0, density) == 21)
+    check(craftNativePadding(JSONObject(mapOf("padding" to 4)), "padding", 0, 1f) == 4)
+    for (invalid in listOf(null, -1, Double.NaN, Double.POSITIVE_INFINITY, true, "4")) {
+        check(craftNativePadding(JSONObject(mapOf("padding" to invalid)), "padding", 7, density) == 7)
+    }
+    check(craftNativePadding(null, "padding", 7, density) == 7)
+    println("PASS native padding rounds once to the nearest physical pixel and retains invalid-value defaults")
+}
+`)
+}, 180_000)
+
 test('sizes occupied and empty explicit grid rows after padding and fractional gaps', async () => {
   const template = await Bun.file(new URL('../templates/MainActivityNative.kt.template', import.meta.url)).text()
   const allocation = template.match(/        val rowHeights = if \(gridRows != null\) \{[\s\S]*?\n        \} else naturalRowHeights/)?.[0]

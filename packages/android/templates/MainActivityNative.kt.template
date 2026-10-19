@@ -167,7 +167,7 @@ private fun craftNativeFontWeight(value: Any?): String? = when (value) {
 internal fun craftNativePadding(style: JSONObject?, name: String, fallback: Int, density: Float): Int {
     val value = craftNativeNumber(style?.opt(name)) ?: Double.NaN
     val pixels = value * density
-    return if (value.isFinite() && value >= 0 && pixels.isFinite()) pixels.toInt() else fallback
+    return if (value.isFinite() && value >= 0 && pixels.isFinite()) pixels.roundToInt() else fallback
 }
 
 internal fun craftNativeFiniteFloat(style: JSONObject?, name: String, fallback: Float): Float {
