@@ -4651,7 +4651,7 @@ private final class CraftNativeSelectableTextView: UITextView {
         isScrollEnabled = false
         backgroundColor = .clear
         textContainerInset = .zero
-        textContainer.lineFragmentPadding = 0
+        self.textContainer.lineFragmentPadding = 0
     }
 
     required init?(coder: NSCoder) {
@@ -4661,7 +4661,7 @@ private final class CraftNativeSelectableTextView: UITextView {
         isScrollEnabled = false
         backgroundColor = .clear
         textContainerInset = .zero
-        textContainer.lineFragmentPadding = 0
+        self.textContainer.lineFragmentPadding = 0
     }
 }
 

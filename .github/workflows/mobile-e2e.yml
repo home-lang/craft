@@ -39,6 +39,8 @@ on:
       - packages/zig/src/bridge_android_*.zig
       - packages/zig/src/jni*.zig
       - packages/zig/src/platform_uuid.zig
+      # Shared layout is compiled into both mobile runtimes.
+      - packages/zig/src/native_layout.zig
       - packages/zig/build.zig
       - scripts/mobile-e2e.ts
       - scripts/mobile-e2e/**
@@ -58,6 +60,7 @@ on:
       - packages/zig/src/bridge_android_*.zig
       - packages/zig/src/jni*.zig
       - packages/zig/src/platform_uuid.zig
+      - packages/zig/src/native_layout.zig
       - packages/zig/build.zig
       - scripts/mobile-e2e.ts
       - scripts/mobile-e2e/**
