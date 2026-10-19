@@ -2466,6 +2466,11 @@ describe('native renderer component contract', () => {
     expect(androidFlatList).toContain('holder.host.addView(view, hostedLayout)')
   })
 
+  it('keeps iOS FlatList fixtures aligned with the removal callback contract', () => {
+    expect(iosFlatList).toContain('removeItem: @escaping (String) -> Void')
+    expect((iosNativeUnitTests.match(/recycleItem:/g) ?? []).length).toBe((iosNativeUnitTests.match(/removeItem:/g) ?? []).length)
+  })
+
   it('keeps image source lifecycles and resize modes aligned', () => {
     expect(ios).toContain('imageTasks.removeValue(forKey: id)?.cancel()')
     expect(ios).toContain('guard self.imageSources[ObjectIdentifier(view)] == requestKey else { return }')

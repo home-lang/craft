@@ -1333,6 +1333,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: nil
         )
         list.layoutIfNeeded()
@@ -1352,6 +1353,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: nil
         )
         list.layoutIfNeeded()
@@ -1386,6 +1388,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: nil
         )
         list.layoutIfNeeded()
@@ -1576,6 +1579,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: nil
         )
         list.layoutIfNeeded()
@@ -1608,6 +1612,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: nil
         )
         list.layoutIfNeeded()
@@ -1637,6 +1642,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: {
                 endReachedCount += 1
                 list.apply(
@@ -1647,6 +1653,7 @@ final class NativeRenderUnitTests: XCTestCase {
                     endReachedThreshold: 0.1,
                     renderItem: render,
                     recycleItem: { _ in },
+                    removeItem: { _ in },
                     endReached: nil
                 )
                 endReached.fulfill()
@@ -1672,6 +1679,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: { changedMiddle.fulfill() }
         )
         list.layoutIfNeeded()
@@ -1692,6 +1700,7 @@ final class NativeRenderUnitTests: XCTestCase {
             endReachedThreshold: 0.1,
             renderItem: render,
             recycleItem: { _ in },
+            removeItem: { _ in },
             endReached: { chromeOnlyEndReached.fulfill() }
         )
         list.layoutIfNeeded()
@@ -1720,6 +1729,7 @@ final class NativeRenderUnitTests: XCTestCase {
                 endReachedThreshold: 0.1,
                 renderItem: render,
                 recycleItem: { _ in },
+                removeItem: { _ in },
                 endReached: nil
             )
             let settled = expectation(description: "horizontal snapshot settled")
