@@ -3821,6 +3821,11 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        // Let native controls finish tracking taps before the scroll view decides
+        // whether the gesture is a drag. This matches UIKit's table-view
+        // behavior and prevents switches, sliders, and date pickers from
+        // losing most taps when they live inside a ScrollView.
+        delaysContentTouches = false
         keyboardTapGesture.cancelsTouchesInView = false
         keyboardTapGesture.delegate = self
         keyboardTapGesture.addTarget(self, action: #selector(keyboardTap))
@@ -3831,6 +3836,11 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
     }
 
     required init?(coder: NSCoder) { nil }
+
+    override func touchesShouldCancel(in view: UIView) -> Bool {
+        if view is UIControl { return false }
+        return super.touchesShouldCancel(in: view)
+    }
 
     var isVertical: Bool { contentStack.axis == .vertical }
 

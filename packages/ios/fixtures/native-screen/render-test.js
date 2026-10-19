@@ -47,6 +47,11 @@
                   accessibilityRole: 'image',
                 },
                 style: { width: 24, height: 24, resizeMode: 'cover' },
+              }, {
+                id: 'scroll-switch',
+                type: 'Switch',
+                props: { key: 'scroll-switch' },
+                events: { onValueChange: 'changeSwitch' },
               }],
             },
             { id: 'count', type: 'Text', props: { key: 'count' }, children: [`Count: ${count}`] },

@@ -1387,8 +1387,13 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges')
     expect(iosNativeUnitTests).toContain('testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles')
     expect(iosNativeScreenUITests).toContain('testSwitchTapChangesUIKitStateAndDeliversValueChange')
+    expect(iosNativeScreenUITests).toContain('testSwitchInsideScrollViewTakesOneTap')
     expect(readFileSync(join(root, 'packages/ios/fixtures/native-screen/Screen.stx'), 'utf8')).toContain('<Switch testID="native-switch" onValueChange={changeSwitch} />')
     expect(readFileSync(join(root, 'packages/ios/fixtures/native-screen/render-test.js'), 'utf8')).toContain("events: { onValueChange: 'changeSwitch' }")
+    expect(readFileSync(join(root, 'packages/ios/fixtures/native-screen/render-test.js'), 'utf8')).toContain("id: 'scroll-switch'")
+    expect(ios).toContain('delaysContentTouches = false')
+    expect(ios).toContain('override func touchesShouldCancel(in view: UIView) -> Bool')
+    expect(ios).toContain('if view is UIControl { return false }')
   })
 
   it('keeps DatePicker values and change events aligned across hosts', () => {
