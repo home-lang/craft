@@ -539,6 +539,40 @@ describe('health reads', () => {
     }
   })
 
+  it('starts, pauses, resumes and ends a live workout, and filters lifecycle events', async () => {
+    const events = new EventTarget()
+    const calls: unknown[][] = []
+    const started = { id: 'live-1', type: 'running' as const, startDate: 1000 }
+    const ended = { id: 'live-1', workoutId: 'hk-1', endDate: 9000, durationSeconds: 8 }
+    await withWindow({
+      addEventListener: events.addEventListener.bind(events),
+      removeEventListener: events.removeEventListener.bind(events),
+      craft: { health: {
+        startWorkout: async (options: unknown) => { calls.push(['start', options]); return started },
+        pauseWorkout: async () => { calls.push(['pause']); return true },
+        resumeWorkout: async () => { calls.push(['resume']); return true },
+        endWorkout: async () => { calls.push(['end']); return ended },
+      } },
+    }, async () => {
+      expect(health.supports('startWorkout')).toBe(true)
+      const seen: string[] = []
+      const stop = health.onWorkout(event => seen.push(`${event.event}:${event.state ?? event.message}`))
+      expect(await health.startWorkout({ type: 'running', location: 'outdoor' })).toEqual(started)
+      expect(await health.pauseWorkout()).toBe(true)
+      expect(await health.resumeWorkout()).toBe(true)
+      expect(await health.endWorkout()).toEqual(ended)
+      events.dispatchEvent(Object.assign(new Event('craftHealthWorkout'), { detail: { id: 'live-1', event: 'state', state: 'paused' } }))
+      events.dispatchEvent(Object.assign(new Event('craftHealthWorkout'), { detail: { id: 'live-1', event: 'error', message: 'sensor failed' } }))
+      events.dispatchEvent(Object.assign(new Event('craftHealthWorkout'), { detail: { id: 'live-1', event: 'unknown' } }))
+      stop()
+      expect(calls).toEqual([
+        ['start', { type: 'running', location: 'outdoor' }],
+        ['pause'], ['resume'], ['end'],
+      ])
+      expect(seen).toEqual(['state:paused', 'error:sensor failed'])
+    })
+  })
+
   it('says an older app cannot, and refuses rather than answering nothing', async () => {
     await withWindow({ craft: { health: {} } }, async () => {
       expect(health.supports('getHeartRateSamples')).toBe(false)

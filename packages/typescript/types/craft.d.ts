@@ -1549,6 +1549,30 @@ export interface CraftHealthHeartRateSample {
   motionContext?: 'sedentary' | 'active';
 }
 
+export type CraftHealthLiveWorkoutType = 'running' | 'walking' | 'hiking' | 'cycling' | 'swimming' | 'rowing' | 'elliptical' | 'strength' | 'hiit';
+export interface CraftHealthLiveWorkoutOptions {
+  type: CraftHealthLiveWorkoutType;
+  location?: 'indoor' | 'outdoor' | 'unknown';
+}
+export interface CraftHealthLiveWorkoutStarted {
+  id: string;
+  type: CraftHealthLiveWorkoutType;
+  startDate: number;
+}
+export interface CraftHealthLiveWorkoutResult {
+  id: string;
+  workoutId: string;
+  endDate: number;
+  durationSeconds: number;
+}
+export interface CraftHealthLiveWorkoutEvent {
+  id: string;
+  event: 'state' | 'error';
+  state?: 'notStarted' | 'prepared' | 'running' | 'paused' | 'stopped' | 'ended' | 'unknown';
+  date?: number;
+  message?: string;
+}
+
 export interface CraftHealth {
   /** `{ write: false }` asks to read only. Waits on the Health sheet for as long as the person takes. */
   requestAuthorization(types: string[], options?: { write?: boolean }): Promise<boolean>;
@@ -1563,6 +1587,10 @@ export interface CraftHealth {
   startHeartRateUpdates?(options?: { since?: number }): Promise<boolean>;
   /** True also when no stream ran. */
   stopHeartRateUpdates?(): Promise<boolean>;
+  startWorkout?(options: CraftHealthLiveWorkoutOptions): Promise<CraftHealthLiveWorkoutStarted>;
+  pauseWorkout?(): Promise<boolean>;
+  resumeWorkout?(): Promise<boolean>;
+  endWorkout?(): Promise<CraftHealthLiveWorkoutResult>;
 }
 
 export interface CraftWallet {

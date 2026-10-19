@@ -3392,8 +3392,41 @@ export interface HealthHeartRateUpdatesOptions {
   since?: number
 }
 
+export type HealthLiveWorkoutType =
+  | 'running' | 'walking' | 'hiking' | 'cycling' | 'swimming' | 'rowing'
+  | 'elliptical' | 'strength' | 'hiit'
+
+export interface HealthLiveWorkoutOptions {
+  type: HealthLiveWorkoutType
+  location?: 'indoor' | 'outdoor' | 'unknown'
+}
+
+export interface HealthLiveWorkoutStarted {
+  id: string
+  type: HealthLiveWorkoutType
+  /** Epoch milliseconds. */
+  startDate: number
+}
+
+export interface HealthLiveWorkoutResult {
+  id: string
+  workoutId: string
+  /** Epoch milliseconds. */
+  endDate: number
+  durationSeconds: number
+}
+
+export interface HealthLiveWorkoutEvent {
+  id: string
+  event: 'state' | 'error'
+  state?: 'notStarted' | 'prepared' | 'running' | 'paused' | 'stopped' | 'ended' | 'unknown'
+  /** Epoch milliseconds for a state transition. */
+  date?: number
+  message?: string
+}
+
 /** The health reads and writes a host may or may not have, depending on the app build it runs in. */
-export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSleepIntervals' | 'saveData' | 'saveMindfulSession' | 'getMindfulSessions' | 'startHeartRateUpdates' | 'stopHeartRateUpdates'
+export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSleepIntervals' | 'saveData' | 'saveMindfulSession' | 'getMindfulSessions' | 'startHeartRateUpdates' | 'stopHeartRateUpdates' | 'startWorkout' | 'pauseWorkout' | 'resumeWorkout' | 'endWorkout'
 
 /** The samples of one `craftHealthHeartRate` event that look like heart-rate samples. */
 function healthHeartRateSamples(detail: unknown): HealthHeartRateSample[] {
@@ -3498,6 +3531,40 @@ export const health = {
     const craft = getCraftRoot()
     if (!craft?.health?.stopHeartRateUpdates) throw new Error('Heart-rate updates are unavailable')
     return Boolean(await craft.health.stopHeartRateUpdates())
+  },
+  /** Starts an OS-owned live workout session (iOS 26+ for now). */
+  async startWorkout(options: HealthLiveWorkoutOptions): Promise<HealthLiveWorkoutStarted> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.startWorkout) throw new Error('Live workouts are unavailable')
+    return craft.health.startWorkout(options)
+  },
+  /** Pauses the current live workout. */
+  async pauseWorkout(): Promise<boolean> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.pauseWorkout) throw new Error('Live workouts are unavailable')
+    return Boolean(await craft.health.pauseWorkout())
+  },
+  /** Resumes the current live workout. */
+  async resumeWorkout(): Promise<boolean> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.resumeWorkout) throw new Error('Live workouts are unavailable')
+    return Boolean(await craft.health.resumeWorkout())
+  },
+  /** Ends and saves the current live workout. */
+  async endWorkout(): Promise<HealthLiveWorkoutResult> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.endWorkout) throw new Error('Live workouts are unavailable')
+    return craft.health.endWorkout()
+  },
+  /** Receives OS workout state transitions; returns the unsubscribe. */
+  onWorkout(callback: (event: HealthLiveWorkoutEvent) => void): () => void {
+    if (typeof window === 'undefined' || typeof getCraftRoot()?.health?.startWorkout !== 'function') return () => {}
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail as HealthLiveWorkoutEvent | null | undefined
+      if (detail && typeof detail.id === 'string' && (detail.event === 'state' || detail.event === 'error')) callback(detail)
+    }
+    window.addEventListener('craftHealthWorkout', listener)
+    return () => window.removeEventListener('craftHealthWorkout', listener)
   },
   /**
    * Each batch of new heart-rate samples while `startHeartRateUpdates` runs,
@@ -3745,6 +3812,10 @@ interface CraftMobileBridge {
     getMindfulSessions?(options: HealthMindfulSessionQuery): Promise<HealthMindfulSample[]>
     startHeartRateUpdates?(options: HealthHeartRateUpdatesOptions): Promise<boolean>
     stopHeartRateUpdates?(): Promise<boolean>
+    startWorkout?(options: HealthLiveWorkoutOptions): Promise<HealthLiveWorkoutStarted>
+    pauseWorkout?(): Promise<boolean>
+    resumeWorkout?(): Promise<boolean>
+    endWorkout?(): Promise<HealthLiveWorkoutResult>
   }
   liveActivity?: {
     isAvailable?(): Promise<boolean>
