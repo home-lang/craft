@@ -119,6 +119,9 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('gridTemplateColumns?: number | string')
     expect(componentTypes).toContain('gridColumns?: number')
     expect(componentTypes).toContain('gridAutoRows?: number | string')
+    expect(componentTypes).toContain('gridTemplateRows?: number | string')
+    expect(ios).toContain('craftNativeGridRowCount(style["gridTemplateRows"])')
+    expect(android).toContain('craftNativeGridRowCount(style.opt("gridTemplateRows"))')
   })
 
   it('keeps grid-auto-rows on the shared ABI when a grid is nested', () => {
