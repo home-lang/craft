@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.245...v0.0.246)
+
+## ⚡ Performance Improvements
+
+- **native**: lighter screens, caught swipes, script thread ([256ed37](https://github.com/craft-native/craft/commit/256ed37)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.244...v0.0.245)
 
 ## 🚀 Features
