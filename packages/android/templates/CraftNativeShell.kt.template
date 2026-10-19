@@ -671,7 +671,10 @@ internal object CraftNativePrelude {
           // Older native bundles call the page-shaped `craft.dialog` API
           // directly. Keep that API on the capability bridge so JavaScript
           // Core/JavaScriptSandbox screens never fall back to a DOM sheet.
-          if (Array.isArray(__stxNativeBridge.capabilities) && __stxNativeBridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog) {
+          // Native capability ownership wins over any browser-shaped dialog
+          // object the bundle installed before the bridge ran. Otherwise an
+          // action sheet silently falls back to the DOM renderer.
+          if (Array.isArray(__stxNativeBridge.capabilities) && __stxNativeBridge.capabilities.indexOf('dialog') >= 0) {
             var nextDialogRequest = 0;
             function dialogRequest(method, args) {
               return new Promise(function(resolve, reject) {

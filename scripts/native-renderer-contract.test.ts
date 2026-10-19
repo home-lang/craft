@@ -1569,6 +1569,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('Missing native-screen.js')
   })
 
+  it('lets native dialog capabilities replace a preinstalled DOM fallback', () => {
+    expect(ios).toContain("bridge.capabilities.indexOf('dialog') >= 0) {")
+    expect(ios).not.toContain("bridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog")
+    expect(androidShell).toContain("__stxNativeBridge.capabilities.indexOf('dialog') >= 0) {")
+    expect(androidShell).not.toContain("__stxNativeBridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog")
+  })
+
   it('preserves Android native launch query parameters like iOS', () => {
     expect(androidShell).toContain('val path = uri.encodedPath?.takeIf { it.isNotBlank() } ?: "/"')
     expect(androidShell).toContain('val query = uri.encodedQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""')

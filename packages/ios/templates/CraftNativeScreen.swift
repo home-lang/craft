@@ -5291,7 +5291,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                     });
                 }
                 var craft = globalThis.craft = globalThis.craft || {};
-                if (Array.isArray(bridge.capabilities) && bridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog) {
+                // Native capability ownership wins over any browser-shaped
+                // dialog object the bundle installed before the bridge ran.
+                // Leaving the old guard here sends actionSheet through the
+                // DOM fallback even though this screen can present UIKit.
+                if (Array.isArray(bridge.capabilities) && bridge.capabilities.indexOf('dialog') >= 0) {
                     craft.dialog = {
                         alert: function(options) { return request('alert', [options || {}]).then(function() {}); },
                         confirm: function(options) { return request('confirm', [options || {}]).then(Boolean); },
