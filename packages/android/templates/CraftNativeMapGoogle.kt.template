@@ -397,10 +397,10 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
             "$id:${value.first.latitude},${value.first.longitude}"
         }
         val polylineKey = polylines.toSortedMap().entries.joinToString("|") { (id, value) ->
-            "$id:" + value.points.joinToString(";") { point -> "${point.latitude},${point.longitude}" }
+            "$id:" + value.first.joinToString(";") { point -> "${point.latitude},${point.longitude}" }
         }
         val polygonKey = polygons.toSortedMap().entries.joinToString("|") { (id, value) ->
-            "$id:" + value.first.joinToString(";") { point -> "${point.latitude},${point.longitude}" }
+            "$id:" + value.points.joinToString(";") { point -> "${point.latitude},${point.longitude}" }
         }
         return "m[$markerKey]p[$polylineKey]g[$polygonKey]"
     }
@@ -412,7 +412,6 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         var count = 0
         markers.values.forEach { builder.include(it.position); count++ }
         polylines.values.flatMap { it.points }.forEach { builder.include(it); count++ }
-        polygons.values.flatMap { it.points }.forEach { builder.include(it); count++ }
         polygons.values.flatMap { it.points }.forEach { builder.include(it); count++ }
         if (count == 0) return false
         post {
