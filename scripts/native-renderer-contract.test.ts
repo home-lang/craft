@@ -3142,6 +3142,15 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('emit = nil')
   })
 
+  it('releases iOS map callbacks and overlays with the map view', () => {
+    expect(ios).toContain('func destroy()')
+    expect(ios).toContain('delegate = nil')
+    expect(ios).toContain('onMarkerTap = nil')
+    expect(ios).toContain('removeOverlays(Array(overlaysByID.values))')
+    expect(ios).toContain('if let map = node.view as? CraftNativeMapView { map.destroy() }')
+    expect(ios).toContain('delegate = self\n        onMarkerTap = markerHandler')
+  })
+
   it('prefers authored keys over compiler ids when reconciling native rows', () => {
     expect(ios).toContain('let direct = [node["key"], props["key"]]')
     expect(ios).toContain('[node["id"], props["testID"]]')

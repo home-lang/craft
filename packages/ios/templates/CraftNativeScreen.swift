@@ -1210,6 +1210,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     }
 
     func configure(props: [String: Any], children: [Any], markerHandler: @escaping (String) -> Void) {
+        delegate = self
         onMarkerTap = markerHandler
         isScrollEnabled = props["scrollEnabled"] as? Bool ?? true
         isZoomEnabled = props["zoomEnabled"] as? Bool ?? true
@@ -1369,6 +1370,33 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             pendingFitKey = nil
         }
         applyCameraOrientation()
+    }
+
+    /// Release callbacks and native overlays before a map leaves a screen or
+    /// is recycled for another row. `configure` restores the delegate when
+    /// the view is adopted again.
+    func destroy() {
+        delegate = nil
+        onMarkerTap = nil
+        onMapPress = nil
+        onRegionChangeComplete = nil
+        markerHandlers.removeAll()
+        markerBearings.removeAll()
+        markerPinColors.removeAll()
+        removeAnnotations(Array(annotationsByID.values))
+        annotationsByID.removeAll()
+        removeOverlays(Array(overlaysByID.values))
+        overlaysByID.removeAll()
+        overlayCoordinatesByID.removeAll()
+        overlayColors.removeAll()
+        overlayWidths.removeAll()
+        if let tileOverlay {
+            removeOverlay(tileOverlay)
+            self.tileOverlay = nil
+        }
+        tileTemplate = nil
+        tileAttribution.text = nil
+        tileAttribution.isHidden = true
     }
 
     private func configureTiles(_ options: [String: Any]?) {
@@ -7453,6 +7481,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         imageErrorHandlers.removeValue(forKey: id)
         checkboxIndeterminate.removeValue(forKey: id)
         if let video = node.view as? CraftNativeVideoView { video.stop() }
+        if let map = node.view as? CraftNativeMapView { map.destroy() }
         for child in node.children { forgetHandlers(child, preservingInputDrafts: preservingInputDrafts) }
     }
 
