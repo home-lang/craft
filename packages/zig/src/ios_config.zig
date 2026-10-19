@@ -111,6 +111,7 @@ pub const Feature = enum {
     social_auth,
     speech_recognition,
     video_recording,
+    wallet,
     watch_app,
 
     /// The exact key in `craft.config.json`.
@@ -161,6 +162,7 @@ pub const Feature = enum {
             .social_auth => "enableSocialAuth",
             .speech_recognition => "enableSpeechRecognition",
             .video_recording => "enableVideoRecording",
+            .wallet => "enableWallet",
             .watch_app => "enableWatchApp",
         };
     }
@@ -894,6 +896,7 @@ test "every capability key is spelled the way Swift spells it" {
     try testing.expectEqualStrings("enablePasskeys", Feature.passkeys.jsonKey());
     try testing.expectEqualStrings("enablePDFViewer", Feature.pdf_viewer.jsonKey());
     try testing.expectEqualStrings("enableMLKit", Feature.ml_kit.jsonKey());
+    try testing.expectEqualStrings("enableWallet", Feature.wallet.jsonKey());
 
     @setEvalBranchQuota(10_000);
     inline for (comptime std.enums.values(Feature)) |feature| {

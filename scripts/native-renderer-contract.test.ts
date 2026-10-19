@@ -61,6 +61,7 @@ const migrationGuide = readFileSync(join(root, 'docs/guides/migration/react-nati
 const runtimeCompatibility = readFileSync(join(root, 'docs/api/mobile/runtime-compatibility.md'), 'utf8')
 const iosValidationConformance = readFileSync(join(root, 'docs/api/mobile/ios-validation-conformance.md'), 'utf8')
 const nativeLayout = readFileSync(join(root, 'packages/zig/src/native_layout.zig'), 'utf8')
+const iosConfig = readFileSync(join(root, 'packages/zig/src/ios_config.zig'), 'utf8')
 const zigMain = readFileSync(join(root, 'packages/zig/src/main.zig'), 'utf8')
 const componentTypes = readFileSync(join(root, 'packages/typescript/src/components/index.ts'), 'utf8')
 const iosReadme = readFileSync(join(root, 'packages/ios/README.md'), 'utf8')
@@ -119,6 +120,13 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="layout-absolute-height-ratio"')
     expect(iosNavigationTest).toContain('absolute aspect ratio was not resolved from anchored width')
     expect(iosNavigationTest).toContain('absolute aspect ratio did not derive width from authored height')
+  })
+
+  it('keeps the iOS wallet configuration gate mirrored in Zig', () => {
+    expect(iosConfig).toContain('wallet,')
+    expect(iosConfig).toContain('.wallet => "enableWallet"')
+    expect(iosConfig).toContain('Feature.wallet.jsonKey()')
+    expect(iosReadme).toContain('"enableWallet": true')
   })
 
   it('keeps browser-safe capability bridges reachable in DOM-free hosts', () => {
