@@ -807,6 +807,7 @@ function openDetailsThenUpdateBackground() {
     <Button testID="toggle-icon-size" @click="toggleIconSize()">Toggle icon size</Button>
     <Button testID="toggle-image-tint" @click="toggleImageTint()">Toggle image tint</Button>
     <Switch testID="native-switch" value={switchValue} accessibilityState={switchAccessibilityState()} trackColor={switchTrackColor()} thumbColor={switchThumbColor()} ios_backgroundColor="#475569" @value-change="toggleSwitch($event)" />
+    <Switch testID="uncontrolled-switch" />
     <Button testID="toggle-invalid-switch-colors" @click="toggleInvalidSwitchColors()">Toggle invalid switch colors</Button>
     <Switch testID="nullable-switch" :value="null" :checked="true" />
     <Switch testID="switch-value-precedence" :value="false" :checked="true" />

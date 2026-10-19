@@ -1450,6 +1450,10 @@ class NativeNavigationTest {
             assertTrue("native switch should start off", !nativeSwitch.isChecked)
             assertTrue("native switch should apply track tint", nativeSwitch.trackTintList != null)
             assertTrue("native switch should apply thumb tint", nativeSwitch.thumbTintList != null)
+            val uncontrolledSwitch = awaitView(activity, "uncontrolled-switch") as Switch
+            assertTrue("uncontrolled switch should start off", !uncontrolledSwitch.isChecked)
+            instrumentation.runOnMainSync { uncontrolledSwitch.performClick() }
+            assertTrue("uncontrolled switch should keep its native toggle", uncontrolledSwitch.isChecked)
             val nullableSwitch = awaitView(activity, "nullable-switch") as Switch
             assertTrue("null switch value should fall back to checked", nullableSwitch.isChecked)
             val precedenceSwitch = awaitView(activity, "switch-value-precedence") as Switch
@@ -1459,6 +1463,7 @@ class NativeNavigationTest {
             assertTrue("native checked state should remain accessible without accessibilityState", nullableSwitchInfo?.isChecked == true)
             click(activity, "toggle-invalid-switch-colors")
             awaitText(activity, "invalid-control-style-status", "invalid switch colors on")
+            assertTrue("uncontrolled switch should survive reconciliation", uncontrolledSwitch.isChecked)
             assertTrue("Invalid switch track colors should restore the native default", nativeSwitch.trackTintList == null)
             assertTrue("Invalid switch thumb color should restore the native default", nativeSwitch.thumbTintList == null)
             click(activity, "toggle-invalid-switch-colors")
