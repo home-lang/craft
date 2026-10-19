@@ -1967,6 +1967,20 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun nativePickerCanBeDisposedWithoutAdapterViewClickCrash() {
+        val activity = instrumentation.startActivitySync(
+            Intent(instrumentation.targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        ) as MainActivity
+        try {
+            assertTrue("native picker was not mounted", awaitView(activity, "native-picker") is Spinner)
+        } finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
     fun pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(

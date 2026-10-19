@@ -1624,6 +1624,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('Missing native-screen.js')
   })
 
+  it('detaches Android picker callbacks without calling AdapterView click APIs', () => {
+    expect(android).toContain('if (it !is android.widget.AdapterView<*>) it.setOnClickListener(null)')
+    expect(android).toContain('released.filterIsInstance<Spinner>().forEach { it.onItemSelectedListener = null }')
+    expect(androidNavigationTest).toContain('nativePickerCanBeDisposedWithoutAdapterViewClickCrash')
+  })
+
   it('lets native dialog capabilities replace a preinstalled DOM fallback', () => {
     expect(ios).toContain("bridge.capabilities.indexOf('dialog') >= 0) {")
     expect(ios).not.toContain("bridge.capabilities.indexOf('dialog') >= 0 && !craft.dialog")
@@ -3227,7 +3233,8 @@ describe('native renderer component contract', () => {
   })
 
   it('detaches Android listeners before recycled rows can change identity', () => {
-    expect(android).toContain('released.forEach {\n            it.setOnClickListener(null)')
+    expect(android).toContain('released.forEach {\n            // AdapterView (including Spinner, our native Picker) rejects')
+    expect(android).toContain('if (it !is android.widget.AdapterView<*>) it.setOnClickListener(null)')
     expect(android).toContain('it.setOnTouchListener(null)')
     expect(android).toContain('it.setOnLongClickListener(null)')
     expect(android).toContain('it.setOnFocusChangeListener(null)')

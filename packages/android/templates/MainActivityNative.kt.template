@@ -7266,7 +7266,11 @@ class MainActivity : AppCompatActivity() {
         // released/recycled rows so a later identity cannot inherit a closure
         // that still captures the previous row's screen state.
         released.forEach {
-            it.setOnClickListener(null)
+            // AdapterView (including Spinner, our native Picker) rejects
+            // setOnClickListener altogether. Its selection callback is
+            // detached below; ordinary Views still need their click target
+            // cleared here.
+            if (it !is android.widget.AdapterView<*>) it.setOnClickListener(null)
             it.setOnTouchListener(null)
             it.setOnLongClickListener(null)
             it.setOnFocusChangeListener(null)
