@@ -7418,6 +7418,20 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func forgetHandlers(_ node: RenderedNode, preservingInputDrafts: Bool = false) {
         (node.view as? CraftNativeScrollView)?.setRefreshHandler(nil, refreshing: false)
+        // Recycled list rows keep their native delegates and targets until
+        // they are rebound. A permanently detached node must release those
+        // UIKit hooks as well as the handler maps below, otherwise a picker,
+        // text view, or control can still call back into this screen after
+        // its subtree is gone.
+        if !preservingInputDrafts {
+            if let textView = node.view as? UITextView { textView.delegate = nil }
+            if let picker = node.view as? UIPickerView {
+                picker.delegate = nil
+                picker.dataSource = nil
+            }
+            if let scroll = node.view as? UIScrollView { scroll.delegate = nil }
+            (node.view as? UIControl)?.removeTarget(self, action: nil, for: .allEvents)
+        }
         if let list = node.view as? CraftNativeFlatList {
             let listKey = ObjectIdentifier(list)
             list.setRefreshHandler(nil, refreshing: false)

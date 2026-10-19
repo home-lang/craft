@@ -1686,6 +1686,15 @@ describe('native renderer component contract', () => {
     expect(androidNavigationScript).toContain("source.includes('__stxNativeUnmount') || source.includes('mutationProtocolVersion')")
   })
 
+  it('releases iOS UIKit delegates and targets on permanent node disposal', () => {
+    expect(ios).toContain('if !preservingInputDrafts {')
+    expect(ios).toContain('if let textView = node.view as? UITextView { textView.delegate = nil }')
+    expect(ios).toContain('picker.delegate = nil')
+    expect(ios).toContain('picker.dataSource = nil')
+    expect(ios).toContain('if let scroll = node.view as? UIScrollView { scroll.delegate = nil }')
+    expect(ios).toContain('(node.view as? UIControl)?.removeTarget(self, action: nil, for: .allEvents)')
+  })
+
   it('keeps responsive layout events aligned across hosts', () => {
     expect(ios).toContain('events["onLayout"]')
     expect(ios).toContain('lastLayoutFrames[id] != frame')
