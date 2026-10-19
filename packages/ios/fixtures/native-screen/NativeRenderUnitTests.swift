@@ -547,7 +547,12 @@ final class NativeRenderUnitTests: XCTestCase {
             "type": "TextInput",
             "props": ["key": "field", "value": "Draft"],
         ]]))
-        XCTAssertNil(field.accessibilityValue)
+        // UIKit's own value again: what a field holding the same text says
+        // (its text, on current iOS), never the authored one.
+        let native = UITextField()
+        native.text = "Draft"
+        XCTAssertNotEqual(field.accessibilityValue, "Custom value")
+        XCTAssertEqual(field.accessibilityValue, native.accessibilityValue)
     }
 
     func testPersistentStorageAndDatabaseCapabilitiesRoundTripJSONValues() async throws {
@@ -685,6 +690,25 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(row.accessibilityTraits.contains(.button))
         XCTAssertEqual(try XCTUnwrap(find(UIView.self, key: "labelled", below: controller.view)).accessibilityLabel, "Sign out")
         XCTAssertNil(try XCTUnwrap(find(UIView.self, key: "plain", below: controller.view)).accessibilityLabel)
+        // The chevron is decoration: no stop of its own, nothing said.
+        let chevron = try XCTUnwrap(find(UIImageView.self, key: "chevron", below: controller.view))
+        XCTAssertFalse(chevron.isAccessibilityElement)
+        XCTAssertNil(chevron.accessibilityLabel)
+    }
+
+    func testALabelledIconIsReadAndAnUnlabelledOneIsNot() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([
+            ["type": "Icon", "props": ["key": "labelled", "name": "heart.fill", "accessibilityLabel": "Favourite"], "children": []],
+            ["type": "Icon", "props": ["key": "plain", "name": "heart.fill"], "children": []],
+        ]))
+        let labelled = try XCTUnwrap(find(UIImageView.self, key: "labelled", below: controller.view))
+        XCTAssertTrue(labelled.isAccessibilityElement)
+        XCTAssertEqual(labelled.accessibilityLabel, "Favourite")
+        let plain = try XCTUnwrap(find(UIImageView.self, key: "plain", below: controller.view))
+        XCTAssertFalse(plain.isAccessibilityElement)
+        XCTAssertNil(plain.accessibilityLabel)
     }
 
     func testSharedLayoutColorAndTextStylesMapToUIKit() throws {

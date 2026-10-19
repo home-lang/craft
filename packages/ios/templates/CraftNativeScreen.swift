@@ -4302,6 +4302,22 @@ private final class CraftNativeFlexSpacer: UIView {}
 private final class CraftNativeIconView: UIImageView {
     var defaultBox: CGFloat? { didSet { if defaultBox != oldValue { invalidateIntrinsicContentSize() } } }
 
+    /// An icon says only what the screen labels it. iOS gives a symbol image
+    /// a description of its own ("Circle", "Chevron"), which VoiceOver read
+    /// as an extra stop and a row read as part of its text; an unlabelled
+    /// icon is decoration, as UIKit's own glyph accessories are.
+    private var authoredLabel: String?
+
+    override var accessibilityLabel: String? {
+        get { authoredLabel }
+        set { authoredLabel = newValue }
+    }
+
+    override var isAccessibilityElement: Bool {
+        get { authoredLabel != nil && super.isAccessibilityElement }
+        set { super.isAccessibilityElement = newValue }
+    }
+
     override var intrinsicContentSize: CGSize {
         if let defaultBox { return CGSize(width: defaultBox, height: defaultBox) }
         return super.intrinsicContentSize
