@@ -767,6 +767,7 @@ class NativeNavigationTest {
             assertEquals("The test identity must not become a spoken label", null, title.contentDescription)
             val toggle = node("toggle-safe-area")
             assertEquals("Toggle safe edges", toggle.text.toString())
+            assertEquals("link", node("native-linked-pressable").roleDescription?.toString())
             assertTrue("The identified native button did not accept its accessibility click",
                 toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK))
             awaitText(activity, "safe-area-status", "Safe edges: bottom")

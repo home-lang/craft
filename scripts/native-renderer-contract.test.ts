@@ -42,6 +42,7 @@ const androidMutationTest = readFileSync(join(root, 'packages/android/fixtures/n
 const androidBuilderTest = readFileSync(join(root, 'packages/android/src/index.test.ts'), 'utf8')
 const androidFlatListTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeFlatListTest.kt'), 'utf8')
 const iosNavigationTest = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/NativeNavigationUITests.swift'), 'utf8')
+const iosNavigationUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/NativeNavigationUnitTests.swift'), 'utf8')
 const navigationHome = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/Home.stx'), 'utf8')
 const navigationDetails = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/Details.stx'), 'utf8')
 const iosNavigationScript = readFileSync(join(root, 'packages/ios/scripts/test-native-navigation.ts'), 'utf8')
@@ -473,6 +474,13 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('svg.waitForExistence(timeout: 5)')
     expect(iosNavigationTest).toContain('let link = app.staticTexts["native-link"]')
     expect(androidNavigationTest).toContain('assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)')
+  })
+
+  it('infers link semantics for href-bearing native pressables on both hosts', () => {
+    expect(android).toContain('val linkedControl = type in setOf("Link", "TouchableOpacity", "TouchableHighlight", "Pressable") && hasLinkTarget')
+    expect(iosNavigationUnitTests).toContain('XCTAssertTrue(link.accessibilityTraits.contains(.link)')
+    expect(androidNavigationTest).toContain('assertEquals("link", node("native-linked-pressable").roleDescription?.toString())')
+    expect(navigationHome).toContain('<Pressable testID="native-linked-pressable" href="/linked-details" style=')
   })
 
   it('waits for asynchronous capability text before asserting it', () => {
