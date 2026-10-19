@@ -3113,8 +3113,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('releaseViewState(screen, controls.values.toList(), preservingInputDrafts = false)')
   })
 
-  it('scopes iOS FlatList descendants to their row identity', () => {
-    expect(ios).toContain('let identity = parent.identity.hasPrefix("list:")')
+  it('scopes iOS keyed row descendants to their row identity', () => {
+    expect(ios).toContain('let identity = parent.identity.hasPrefix("list:") || parent.identity.hasPrefix("key:")')
     expect(ios).toContain('"\\(parent.identity)/\\(localIdentity)"')
   })
 

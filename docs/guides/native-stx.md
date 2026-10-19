@@ -719,6 +719,11 @@ interaction listeners are detached before the view can be reused for another
 identity. Handler cleanup therefore cannot leak the previous row's closure or
 event target into a recycled row.
 
+Native row descendants are scoped by their keyed parent on both hosts, including
+rows rendered in an ordinary `ScrollView`. Two rows can therefore use the same
+child `testID` or local key without sharing uncontrolled input drafts or retained
+native state.
+
 ## Events, accessibility, and navigation
 
 `defaultValue` initializes an uncontrolled `TextInput` once; controlled

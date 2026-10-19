@@ -7191,7 +7191,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             // Keys are local to a parent. Ambiguous sibling keys fall back to
             // position so a move never attaches the wrong live control.
             let localIdentity = key.flatMap { counts[$0] == 1 ? "key:\($0)" : nil } ?? "index:\(index)"
-            let identity = parent.identity.hasPrefix("list:")
+            // A keyed row can live in either FlatList or an ordinary
+            // ScrollView. Scope its descendants to the row so two rows cannot
+            // share an uncontrolled input draft or retained native handler.
+            let identity = parent.identity.hasPrefix("list:") || parent.identity.hasPrefix("key:")
                 ? "\(parent.identity)/\(localIdentity)"
                 : localIdentity
             let child = reconcile(node, identity: identity, path: "\(path).\(index)", previous: old[identity])
