@@ -122,6 +122,46 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     var onMomentumScrollEnd: (() -> Unit)? = null
     var onLayoutChanged: (() -> Unit)? = null
 
+    private val scrollListener = object : OnScrollListener() {
+        private var dragging = false
+        private var momentum = false
+
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            onScrollEvent?.invoke()
+            onLayoutChanged?.invoke()
+            evaluateEndReached()
+        }
+
+        override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+            when (newState) {
+                RecyclerView.SCROLL_STATE_DRAGGING -> if (!dragging) {
+                    dragging = true
+                    onScrollBeginDrag?.invoke()
+                }
+                RecyclerView.SCROLL_STATE_SETTLING -> {
+                    if (dragging) {
+                        dragging = false
+                        onScrollEndDrag?.invoke()
+                    }
+                    if (!momentum) {
+                        momentum = true
+                        onMomentumScrollBegin?.invoke()
+                    }
+                }
+                RecyclerView.SCROLL_STATE_IDLE -> {
+                    if (dragging) {
+                        dragging = false
+                        onScrollEndDrag?.invoke()
+                    }
+                    if (momentum) {
+                        momentum = false
+                        onMomentumScrollEnd?.invoke()
+                    }
+                }
+            }
+        }
+    }
+
     private fun holderLayoutParams() = LayoutParams(
         if (horizontal) LayoutParams.WRAP_CONTENT else LayoutParams.MATCH_PARENT,
         LayoutParams.WRAP_CONTENT,
@@ -200,45 +240,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     init {
         adapter = listAdapter
         itemAnimator = null
-        addOnScrollListener(object : OnScrollListener() {
-            private var dragging = false
-            private var momentum = false
-
-            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                onScrollEvent?.invoke()
-                onLayoutChanged?.invoke()
-                evaluateEndReached()
-            }
-
-            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                when (newState) {
-                    RecyclerView.SCROLL_STATE_DRAGGING -> if (!dragging) {
-                        dragging = true
-                        onScrollBeginDrag?.invoke()
-                    }
-                    RecyclerView.SCROLL_STATE_SETTLING -> {
-                        if (dragging) {
-                            dragging = false
-                            onScrollEndDrag?.invoke()
-                        }
-                        if (!momentum) {
-                            momentum = true
-                            onMomentumScrollBegin?.invoke()
-                        }
-                    }
-                    RecyclerView.SCROLL_STATE_IDLE -> {
-                        if (dragging) {
-                            dragging = false
-                            onScrollEndDrag?.invoke()
-                        }
-                        if (momentum) {
-                            momentum = false
-                            onMomentumScrollEnd?.invoke()
-                        }
-                    }
-                }
-            }
-        })
+        addOnScrollListener(scrollListener)
     }
 
     fun setKeyboardDismissMode(mode: String, dismissKeyboard: () -> Unit) {
@@ -412,6 +414,13 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         onMomentumScrollBegin = null
         onMomentumScrollEnd = null
         onLayoutChanged = null
+    }
+
+    /** Releases callbacks owned by a permanently removed native list node. */
+    fun resetForTeardown() {
+        discardAll()
+        removeOnScrollListener(scrollListener)
+        setOnTouchListener(null)
     }
 
     fun refreshThemeDefaults() {

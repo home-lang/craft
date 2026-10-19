@@ -3191,6 +3191,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('released.filterIsInstance<CraftNativeRefreshableFlatList>().forEach { it.resetForTeardown() }')
   })
 
+  it('detaches Android FlatList scroll listeners during permanent teardown', () => {
+    expect(androidFlatList).toContain('private val scrollListener = object : OnScrollListener()')
+    expect(androidFlatList).toContain('addOnScrollListener(scrollListener)')
+    expect(androidFlatList).toContain('fun resetForTeardown()')
+    expect(androidFlatList).toContain('removeOnScrollListener(scrollListener)')
+    expect(android).toContain('val owner = screen.flatListOwnerByView.remove(list)\n        list.resetForTeardown()')
+  })
+
   it('detaches Android control-specific listeners during native release', () => {
     expect(android).toContain('released.filterIsInstance<android.widget.CompoundButton>().forEach { it.setOnCheckedChangeListener(null) }')
     expect(android).toContain('released.filterIsInstance<SeekBar>().forEach { it.setOnSeekBarChangeListener(null) }')

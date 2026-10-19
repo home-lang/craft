@@ -7198,7 +7198,7 @@ class MainActivity : AppCompatActivity() {
         preservingInputDrafts: Boolean,
     ) {
         val owner = screen.flatListOwnerByView.remove(list)
-        list.discardAll()
+        list.resetForTeardown()
         screen.flatListRows.remove(list)?.values?.forEach {
             releaseViewState(screen, it.values, preservingInputDrafts)
         }
