@@ -18,6 +18,22 @@ export type { AndroidMapProvider } from './native-map.js'
  */
 export const nativeRouteBundles = true
 
+/**
+ * The app evaluates stx's shared runtime (`__runtime.js`, stx's
+ * `sharedRuntime`) in each screen's context before the route's own file.
+ * Stacks asks stx for it only when this is true: a route file built so
+ * refuses to run without it.
+ */
+export const nativeRouteRuntime = true
+
+/**
+ * The app gives a screen its messages a language at a time (stx's
+ * `messages`, `native-screens/__messages/`): the areas its route uses,
+ * evaluated ahead of it (an isolate cannot read a file when asked). Stacks leaves the languages
+ * out of the screens' code only when this is true.
+ */
+export const nativeMessages = true
+
 /** Providers this published builder can generate as real Android map views. */
 export const nativeMapProviders = ['google', 'maplibre'] as const
 export { runKotlinFixture } from './testing.js'

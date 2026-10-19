@@ -71,11 +71,44 @@ internal object CraftNativeBundle {
     private fun read(context: Context, asset: String): String? = sources.get(asset)
         ?: runCatching { context.assets.open(asset).bufferedReader().use { it.readText() } }.getOrNull()?.also { sources.put(asset, it) }
 
+    /**
+     * A route's file runs on the runtime stx writes beside it
+     * (`native-screens/__runtime.js`), so the two go to the isolate together,
+     * runtime first, then the route's messages. A one-file bundle carries its
+     * runtime itself.
+     */
     fun source(context: Context, route: String?): String? {
         if (!route.isNullOrBlank() && !route.contains('/') && !route.startsWith('.')) {
-            read(context, "native-screens/$route.js")?.let { return it }
+            read(context, "native-screens/$route.js")?.let { own ->
+                val runtime = read(context, "native-screens/__runtime.js") ?: return own
+                val messages = messages(context, route)
+                return runtime + "\n;\n" + (if (messages != null) messages + "\n;\n" else "") + own
+            }
         }
         return read(context, "native-screen.js")
+    }
+
+    /**
+     * The messages of the areas a route uses (stx's `messages`:
+     * `native-screens/__messages/routes.json` names them), in every language.
+     * On iOS a screen reads one language's area the first time it looks
+     * inside it; an isolate cannot call back into the app and wait for an
+     * answer, so here they are evaluated ahead of the route, as
+     * `__stxNativeMessages`, which the runtime reads first.
+     */
+    private fun messages(context: Context, route: String): String? {
+        val listing = read(context, "native-screens/__messages/routes.json") ?: return null
+        val areas = runCatching { org.json.JSONObject(listing).optJSONArray(route) }.getOrNull() ?: return null
+        if (areas.length() == 0) return null
+        val languages = context.assets.list("native-screens/__messages")?.filter { !it.contains('.') }?.sorted() ?: return null
+        val tables = languages.joinToString(",") { language ->
+            val entries = (0 until areas.length()).mapNotNull { index ->
+                val area = areas.optString(index)
+                read(context, "native-screens/__messages/$language/$area.json")?.let { "${org.json.JSONObject.quote(area)}:$it" }
+            }
+            "${org.json.JSONObject.quote(language)}:{${entries.joinToString(",")}}"
+        }
+        return "globalThis.__stxNativeMessages={$tables};"
     }
 
     fun isAvailable(context: Context): Boolean =

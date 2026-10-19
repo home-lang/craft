@@ -478,6 +478,8 @@ describe('hybrid paths in typescript', () => {
     expect(hybridConfigProblems({ nativeApp: '__app' })[0]).toContain('nativeScreens or renderer: "native"')
     expect(hybridConfigProblems({ renderer: 'native', nativeApp: '__app' })).toEqual([])
     expect(hybridConfigProblems({ nativeScreens: TABLE, nativeApp: '__app' })).toEqual([])
+    expect(hybridConfigProblems({ nativeScriptThread: 'background' })).toEqual([])
+    expect(hybridConfigProblems({ nativeScriptThread: 'worker' as never })[0]).toContain('nativeScriptThread "worker"')
   })
 })
 

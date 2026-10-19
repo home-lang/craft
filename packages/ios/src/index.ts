@@ -298,6 +298,15 @@ export interface CraftConfig {
    */
   nativeApp?: string
   /**
+   * Where native screens run their JavaScript. `"main"` (the default) runs it
+   * on the main thread; `"background"` gives screens a serial thread of their
+   * own, so a screen's script, its timers and its renders never hold the
+   * main thread while it scrolls or animates. UIKit still runs on main: the
+   * shell hands each render to it, and a pushed screen waits for its first
+   * render (at most 0.3 s) so it never slides in empty.
+   */
+  nativeScriptThread?: 'main' | 'background'
+  /**
    * The native tab bar, shown from the first frame, before the page loads.
    * The page's own `tabBar.set` replaces it later. Each `id` is the tab's
    * root path, as the page's tab links name it.
@@ -467,7 +476,7 @@ export function nativeStartPath(config: Pick<CraftConfig, 'devServerURL'>): stri
 }
 
 /** What is wrong with a config's hybrid and tab settings, one sentence each. */
-export function hybridConfigProblems(config: Pick<CraftConfig, 'renderer' | 'nativeScreens' | 'tabs' | 'shareStorage' | 'devServerURL' | 'nativeApp'>): string[] {
+export function hybridConfigProblems(config: Pick<CraftConfig, 'renderer' | 'nativeScreens' | 'tabs' | 'shareStorage' | 'devServerURL' | 'nativeApp' | 'nativeScriptThread'>): string[] {
   const problems: string[] = []
   const screens = Object.entries(config.nativeScreens ?? {})
   for (const [pattern, screen] of screens) {
@@ -507,6 +516,8 @@ export function hybridConfigProblems(config: Pick<CraftConfig, 'renderer' | 'nat
     else if (!usesNativeBundle(config))
       problems.push('nativeApp runs in the native bundle; it needs nativeScreens or renderer: "native".')
   }
+  if (config.nativeScriptThread !== undefined && config.nativeScriptThread !== 'main' && config.nativeScriptThread !== 'background')
+    problems.push(`nativeScriptThread "${String(config.nativeScriptThread)}" must be "main" or "background".`)
   return problems
 }
 
@@ -516,6 +527,22 @@ export function hybridConfigProblems(config: Pick<CraftConfig, 'renderer' | 'nat
  * route's file. Stacks asks for route bundles only when this is true.
  */
 export const nativeRouteBundles = true
+
+/**
+ * The app evaluates stx's shared runtime (`__runtime.js`, stx's
+ * `sharedRuntime`) in each screen's context before the route's own file.
+ * Stacks asks stx for it only when this is true: a route file built so
+ * refuses to run without it.
+ */
+export const nativeRouteRuntime = true
+
+/**
+ * The app gives a screen its messages a language at a time (stx's
+ * `messages`, `native-screens/__messages/`): read when the screen first
+ * looks inside them (`__stxNativeReadMessages`). Stacks leaves the languages
+ * out of the screens' code only when this is true.
+ */
+export const nativeMessages = true
 
 /**
  * Copy the compiled native bundle where the app loads it from: one file to

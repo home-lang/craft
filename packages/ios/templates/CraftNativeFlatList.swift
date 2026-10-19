@@ -52,11 +52,19 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         var onRecycle: ((String) -> Void)?
         override func prepareForReuse() {
             super.prepareForReuse()
-            releaseHostedView()
+            recycle()
+        }
+
+        /// The row this cell showed is gone; its views stay in the cell, and
+        /// the next row it shows reuses them when it has the same shape.
+        func recycle() {
+            if let identity = representedIdentity { onRecycle?(identity) }
+            representedIdentity = nil
+            onRecycle = nil
         }
 
         func host(_ view: UIView, identity: String) {
-            if representedIdentity != identity { releaseHostedView() }
+            if let shown = representedIdentity, shown != identity { recycle() }
             representedIdentity = identity
             guard hostedView !== view else { return }
             hostedView?.removeFromSuperview()
@@ -72,11 +80,9 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         }
 
         func releaseHostedView() {
-            if let identity = representedIdentity { onRecycle?(identity) }
+            recycle()
             hostedView?.removeFromSuperview()
             hostedView = nil
-            representedIdentity = nil
-            onRecycle = nil
         }
 
         override func preferredLayoutAttributesFitting(
@@ -354,7 +360,8 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
 
     @objc private func refreshTriggered() {
         refreshHandler?()
-        DispatchQueue.main.async { [weak self] in
+        // Once the script has answered the pull, on its own thread or not.
+        CraftNativeScriptThread.afterScript { [weak self] in
             guard let self, !self.refreshingProp, self.nativeRefreshControl.isRefreshing else { return }
             self.nativeRefreshControl.endRefreshing()
         }

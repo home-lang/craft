@@ -620,6 +620,16 @@ describe('Craft Android builder', () => {
     expect(existsSync(join(web, 'app/src/main/java/org/example/webhaptics/CraftNativeHaptics.kt'))).toBe(false)
   })
 
+  it('evaluates a route\'s messages ahead of it, since an isolate cannot read them when asked', async () => {
+    const output = createTempDir('craft-android-native-messages-')
+    await init({ name: 'NativeMessages', packageName: 'org.example.nativemessages', output, runtimeDir: null, config: { renderer: 'native' } })
+    const background = readFileSync(join(output, 'app/src/main/java/org/example/nativemessages/CraftNativeBackground.kt'), 'utf8')
+    expect(background).toContain('read(context, "native-screens/__messages/routes.json")')
+    expect(background).toContain('return "globalThis.__stxNativeMessages={$tables};"')
+    // After the runtime, before the route's own code.
+    expect(background).toContain('return runtime + "\\n;\\n" + (if (messages != null) messages + "\\n;\\n" else "") + own')
+  })
+
   it('names the session token key to every native isolate', async () => {
     const output = createTempDir('craft-android-native-session-')
     await init({ name: 'NativeSession', packageName: 'org.example.nativesession', output, runtimeDir: null, config: { renderer: 'native', enableSecureStorage: true } })

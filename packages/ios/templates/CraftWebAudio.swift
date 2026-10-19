@@ -1376,23 +1376,32 @@ final class CraftWebAudio {
     /// JavaScript, before its bundle runs.
     func install(in context: JSContext) {
         script = context
+        // The graph lives on the main thread. A script on its own thread
+        // (CraftNativeScriptThread) reaches it there, waiting for the answer
+        // its synchronous calls return; arguments are read off the JSValues
+        // where the script runs.
         let open: @convention(block) (Int, Double) -> NSDictionary? = { [weak self] id, rate in
-            self?.open(id, requestedRate: rate) as NSDictionary?
+            CraftNativeScriptThread.onMain { self?.open(id, requestedRate: rate) as NSDictionary? }
         }
         let send: @convention(block) (JSValue) -> Void = { [weak self] batch in
-            self?.receive(batch.toArray() ?? [])
+            let commands = batch.toArray() ?? []
+            CraftNativeScriptThread.onMain { self?.receive(commands) }
         }
         let time: @convention(block) (Int) -> Double = { [weak self] id in
-            self?.contexts[id]?.graph.currentTime ?? 0
+            CraftNativeScriptThread.onMain { self?.contexts[id]?.graph.currentTime ?? 0 }
         }
         let read: @convention(block) (Int, Int, String) -> Double = { [weak self] contextId, nodeId, key in
-            self?.read(contextId, nodeId, key) ?? .nan
+            CraftNativeScriptThread.onMain { self?.read(contextId, nodeId, key) ?? .nan }
         }
         let state: @convention(block) (Int, String) -> Bool = { [weak self] id, state in
-            self?.setState(id, state) ?? false
+            CraftNativeScriptThread.onMain { self?.setState(id, state) ?? false }
         }
         let buffer: @convention(block) (Int, Double, Int, JSValue) -> Bool = { [weak self] id, rate, length, channels in
-            self?.storeBuffer(id, rate, length, channels) ?? false
+            // The samples are copied out of the script's typed arrays where
+            // the script runs, then kept beside the graph.
+            guard let data = Self.copyBuffer(rate, length, channels) else { return false }
+            CraftNativeScriptThread.onMain { self?.buffers[id] = data }
+            return true
         }
         context.setObject(open, forKeyedSubscript: "craftNativeAudioOpen" as NSString)
         context.setObject(send, forKeyedSubscript: "craftNativeAudioSend" as NSString)
@@ -1637,10 +1646,10 @@ final class CraftWebAudio {
     }
 
     /// An AudioBuffer's channels, copied straight out of its Float32Arrays.
-    private func storeBuffer(_ id: Int, _ rate: Double, _ length: Int, _ channels: JSValue) -> Bool {
-        guard length > 0, rate > 0, let context = JSContext.current() else { return false }
+    private static func copyBuffer(_ rate: Double, _ length: Int, _ channels: JSValue) -> CraftAudioBufferData? {
+        guard length > 0, rate > 0, let context = JSContext.current() else { return nil }
         let count = Int(channels.objectForKeyedSubscript("length")?.toInt32() ?? 0)
-        guard count > 0 else { return false }
+        guard count > 0 else { return nil }
         let data = CraftAudioBufferData(sampleRate: rate, length: length, channelCount: count)
         let script = context.jsGlobalContextRef
         for index in 0..<count {
@@ -1651,8 +1660,7 @@ final class CraftWebAudio {
             let available = JSObjectGetTypedArrayLength(script, object, nil)
             data.channels[index].update(from: bytes.assumingMemoryBound(to: Float.self), count: min(length, available))
         }
-        buffers[id] = data
-        return true
+        return data
     }
 
     // MARK: Notices
@@ -1675,8 +1683,8 @@ final class CraftWebAudio {
                 }
             }
         }
-        guard !ended.isEmpty else { return }
-        script?.objectForKeyedSubscript("__craftNativeAudioEvents")?.call(withArguments: [ended])
+        guard !ended.isEmpty, let script else { return }
+        CraftNativeScriptThread.run { script.objectForKeyedSubscript("__craftNativeAudioEvents")?.call(withArguments: [ended]) }
     }
 
     // MARK: Tests

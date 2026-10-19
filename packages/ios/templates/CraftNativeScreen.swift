@@ -1,5 +1,6 @@
 import Foundation
 import CoreFoundation
+import ImageIO
 import AVFoundation
 import AVKit
 import CryptoKit
@@ -3847,8 +3848,9 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
 
     @objc private func refreshPulled() {
         refreshHandler?()
-        // The handler's synchronous render has landed by now.
-        DispatchQueue.main.async { [weak self] in
+        // Once the script has answered the pull (and its render has landed):
+        // a script on its own thread answers a turn or two later.
+        CraftNativeScriptThread.afterScript { [weak self] in
             guard let self, !self.refreshingProp, self.pullToRefresh.isRefreshing else { return }
             self.pullToRefresh.endRefreshing()
         }
@@ -4375,6 +4377,45 @@ private final class CraftNativeTextView: UITextView {
     }
 }
 
+/// Where native screens run their JavaScript.
+///
+/// On the main thread by default. With `nativeScriptThread: "background"` in
+/// craft.config.json, every screen's script runs on one serial thread of its
+/// own (the shared virtual machine's only thread): evaluating its bundle,
+/// handling events and timers, and working out each render all leave the main
+/// thread, which only applies the results to UIKit. Messages between the two
+/// were already asynchronous JSON, so the order of everything is kept.
+enum CraftNativeScriptThread {
+    static var isBackground = false
+    static let queue = DispatchQueue(label: "craft.native.script", qos: .userInteractive)
+
+    /// `work` where the screens' JavaScript runs: now on the main thread, or
+    /// queued in order on the script thread.
+    static func run(_ work: @escaping () -> Void) {
+        if isBackground { queue.async(execute: work) } else { work() }
+    }
+
+    /// From the script thread, `work` on the main thread, not waited for.
+    static func toMain(_ work: @escaping () -> Void) {
+        if Thread.isMainThread { work() } else { DispatchQueue.main.async(execute: work) }
+    }
+
+    /// From the script thread, `work` on the main thread, waited for: for the
+    /// few host functions a script calls synchronously that read main-thread
+    /// state (the Web Audio graph). The main thread never waits for the
+    /// script thread, so this cannot deadlock.
+    static func onMain<T>(_ work: () -> T) -> T {
+        Thread.isMainThread ? work() : DispatchQueue.main.sync(execute: work)
+    }
+
+    /// `work` on the main thread once a script has handled what was sent to
+    /// it before now, and what it sent back has been applied.
+    static func afterScript(_ work: @escaping () -> Void) {
+        if isBackground { queue.async { DispatchQueue.main.async(execute: work) } }
+        else { DispatchQueue.main.async(execute: work) }
+    }
+}
+
 /// The native screens' JavaScript. A screen is a JavaScriptCore context of
 /// its own and evaluates the whole file it is given, so each route has a file
 /// of its own when stx wrote one (`dist/native-screens/<route>.js`, stx's
@@ -4382,7 +4423,8 @@ private final class CraftNativeTextView: UITextView {
 /// screen's. The one-file `dist/native-screen.js` remains the fallback.
 enum CraftNativeBundle {
     /// Every screen's context lives in this one virtual machine. They all run
-    /// on the main thread, the machine's only one, and sharing it shares its
+    /// on one thread (main, or the script thread: CraftNativeScriptThread),
+    /// the machine's only one, and sharing it shares its
     /// code cache: a screen opened again (a second workout, a tab rebuilt)
     /// is not parsed again. Each screen keeps a global object of its own.
     static let virtualMachine = JSVirtualMachine()!
@@ -4409,10 +4451,39 @@ enum CraftNativeBundle {
         url(for: nil) != nil || Bundle.main.url(forResource: "native-screens", withExtension: nil, subdirectory: "dist") != nil
     }
 
+    /// The runtime a route file runs on (stx's `__runtime.js`): evaluated
+    /// first in each screen's context, as a source of its own, so the shared
+    /// virtual machine parses it once for every screen. Nil for a one-file
+    /// bundle, which carries its runtime itself, and for route files from an
+    /// stx that wrote none.
+    static func runtime(for route: URL) -> (source: String, url: URL)? {
+        guard route.deletingLastPathComponent().lastPathComponent == "native-screens",
+              let url = Bundle.main.url(forResource: "__runtime", withExtension: "js", subdirectory: "dist/native-screens") else { return nil }
+        return read(url)
+    }
+
+    /// A language's messages for an area, as JSON text: stx's
+    /// `__messages/<language>/<area>.json` beside the route files. Nil for a
+    /// language or area the build has none for, and for a name that is not
+    /// one (no path outside the messages).
+    static func messages(language: String, area: String) -> String? {
+        guard language.range(of: #"^[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil,
+              area.range(of: #"^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$"#, options: .regularExpression) != nil,
+              let routes = Bundle.main.url(forResource: "native-screens", withExtension: nil, subdirectory: "dist") else { return nil }
+        let url = routes.appendingPathComponent("__messages", isDirectory: true)
+            .appendingPathComponent(language, isDirectory: true)
+            .appendingPathComponent("\(area).json")
+        return read(url)?.source
+    }
+
     /// The route's source, read from disk once and kept while memory allows:
     /// a push read and decoded the file on the main thread every time.
     static func source(for route: String?) -> (source: String, url: URL)? {
         guard let url = url(for: route) else { return nil }
+        return read(url)
+    }
+
+    private static func read(_ url: URL) -> (source: String, url: URL)? {
         let key = url.path as NSString
         if let cached = sources.object(forKey: key) { return (cached as String, url) }
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
@@ -4423,7 +4494,8 @@ enum CraftNativeBundle {
 
 final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate, UITextFieldDelegate, UITextViewDelegate, UIPickerViewDataSource, UIPickerViewDelegate {
     private final class RenderedNode {
-        let identity: String
+        /// A recycled list row's root takes the identity of the row it shows next.
+        var identity: String
         let type: String
         let view: UIView
         var protocolId: String?
@@ -4509,6 +4581,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
     private var flatListRows: [ObjectIdentifier: [String: RenderedNode]] = [:]
+    /// Rows their cells left for reuse, by list and by the row's root view.
+    private var flatListRecycled: [ObjectIdentifier: [ObjectIdentifier: RenderedNode]] = [:]
     private var flatListOwners: [String: String] = [:]
     /// A drawing's shapes are not views: a change to one redraws its `Svg`.
     private var svgOwners: [String: String] = [:]
@@ -4528,7 +4602,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private let capabilityScope = UUID().uuidString
     private var pendingCapabilityRequests = Set<String>()
     private var pendingCapabilityDeadlines: [String: DispatchWorkItem] = [:]
-    private var pendingTimers: [Int: DispatchWorkItem] = [:]
+    /// The script's timers. Touched only where the script runs.
+    private final class Timers {
+        var pending: [Int: DispatchWorkItem] = [:]
+    }
+    private let timers = Timers()
     private var lifecycleObservers: [NSObjectProtocol] = []
     private var deepLinkListener: UUID?
     private var keyboardSafeAreaInset: CGFloat = 0
@@ -4562,7 +4640,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         disposeRuntime()
         imageTasks.values.forEach { $0.cancel() }
         pendingCapabilityDeadlines.values.forEach { $0.cancel() }
-        pendingTimers.values.forEach { $0.cancel() }
+        let timers = self.timers
+        CraftNativeScriptThread.run { timers.pending.values.forEach { $0.cancel() } }
         pendingCapabilityRequests.forEach { CraftNativeActions.cancel(requestToken: $0) }
         lifecycleObservers.forEach(NotificationCenter.default.removeObserver)
         if let deepLinkListener = deepLinkListener { DeepLinkManager.shared.removeNativeListener(deepLinkListener) }
@@ -4591,8 +4670,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             rootTrailingToSafeArea!
         ])
         let pacing = CraftFramePacing.shared
-        pacing.measure("mount \(routeName ?? "screen") setup") { setupJavaScript() }
-        pacing.measure("mount \(routeName ?? "screen") bundle") { loadBundle() }
+        let inputs = scriptInputs()
+        let name = routeName ?? "screen"
+        CraftNativeScriptThread.run { [self] in
+            pacing.measure("mount \(name) setup") { setupJavaScript(inputs) }
+            pacing.measure("mount \(name) bundle") { loadBundle() }
+        }
         observeNativeEvents()
         if isAppScript {
             // Its bundle has run, so its listeners are in place: the app's
@@ -4727,14 +4810,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     func receiveRouteParams(_ params: [String: Any]) {
         routeParams = params
         guard isViewLoaded, !runtimeDisposed else { return }
-        jsContext.setObject(params as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString)
+        let context = jsContext
+        CraftNativeScriptThread.run { context.setObject(params as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString) }
         send(type: "ROUTE_PARAMS", payload: ["params": params])
     }
 
     private func disposeRuntime() {
         guard !runtimeDisposed else { return }
         runtimeDisposed = true
-        jsContext.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: [])
+        let context = jsContext
+        CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }
         audio.close()
         sounds.close()
         streams.close()
@@ -4796,7 +4881,29 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         return value.toString()
     }
 
-    private func setupJavaScript() {
+    /// What a screen's script starts with that only the main thread may read:
+    /// the app's state, the appearance, what the device can do.
+    private struct ScriptInputs {
+        let capabilityJSON: String
+        let appState: String
+        let colorScheme: String
+        let appearanceJSON: String
+        let sessionTokenKey: String
+    }
+
+    private func scriptInputs() -> ScriptInputs {
+        let capabilities = CraftNativeActions.capabilities(config: config)
+        let capabilityData = try? JSONSerialization.data(withJSONObject: capabilities)
+        return ScriptInputs(
+            capabilityJSON: capabilityData.flatMap { String(data: $0, encoding: .utf8) } ?? "[]",
+            appState: CraftNativeActions.currentAppState(),
+            colorScheme: colorScheme,
+            appearanceJSON: appearanceJSON(),
+            sessionTokenKey: Self.jsonString(CraftSession.tokenKey(config))
+        )
+    }
+
+    private func setupJavaScript(_ inputs: ScriptInputs) {
         if let routeName = routeName {
             jsContext.setObject(routeName, forKeyedSubscript: "__stxNativeRoute" as NSString)
         }
@@ -4811,43 +4918,55 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let stack = Self.safeJavaScriptString(exception?.objectForKeyedSubscript("stack")) ?? ""
             let screen = self?.screenName(in: context) ?? "screen"
             CraftNativeConsole.write("error", category: screen, message: stack.isEmpty || stack == "undefined" ? "Uncaught \(message)" : "Uncaught \(message)\n\(stack)")
-            // To the app's crash reporter too (bughq, when configured): an
-            // uncaught error in a shipped screen is otherwise only in a log
-            // nobody reads on someone else's phone.
-            CraftCrashReporter.shared.captureJavaScript(
-                name: Self.safeJavaScriptString(exception?.objectForKeyedSubscript("name")),
-                message: message,
-                stack: stack,
-                route: screen,
-                isAppScript: self?.isAppScript ?? false
-            )
-            self?.hybridFailed(message)
+            let name = Self.safeJavaScriptString(exception?.objectForKeyedSubscript("name"))
+            CraftNativeScriptThread.toMain { [weak self] in
+                // To the app's crash reporter too (bughq, when configured):
+                // an uncaught error in a shipped screen is otherwise only in
+                // a log nobody reads on someone else's phone.
+                CraftCrashReporter.shared.captureJavaScript(
+                    name: name,
+                    message: message,
+                    stack: stack,
+                    route: screen,
+                    isAppScript: self?.isAppScript ?? false
+                )
+                self?.hybridFailed(message)
+            }
         }
         let postMessage: @convention(block) (String) -> Void = { [weak self] json in
             self?.receive(json)
         }
         jsContext.setObject(postMessage, forKeyedSubscript: "craftNativePostMessage" as NSString)
+        // A language's messages for an area, as JSON text, the first time the
+        // screen looks inside them (stx's `messages`): a screen parses only
+        // the language it is shown in, and only the areas it uses. Called
+        // from the screen's script, on its thread, and answered there.
+        let readMessages: @convention(block) (String, String) -> Any = { language, area in
+            CraftNativeBundle.messages(language: language, area: area) ?? NSNull()
+        }
+        jsContext.setObject(readMessages, forKeyedSubscript: "__stxNativeReadMessages" as NSString)
         // JavaScriptCore has no timers of its own. The callbacks stay in
         // JavaScript; native only owns the main-queue deadline, so route
         // teardown cancels every pending timer with the controller.
-        let scheduleTimer: @convention(block) (Int, Double) -> Void = { [weak self] id, delay in
-            guard let self = self else { return }
-            let work = DispatchWorkItem { [weak self] in
-                guard let self = self, self.pendingTimers.removeValue(forKey: id) != nil else { return }
-                self.jsContext.objectForKeyedSubscript("__craftNativeFireTimer")?.call(withArguments: [id])
+        let timers = self.timers
+        let context = jsContext
+        let scheduleTimer: @convention(block) (Int, Double) -> Void = { id, delay in
+            let work = DispatchWorkItem { [weak context] in
+                guard timers.pending.removeValue(forKey: id) != nil else { return }
+                context?.objectForKeyedSubscript("__craftNativeFireTimer")?.call(withArguments: [id])
             }
-            self.pendingTimers[id] = work
+            timers.pending[id] = work
             let milliseconds = delay.isFinite ? Int(min(max(delay, 0), 2_147_483_647)) : 0
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(milliseconds), execute: work)
+            // Fired where the script runs.
+            let queue = CraftNativeScriptThread.isBackground ? CraftNativeScriptThread.queue : .main
+            queue.asyncAfter(deadline: .now() + .milliseconds(milliseconds), execute: work)
         }
-        let cancelTimer: @convention(block) (Int) -> Void = { [weak self] id in
-            self?.pendingTimers.removeValue(forKey: id)?.cancel()
+        let cancelTimer: @convention(block) (Int) -> Void = { id in
+            timers.pending.removeValue(forKey: id)?.cancel()
         }
         jsContext.setObject(scheduleTimer, forKeyedSubscript: "craftNativeScheduleTimer" as NSString)
         jsContext.setObject(cancelTimer, forKeyedSubscript: "craftNativeCancelTimer" as NSString)
-        let capabilities = CraftNativeActions.capabilities(config: config)
-        let capabilityData = try? JSONSerialization.data(withJSONObject: capabilities)
-        let capabilityJSON = capabilityData.flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        let capabilityJSON = inputs.capabilityJSON
         // The app's site and build, as JSON strings: the site an all-native
         // app's paths and links belong to (`devServerURL`), and the version a
         // request or a crash report names.
@@ -4855,7 +4974,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let appURL = Self.jsonString(config.devServerURL ?? "")
         let appVersion = Self.jsonString(info?["CFBundleShortVersionString"] as? String ?? "")
         let appBuild = Self.jsonString(info?["CFBundleVersion"] as? String ?? "")
-        let sessionTokenKey = Self.jsonString(CraftSession.tokenKey(config))
+        let sessionTokenKey = inputs.sessionTokenKey
         jsContext.evaluateScript("""
             // JavaScriptCore has no DOM window, but browser-safe SDK bridges
             // address the host through `window.craft`. Keep native screens
@@ -4868,9 +4987,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 capabilityProtocolVersion: \(craftNativeCapabilityProtocolVersion),
                 capabilityTimeoutMs: \(craftNativeCapabilityTimeoutMilliseconds),
                 capabilities: \(capabilityJSON),
-                initialAppState: "\(CraftNativeActions.currentAppState())",
-                colorScheme: "\(colorScheme)",
-                appearance: \(appearanceJSON()),
+                initialAppState: "\(inputs.appState)",
+                colorScheme: "\(inputs.colorScheme)",
+                appearance: \(inputs.appearanceJSON),
                 appURL: \(appURL),
                 appVersion: \(appVersion),
                 appBuild: \(appBuild),
@@ -4968,6 +5087,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// else the one a route bundle selected for itself.
     private func screenName(in context: JSContext? = nil) -> String {
         if let routeName, !routeName.isEmpty { return routeName }
+        // The script's own context is read only where the script runs.
+        if context == nil, CraftNativeScriptThread.isBackground { return navigationItem.title ?? "screen" }
         if let selected = (context ?? jsContext).objectForKeyedSubscript("__stxNativeRoute"), selected.isString {
             return selected.toString()
         }
@@ -5017,13 +5138,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         let snapshotSet: @convention(block) (String, JSValue, JSValue) -> Void = { name, value, done in
             CraftSnapshots.write(name, json: value.isNull || value.isUndefined ? nil : value.toString()) { ok in
-                done.call(withArguments: [ok])
+                CraftNativeScriptThread.run { done.call(withArguments: [ok]) }
             }
         }
         let snapshotClear: @convention(block) (JSValue, JSValue) -> Void = { keep, done in
             let names = (keep.isUndefined || keep.isNull ? [] : (keep.toArray() ?? [])).compactMap { $0 as? String }
             CraftSnapshots.clear(keeping: Set(names)) { ok in
-                done.call(withArguments: [ok])
+                CraftNativeScriptThread.run { done.call(withArguments: [ok]) }
             }
         }
         let config = self.config
@@ -5033,7 +5154,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let setOptions: @convention(block) (String) -> Void = { [weak self] json in
             guard let data = json.data(using: .utf8),
                   let options = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-            self?.applyNavigationOptions(options)
+            CraftNativeScriptThread.toMain { self?.applyNavigationOptions(options) }
         }
         jsContext.setObject(log, forKeyedSubscript: "craftNativeLog" as NSString)
         jsContext.setObject(storageGet, forKeyedSubscript: "craftNativeStorageGet" as NSString)
@@ -5310,19 +5431,27 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         """)
     }
 
+    /// Runs where the script runs (CraftNativeScriptThread).
     private func loadBundle() {
         guard let bundle = CraftNativeBundle.source(for: routeName) else {
-            showError("Missing dist/native-screen.js. Compile a .stx screen with `stx native compile` first.")
+            CraftNativeScriptThread.toMain { [weak self] in
+                self?.showError("Missing dist/native-screen.js. Compile a .stx screen with `stx native compile` first.")
+            }
             return
+        }
+        if let runtime = CraftNativeBundle.runtime(for: bundle.url) {
+            jsContext.evaluateScript(runtime.source, withSourceURL: runtime.url)
         }
         jsContext.evaluateScript(bundle.source, withSourceURL: bundle.url)
         // A bundle that names no route leaves `__stxNativeRoute` undefined;
         // its title is the app's, not the word "undefined". A title the
         // script set with `navigation.setOptions` wins over both.
-        if routeName == nil, !titleFromOptions,
-           let selected = jsContext.objectForKeyedSubscript("__stxNativeRoute"), selected.isString,
-           let name = selected.toString(), !name.isEmpty {
-            navigationItem.title = name
+        guard routeName == nil,
+              let selected = jsContext.objectForKeyedSubscript("__stxNativeRoute"), selected.isString,
+              let name = selected.toString(), !name.isEmpty else { return }
+        CraftNativeScriptThread.toMain { [weak self] in
+            guard let self, !self.titleFromOptions else { return }
+            self.navigationItem.title = name
         }
     }
 
@@ -5781,7 +5910,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 let token = info["token"] as? String
                 let previous = info["previous"] as? String
                 self.send(type: "SESSION_CHANGED", payload: ["key": key, "token": token ?? NSNull(), "previous": previous ?? NSNull()])
-                self.jsContext.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()])
+                let context = self.jsContext
+                CraftNativeScriptThread.run { context.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()]) }
             })
         }
         if config.enablePushNotifications {
@@ -5950,10 +6080,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         hybridEvents?.nativeScreen(self, didFail: message)
     }
 
+    /// A message from the screen's script, where the script runs: parsed
+    /// there, then applied on the main thread in the order it was sent.
     private func receive(_ raw: String) {
         guard let data = raw.data(using: .utf8),
               let message = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let type = message["type"] as? String else { return }
+              message["type"] is String else { return }
+        CraftNativeScriptThread.toMain { [weak self] in self?.handle(message) }
+    }
+
+    private func handle(_ message: [String: Any]) {
+        guard let type = message["type"] as? String else { return }
         let payload = message["payload"] as? [String: Any] ?? [:]
 
         switch type {
@@ -6000,11 +6137,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let params = payload["params"] as? [String: Any] ?? [:]
             let next = CraftNativeScreenController(config: config, routeName: screen, routeParams: params)
             next.hybridEvents = hybridEvents
-            if type == "NAVIGATE" {
-                navigation.pushViewController(next, animated: true)
-            } else {
-                disposeRuntime()
-                navigation.setViewControllers(Array(navigation.viewControllers.dropLast()) + [next], animated: true)
+            next.whenFirstRendered(within: 0.3) { [weak self, weak navigation] in
+                guard let self, let navigation, navigation.topViewController === self else { return }
+                if type == "NAVIGATE" {
+                    navigation.pushViewController(next, animated: true)
+                } else {
+                    self.disposeRuntime()
+                    navigation.setViewControllers(Array(navigation.viewControllers.dropLast()) + [next], animated: true)
+                }
             }
         case "NAVIGATION_SET_OPTIONS":
             applyNavigationOptions(payload)
@@ -6155,7 +6295,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// simulator-hosted XCTest of the host APIs.
     @discardableResult
     func evaluateScript(_ script: String) -> JSValue? {
-        jsContext.evaluateScript(script)
+        // From the main thread (tests); waits for the script thread's turn.
+        guard CraftNativeScriptThread.isBackground else { return jsContext.evaluateScript(script) }
+        return CraftNativeScriptThread.queue.sync { jsContext.evaluateScript(script) }
     }
 
     // Internal so simulator-hosted XCTest can assert actual UIView identity.
@@ -6166,7 +6308,31 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             hybridRendered = true
             // The app script's drawing is never on screen: not a first frame.
             if !isAppScript { hybridEvents?.nativeScreenDidRender(self) }
+            let waiting = renderWaiters
+            renderWaiters.removeAll()
+            waiting.forEach { $0() }
         }
+    }
+
+    private var renderWaiters: [() -> Void] = []
+
+    /// `work` once the screen has its first content, or after `seconds`,
+    /// whichever comes first. A screen whose script runs on its own thread
+    /// (CraftNativeScriptThread) draws a moment after it is made: a push
+    /// waits for that, so the screen never slides in empty. Now, with the
+    /// script on the main thread, which drew it as it was made.
+    func whenFirstRendered(within seconds: TimeInterval, _ work: @escaping () -> Void) {
+        guard CraftNativeScriptThread.isBackground, !isAppScript else { work(); return }
+        loadViewIfNeeded()
+        guard !hybridRendered else { work(); return }
+        var done = false
+        let once = {
+            guard !done else { return }
+            done = true
+            work()
+        }
+        renderWaiters.append(once)
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: once)
     }
 
     @discardableResult
@@ -6312,15 +6478,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         _ = focused.becomeFirstResponder()
     }
 
-    private func reconcile(_ node: [String: Any], identity: String, path: String, previous: RenderedNode?) -> RenderedNode {
+    /// `adopting`: `previous` is a recycled list row's root, whose views may
+    /// show this row instead (`identity` is the new row's).
+    private func reconcile(_ node: [String: Any], identity: String, path: String, previous: RenderedNode?, adopting: Bool = false) -> RenderedNode {
         let type = canonicalType(node["type"] as? String ?? "View")
         let props = node["props"] as? [String: Any] ?? [:]
         let style = node["style"] as? [String: Any] ?? [:]
         let events = node["events"] as? [String: String] ?? [:]
         let children = node["children"] as? [Any] ?? []
         let current: RenderedNode
-        if let previous = previous, previous.identity == identity, canReuseView(node, previous: previous) {
+        if let previous = previous, previous.identity == identity || adopting, canReuseView(node, previous: previous) {
             current = previous
+            current.identity = identity
         } else {
             current = RenderedNode(identity: identity, type: type, view: makeView(type, props: props))
         }
@@ -7096,16 +7265,28 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             columns: Int(number(props["numColumns"]) ?? 1),
             inverted: props["inverted"] as? Bool == true,
             endReachedThreshold: threshold,
-            renderItem: { [weak self] node, identity, _ in
+            renderItem: { [weak self] node, identity, reusable in
                 guard let self = self else { return UIView() }
-                let previous = self.flatListRows[listKey]?[identity]
+                var previous = self.flatListRows[listKey]?[identity]
+                // A cell scrolled back into use brings the views of the row it
+                // showed: the new row reuses them when it has the same shape,
+                // rather than building every view of it again in the frame it
+                // scrolls in (Apple's view-churn hitch).
+                var adopting = false
+                if previous == nil, let reusable,
+                   let recycled = self.flatListRecycled[listKey]?.removeValue(forKey: ObjectIdentifier(reusable)) {
+                    previous = recycled
+                    adopting = true
+                }
                 let next = self.reconcile(
                     node,
                     identity: "list:\(identity)",
                     path: "\(path).\(identity)",
-                    previous: previous
+                    previous: previous,
+                    adopting: adopting
                 )
-                if let previous, previous.view !== next.view {
+                // A recycled row's handlers went when it was recycled.
+                if let previous, previous.view !== next.view, !adopting {
                     self.forgetHandlers(previous)
                 }
                 self.flatListRows[listKey, default: [:]][identity] = next
@@ -7115,6 +7296,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 guard let self = self,
                       let row = self.flatListRows[listKey]?.removeValue(forKey: identity) else { return }
                 self.forgetHandlers(row, preservingInputDrafts: true)
+                // Kept, without its handlers, for the next row its cell shows.
+                var recycled = self.flatListRecycled[listKey, default: [:]]
+                if recycled.count >= 64, let oldest = recycled.keys.first { recycled.removeValue(forKey: oldest) }
+                recycled[ObjectIdentifier(row.view)] = row
+                self.flatListRecycled[listKey] = recycled
             },
             endReached: nonEmptyHandler(events["onEndReached"]).map { [weak self] handler in
                 { self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
@@ -7164,6 +7350,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             list.setRefreshHandler(nil, refreshing: false)
             list.discardAll()
             flatListRows.removeValue(forKey: listKey)
+            flatListRecycled.removeValue(forKey: listKey)
             if let owner = node.protocolId { flatListOwners = flatListOwners.filter { $0.value != owner } }
         }
         if node.view is CraftNativeSvgView, let owner = node.protocolId { svgOwners = svgOwners.filter { $0.value != owner } }
@@ -7188,6 +7375,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         endEditingHandlers.removeValue(forKey: id)
         submitHandlers.removeValue(forKey: id)
         inputIdentities.removeValue(forKey: id)
+        unechoedText.removeValue(forKey: id)
         if node.type == "TextInput" && !preservingInputDrafts { inputDrafts.removeValue(forKey: node.identity) }
         longPressHandlers.removeValue(forKey: id)
         textMaxLengths.removeValue(forKey: id)
@@ -7399,8 +7587,39 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
+    /// Text a field sent its script that the script has not echoed back yet,
+    /// while the script runs on its own thread: a value that matches an older
+    /// one is the script catching up, not a new value, and applying it would
+    /// undo what was typed since.
+    private var unechoedText: [ObjectIdentifier: [String]] = [:]
+
+    private func noteSentText(_ text: String, for view: UIView) {
+        guard CraftNativeScriptThread.isBackground else { return }
+        let id = ObjectIdentifier(view)
+        var sent = unechoedText[id] ?? []
+        sent.append(text)
+        if sent.count > 32 { sent.removeFirst(sent.count - 32) }
+        unechoedText[id] = sent
+    }
+
+    /// Whether `value` is a stale echo of text the view has moved past: it
+    /// matches text sent before the latest. Text the field never sent is the
+    /// script's own value (a field cleared after sending) and applies.
+    private func isStaleEcho(_ value: String, for view: UIView) -> Bool {
+        let id = ObjectIdentifier(view)
+        guard var sent = unechoedText[id], let index = sent.lastIndex(of: value) else {
+            unechoedText[id] = nil
+            return false
+        }
+        let later = sent.count - index - 1
+        sent.removeFirst(index + 1)
+        unechoedText[id] = sent.isEmpty ? nil : sent
+        return later > 0
+    }
+
     private func updateField(_ field: UITextField, value: String?) {
-        guard let value = value, field.text != value, field.markedTextRange == nil else { return }
+        guard let value = value, field.markedTextRange == nil else { return }
+        if isStaleEcho(value, for: field) || field.text == value { return }
         let selection = field.selectedTextRange
         let start = selection.map { field.offset(from: field.beginningOfDocument, to: $0.start) }
         let end = selection.map { field.offset(from: field.beginningOfDocument, to: $0.end) }
@@ -7413,7 +7632,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func updateTextView(_ textView: UITextView, value: String?) {
-        guard let value = value, textView.text != value, textView.markedTextRange == nil else { return }
+        guard let value = value, textView.markedTextRange == nil else { return }
+        if isStaleEcho(value, for: textView) || textView.text == value { return }
         let selection = textView.selectedTextRange
         let start = selection.map { textView.offset(from: textView.beginningOfDocument, to: $0.start) }
         let end = selection.map { textView.offset(from: textView.beginningOfDocument, to: $0.end) }
@@ -7897,6 +8117,64 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         return cache
     }()
 
+    /// The pixels a picture is drawn at, when its style fixes its size (a
+    /// 40-point avatar, a card's photo): nil otherwise, for a picture whose
+    /// own size lays it out, which must keep its full size.
+    static func displayPixels(of view: UIImageView) -> (size: CGSize, scale: CGFloat)? {
+        let style = view.craftLayoutStyle
+        let points: CGSize
+        switch (style.width, style.height, style.aspectRatio) {
+        case (.points(let width)?, .points(let height)?, _):
+            points = CGSize(width: width, height: height)
+        case (.points(let width)?, nil, let ratio?):
+            points = CGSize(width: width, height: width / ratio)
+        case (nil, .points(let height)?, let ratio?):
+            points = CGSize(width: height * ratio, height: height)
+        default:
+            // Sized by its parent (a percentage, a stretch): its laid-out size.
+            guard style.width != nil || style.height != nil || style.aspectRatio != nil,
+                  view.bounds.width >= 1, view.bounds.height >= 1 else { return nil }
+            points = view.bounds.size
+        }
+        guard points.width >= 1, points.height >= 1 else { return nil }
+        let scale = max(1, view.window?.screen.scale ?? view.traitCollection.displayScale)
+        return (CGSize(width: ceil(points.width * scale), height: ceil(points.height * scale)), scale)
+    }
+
+    /// Off the main thread: an image decoded at no more pixels than it is
+    /// drawn at, by ImageIO's thumbnailer (Apple's downsampling recipe), so a
+    /// 4000-pixel photo in a 40-point circle is never decoded whole; else
+    /// decoded whole, ahead of its first draw.
+    static func decodeImage(_ data: Data, fitting target: (size: CGSize, scale: CGFloat)?, fill: Bool) -> UIImage? {
+        if let target,
+           let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+           let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+           let rawWidth = (properties[kCGImagePropertyPixelWidth] as? NSNumber).map({ CGFloat(truncating: $0) }),
+           let rawHeight = (properties[kCGImagePropertyPixelHeight] as? NSNumber).map({ CGFloat(truncating: $0) }),
+           rawWidth > 0, rawHeight > 0 {
+            // EXIF orientations 5–8 turn the picture a quarter.
+            let turned = ((properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1) >= 5
+            let width = turned ? rawHeight : rawWidth
+            let height = turned ? rawWidth : rawHeight
+            let pixels = target.size
+            let factor = fill ? max(pixels.width / width, pixels.height / height) : min(pixels.width / width, pixels.height / height)
+            if factor < 1 {
+                let options = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceShouldCacheImmediately: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: ceil(max(width, height) * factor),
+                ] as CFDictionary
+                if let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) {
+                    // At the screen's scale, so its size in points is the
+                    // size it is drawn at.
+                    return UIImage(cgImage: image, scale: target.scale, orientation: .up)
+                }
+            }
+        }
+        return UIImage(data: data).map { $0.preparingForDisplay() ?? $0 }
+    }
+
     /// An image the screen downloads: https anywhere, and http only from this
     /// machine (localhost, 127.0.0.1, ::1, *.localhost), the development
     /// server the app's ATS exception already allows. Internal for XCTest.
@@ -7948,8 +8226,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return
         }
         if let url = URL(string: uri), Self.loadsImage(from: url) {
+            // Decoded at the size it is drawn, when the style fixes that size.
+            let pixels = Self.displayPixels(of: view)
+            let fill = view.contentMode == .scaleAspectFill
+            let cacheKey = pixels.map { "\(requestKey)@\(Int($0.size.width))x\(Int($0.size.height))\(fill ? "f" : "")" } ?? requestKey
             // Shown before: on screen in this same frame, already decoded.
-            if let decoded = Self.decodedImages.object(forKey: requestKey as NSString) {
+            if let decoded = Self.decodedImages.object(forKey: cacheKey as NSString) {
                 view.image = imageForDisplay(decoded, view: view)
                 imageDidChange(view)
                 emitImageEvent(view, handler: imageLoadHandlers[id])
@@ -7962,10 +8244,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 // Decoded here, off the main thread. A UIImage made from data
                 // is only decoded when it first draws, on the main thread, in
                 // the frame it scrolls into view: Apple's "prepare" hitch.
-                let decoded = data.flatMap(UIImage.init(data:)).map { $0.preparingForDisplay() ?? $0 }
+                let decoded = data.flatMap { Self.decodeImage($0, fitting: pixels, fill: fill) }
                 if let decoded {
-                    let pixels = decoded.size.width * decoded.scale * decoded.size.height * decoded.scale
-                    Self.decodedImages.setObject(decoded, forKey: requestKey as NSString, cost: Int(pixels * 4))
+                    let bytes = decoded.size.width * decoded.scale * decoded.size.height * decoded.scale * 4
+                    Self.decodedImages.setObject(decoded, forKey: cacheKey as NSString, cost: Int(bytes))
                 }
                 guard let self, let view else { return }
                 DispatchQueue.main.async {
@@ -8215,6 +8497,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         inputIdentities[id].map { inputDrafts[$0] = textView.text ?? "" }
         (textView as? CraftNativeTextView)?.refreshPlaceholder()
         guard let handler = handlers[id] else { return }
+        noteSentText(textView.text ?? "", for: textView)
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": textView.text ?? ""]])
     }
 
@@ -8242,6 +8525,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         inputIdentities[id].map { inputDrafts[$0] = sender.text ?? "" }
         let focused = sender.isFirstResponder ? sender : firstResponder(in: rootStack)
         guard let handler = handlers[id] else { return }
+        noteSentText(sender.text ?? "", for: sender)
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": sender.text ?? ""]])
         restoreFocus(focused)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self, weak focused] in
@@ -8523,7 +8807,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if let correlationId = correlationId { message["correlationId"] = correlationId }
         guard let data = try? JSONSerialization.data(withJSONObject: message),
               let json = String(data: data, encoding: .utf8) else { return }
-        jsContext.objectForKeyedSubscript("__stxNativeCallback")?.call(withArguments: [json])
+        let context = jsContext
+        CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeCallback")?.call(withArguments: [json]) }
     }
 
     private func number(_ value: Any?) -> CGFloat? {
