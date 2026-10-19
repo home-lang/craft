@@ -11,3 +11,13 @@ export function nativeNavigationGroup(source: string, group: string): string[] {
   if (!selected.length) throw new Error(`Empty native navigation UI group: ${group}`)
   return selected.map(name => `NativeNavigationUITests/NativeNavigationUITests/${name}`)
 }
+
+/** An ignored XCTest selector must not silently reduce required coverage. */
+export function verifyNativeNavigationResults(counts: Record<string, unknown>, expectedTestCount?: number): number {
+  const count = counts.totalTestCount
+  if (counts.result !== 'Passed' || typeof count !== 'number' || !Number.isInteger(count) || count < 1
+    || counts.passedTests !== count || counts.failedTests !== 0 || counts.skippedTests !== 0
+    || (expectedTestCount !== undefined && count !== expectedTestCount))
+    throw new Error(`Expected complete native navigation coverage (${expectedTestCount ?? 'nonempty'} tests): ${JSON.stringify(counts)}`)
+  return count
+}
