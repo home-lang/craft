@@ -118,9 +118,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@3436eff9cc46cad165a564f30d458963e148294c # v0.11.99
+        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
         with:
-          version: '0.11.99'
+          version: '0.11.101'
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -270,9 +270,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@3436eff9cc46cad165a564f30d458963e148294c # v0.11.99
+        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
         with:
-          version: '0.11.99'
+          version: '0.11.101'
 
       - name: Setup Bun for the frozen stx compiler lockfile
         uses: oven-sh/setup-bun@v2
@@ -405,9 +405,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@3436eff9cc46cad165a564f30d458963e148294c # v0.11.99
+        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
         with:
-          version: '0.11.99'
+          version: '0.11.101'
 
       - name: Setup Bun for the frozen stx compiler lockfile
         uses: oven-sh/setup-bun@v2
@@ -575,9 +575,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@3436eff9cc46cad165a564f30d458963e148294c # v0.11.99
+        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
         with:
-          version: '0.11.99'
+          version: '0.11.101'
 
       - name: Cache Zig artifacts
         uses: actions/cache@v5

@@ -307,6 +307,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('private func restoreFocus(_ focused: UIView?)')
     expect(nativeSwift).toContain('if rootStyle["flex"] == nil, rootStyle["height"] == nil { rootStyle["flex"] = 1 }')
     expect(nativeSwift).toContain('let lifecycleHandler = visible ? events["onShow"] : events["onDismiss"]')
+    expect(nativeSwift).toContain('if let lifecycleHandler = nonEmptyHandler(lifecycleHandler) {')
     expect(nativeSwift).not.toContain('consumeDismissSuppression')
     expect(nativeSwift).toContain('_ = focused.becomeFirstResponder()')
     expect(nativeSwift).toContain('let focused = firstResponder(in: rootStack)')
