@@ -21,6 +21,9 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.view.AccessibilityDelegateCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.content.ContextCompat
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -810,7 +813,17 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             cell.background = rippleBackground()
             cell.contentDescription = tab.title
             cell.tag = "craft-tab-${tab.id}"
+            cell.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+            ViewCompat.setAccessibilityDelegate(cell, object : AccessibilityDelegateCompat() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.viewIdResourceName = "craft-tab-${tab.id}"
+                    info.className = android.widget.Button::class.java.name
+                    info.isSelected = host.isSelected
+                }
+            })
             val icon = TextView(context)
+            icon.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             icon.text = CraftNativeSymbols.glyph(tab.symbol)
             icon.textSize = 22f
             icon.minWidth = dp(26)
@@ -818,6 +831,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             icon.gravity = Gravity.CENTER
             icon.includeFontPadding = false
             val label = TextView(context)
+            label.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             label.text = tab.title
             label.textSize = 12f
             label.fontFeatureSettings = "tnum"

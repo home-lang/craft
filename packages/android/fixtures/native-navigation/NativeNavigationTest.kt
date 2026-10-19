@@ -756,6 +756,19 @@ class NativeNavigationTest {
         }
         try {
             awaitView(activity, "home-title")
+            val homeTab = node("craft-tab-/")
+            assertEquals("Home", homeTab.contentDescription.toString())
+            assertEquals(Button::class.java.name, homeTab.className.toString())
+            assertTrue(homeTab.isSelected)
+            val detailsTab = node("craft-tab-/details")
+            assertEquals("Details", detailsTab.contentDescription.toString())
+            assertFalse(detailsTab.isSelected)
+            assertTrue("The native tab did not accept its accessibility click",
+                detailsTab.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            awaitView(activity, "details-title")
+            assertTrue(node("craft-tab-/details").isSelected)
+            assertTrue(node("craft-tab-/").performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            awaitView(activity, "home-title")
             val title = node("home-title")
             assertEquals("Home", title.text.toString())
             assertEquals("The test identity must not become a spoken label", null, title.contentDescription)
