@@ -1170,6 +1170,12 @@ finishes when it can, and the next `keep` of that address answers from the
 copy. `prune` stops the transfers for addresses it does not keep, and
 `clear` (sign-out) stops them all, so none lands afterwards.
 
+Android does the same with WorkManager: each download is a job named by its
+address, run when its network is there (an unmetered one for `{ cellular:
+false }`), so it carries on after Android stops the app. A partly downloaded
+file is resumed with a Range request on the next attempt, and the queued
+answer has the same shape as on iOS.
+
 ```ts
 await craft.media.keep('https://example.com/videos/squat.mp4')
 await craft.media.prune(['https://example.com/videos/squat.mp4'])
