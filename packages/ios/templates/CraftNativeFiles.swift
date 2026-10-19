@@ -108,8 +108,15 @@ enum CraftNativeFiles {
     /// (no location) left in it. Answers the file, or null when the person
     /// closed the picker. Main thread.
     static func pickImage(_ options: [String: Any], cameraEnabled: Bool, done: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
-        let maxPixels = min(largestMaxPixels, max(64, (options["maxPixels"] as? NSNumber)?.intValue ?? defaultMaxPixels))
-        let quality = min(1, max(0.1, (options["quality"] as? NSNumber)?.doubleValue ?? defaultQuality))
+        let maxPixels = craftNativeNumber(options["maxPixels"])
+            .map { $0.doubleValue }
+            .flatMap { value in
+                guard value.isFinite else { return nil }
+                return Int(max(64, min(Double(largestMaxPixels), value)))
+            } ?? defaultMaxPixels
+        let quality = min(1, max(0.1, craftNativeNumber(options["quality"])
+            .map { $0.doubleValue }
+            .flatMap { $0.isFinite ? $0 : nil } ?? defaultQuality))
         let source = options["source"] as? String ?? "library"
         guard activePicker == nil else {
             done(.failure(CraftNativeActionError(code: "BUSY", message: "A picker is already open")))
@@ -284,7 +291,12 @@ enum CraftNativeFiles {
             done(.failure(CraftNativeActionError(code: "BUSY", message: "A picker is already open")))
             return
         }
-        let limit = min(512 * 1024 * 1024, max(1, (options["maxBytes"] as? NSNumber)?.intValue ?? 512 * 1024 * 1024))
+        let limit = craftNativeNumber(options["maxBytes"])
+            .map { $0.doubleValue }
+            .flatMap { value in
+                guard value.isFinite else { return nil }
+                return Int(max(1, min(Double(512 * 1024 * 1024), value)))
+            } ?? 512 * 1024 * 1024
         let finish: (Result<Any, CraftNativeActionError>) -> Void = { result in
             DispatchQueue.main.async { activePicker = nil; done(result) }
         }

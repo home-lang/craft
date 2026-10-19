@@ -11,6 +11,7 @@ const iosActions = readFileSync(join(root, 'packages/ios/templates/CraftNativeAc
 const iosHealth = readFileSync(join(root, 'packages/ios/templates/CraftHealth.swift'), 'utf8')
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
+const iosFiles = readFileSync(join(root, 'packages/ios/templates/CraftNativeFiles.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
   .replace('{{NATIVE_MAP_HOST}}', () => readFileSync(join(root, 'packages/android/templates', androidMapHost('google').template), 'utf8'))
   .replace('{{NATIVE_MAP_IMPORTS}}', () => androidMapHost('google').imports)
@@ -1882,6 +1883,13 @@ describe('native renderer component contract', () => {
     expect(iosActions).toContain('let delay = craftNativeNumber(value["delay"]).map { $0.doubleValue }')
     expect(readFileSync(join(root, 'packages/ios/templates/CraftNativeServices.swift'), 'utf8')).toContain('craftNativeNumber(options["volume"]).map { $0.doubleValue }')
     expect(readFileSync(join(root, 'packages/ios/templates/CraftNativeUI.swift'), 'utf8')).toContain('craftNativeNumber(options["pointSize"])')
+  })
+
+  it('keeps iOS native media limits strict and finite', () => {
+    expect(iosFiles).toContain('craftNativeNumber(options["maxPixels"])')
+    expect(iosFiles).toContain('Double(largestMaxPixels)')
+    expect(iosFiles).toContain('craftNativeNumber(options["quality"])')
+    expect(iosFiles).toContain('craftNativeNumber(options["maxBytes"])')
   })
 
   it('keeps native iOS passkeys capability-gated and domain-bound', () => {

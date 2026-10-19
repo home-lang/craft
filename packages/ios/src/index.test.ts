@@ -1425,6 +1425,16 @@ describe('Craft iOS builder', () => {
     expect(services).toContain('craftNativeNumber(options["volume"]).map { $0.doubleValue }')
   })
 
+  it('keeps generated iOS media limits strict and finite', async () => {
+    const output = createTempDir('craft-ios-native-media-numbers-')
+    await init({ runtimeDir: null, name: 'NativeMediaNumbers', bundleId: 'org.example.nativemedianumbers', output })
+    const files = readFileSync(join(output, 'Sources', 'CraftNativeFiles.swift'), 'utf8')
+    expect(files).toContain('craftNativeNumber(options["maxPixels"])')
+    expect(files).toContain('Double(largestMaxPixels)')
+    expect(files).toContain('craftNativeNumber(options["quality"])')
+    expect(files).toContain('craftNativeNumber(options["maxBytes"])')
+  })
+
   it('makes the web view feel like the app: no previews, no zoom, no keyboard bar, an app user agent', async () => {
     const output = createTempDir('craft-ios-feel-')
     await init({ runtimeDir: null, name: 'HQ.training', bundleId: 'training.hq.app', output })
