@@ -163,38 +163,45 @@ main-window bar rather than creating per-window Touch Bar state.
 ## Primary-page event sinks
 
 Some asynchronous native sources have no authenticated sender by the time they
-emit. They currently deliver to the primary page through `getGlobalWebView()`:
+emit. The #331 policy is deliberately conservative: every source that already
+used the process primary page remains **primary-only** until the SDK grows an
+explicit subscription API. A child window must not start receiving an
+unrelated process event merely because it was opened later.
 
-| Source | Current delivery |
-| --- | --- |
-| Theme changes (`macos_theme.zig`) | Primary page |
-| Screen configuration changes (`bridge_screen.zig`) | Primary page |
-| Deep links (`macos_deep_link.zig`) | Primary page |
-| Location updates (`bridge_location.zig`) | Primary page |
-| In-app purchase updates (`bridge_iap.zig`) | Primary page |
-| Local-server requests (`bridge_local_server.zig`) | Primary page |
-| Screen-sharing changes (`bridge_screen_sharing.zig`) | Primary page |
-| Tray and application-menu actions | Primary page |
+| Source | Policy | Current delivery | Why this remains compatible |
+| --- | --- | --- | --- |
+| Theme changes (`macos_theme.zig`) | Primary-only | Primary page through `getGlobalWebView()` | Existing apps listen once for the process theme, not once per window. |
+| Screen configuration changes (`bridge_screen.zig`) | Primary-only | Primary page through `getGlobalWebView()` | The event describes the process display configuration and preserves the existing sink. |
+| Deep links (`macos_deep_link.zig`) | Primary-only | Primary page through `getGlobalWebView()` | One launch URL must not be delivered to every open document. |
+| Location updates (`bridge_location.zig`) | Primary-only | Primary page through `getGlobalWebView()` | The current location recorder is app-scoped and has no subscriber ownership. |
+| In-app purchase updates (`bridge_iap.zig`) | Primary-only | Primary page through `getGlobalWebView()` | Store transaction observers are process-global; duplicating them would double-handle receipts. |
+| Local-server requests (`bridge_local_server.zig`) | Primary-only | Primary page through `getGlobalWebView()` | The server callback has no page owner and keeps the existing request routing stable. |
+| Screen-sharing changes (`bridge_screen_sharing.zig`) | Primary-only | Primary page through `getGlobalWebView()` | Sharing state is app-wide and the current SDK has no per-window observer. |
+| Tray and application-menu actions | Primary-only | Primary page | These controls belong to the application shell, not whichever document is key. |
 
-This is an explicit compatibility contract, not per-window subscription
-behavior. Before changing one of these sources, choose and document whether it
-should remain primary-only, broadcast to every page, or track individual
-subscribers and their owning webviews. Opening a child must never implicitly
-make it the new sink. Issue #331 tracks that per-source decision and its tests.
+This is an explicit compatibility contract, not accidental last-window
+behavior. The policy is implemented by retaining the existing primary sink; no
+event is broadcast to unrelated pages and no subscriber list is silently
+inferred. Opening a child must never implicitly make it the new sink.
+
+Changing a row requires, in the same change, a subscriber identity, lifecycle
+cleanup for navigation/close/destroy/orphan adoption, and a multi-window test
+that proves both the intended recipient and the unrelated-page exclusion. A
+source may move from primary-only to broadcast or subscriber-owned only after
+that contract exists. Issue #331 is resolved at the policy layer while future
+per-source migrations remain explicit and reviewable.
 
 ## Remaining decisions
 
 The parent/child and parent-only modal contract is implemented and covered by
 the desktop GUI and installed-app smokes. The remaining product choices are:
 
-1. In #331, choose primary-only, broadcast or per-subscriber delivery for each
-   application-level asynchronous source above.
-2. Decide whether Touch Bar should stay primary-window scoped or follow the
+1. Decide whether Touch Bar should stay primary-window scoped or follow the
    key window with separately owned item definitions and callbacks.
-3. Decide the portability contract for advanced actions beyond bounds,
+2. Decide the portability contract for advanced actions beyond bounds,
    centering, resizability, size limits and fullscreen. Closing still differs:
    macOS retains a closed page, while Linux and Windows release it.
-4. Expand platform-native integration beyond named-window lifecycle and core
+3. Expand platform-native integration beyond named-window lifecycle and core
    geometry/control smokes. CI runs Linux WebKitGTK under Xvfb with Openbox and Windows
    WebView2 on a native runner. Installed PKG, DEB and MSI smoke tests now
    launch a sample app through the SDK and compare escaped clipboard text
