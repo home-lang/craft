@@ -2230,6 +2230,11 @@ export interface CraftHealthHeartRateEvent extends CustomEvent {
   detail: { samples: CraftHealthHeartRateSample[] };
 }
 
+/** A live HealthKit workout changed state or reported an error (iOS). */
+export interface CraftHealthWorkoutEvent extends CustomEvent {
+  detail: CraftHealthLiveWorkoutEvent;
+}
+
 /** The app came back to the foreground. iOS. */
 export interface CraftResumeEvent extends CustomEvent {
   detail: { backgroundedMs: number };
@@ -2295,6 +2300,8 @@ declare global {
     craftHeartRate: CraftHeartRateEvent;
     // iOS, after `craft.health.startHeartRateUpdates()`.
     craftHealthHeartRate: CraftHealthHeartRateEvent;
+    // iOS, while a live HealthKit workout is active.
+    craftHealthWorkout: CraftHealthWorkoutEvent;
     craftResume: CraftResumeEvent;
     craftMemoryWarning: CustomEvent<Record<string, never>>;
     craftSilentPush: CraftBackgroundWorkEvent;

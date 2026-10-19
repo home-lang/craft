@@ -64,6 +64,7 @@ const nativeLayout = readFileSync(join(root, 'packages/zig/src/native_layout.zig
 const iosConfig = readFileSync(join(root, 'packages/zig/src/ios_config.zig'), 'utf8')
 const zigMain = readFileSync(join(root, 'packages/zig/src/main.zig'), 'utf8')
 const componentTypes = readFileSync(join(root, 'packages/typescript/src/components/index.ts'), 'utf8')
+const craftTypes = readFileSync(join(root, 'packages/typescript/types/craft.d.ts'), 'utf8')
 const iosReadme = readFileSync(join(root, 'packages/ios/README.md'), 'utf8')
 const androidReadme = readFileSync(join(root, 'packages/android/README.md'), 'utf8')
 const macosReadme = readFileSync(join(root, 'packages/macos/README.md'), 'utf8')
@@ -405,6 +406,12 @@ describe('native renderer component contract', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
     expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(17)
+  })
+
+  it('types the live HealthKit workout event emitted by the iOS host', () => {
+    expect(craftTypes).toContain('export interface CraftHealthWorkoutEvent extends CustomEvent')
+    expect(craftTypes).toContain('detail: CraftHealthLiveWorkoutEvent;')
+    expect(craftTypes).toContain('craftHealthWorkout: CraftHealthWorkoutEvent;')
   })
 
   it('lets every container both hosts draw take children in a mutation', () => {
