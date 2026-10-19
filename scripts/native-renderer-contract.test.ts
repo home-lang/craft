@@ -701,6 +701,12 @@ describe('native renderer component contract', () => {
     expect(androidMapTest).toContain('fun dynamicMapOverlayColorsRefreshForNightMode()')
   })
 
+  it('marshals Android MapLibre reconciliation onto the UI thread', () => {
+    expect(androidMapLibre).toContain('if (Looper.myLooper() != Looper.getMainLooper())')
+    expect(androidMapLibre).toContain('post { applyPending() }')
+    expect(androidMapTest).toContain('nativeMapWorkerThreadConfigurationIsMarshalledToTheUiThread')
+  })
+
   it('retries iOS map fitting after the native viewport is measured', () => {
     expect(ios).toContain('private var pendingFitKey: String?')
     expect(ios).toContain('override func layoutSubviews()')
