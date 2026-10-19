@@ -174,7 +174,7 @@ pub const Flags = std.EnumSet(Feature);
 const string_keys = [_][]const u8{ "appName", "bundleId", "renderer", "backgroundColor" };
 const extra_bool_keys = [_][]const u8{"darkMode"};
 const array_of_string_keys = [_][]const u8{ "associatedDomains", "trustedOrigins" };
-const optional_string_keys = [_][]const u8{ "appearance", "backgroundColorDark", "devServerURL", "nativeApp", "sessionTokenKey" };
+const optional_string_keys = [_][]const u8{ "appearance", "backgroundColorDark", "devServerURL", "nativeApp", "nativeScriptThread", "sessionTokenKey" };
 const optional_bool_keys = [_][]const u8{ "swipeNavigation", "limitNavigationsToAppBoundDomains", "allowsLinkPreview", "keyboardAccessory", "disableZoom" };
 /// Swift `Double`s with a default. Any JSON number decodes; a string or a
 /// boolean throws.
@@ -775,6 +775,19 @@ test "string arrays are checked element by element" {
 
 test "optional fields are type-checked when present" {
     inline for (.{ "\"appearance\":7", "\"backgroundColorDark\":false", "\"swipeNavigation\":\"true\"", "\"renderer\":true", "\"disableZoom\":1", "\"allowsLinkPreview\":\"yes\"" }) |bad| {
+        const json = try completeConfig(testing.allocator, bad);
+        defer testing.allocator.free(json);
+        try testing.expectEqual(@as(usize, 0), parse(testing.allocator, json).count());
+    }
+}
+
+test "the native script thread matches Swift optional string decoding" {
+    inline for (.{ "\"nativeScriptThread\":\"main\"", "\"nativeScriptThread\":\"background\"", "\"nativeScriptThread\":null" }) |good| {
+        const json = try completeConfig(testing.allocator, good);
+        defer testing.allocator.free(json);
+        try testing.expectEqual(std.enums.values(Feature).len, parse(testing.allocator, json).count());
+    }
+    inline for (.{ "\"nativeScriptThread\":true", "\"nativeScriptThread\":1", "\"nativeScriptThread\":[]" }) |bad| {
         const json = try completeConfig(testing.allocator, bad);
         defer testing.allocator.free(json);
         try testing.expectEqual(@as(usize, 0), parse(testing.allocator, json).count());
