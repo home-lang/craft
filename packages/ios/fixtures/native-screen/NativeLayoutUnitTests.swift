@@ -912,6 +912,25 @@ final class NativeLayoutUnitTests: XCTestCase {
         try assertColor(dark, red: 0x10 / 255, green: 0x18 / 255, blue: 0x20 / 255)
     }
 
+    func testNavigationBarSolidReappliesAfterAnAppearanceChange() throws {
+        var config = CraftConfig()
+        config.backgroundColor = "#ffffff"
+        config.backgroundColorDark = "#101820"
+        let controller = CraftNativeScreenController(config: config)
+        let navigation = UINavigationController(rootViewController: controller)
+        navigation.loadViewIfNeeded()
+        controller.loadViewIfNeeded()
+
+        controller.evaluateScript("craft.navigation.setOptions({ navigationBarSolid: true })")
+        controller.navigationItem.standardAppearance = nil
+        controller.overrideUserInterfaceStyle = .dark
+        controller.traitCollectionDidChange(UITraitCollection(userInterfaceStyle: .light))
+
+        let appearance = try XCTUnwrap(controller.navigationItem.standardAppearance)
+        let dark = try XCTUnwrap(appearance.backgroundColor).resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+        try assertColor(dark, red: 0x10 / 255, green: 0x18 / 255, blue: 0x20 / 255)
+    }
+
     func testNavigationBarSolidReappliesWhenScreenReappears() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let navigation = UINavigationController(rootViewController: controller)

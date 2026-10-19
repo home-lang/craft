@@ -926,6 +926,8 @@ craft.navigation.setOptions({ navigationBarSolid: true })
 This applies to both standard and large-title bars, and remains in place while
 the screen is pushed, popped, or revealed by a tab swipe. The default remains
 UIKit's translucent material; pass `navigationBarSolid: false` to restore it.
+The host reapplies the dynamic app background when the system switches between
+Light and Dark mode, so the bar does not need to be set again.
 
 A screen's content stays inside the safe area. To colour the strips under the
 status bar and the home indicator too, such as a black full-screen timer with
