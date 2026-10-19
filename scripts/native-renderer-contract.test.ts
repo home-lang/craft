@@ -1693,6 +1693,17 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"unit", "dp"')
   })
 
+  it('exposes screen-owned scrolling for mounted native scroll views', () => {
+    expect(ios).toContain('case ("View", "scrollTo"):')
+    expect(ios).toContain('scrollView.setContentOffset(target, animated: options?["animated"] as? Bool ?? false)')
+    expect(android).toContain('"scrollTo" -> {')
+    expect(android).toContain('scroll.scrollTo(')
+    expect(iosActions).toContain('values.append("viewScroll")')
+    expect(android).toContain('put("viewScroll")')
+    expect(guide).toContain("nativeCall('View', 'scrollTo'")
+    expect(guide).toContain('viewScroll')
+  })
+
   it('restores a modal opener only while it remains mounted', () => {
     expect(ios).toContain('private var modalFocusRestore: [ObjectIdentifier: UIView] = [:]')
     expect(ios).toContain('restore.isDescendant(of: self.view)')

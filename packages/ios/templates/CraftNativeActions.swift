@@ -44,6 +44,7 @@ enum CraftNativeActions {
         var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure"]
         values.append("storageCompareAndSet")
         values.append("storageSetIfAbsent")
+        values.append("viewScroll")
         values.append("crypto")
         if config.enableBiometric { values.append("biometric") }
         if config.enableSecureStorage { values.append("secureStorage") }
