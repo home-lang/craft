@@ -310,7 +310,9 @@ describe('native renderer component contract', () => {
 
   it('verifies Android inverted FlatList order through mounted identities', () => {
     expect(androidFlatList).toContain('val visibleItemIdentities: List<String>')
-    expect(androidFlatListTest).toContain('assertEquals("row-7", list.visibleItemIdentities.first())')
+    expect(androidFlatList).toContain('val child = getChildAt(index)')
+    expect(androidFlatListTest).toContain('assertEquals("row-7", invertedIdentities.first())')
+    expect(androidFlatListTest).toContain('mounted identities must stay in adapter order')
     expect(iosNativeUnitTests).toContain('testFlatListRetainsAHorizontalViewportAcrossInvertedMoves')
   })
 

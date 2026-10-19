@@ -201,7 +201,8 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
     /** Stable identities currently mounted, in their adapter order. */
     val visibleItemIdentities: List<String>
         get() = (0 until childCount)
-            .mapNotNull { child ->
+            .mapNotNull { index ->
+                val child = getChildAt(index)
                 val position = getChildAdapterPosition(child)
                 if (position == RecyclerView.NO_POSITION) return@mapNotNull null
                 (getChildViewHolder(child) as? Holder)?.identity?.let { position to it }

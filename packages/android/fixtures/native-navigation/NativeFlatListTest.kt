@@ -219,7 +219,9 @@ class NativeFlatListTest {
         awaitCount(list, 9)
         val horizontal = list.layoutManager as LinearLayoutManager
         assertEquals(LinearLayoutManager.HORIZONTAL, horizontal.orientation)
-        assertEquals("row-7", list.visibleItemIdentities.first())
+        val invertedIdentities = list.visibleItemIdentities
+        assertEquals("row-7", invertedIdentities.first())
+        assertEquals("mounted identities must stay in adapter order", invertedIdentities, invertedIdentities.sortedBy { it.substringAfter('-').toInt() })
 
         instrumentation.runOnMainSync {
             list.apply(nodes, false, 3, false, 0.1, renderer(context, renders), { _ -> }, null)
