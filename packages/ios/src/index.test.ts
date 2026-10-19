@@ -1804,7 +1804,7 @@ describe('Craft iOS builder', () => {
     expect(services).toContain('UIApplication.shared.registerForRemoteNotifications()')
     // A screen shown again, or opened again with other params.
     expect(screen).toContain('send(type: "SCREEN_FOCUS", payload: ["focused": visible])')
-    expect(screen).toContain('send(type: "ROUTE_PARAMS", payload: ["params": params])')
+    expect(screen).toContain('send(type: "ROUTE_PARAMS", payload: ["params": params, "props": props])')
     // A finished task closes to the first screen of its stack.
     // A screen can ask the tab bar away while it shows; the next one says again.
     expect(screen).toContain('if let hidden = options["tabBarHidden"] as? Bool {')
@@ -1902,8 +1902,8 @@ describe('Craft iOS builder', () => {
     expect(app).toContain('func setHiddenByScreen(_ hidden: Bool) {')
     expect(screen).toContain('case "NAVIGATE_POP_TO_ROOT":')
     expect(screen).toContain('navigationController?.popToRootViewController(animated: true)')
-    expect(hybrid).toContain('(stacks[tab]?.viewControllers.first as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match))')
-    expect(hybrid).toContain('(existing as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match))')
+    expect(hybrid).toContain('(stacks[tab]?.viewControllers.first as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match), props: props)')
+    expect(hybrid).toContain('(existing as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match), props: props)')
     expect(hybrid).toContain('(nav.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(true)')
   })
 

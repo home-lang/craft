@@ -3156,7 +3156,7 @@ describe('native renderer component contract', () => {
   it('routes authored links through both native hosts', () => {
     expect(navigationHome).toContain('<a testID="native-route-link" href="/linked-details">')
     expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')
-    expect(ios).toContain('hybridEvents?.nativeScreen(self, open: target)')
+    expect(ios).toContain('hybridEvents?.nativeScreen(self, open: target, props: [:])')
     expect(android).toContain('val linkTargets = mutableMapOf<View, String>()')
     expect(android).toContain('navigateOpen(target)')
     expect(iosNavigationTest).toContain('func testNativeLinkOpensRoute()')
@@ -3170,6 +3170,19 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"NAVIGATE_POP_TO_ROOT" -> if (visibleScreen === screen) popToRoot()')
     expect(android).toContain('if (screen !== appScreen) {\n                    payload.keys().forEach')
     expect(android).not.toContain('if (screens.lastOrNull() !== screen && screen !== appScreen) return')
+  })
+
+  it('keeps navigation.open props separate from route params on both native hosts', () => {
+    expect(ios).toContain('private(set) var routeProps: [String: Any]')
+    expect(ios).toContain('__stxNativeProps')
+    expect(ios).toContain('nativeScreen(self, open: path, props: payload["props"] as? [String: Any] ?? [:])')
+    expect(iosHybrid).toContain('routeProps: props')
+    expect(android).toContain('val props: JSONObject')
+    expect(android).toContain('globalThis.__stxNativeProps = ${props};')
+    expect(android).toContain('navigateOpen(it, props = payload.optJSONObject("props") ?: JSONObject())')
+    expect(android).toContain('.put("props", props)')
+    expect(guide).toContain('craft.navigation.open(path, props?)')
+    expect(guide).toContain('craft.route.props')
   })
 
   it('exercises Android native button, link, and retained-screen state paths', () => {
