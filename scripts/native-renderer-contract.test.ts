@@ -1747,6 +1747,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('if let region = Self.region(props["region"])')
     expect(ios).toContain('else if let initial = Self.region(props["initialRegion"])')
     expect(ios).toContain('Self.overlayKey(markers: nextMarkers.mapValues { $0.coordinate }, polylines: nextPolylines.mapValues { $0.coordinates }, polygons: nextPolygons.mapValues { $0.coordinates })')
+    expect(ios).toContain('let polygonKey = polygons.keys.sorted().compactMap')
+    expect(ios).toContain('return "m[\\(markerKey)]p[\\(polylineKey)]g[\\(polygonKey)]"')
     expect(android).toContain('private var initialCameraKey: String? = null')
     expect(android).toContain('val explicitRegion = region(pendingProps.optJSONObject("region"))')
     expect(android).toContain('val initialRegion = region(pendingProps.optJSONObject("initialRegion"))')

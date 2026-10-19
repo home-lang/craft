@@ -1432,6 +1432,8 @@ describe('Craft iOS builder', () => {
     const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
     expect(screen).toContain('case "Map":')
     expect(screen).toContain('private final class CraftNativeMapView: MKMapView, MKMapViewDelegate')
+    expect(screen).toContain('let polygonKey = polygons.keys.sorted().compactMap')
+    expect(screen).toContain('g[\\(polygonKey)]')
   })
 
   it('names browser URL globals that are intentionally unavailable on native screens', async () => {

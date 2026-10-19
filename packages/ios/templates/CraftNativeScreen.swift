@@ -1722,7 +1722,11 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             guard let points = polylines[id] else { return nil }
             return "\(id):" + points.map { "\($0.latitude),\($0.longitude)" }.joined(separator: ";")
         }.joined(separator: "|")
-        return "m[\(markerKey)]p[\(polylineKey)]"
+        let polygonKey = polygons.keys.sorted().compactMap { id in
+            guard let points = polygons[id] else { return nil }
+            return "\(id):" + points.map { "\($0.latitude),\($0.longitude)" }.joined(separator: ";")
+        }.joined(separator: "|")
+        return "m[\(markerKey)]p[\(polylineKey)]g[\(polygonKey)]"
     }
 
     private static func region(_ value: Any?) -> MKCoordinateRegion? {
