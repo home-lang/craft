@@ -1,5 +1,46 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.243...v0.0.244)
+
+## 🐛 Bug Fixes
+
+- **android**: wait for automatic SDK setup to release HOME ([35fc31a](https://github.com/craft-native/craft/commit/35fc31a)) _(by Chris Breuer)_
+- **ios**: keep tab accessory cleanup scoped to its native owner ([f49d66e](https://github.com/craft-native/craft/commit/f49d66e)) _(by Chris Breuer)_
+- **native**: preserve authored keys in mutation documents ([f4e09bf](https://github.com/craft-native/craft/commit/f4e09bf)) _(by Chris Breuer)_
+- **ios**: scroll native test targets into view in either direction ([f39eb8a](https://github.com/craft-native/craft/commit/f39eb8a)) _(by Chris Breuer)_
+- **ios**: retain protocol views and render contrasting native map signs ([e3a4e7b](https://github.com/craft-native/craft/commit/e3a4e7b)) _(by Chris Breuer)_
+- **android**: reorder retained rows without detaching focused inputs ([4ae889e](https://github.com/craft-native/craft/commit/4ae889e)) _(by Chris Breuer)_
+- **android**: keep test selectors queryable independently of view identity ([e13b2b1](https://github.com/craft-native/craft/commit/e13b2b1)) _(by Chris Breuer)_
+- **android**: retain unique protocol identities before test selectors ([ce42e19](https://github.com/craft-native/craft/commit/ce42e19)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: reproduce boot readiness during automatic SDK setup ([f8cd4ef](https://github.com/craft-native/craft/commit/f8cd4ef)) _(by Chris Breuer)_
+- **ios**: reproduce appearance from a tab without an accessory ([dbf1622](https://github.com/craft-native/craft/commit/dbf1622)) _(by Chris Breuer)_
+- **ios**: reproduce delayed hidden tab appearance clearing chrome ([255df43](https://github.com/craft-native/craft/commit/255df43)) _(by Chris Breuer)_
+- **ios**: trace native tab accessory during the compiled push flow ([eb09067](https://github.com/craft-native/craft/commit/eb09067)) _(by Chris Breuer)_
+- **ios**: reproduce unrelated screen clearing active tab accessory ([490ce8d](https://github.com/craft-native/craft/commit/490ce8d)) _(by Chris Breuer)_
+- **native**: qualify authored keys with the fixed shared compiler ([f007094](https://github.com/craft-native/craft/commit/f007094)) _(by Chris Breuer)_
+- **native**: reproduce authored key loss in mutation documents ([e8b418a](https://github.com/craft-native/craft/commit/e8b418a)) _(by Chris Breuer)_
+- **ios**: verify rendered route sign contrast and authored color ([b1642b4](https://github.com/craft-native/craft/commit/b1642b4)) _(by Chris Breuer)_
+- **android**: await both compiled repeated rows before inspection ([094e3a9](https://github.com/craft-native/craft/commit/094e3a9)) _(by Chris Breuer)_
+- **ios**: preserve protocol identity with repeated selectors ([56fd5e1](https://github.com/craft-native/craft/commit/56fd5e1)) _(by Chris Breuer)_
+- **android**: reproduce repeated selector view aliasing ([6923c94](https://github.com/craft-native/craft/commit/6923c94)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- **ios**: remove temporary native chrome diagnostics ([6ad9884](https://github.com/craft-native/craft/commit/6ad9884)) _(by Chris Breuer)_
+- **ci**: qualify native builds with published STX and Pantry releases ([7899178](https://github.com/craft-native/craft/commit/7899178)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/native-repeated-selector-identity ([f02c388](https://github.com/craft-native/craft/commit/f02c388)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/native-repeated-selector-identity ([199b1c2](https://github.com/craft-native/craft/commit/199b1c2)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.242...v0.0.243)
 
 ## 🐛 Bug Fixes
