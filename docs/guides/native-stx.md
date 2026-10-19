@@ -179,6 +179,8 @@ generated renderers, so a platform can’t silently lose a native primitive.
 
 `Switch` accepts the shared `trackColor` object (`false` and `true` states) and
 `thumbColor`; iOS also honors `ios_backgroundColor` for the off-state track.
+Use `value` for the controlled state. `checked` is a compatibility alias when
+`value` is null, and `value` takes precedence when both are provided.
 `Slider` accepts `minimumTrackTintColor`, `maximumTrackTintColor`, and
 `thumbTintColor` on both hosts, with `step` snapping values before events are
 delivered.

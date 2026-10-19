@@ -38,6 +38,7 @@ import type {
   SectionListProps,
   TextInputProps,
   ScrollViewProps,
+  SwitchProps,
   ViewProps,
   TextProps,
 } from '../components'
@@ -111,6 +112,8 @@ describe('Component System', () => {
     view.pointerEvents = 'none'
     expect(view.onPress).toBeDefined()
     expect(button.style).toHaveLength(2)
+    const toggle: SwitchProps = { value: undefined, checked: true, onValueChange: value => expect(typeof value).toBe('boolean') }
+    expect(toggle.checked).toBe(true)
     const icon: IconProps = { symbol: 'sun.max', style: { width: 24, color: '#f59e0b' } }
     const video: VideoProps = { source: { uri: 'https://example.com/video.mp4' }, style: { width: 120, height: 68 } }
     const indicator: ActivityIndicatorProps = { size: 48, style: { transform: [{ scale: 0.5 }] } }

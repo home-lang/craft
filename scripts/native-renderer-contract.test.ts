@@ -185,6 +185,14 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<ActivityIndicator testID="scaled-indicator"')
   })
 
+  it('keeps Switch checked compatibility aligned with both hosts', () => {
+    expect(componentTypes).toContain('checked?: boolean')
+    expect(ios).toContain('props["value"] as? Bool ?? props["checked"] as? Bool ?? false')
+    expect(android).toContain('requestedChecked is Boolean -> requestedChecked')
+    expect(guide).toContain('`checked` is a compatibility alias')
+    expect(guide).toContain('`value` is null, and `value` takes precedence')
+  })
+
   it('keeps composed native styles recursively flattenable', () => {
     expect(componentTypes).toContain('export type StyleValue<T> =')
     expect(componentTypes).toContain('in any component\'s `style` prop')

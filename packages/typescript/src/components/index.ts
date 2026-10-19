@@ -860,6 +860,8 @@ export interface SwitchProps extends BaseProps {
   style?: StyleValue<ViewStyle>
   /** Controlled boolean state; malformed native bridge values stay off. */
   value?: boolean
+  /** Compatibility alias used when `value` is null; `value` takes precedence. */
+  checked?: boolean
   onValueChange?: (value: boolean) => void
   onChange?: (value: boolean) => void
   disabled?: boolean
