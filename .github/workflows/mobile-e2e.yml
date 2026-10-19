@@ -171,7 +171,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 0d85afbab4b569ac2f09113a6c9a5d11d926145f
+          ref: 396cb876707e2b0668374c818ea93aa38dac04f8
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
@@ -287,12 +287,12 @@ jobs:
       # The summary requires both jobs, including every original test suite.
       # The multi-screen fixture is compiled from real .stx sources. Pin the
       # @stacksjs/stx compiler (`stx native compile`) so this job cannot silently change
-      # underneath us. This release also carries a Bun-compatible lockfile.
+      # underneath us. Bun 1.4.2 installs this release's frozen lockfile.
       - name: Checkout stx compiler
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 0d85afbab4b569ac2f09113a6c9a5d11d926145f
+          ref: 396cb876707e2b0668374c818ea93aa38dac04f8
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
@@ -442,7 +442,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 0d85afbab4b569ac2f09113a6c9a5d11d926145f
+          ref: 396cb876707e2b0668374c818ea93aa38dac04f8
           path: .stx-compiler
 
       - name: Install Android stx compiler dependencies
@@ -649,7 +649,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 0d85afbab4b569ac2f09113a6c9a5d11d926145f
+          ref: 396cb876707e2b0668374c818ea93aa38dac04f8
           path: .stx-compiler
       - run: bun install --frozen-lockfile
         working-directory: .stx-compiler
