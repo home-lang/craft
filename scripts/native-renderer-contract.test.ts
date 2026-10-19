@@ -110,6 +110,14 @@ describe('native renderer component contract', () => {
     expect(troubleshootingGuide).toContain('listen for `pointerlockerror`')
   })
 
+  it('remeasures Android absolute aspect-ratio children from anchored width', () => {
+    expect(android).toContain('private fun absoluteSize(entry: Entry, contentWidth: Int, contentHeight: Int): Pair<Int, Int>')
+    expect(android).toContain('anchoredWidth && style.aspectRatio != null && style.aspectRatio > 0')
+    expect(androidNavigationTest).toContain('absolute aspect ratio should remeasure from anchored width')
+    expect(navigationHome).toContain('testID="layout-absolute-ratio"')
+    expect(iosNavigationTest).toContain('absolute aspect ratio was not resolved from anchored width')
+  })
+
   it('keeps browser-safe capability bridges reachable in DOM-free hosts', () => {
     expect(ios).toContain('if (typeof globalThis.window === "undefined") { globalThis.window = globalThis; }')
     expect(androidChrome).toContain("if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;")

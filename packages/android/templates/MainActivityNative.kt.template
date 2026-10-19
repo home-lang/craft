@@ -887,6 +887,31 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         child.layout(left, top, right, bottom)
     }
 
+    /**
+     * Resolve an absolute child against the parent's content box before it is
+     * placed. In particular, left+right anchors define the child's width; an
+     * aspect-ratio child must be measured again at that width or Android can
+     * retain the parent's intrinsic height from its first, wider probe.
+     */
+    private fun absoluteSize(entry: Entry, contentWidth: Int, contentHeight: Int): Pair<Int, Int> {
+        val style = entry.style
+        val anchoredWidth = style.left != null && style.right != null
+        val anchoredHeight = style.top != null && style.bottom != null
+        var width = if (anchoredWidth) contentWidth - style.left!! - style.right!! else entry.width
+        var height = if (anchoredHeight) contentHeight - style.top!! - style.bottom!! else entry.height
+        width = clamp(width, style.minWidth?.resolve(contentWidth), style.maxWidth?.resolve(contentWidth))
+        if (!anchoredHeight) {
+            height = when {
+                style.height != null -> measureChildHeight(entry.view, style, contentHeight, 0, width)
+                anchoredWidth && style.aspectRatio != null && style.aspectRatio > 0 ->
+                    clamp((width / style.aspectRatio).roundToInt(), style.minHeight?.resolve(contentHeight), style.maxHeight?.resolve(contentHeight))
+                else -> measureChildHeight(entry.view, style, contentHeight, 0, width)
+            }
+        }
+        height = clamp(height, style.minHeight?.resolve(contentHeight), style.maxHeight?.resolve(contentHeight))
+        return max(0, width) to max(0, height)
+    }
+
     override fun drawChild(canvas: Canvas, child: View, drawingTime: Long): Boolean {
         val skew = CraftNativeSkewTransforms.matrix(child) ?: return super.drawChild(canvas, child, drawingTime)
         val save = canvas.save()
@@ -1751,11 +1776,10 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             }
             for (entry in layout.absolute) {
                 if (entry.view is CraftNativeModalView && entry.view.visibility == View.VISIBLE) entry.view.bringToFront()
-                val childWidth = if (entry.style.left != null && entry.style.right != null) contentWidth - entry.style.left!! - entry.style.right!! else entry.width
-                val childHeight = if (entry.style.top != null && entry.style.bottom != null) contentHeight - entry.style.top!! - entry.style.bottom!! else entry.height
+                val (childWidth, childHeight) = absoluteSize(entry, contentWidth, contentHeight)
                 val x = paddingLeft + (entry.style.left ?: (entry.style.right?.let { contentWidth - it - childWidth } ?: 0))
                 val y = paddingTop + (entry.style.top ?: (entry.style.bottom?.let { contentHeight - it - childHeight } ?: 0))
-                place(entry.view, x, y, x + max(0, childWidth), y + max(0, childHeight))
+                place(entry.view, x, y, x + childWidth, y + childHeight)
             }
             onLayoutChanged?.invoke()
             return
@@ -1937,11 +1961,10 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         }
         for (entry in absolute) {
             if (entry.view is CraftNativeModalView && entry.view.visibility == View.VISIBLE) entry.view.bringToFront()
-            val widthValue = if (entry.style.left != null && entry.style.right != null) contentWidth - entry.style.left!! - entry.style.right!! else entry.width
-            val heightValue = if (entry.style.top != null && entry.style.bottom != null) contentHeight - entry.style.top!! - entry.style.bottom!! else entry.height
+            val (widthValue, heightValue) = absoluteSize(entry, contentWidth, contentHeight)
             val x = paddingLeft + (entry.style.left ?: (entry.style.right?.let { contentWidth - it - widthValue } ?: 0))
             val y = paddingTop + (entry.style.top ?: (entry.style.bottom?.let { contentHeight - it - heightValue } ?: 0))
-            place(entry.view, x, y, x + max(0, widthValue), y + max(0, heightValue))
+            place(entry.view, x, y, x + widthValue, y + heightValue)
         }
         onLayoutChanged?.invoke()
     }

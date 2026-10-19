@@ -843,6 +843,10 @@ final class NativeNavigationUITests: XCTestCase {
         let bounded = app.staticTexts["layout-min"]
         XCTAssertTrue(bounded.exists)
         XCTAssertEqual(bounded.frame.width, 140, accuracy: 2, "maxWidth was not applied")
+        let absoluteRatio = app.otherElements["layout-absolute-ratio"]
+        XCTAssertTrue(absoluteRatio.waitForExistence(timeout: 5))
+        XCTAssertEqual(absoluteRatio.frame.width, 156, accuracy: 2, "absolute left/right anchors were not resolved")
+        XCTAssertEqual(absoluteRatio.frame.height, 39, accuracy: 2, "absolute aspect ratio was not resolved from anchored width")
         let percentWidth = app.staticTexts["percent-width"]
         XCTAssertTrue(percentWidth.waitForExistence(timeout: 5))
         XCTAssertEqual(percentWidth.frame.width, 120, accuracy: 2, "percentage width was not resolved against the parent")
