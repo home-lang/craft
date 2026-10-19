@@ -3666,6 +3666,7 @@ class MainActivity : AppCompatActivity() {
         // the original tree path without manufacturing a detached view.
         val nodeViews = mutableMapOf<String, View>()
         val nodePaths = mutableMapOf<String, String>()
+        val protocolIds = mutableMapOf<View, String>()
         val handlers = mutableMapOf<View, String>()
         val linkTargets = mutableMapOf<View, String>()
         val pressInHandlers = mutableMapOf<View, String>()
@@ -5033,6 +5034,7 @@ class MainActivity : AppCompatActivity() {
         screen.controls.clear()
         screen.nodeViews.clear()
         screen.nodePaths.clear()
+        screen.protocolIds.clear()
         screen.handlers.clear()
         screen.linkTargets.clear()
         screen.flatListRows.clear()
@@ -5054,14 +5056,18 @@ class MainActivity : AppCompatActivity() {
         val children = node.optJSONArray("children") ?: JSONArray()
         val protocolId = node.optString("id").takeIf { it.isNotBlank() }
         val explicitKey = authoredKey(node, props)
-        // Protocol IDs are global to the committed native tree. Prefer them
-        // over parent-local keys so a reparented popup retains its live view,
-        // draft, focus and selection across the full render.
-        val identity = protocolId?.let { "id:$it" }
-            ?: explicitKey?.let { "${path.substringBeforeLast('.', "")}/$it" }
+        // Authored keys retain conditional replacements and scope their
+        // descendants. A protocol alias additionally finds the same live
+        // view when a popup moves to another parent.
+        val identity = explicitKey?.let { "${path.substringBeforeLast('.', "")}/$it" }
+            ?: protocolId?.let { "id:$it" }
             ?: props.optString("testID").takeIf { it.isNotBlank() }?.let { "${path.substringBeforeLast('.', "")}/$it" }
             ?: path
-        val previous = previousControls[identity]
+        val keyedPrevious = previousControls[identity]?.takeIf { candidate ->
+            val previousId = screen.protocolIds[candidate]
+            previousId == null || previousId == protocolId || !screen.mutations.containsNode(previousId)
+        }
+        val previous = protocolId?.let { previousControls["id:$it"] } ?: keyedPrevious
         val reusableInput = previous as? EditText
         val control = when (type) {
             "Text" -> ((previous as? TextView)?.takeUnless { it is Button || it is EditText } ?: TextView(this)).apply {
@@ -5896,6 +5902,10 @@ class MainActivity : AppCompatActivity() {
             screen.nodePaths[it] = path
         }
         next[identity] = control
+        protocolId?.let {
+            next["id:$it"] = control
+            screen.protocolIds[control] = it
+        }
         applyViewStyle(control, style)
         if (type == "ActivityIndicator") {
             val animating = craftNativeBoolean(props.opt("animating"), true)
@@ -7498,6 +7508,7 @@ class MainActivity : AppCompatActivity() {
         }
         released.forEach(defaultBackgrounds::remove)
         screen.linkTargets.keys.removeAll(released)
+        screen.protocolIds.keys.removeAll(released)
         screen.handlers.keys.removeAll(released)
         screen.pressInHandlers.keys.removeAll(released)
         screen.pressOutHandlers.keys.removeAll(released)
@@ -7560,6 +7571,7 @@ class MainActivity : AppCompatActivity() {
         screen.controls.clear()
         screen.nodeViews.clear()
         screen.nodePaths.clear()
+        screen.protocolIds.clear()
         screen.handlers.clear()
         screen.pressInHandlers.clear()
         screen.pressOutHandlers.clear()
