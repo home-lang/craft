@@ -52,4 +52,15 @@ final class NativeRenderUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "1")
         XCTAssertEqual(app.staticTexts["switch-result"].label, "Switch on")
     }
+
+    func testSwitchInsideScrollViewTakesOneTap() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let toggle = app.switches["scroll-switch"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 15))
+        XCTAssertEqual(toggle.value as? String, "0")
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "1")
+        XCTAssertEqual(app.staticTexts["switch-result"].label, "Switch on")
+    }
 }
