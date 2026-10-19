@@ -444,6 +444,9 @@ class CraftBridge(
                     bluetooth: false,
                     nfc: false,
                     health: {{ENABLE_HEALTH_CONNECT}},
+                    heartRate: {{ENABLE_HEART_RATE}},
+                    heartRateRecordingOwnership: {{ENABLE_HEART_RATE}},
+                    heartRateRecordingIntentIdentity: {{ENABLE_HEART_RATE}},
                     screenCapture: false
                 },
 
@@ -1808,6 +1811,85 @@ class CraftBridge(
                     readRecording: function(options) { return recordingCall('readRecording', options); },
                     acknowledgeRecording: function(options) { return recordingCall('acknowledgeRecording', options); }
                 };
+                // A Bluetooth heart-rate strap, or a watch broadcasting its
+                // heart rate (CraftHeartRate.kt), in the iOS page's names.
+                // Readings, devices found by scan() and connection changes
+                // arrive as craftHeartRate events ({type: 'reading' | 'device'
+                // | 'state'}); startRecording() keeps every reading natively,
+                // screen locked or app closed, until stopRecording(). Calls
+                // that wait on Android's Nearby devices prompt have no deadline.
+                var heartRateSequence = 0;
+                var heartRateRequests = Object.create(null);
+                var heartRateClosed = false;
+                window.__craftHeartRateResult = function(id, value) {
+                    var pending = heartRateRequests[id];
+                    if (!pending) return;
+                    delete heartRateRequests[id];
+                    pending.resolve(value);
+                };
+                window.__craftHeartRateError = function(id, message, code) {
+                    var pending = heartRateRequests[id];
+                    if (!pending) return;
+                    delete heartRateRequests[id];
+                    var error = new Error(message);
+                    error.code = code || 'CRAFT_ERROR';
+                    error.bridge = true;
+                    pending.reject(error);
+                };
+                window.__craftRejectHeartRateRequests = function(message) {
+                    heartRateClosed = true;
+                    Object.keys(heartRateRequests).forEach(function(id) {
+                        var pending = heartRateRequests[id];
+                        delete heartRateRequests[id];
+                        pending.reject(new Error(message || 'Android bridge closed'));
+                    });
+                };
+                function heartRate(method, options) {
+                    options = options || {};
+                    if (['startRecording', 'pauseRecording', 'resumeRecording', 'stopRecording', 'readRecording', 'getRecordingState', 'acknowledgeRecording'].indexOf(method) !== -1) {
+                        if (Object.prototype.hasOwnProperty.call(options, 'recordingId') &&
+                            (typeof options.recordingId !== 'string' || !options.recordingId.trim())) {
+                            var invalidStart = new Error('recordingId must be a nonempty recording ID');
+                            invalidStart.code = 'INVALID_ARGUMENT';
+                            return Promise.reject(invalidStart);
+                        }
+                        if (Object.prototype.hasOwnProperty.call(options, 'expectedId') &&
+                            (typeof options.expectedId !== 'string' || !options.expectedId.trim())) {
+                            var invalid = new Error('expectedId must be a nonempty recording ID');
+                            invalid.code = 'INVALID_ARGUMENT';
+                            return Promise.reject(invalid);
+                        }
+                    }
+                    if (heartRateClosed) return Promise.reject(new Error('Android bridge is closed'));
+                    return new Promise(function(resolve, reject) {
+                        heartRateSequence += 1;
+                        var id = heartRateSequence;
+                        heartRateRequests[id] = {resolve: resolve, reject: reject};
+                        try {
+                            CraftAndroid.heartRate(method, JSON.stringify(options), id);
+                        } catch (error) {
+                            delete heartRateRequests[id];
+                            reject(error);
+                        }
+                    });
+                }
+                craft.heartRate = {
+                    getState: function() { return heartRate('getState'); },
+                    requestAuthorization: function() { return heartRate('requestAuthorization'); },
+                    scan: function(options) { return heartRate('scan', {timeout: options && typeof options.timeout === 'number' ? options.timeout : null}); },
+                    stopScan: function() { return heartRate('stopScan'); },
+                    getDevices: function() { return heartRate('getDevices'); },
+                    connect: function(id) { return heartRate('connect', {id: typeof id === 'string' ? id : id && id.id}); },
+                    reconnect: function() { return heartRate('reconnect'); },
+                    disconnect: function(options) { return heartRate('disconnect', {forget: !!(options && options.forget)}); },
+                    startRecording: function(options) { return heartRate('startRecording', options); },
+                    pauseRecording: function(options) { return heartRate('pauseRecording', options); },
+                    resumeRecording: function(options) { return heartRate('resumeRecording', options); },
+                    stopRecording: function(options) { return heartRate('stopRecording', options); },
+                    getRecordingState: function(options) { return heartRate('getRecordingState', options); },
+                    acknowledgeRecording: function(options) { return heartRate('acknowledgeRecording', options); },
+                    readRecording: function(options) { return heartRate('readRecording', options); }
+                };
                 var shareApi = function(text, title) { return legacyShare(text, title); };
                 shareApi.share = function(options) {
                     options = options || {};
@@ -2537,6 +2619,7 @@ class CraftBridge(
     }
 
     fun onRequestPermissionsResult(requestCode: Int): Boolean {
+        if (heartRateEnabled && CraftHeartRate.get(activity).onPermissions(requestCode)) return true
         if (closed) return requestCode in PERMISSION_REQUEST_START..PERMISSION_REQUEST_END
         // startListening asked for the microphone and is waiting on this.
         if (requestCode == REQUEST_SPEECH) {
@@ -2818,6 +2901,54 @@ class CraftBridge(
     @JavascriptInterface
     fun readLocationRecording(): String {
         return legacyRecordingAction("readRecording")
+    }
+
+    // ==================== Heart rate (CraftHeartRate.kt) ====================
+
+    private val heartRateEnabled = {{ENABLE_HEART_RATE}}
+
+    /** The strap's events, to this page as `craftHeartRate`. */
+    private val heartRateSink: (JSONObject) -> Unit = { detail ->
+        evaluateJavascriptUnlessClosed("window.dispatchEvent(new CustomEvent('craftHeartRate', {detail: $detail}));")
+    }
+
+    init {
+        if (heartRateEnabled) CraftHeartRate.get(activity).sinks["page"] = heartRateSink
+    }
+
+    /**
+     * One `craft.heartRate` call, by method name, answered through
+     * `__craftHeartRateResult` / `__craftHeartRateError` with its id. An
+     * answer for a page that has since navigated away is dropped.
+     */
+    @JavascriptInterface
+    fun heartRate(method: String, optionsJson: String, callbackId: Int) {
+        activity.runOnUiThread {
+            if (closed) return@runOnUiThread
+            if (!heartRateEnabled) return@runOnUiThread rejectHeartRate(callbackId, navigationGeneration, "Heart rate is disabled", "CAPABILITY_DISABLED")
+            val generation = navigationGeneration
+            val options = runCatching { JSONObject(optionsJson) }.getOrNull()
+                ?: return@runOnUiThread rejectHeartRate(callbackId, generation, "Invalid heart-rate options", "INVALID_ARGUMENT")
+            CraftHeartRate.get(activity).perform(method, options, activity) { result ->
+                result.fold(
+                    onSuccess = { value ->
+                        if (generation != navigationGeneration) return@fold
+                        val json = if (value is String) JSONObject.quote(value) else value.toString()
+                        evaluateJavascriptUnlessClosed("window.__craftHeartRateResult && window.__craftHeartRateResult($callbackId, $json)")
+                    },
+                    onFailure = { error ->
+                        rejectHeartRate(callbackId, generation, error.message ?: "Heart rate failed", (error as? CraftHeartRateException)?.code ?: "CRAFT_ERROR")
+                    },
+                )
+            }
+        }
+    }
+
+    private fun rejectHeartRate(callbackId: Int, generation: Int, message: String, code: String) {
+        if (generation != navigationGeneration) return
+        evaluateJavascriptUnlessClosed(
+            "window.__craftHeartRateError && window.__craftHeartRateError($callbackId, ${jsQuote(message)}, ${jsQuote(code)})"
+        )
     }
 
     // ==================== Clipboard ====================
@@ -4473,13 +4604,17 @@ class CraftBridge(
                 webView.evaluateJavascript(
                     "window.__craftRejectPendingPromises && window.__craftRejectPendingPromises('Android bridge closed');" +
                         "window.__craftRejectPermissionRequests && window.__craftRejectPermissionRequests('Android bridge closed');" +
-                        "window.__craftRejectSpeechRequests && window.__craftRejectSpeechRequests('Android bridge closed')",
+                        "window.__craftRejectSpeechRequests && window.__craftRejectSpeechRequests('Android bridge closed');" +
+                        "window.__craftRejectHeartRateRequests && window.__craftRejectHeartRateRequests('Android bridge closed')",
                     null
                 )
             }
         }
         CraftNative.close(activity)
         healthConnect.close()
+        // The strap and its recording carry on (the service is the
+        // process's); only this page stops hearing them.
+        if (heartRateEnabled) CraftHeartRate.get(activity).sinks.remove("page", heartRateSink)
 
         if (shareReceiverRegistered) {
             runCatching { activity.unregisterReceiver(shareChosenReceiver) }

@@ -518,3 +518,92 @@ describe('craft.speech on Android', () => {
     expect(template).toContain('manager.abandonAudioFocusRequest(request)')
   })
 })
+
+describe('craft.heartRate on Android', () => {
+  // A Bluetooth heart-rate strap (CraftHeartRate.kt), in the iOS page's
+  // names. Every method is one CraftAndroid.heartRate call naming it, with
+  // its options as JSON and an id; Kotlin answers through
+  // window.__craftHeartRateResult / __craftHeartRateError with that id.
+  const call = (page: ReturnType<typeof loadPage>) => {
+    const [method, options, id] = page.argsOf('heartRate') as [string, string, number]
+    return { method, options: JSON.parse(options), id }
+  }
+
+  it('says whether the app was built to read a strap', () => {
+    expect(loadPage(undefined, true).craft.capabilities).toMatchObject({ heartRate: true, heartRateRecordingOwnership: true, heartRateRecordingIntentIdentity: true })
+    expect(loadPage(undefined, false).craft.capabilities).toMatchObject({ heartRate: false, heartRateRecordingOwnership: false, heartRateRecordingIntentIdentity: false })
+  })
+
+  it('sends each call with its method and options, and settles it by id', async () => {
+    const page = loadPage()
+    const state = { available: true, connection: 'connected', bpm: 141 }
+    const now = page.craft.heartRate.getState()
+    expect(call(page)).toMatchObject({ method: 'getState', options: {} })
+    page.page.__craftHeartRateResult(call(page).id, state)
+    expect(await now).toEqual(state)
+
+    void page.craft.heartRate.scan({ timeout: 8 })
+    expect(call(page)).toMatchObject({ method: 'scan', options: { timeout: 8 } })
+    void page.craft.heartRate.scan()
+    expect(call(page)).toMatchObject({ method: 'scan', options: { timeout: null } })
+    for (const id of ['A1:B2:C3:D4:E5:F6', { id: 'A1:B2:C3:D4:E5:F6' }]) {
+      void page.craft.heartRate.connect(id)
+      expect(call(page)).toMatchObject({ method: 'connect', options: { id: 'A1:B2:C3:D4:E5:F6' } })
+    }
+    void page.craft.heartRate.disconnect({ forget: true })
+    expect(call(page)).toMatchObject({ method: 'disconnect', options: { forget: true } })
+    void page.craft.heartRate.readRecording({ since: 1700, expectedId: 'run' })
+    expect(call(page)).toMatchObject({ method: 'readRecording', options: { since: 1700, expectedId: 'run' } })
+
+    for (const method of ['requestAuthorization', 'stopScan', 'getDevices', 'reconnect', 'startRecording', 'pauseRecording', 'resumeRecording', 'stopRecording', 'getRecordingState']) {
+      const done = page.craft.heartRate[method]()
+      expect(call(page).method).toBe(method)
+      page.page.__craftHeartRateResult(call(page).id, { method })
+      expect(await done).toEqual({ method })
+    }
+  })
+
+  it('keeps calls in flight apart, with no deadline for the Nearby devices prompt', async () => {
+    const page = loadPage()
+    const asked = page.craft.heartRate.requestAuthorization()
+    const askedId = call(page).id
+    const connecting = page.craft.heartRate.connect('A1:B2:C3:D4:E5:F6')
+    const connectingId = call(page).id
+    expect(askedId).not.toBe(connectingId)
+    page.page.__craftHeartRateError(connectingId, 'The heart-rate monitor did not answer. Wear it to wake it up.', 'TIMEOUT')
+    page.page.__craftHeartRateResult(askedId, 'authorized')
+    expect(await asked).toBe('authorized')
+    await expect(connecting).rejects.toMatchObject({ code: 'TIMEOUT' })
+  })
+
+  it('hands a build without the capability the refusal Kotlin sends', async () => {
+    const page = loadPage(undefined, false)
+    const scan = page.craft.heartRate.scan()
+    page.page.__craftHeartRateError(call(page).id, 'Heart rate is disabled', 'CAPABILITY_DISABLED')
+    await expect(scan).rejects.toMatchObject({ code: 'CAPABILITY_DISABLED', message: 'Heart rate is disabled' })
+  })
+
+  it('refuses a blank recording identity before it reaches Kotlin', async () => {
+    const page = loadPage()
+    await expect(page.craft.heartRate.startRecording({ recordingId: ' ' })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' })
+    await expect(page.craft.heartRate.stopRecording({ expectedId: '' })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' })
+    expect(page.calls).not.toContain('heartRate')
+  })
+
+  it('rejects what is in flight when the bridge closes', async () => {
+    const page = loadPage()
+    const pending = page.craft.heartRate.getState()
+    page.page.__craftRejectHeartRateRequests('Android bridge closed')
+    await expect(pending).rejects.toThrow('Android bridge closed')
+    await expect(page.craft.heartRate.getState()).rejects.toThrow('Android bridge is closed')
+    expect(template).toContain("window.__craftRejectHeartRateRequests && window.__craftRejectHeartRateRequests('Android bridge closed')")
+  })
+
+  it('hears readings, devices and state as craftHeartRate events', () => {
+    // The page's sink, set while the bridge lives and removed only if it is still this bridge's.
+    expect(template).toContain(`evaluateJavascriptUnlessClosed("window.dispatchEvent(new CustomEvent('craftHeartRate', {detail: $detail}));")`)
+    expect(template).toContain('if (heartRateEnabled) CraftHeartRate.get(activity).sinks["page"] = heartRateSink')
+    expect(template).toContain('CraftHeartRate.get(activity).sinks.remove("page", heartRateSink)')
+    expect(template).toContain('if (heartRateEnabled && CraftHeartRate.get(activity).onPermissions(requestCode)) return true')
+  })
+})

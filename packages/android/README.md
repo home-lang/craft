@@ -391,6 +391,7 @@ Edit `craft.config.json` in your Android project:
   "enableGeolocation": true,
   "enableBackgroundLocation": false,
   "enableHealthConnect": false,
+  "enableHeartRate": false,
   "enableKeepAwake": true,
   "enableDeepLinks": true,
   "urlSchemes": ["myapp"],
@@ -514,6 +515,33 @@ window.addEventListener('craftBluetoothDevice', (e) => {
   console.log(e.detail.name, e.detail.address, e.detail.rssi);
 });
 window.craft.bluetooth.stopScan();
+
+// Heart rate (enableHeartRate): a Bluetooth strap, or a watch broadcasting its
+// heart rate, through the standard Heart Rate Service (0x180D) and its Heart
+// Rate Measurement (0x2A37): bpm, sensor contact, energy and RR intervals. The
+// same API, answers and events as iOS (CraftHeartRate.kt). Scanning and
+// connecting ask for Nearby devices on Android 12+ (location before), or call
+// requestAuthorization() from a tap to ask first. A strap's id is its address.
+window.addEventListener('craftHeartRate', (event) => {
+  // { type: 'device', device: { id, name, rssi } }      a scan found a strap
+  // { type: 'reading', bpm, rrIntervals, contact, energyExpended, timestamp, deviceId }
+  // { type: 'state', connection, bluetooth, device, lastDevice, bpm, ... }
+});
+await window.craft.heartRate.scan({ timeout: 15 });
+const strap = (await window.craft.heartRate.getDevices())[0]; // strongest signal first
+await window.craft.heartRate.connect(strap.id);  // remembered; rejects TIMEOUT after 15 s while still asking
+await window.craft.heartRate.reconnect();        // next time: the remembered strap, no scan
+// A strap that drops out is asked for again (connection 'reconnecting') with
+// an automatic GATT connection until disconnect({ forget }) lets it go.
+await window.craft.heartRate.startRecording();   // every reading kept natively, app closed or not
+const { samples } = await window.craft.heartRate.stopRecording(); // [{ timestamp, bpm, rr? }]
+// While a recording runs a connectedDevice foreground service (and its
+// notification) keeps the process reading with the screen locked. Native
+// screens call the same service as the HeartRate module (capability
+// `heartRate`) and hear the same events. On an emulator,
+// `adb shell run-as <package> touch files/CraftFakeHeartRateMonitor` stands in
+// a strap ("Simulated HRM", id 00000000-0000-4000-8000-00000000180D) whose
+// readings take the 0x2A37 path, as the iOS simulator's does.
 
 // NFC Tag Reading
 const nfcData = await window.craft.scanNFC();
@@ -847,6 +875,7 @@ The generator adds manifest permissions from enabled capabilities:
 | `enablePushNotifications` | `POST_NOTIFICATIONS` |
 | `enableKeepAwake` | `WAKE_LOCK` |
 | `enableHealthConnect` | the configured Health Connect read/write permissions |
+| `enableHeartRate` | `BLUETOOTH_SCAN` (`neverForLocation`), `BLUETOOTH_CONNECT`; `BLUETOOTH`, `BLUETOOTH_ADMIN` and `ACCESS_FINE_LOCATION` up to Android 11; `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_CONNECTED_DEVICE` for the recording's service |
 
 Use `permissions.check('location')` and `permissions.request('location')` from
 `craft-native/mobile` for runtime authorization. Android precise and

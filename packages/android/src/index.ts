@@ -136,6 +136,15 @@ export interface CraftAndroidConfig {
   enableGeolocation?: boolean
   enableBackgroundLocation?: boolean
   enableBluetooth?: boolean
+  /**
+   * A Bluetooth heart-rate strap, or a watch broadcasting its heart rate (the
+   * standard Heart Rate Service), through `craft.heartRate` on a page and the
+   * `HeartRate` module on a native screen (CraftHeartRate.kt): scan, connect,
+   * live readings as `craftHeartRate` events, and a recording kept natively,
+   * in the foreground (a connectedDevice service) while it runs. The iOS
+   * builder's flag of the same name.
+   */
+  enableHeartRate?: boolean
   enableHealthConnect?: boolean
   /**
    * The Health Connect data the app reads and writes, by the shared type
@@ -348,6 +357,7 @@ const DEFAULT_CONFIG: Omit<CraftAndroidConfig, 'appName' | 'packageName'> = {
   enableGeolocation: false,
   enableBackgroundLocation: false,
   enableBluetooth: false,
+  enableHeartRate: false,
   enableHealthConnect: false,
   enableKeepAwake: false,
   enableDeepLinks: false,
@@ -673,7 +683,13 @@ export function renderAndroidPermissions(config: CraftAndroidConfig): string {
   if (config.enableHealthConnect) healthConnectPermissions(config).forEach(permission => permissions.add(permission))
   // A background refresh (WorkManager) after a restart.
   if (config.renderer === 'native' && config.backgroundRefresh?.enabled) permissions.add('android.permission.RECEIVE_BOOT_COMPLETED')
-  const bluetooth = config.enableBluetooth ? [
+  // A heart-rate recording keeps the process in the foreground while it
+  // runs (CraftHeartRateService), as a connectedDevice service.
+  if (config.enableHeartRate) {
+    permissions.add('android.permission.FOREGROUND_SERVICE')
+    permissions.add('android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE')
+  }
+  const bluetooth = config.enableBluetooth || config.enableHeartRate ? [
     '    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />',
     '    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />',
     '    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />',
@@ -1033,6 +1049,7 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{ENABLE_KEEP_AWAKE\}\}/g, String(Boolean(config.enableKeepAwake)))
     .replace(/\{\{ENABLE_DEEP_LINKS\}\}/g, String(Boolean(config.enableDeepLinks)))
     .replace(/\{\{ENABLE_HEALTH_CONNECT\}\}/g, String(Boolean(config.enableHealthConnect)))
+    .replace(/\{\{ENABLE_HEART_RATE\}\}/g, String(Boolean(config.enableHeartRate)))
     .replace(/\{\{FIREBASE_IMPORT\}\}/g, config.enablePushNotifications ? 'import com.google.firebase.messaging.FirebaseMessaging' : '')
     .replace(/\{\{REGISTER_PUSH_IMPLEMENTATION\}\}/g, config.enablePushNotifications
       ? `activity.runOnUiThread {
@@ -1079,6 +1096,16 @@ export async function init(options: InitOptions): Promise<void> {
     join(output, 'app/src/main/java', packagePath, 'CraftHealthConnect.kt'),
     healthTemplate.replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName),
   )
+  // The heart-rate strap service, in every app as iOS has CraftHeartRate.swift
+  // in every app: the page's bridge and the native screens' services refer to
+  // it. Only `enableHeartRate` registers it, declares its service and asks
+  // for Bluetooth.
+  for (const [template, file] of [['CraftHeartRateCore.kt.template', 'CraftHeartRateCore.kt'], ['CraftHeartRate.kt.template', 'CraftHeartRate.kt']]) {
+    writeFileSync(
+      join(output, 'app/src/main/java', packagePath, file!),
+      readFileSync(join(TEMPLATES_DIR, template!), 'utf8').replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName),
+    )
+  }
   // Create AndroidManifest.xml
   const manifestTemplate = readFileSync(join(TEMPLATES_DIR, 'AndroidManifest.xml.template'), 'utf-8')
   const manifest = manifestTemplate
@@ -1091,6 +1118,9 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{DEEP_LINK_INTENT_FILTERS\}\}/g, renderAndroidDeepLinks(config))
     .replace(/\{\{BACKGROUND_SERVICE\}\}/g, config.enableBackgroundLocation
       ? '        <service android:name="com.craft.runtime.LocationRecordingService" android:exported="false" android:foregroundServiceType="location" android:stopWithTask="false" />'
+      : '')
+    .replace(/\{\{HEART_RATE_SERVICE\}\}/g, config.enableHeartRate
+      ? '        <service android:name=".CraftHeartRateService" android:exported="false" android:foregroundServiceType="connectedDevice" />'
       : '')
     .replace(/\{\{NATIVE_NOTIFICATION_RECEIVER\}\}/g, config.renderer === 'native'
       ? renderNativeShellManifest(config)
