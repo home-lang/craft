@@ -61,9 +61,17 @@ final class NativeNavigationUITests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        XCTAssertTrue(element.waitForExistence(timeout: 10), "missing control before scrolling", file: file, line: line)
+        guard element.waitForExistence(timeout: 10) else {
+            XCTFail("missing control before scrolling", file: file, line: line)
+            return
+        }
         if let root { reveal(scroll, in: root, file: file, line: line) }
-        for _ in 0..<24 {
+        // The fixture grows as renderer coverage grows. Budget for the actual
+        // distance, including UIKit's initial pan threshold, while keeping a
+        // hard bound and requiring the same fully visible, hittable target.
+        let distanceToTarget = abs(element.frame.midY - scroll.frame.midY)
+        let attempts = min(128, max(24, Int(ceil(distanceToTarget / 200)) + 8))
+        for _ in 0..<attempts {
             if inside(element, scroll) && element.isHittable { return }
             let viewport = scroll.frame
             let nested: [CGRect] = scroll.descendants(matching: .scrollView).allElementsBoundByIndex.map { $0.frame }
