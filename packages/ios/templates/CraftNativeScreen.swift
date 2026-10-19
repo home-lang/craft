@@ -4855,6 +4855,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let appURL = Self.jsonString(config.devServerURL ?? "")
         let appVersion = Self.jsonString(info?["CFBundleShortVersionString"] as? String ?? "")
         let appBuild = Self.jsonString(info?["CFBundleVersion"] as? String ?? "")
+        let sessionTokenKey = Self.jsonString(CraftSession.tokenKey(config))
         jsContext.evaluateScript("""
             // JavaScriptCore has no DOM window, but browser-safe SDK bridges
             // address the host through `window.craft`. Keep native screens
@@ -4873,6 +4874,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 appURL: \(appURL),
                 appVersion: \(appVersion),
                 appBuild: \(appBuild),
+                sessionTokenKey: \(sessionTokenKey),
                 postMessage: function(message) { craftNativePostMessage(message); },
                 onMessage: function(callback) { globalThis.__stxNativeCallback = callback; }
             };
@@ -5272,6 +5274,33 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                     getSync: function(key) {
                         var value = craftNativeSecureGet(String(key));
                         return value === undefined ? null : value;
+                    }
+                });
+                // The signed-in account (CraftSession): the token under
+                // `sessionTokenKey`, and each change of it, which the host
+                // reports through `__craftSessionChanged` after the Keychain
+                // holds it, beside the `SESSION_CHANGED` bridge message.
+                var sessionListeners = [];
+                var sessionKey = globalThis.__stxNativeBridge && __stxNativeBridge.sessionTokenKey || 'auth.token';
+                function sessionToken() {
+                    var value = craftNativeSecureGet(String(sessionKey));
+                    return typeof value === 'string' && value !== '' ? value : null;
+                }
+                globalThis.__craftSessionChanged = function(token, previous) {
+                    sessionListeners.slice().forEach(function(callback) {
+                        try { callback(token, previous); } catch (error) { console.error('[session] ' + (error && error.stack || error)); }
+                    });
+                };
+                keep('session', {
+                    key: sessionKey,
+                    token: sessionToken,
+                    onChange: function(callback) {
+                        if (typeof callback !== 'function') throw new TypeError('craft.session.onChange needs a function');
+                        sessionListeners.push(callback);
+                        return function() {
+                            var index = sessionListeners.indexOf(callback);
+                            if (index >= 0) sessionListeners.splice(index, 1);
+                        };
                     }
                 });
                 keep('navigation', {
@@ -5739,6 +5768,22 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             guard let name = notification.userInfo?["name"] as? String else { return }
             self?.send(type: "SNAPSHOT_CHANGED", payload: ["name": name])
         })
+        if config.enableSecureStorage {
+            // A sign-in, sign-out or another account, made on any screen or
+            // the page (CraftSession): `SESSION_CHANGED { key, token,
+            // previous }` for the runtime, then craft.session's listeners.
+            lifecycleObservers.append(NotificationCenter.default.addObserver(
+                forName: CraftSession.changed,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                guard let self, let info = notification.userInfo, let key = info["key"] as? String else { return }
+                let token = info["token"] as? String
+                let previous = info["previous"] as? String
+                self.send(type: "SESSION_CHANGED", payload: ["key": key, "token": token ?? NSNull(), "previous": previous ?? NSNull()])
+                self.jsContext.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()])
+            })
+        }
         if config.enablePushNotifications {
             // A new device token (iOS hands one out after a reinstall or a
             // restore): every screen's `craft.push.onToken` hears it.

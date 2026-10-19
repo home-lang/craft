@@ -174,7 +174,7 @@ pub const Flags = std.EnumSet(Feature);
 const string_keys = [_][]const u8{ "appName", "bundleId", "renderer", "backgroundColor" };
 const extra_bool_keys = [_][]const u8{"darkMode"};
 const array_of_string_keys = [_][]const u8{ "associatedDomains", "trustedOrigins" };
-const optional_string_keys = [_][]const u8{ "appearance", "backgroundColorDark", "devServerURL", "nativeApp" };
+const optional_string_keys = [_][]const u8{ "appearance", "backgroundColorDark", "devServerURL", "nativeApp", "sessionTokenKey" };
 const optional_bool_keys = [_][]const u8{ "swipeNavigation", "limitNavigationsToAppBoundDomains", "allowsLinkPreview", "keyboardAccessory", "disableZoom" };
 /// Swift `Double`s with a default. Any JSON number decodes; a string or a
 /// boolean throws.
@@ -740,6 +740,17 @@ test "an unknown key is ignored, and devServerURL may be absent or null" {
     const with_bad = try completeConfig(testing.allocator, "\"devServerURL\":7");
     defer testing.allocator.free(with_bad);
     try testing.expectEqual(@as(usize, 0), parse(testing.allocator, with_bad).count());
+}
+
+test "sessionTokenKey is an optional string, as Swift's String? decodes it" {
+    inline for (.{ "\"sessionTokenKey\":\"hq.token\"", "\"sessionTokenKey\":null" }) |good| {
+        const config = try completeConfig(testing.allocator, good);
+        defer testing.allocator.free(config);
+        try testing.expectEqual(std.enums.values(Feature).len, parse(testing.allocator, config).count());
+    }
+    const bad = try completeConfig(testing.allocator, "\"sessionTokenKey\":7");
+    defer testing.allocator.free(bad);
+    try testing.expectEqual(@as(usize, 0), parse(testing.allocator, bad).count());
 }
 
 test "string arrays are checked element by element" {

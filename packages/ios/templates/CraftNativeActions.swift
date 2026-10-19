@@ -205,11 +205,21 @@ enum CraftNativeActions {
                 complete(requestToken, failure("CAPABILITY_DISABLED", "Secure storage is disabled"), completion)
                 return
             }
-            sync = secureStorage(method: method, args: args)
-            // A key the web page shares (`shareStorage`): the page gets it too,
-            // so a sign-in on a native screen signs the page in.
-            if case .success = sync, ["set", "remove", "delete"].contains(method), let key = args.first as? String {
-                CraftHybrid.shared.nativeWroteShared(nativeKey: key, value: method == "set" ? args.count > 1 ? args[1] as? String : nil : nil)
+            let write = { () -> Result<Any, CraftNativeActionError> in
+                let result = secureStorage(method: method, args: args)
+                // A key the web page shares (`shareStorage`): the page gets it too,
+                // so a sign-in on a native screen signs the page in.
+                if case .success = result, ["set", "remove", "delete"].contains(method), let key = args.first as? String {
+                    CraftHybrid.shared.nativeWroteShared(nativeKey: key, value: method == "set" ? args.count > 1 ? args[1] as? String : nil : nil)
+                }
+                return result
+            }
+            // A write that moves the sign-in token is the account's change:
+            // every screen hears it (CraftSession). Reads skip the check.
+            if ["set", "remove", "delete", "clear"].contains(method) {
+                sync = CraftSession.observe(key: method == "clear" ? nil : args.first as? String, config: config, write)
+            } else {
+                sync = write()
             }
         case ("Biometrics", "isAvailable"):
             sync = config.enableBiometric ? .success(biometricContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)) : failure("CAPABILITY_DISABLED", "Biometric authentication is disabled")
@@ -1420,6 +1430,54 @@ extension CraftNativeActions {
         var result: AnyObject?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
         return String(data: data, encoding: .utf8)
+    }
+}
+
+/// The signed-in account: the token kept in secure storage under
+/// `sessionTokenKey` (default `auth.token`). Whoever moves it, a native
+/// screen's `craft.secureStorage`, the page's own sign-in through a
+/// `shareStorage` key, or a sign-out's clear, posts `changed` once with
+/// `key`, `token` and `previous` (NSNull when signed out), after the Keychain
+/// holds the new value. Each native screen hands it to its script as
+/// `SESSION_CHANGED` and to `craft.session.onChange` (CraftNativeScreen).
+enum CraftSession {
+    static let changed = Notification.Name("craftSessionChanged")
+    static let defaultKey = "auth.token"
+    /// One write and its before and after at a time, so two quick writes
+    /// from different queues are two changes, never one reported twice.
+    private static let lock = NSLock()
+
+    static func tokenKey(_ config: CraftConfig) -> String {
+        guard let key = config.sessionTokenKey, !key.isEmpty else { return defaultKey }
+        return key
+    }
+
+    /// The token now, as `craft.secureStorage.getSync` reads it; nil when
+    /// signed out (an empty token is no account either).
+    static func token(_ config: CraftConfig) -> String? {
+        guard config.enableSecureStorage,
+              let value = CraftNativeActions.webSecureValue(forKey: tokenKey(config)), !value.isEmpty else { return nil }
+        return value
+    }
+
+    /// Run `write`, and post `changed` when it moved the token. `key` is the
+    /// key written; nil for a clear, which can remove every key.
+    static func observe<T>(key: String?, config: CraftConfig, _ write: () -> T) -> T {
+        let name = tokenKey(config)
+        guard key == nil || key == name else { return write() }
+        lock.lock()
+        let before = token(config)
+        let result = write()
+        let after = token(config)
+        lock.unlock()
+        if before != after { post(key: name, token: after, previous: before) }
+        return result
+    }
+
+    static func post(key: String, token: String?, previous: String?) {
+        let info: [String: Any] = ["key": key, "token": token ?? NSNull(), "previous": previous ?? NSNull()]
+        let send = { NotificationCenter.default.post(name: changed, object: nil, userInfo: info) }
+        if Thread.isMainThread { send() } else { DispatchQueue.main.async(execute: send) }
     }
 }
 

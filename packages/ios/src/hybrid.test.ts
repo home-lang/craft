@@ -49,7 +49,7 @@ const CASES: Array<[string, [string, Record<string, string>] | null]> = [
 // The page script, run against a fake page
 // ---------------------------------------------------------------------------
 
-function pageScriptSource(routes: Record<string, string>, share: string[] = []): string {
+function pageScriptSource(routes: Record<string, string>, share: string[] = [], session: string | null = null): string {
   const open = 'static let pageScriptTemplate = #"""\n'
   const start = swift.indexOf(open)
   if (start === -1) throw new Error('CraftHybrid.swift no longer declares pageScriptTemplate')
@@ -59,6 +59,7 @@ function pageScriptSource(routes: Record<string, string>, share: string[] = []):
   return body
     .replace('__CRAFT_HYBRID_ROUTES__', JSON.stringify(Object.entries(routes).map(([pattern, screen]) => ({ pattern, screen }))))
     .replace('__CRAFT_HYBRID_SHARE__', JSON.stringify(share))
+    .replace('__CRAFT_HYBRID_SESSION__', JSON.stringify(session ? [session] : []))
 }
 
 type Listener = (event: any) => void
@@ -73,8 +74,9 @@ class FakeStorage {
   clear() { this.map.clear() }
 }
 
-function loadPage(options: { routes?: Record<string, string>, share?: string[], protocol?: string, readyState?: string, presetStorage?: Record<string, string>, routerFirst?: boolean } = {}) {
+function loadPage(options: { routes?: Record<string, string>, share?: string[], session?: string, craft?: Record<string, any>, protocol?: string, readyState?: string, presetStorage?: Record<string, string>, routerFirst?: boolean } = {}) {
   const posts: any[] = []
+  const dispatched: any[] = []
   const listeners: Record<string, Array<{ fn: Listener, capture: boolean }>> = {}
   const docListeners: Record<string, Listener[]> = {}
   const protocol = options.protocol ?? 'http:'
@@ -127,6 +129,8 @@ function loadPage(options: { routes?: Record<string, string>, share?: string[], 
     localStorage,
     sessionStorage,
     Storage: StorageProto,
+    dispatchEvent(event: any) { dispatched.push({ type: event.type, detail: event.detail }); return true },
+    ...(options.craft ? { craft: options.craft } : {}),
   }
   if (options.routerFirst) window.stxRouter = router
   const document = {
@@ -134,7 +138,7 @@ function loadPage(options: { routes?: Record<string, string>, share?: string[], 
     addEventListener(type: string, fn: Listener) { (docListeners[type] ||= []).push(fn) },
   }
   // eslint-disable-next-line no-new-func
-  new Function('window', 'document', 'location', 'history', 'URL', 'Promise', pageScriptSource(options.routes ?? TABLE, options.share))(
+  new Function('window', 'document', 'location', 'history', 'URL', 'Promise', pageScriptSource(options.routes ?? TABLE, options.share, options.session ?? null))(
     window,
     document,
     location,
@@ -145,7 +149,7 @@ function loadPage(options: { routes?: Record<string, string>, share?: string[], 
   // The router's own script runs after the document-start one.
   if (!options.routerFirst) window.stxRouter = router
   const settle = () => new Promise(resolve => setTimeout(resolve, 5))
-  return { window, posts, routerCalls, historyCalls, stack, location, fire, docListeners, router, settle, localStorage, sessionStorage }
+  return { window, posts, dispatched, routerCalls, historyCalls, stack, location, fire, docListeners, router, settle, localStorage, sessionStorage }
 }
 
 describe('hybrid page script', () => {
@@ -358,6 +362,40 @@ describe('hybrid page script', () => {
     page.sessionStorage.removeItem('auth_token')
     page.localStorage.removeItem('auth_token')
     expect(shares().map(m => m.value)).toEqual(['old', 'new', 'session', 'new', null])
+  })
+
+  it('reports each change of the shared sign-in token as craftsession and to craft.session', () => {
+    const page = loadPage({ share: ['auth_token', 'units'], session: 'auth_token', craft: {}, presetStorage: { auth_token: 'ava' } })
+    const session = page.window.craft.session
+    expect(session.key).toBe('auth_token')
+    expect(session.token()).toBe('ava')
+    const heard: unknown[] = []
+    const stop = session.onChange((token: string | null, previous: string | null) => heard.push([token, previous]))
+    page.localStorage.setItem('units', 'metric')
+    page.localStorage.setItem('auth_token', 'ava')
+    page.localStorage.setItem('auth_token', 'ben')
+    // A native screen's sign-out, adopted into the page.
+    page.window.__craftHybrid.adopt({ auth_token: null })
+    page.localStorage.setItem('auth_token', '')
+    stop()
+    page.localStorage.setItem('auth_token', 'cy')
+    expect(heard).toEqual([['ben', 'ava'], [null, 'ben']])
+    expect(page.dispatched.filter(event => event.type === 'craftsession').map(event => event.detail)).toEqual([
+      { key: 'auth_token', token: 'ben', previous: 'ava' },
+      { key: 'auth_token', token: null, previous: 'ben' },
+      { key: 'auth_token', token: 'cy', previous: null },
+    ])
+    // The adopted sign-out still tells the page's own stores, as before.
+    expect(page.dispatched.filter(event => event.type === 'craftsharedstorage')).toEqual([{ type: 'craftsharedstorage', detail: { key: 'auth_token', value: null } }])
+  })
+
+  it('leaves craft.session alone without a shared token key, and never fires on load', () => {
+    const plain = loadPage({ share: ['auth_token'], craft: {}, presetStorage: { auth_token: 'ava' } })
+    expect(plain.window.craft.session).toBeUndefined()
+    plain.localStorage.setItem('auth_token', 'ben')
+    expect(plain.dispatched.filter(event => event.type === 'craftsession')).toEqual([])
+    const page = loadPage({ share: ['auth_token'], session: 'auth_token', craft: {}, presetStorage: { auth_token: 'ava' } })
+    expect(page.dispatched).toEqual([])
   })
 
   it('stays out of a page without the channel', () => {

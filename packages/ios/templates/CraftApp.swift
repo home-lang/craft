@@ -1619,6 +1619,10 @@ struct CraftConfig: Codable {
     /// Hybrid: web-storage keys the page's own code writes, mirrored into the
     /// Keychain under another name for native screens (`{"auth_token": "auth.token"}`).
     var shareStorage: [String: String]? = nil
+    /// The secure-storage key the signed-in account's token lives under
+    /// (`auth.token` unless set): `craft.session` follows it, and a change of
+    /// it is `SESSION_CHANGED` on every screen (CraftSession).
+    var sessionTokenKey: String? = nil
     /// The bundle route of the app script: a screen-less script that runs for
     /// the app's whole life and hears the app's events (CraftHybrid.swift).
     var nativeApp: String? = nil

@@ -311,6 +311,14 @@ export interface CraftConfig {
    */
   shareStorage?: Record<string, string>
   /**
+   * The secure-storage key the signed-in account's token lives under
+   * (default `auth.token`). `craft.session` follows it: a change of it, made
+   * by any native screen or by the page through a `shareStorage` key, is
+   * `SESSION_CHANGED { key, token, previous }` on every native screen and a
+   * `craftsession` event on the page.
+   */
+  sessionTokenKey?: string
+  /**
    * Crash and error reporting to bughq (CraftCrashReporter.swift): crashes
    * and hangs (signal handlers, NSException, MetricKit), uncaught JavaScript
    * errors in native screens and the app script, and what the page sends

@@ -488,12 +488,16 @@ final class CraftHybrid: NSObject {
     func pageScript() -> String {
         let routeList = (config.nativeScreens ?? [:]).map { ["pattern": $0.key, "screen": $0.value] }
         let share = Array((config.shareStorage ?? [:]).keys).sorted()
+        // The page's key for the sign-in token, when it shares one.
+        let tokenKey = CraftSession.tokenKey(config)
+        let session = (config.shareStorage ?? [:]).filter { $0.value == tokenKey }.map(\.key).sorted().first
         func json(_ value: Any) -> String {
             (try? JSONSerialization.data(withJSONObject: value)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         }
         return Self.pageScriptTemplate
             .replacingOccurrences(of: "__CRAFT_HYBRID_ROUTES__", with: json(routeList))
             .replacingOccurrences(of: "__CRAFT_HYBRID_SHARE__", with: json(share))
+            .replacingOccurrences(of: "__CRAFT_HYBRID_SESSION__", with: session.map { json([$0]) } ?? "[]")
     }
 
     // CRAFT_HYBRID_PAGE_SCRIPT_START
@@ -691,13 +695,46 @@ final class CraftHybrid: NSObject {
 
       // Web storage the config shares with native screens (`shareStorage`).
       var shared = {};
-      function share(key) {
+      // The page's key for the sign-in token (`sessionTokenKey`), if shared.
+      var SESSION = (__CRAFT_HYBRID_SESSION__)[0] || null;
+      var sessionListeners = [];
+      function stored(key) {
         var value = null;
         try { value = window.sessionStorage.getItem(key); } catch (e) {}
         try { if (value === null) value = window.localStorage.getItem(key); } catch (e) {}
+        return value;
+      }
+      function sessionToken(value) { return typeof value === 'string' && value !== '' ? value : null; }
+      function share(key) {
+        var value = stored(key);
         if (shared[key] === value) return;
+        var known = Object.prototype.hasOwnProperty.call(shared, key);
+        var before = shared[key];
         shared[key] = value;
         post({ type: 'shareStorage', key: key, value: value });
+        // A sign-in, sign-out or another account, made here or on a native
+        // screen: `craftsession { key, token, previous }` and craft.session.
+        if (key === SESSION && known && sessionToken(before) !== sessionToken(value)) {
+          var change = { key: key, token: sessionToken(value), previous: sessionToken(before) };
+          sessionListeners.slice().forEach(function (callback) {
+            try { callback(change.token, change.previous); } catch (e) { console.error(e); }
+          });
+          try { window.dispatchEvent(new CustomEvent('craftsession', { detail: change })); } catch (e) {}
+        }
+      }
+      if (SESSION && window.craft && !window.craft.session) {
+        window.craft.session = {
+          key: SESSION,
+          token: function () { return sessionToken(stored(SESSION)); },
+          onChange: function (callback) {
+            if (typeof callback !== 'function') throw new TypeError('craft.session.onChange needs a function');
+            sessionListeners.push(callback);
+            return function () {
+              var index = sessionListeners.indexOf(callback);
+              if (index >= 0) sessionListeners.splice(index, 1);
+            };
+          }
+        };
       }
       if (SHARE.length && window.Storage) {
         var proto = window.Storage.prototype;
@@ -808,7 +845,9 @@ final class CraftHybrid: NSObject {
             guard let nativeKey = config.shareStorage?[key] else { return }
             // The page's own write, or its echo of one a native screen made.
             pendingShared.removeValue(forKey: key)
-            CraftHybridKeychain.set(nativeKey, value: value)
+            // The page's sign-in or sign-out moves the account for every
+            // screen; an echo writes what is already there and moves nothing.
+            CraftSession.observe(key: nativeKey, config: config) { CraftHybridKeychain.set(nativeKey, value: value) }
         case .navigated(let path, let direction, let depth, let byHost):
             pagePath = path
             pageDepth = depth
