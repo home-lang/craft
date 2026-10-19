@@ -263,7 +263,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('checkboxChecked is Boolean -> checkboxChecked')
     expect(navigationHome).toContain('<Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" />')
     expect(androidNavigationTest).toContain('checked should take precedence over value')
-    expect(iosNavigationTest).toContain('app.buttons["checkbox-checked-precedence"].value as? String, "0"')
+    expect(iosNavigationTest).toContain('let uncheckedCheckbox = app.buttons["checkbox-checked-precedence"]')
+    expect(iosNavigationTest).toContain('XCTAssertFalse(uncheckedCheckbox.isSelected)')
+    expect(iosNavigationTest).toContain('uncheckedCheckbox.value as? String, "unchecked"')
     expect(guide).toContain('controlled values are present,')
     expect(guide).toContain('`checked` takes precedence. It delivers')
   })
@@ -276,7 +278,9 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('accepts an `items` array or child options plus `value`/`selectedValue`')
     expect(navigationHome).toContain(':selectedValue="itemsPickerValue" :value="\'two\'"')
     expect(androidNavigationTest).toContain('selectedValue should take precedence over value')
-    expect(iosNavigationTest).toContain('itemsPicker.value as? String, "One item"')
+    expect(iosNavigationTest).toContain('let selectedWheel = itemsPicker.pickerWheels.firstMatch')
+    expect(iosNavigationTest).toContain('XCTAssertTrue(selectedWheel.exists)')
+    expect(iosNavigationTest).toContain('selectedWheel.value as? String, "One item"')
   })
 
   it('keeps composed native styles recursively flattenable', () => {
@@ -1439,7 +1443,9 @@ describe('native renderer component contract', () => {
   })
 
   it('preserves UIKit interaction traits for native controls without authored roles', () => {
-    expect(ios).toContain('case "Slider", "Picker", "DatePicker": traits.insert(.adjustable)')
+    expect(ios).toContain('case "Slider", "DatePicker": traits.insert(.adjustable)')
+    expect(iosNativeUnitTests).toContain('XCTAssertEqual(picker.isAccessibilityElement, referencePicker.isAccessibilityElement)')
+    expect(iosNativeUnitTests).toContain('XCTAssertEqual(picker.accessibilityTraits, referencePicker.accessibilityTraits)')
     expect(iosNativeUnitTests).toContain('testSwitchReceivesNativeTouchesWhenMountedInAFlowView')
     expect(iosNativeUnitTests).toContain('testUncontrolledSwitchKeepsItsNativeValueAcrossReconciliation')
     expect(iosNativeUnitTests).toContain('testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges')
