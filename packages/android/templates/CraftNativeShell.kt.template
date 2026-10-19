@@ -1452,7 +1452,7 @@ internal class CraftResumableDownload(
             val resumed = status == 206 && have > 0 && rangeStart(connection.getHeaderField("Content-Range")) == have
             if (status == 416 || (status == 206 && !resumed)) {
                 part.delete()
-                return Fetched.Restart
+                return if (have > 0) Fetched.Restart else Fetched.Refused(status)
             }
             if (status != 200 && !resumed) {
                 part.delete()

@@ -50,11 +50,11 @@ class CraftNativeResumableDownloadTest {
                         else -> 200
                     }
                     val bytes = when (code) {
-                        206 -> payload.copyOfRange(start!!, payload.size)
+                        206 -> payload.copyOfRange(start ?: 0, payload.size)
                         200 -> payload
                         else -> byteArrayOf()
                     }
-                    val contentRange = if (code == 206) "Content-Range: bytes $start-${payload.size - 1}/${payload.size}\r\n" else ""
+                    val contentRange = if (code == 206 && start != null) "Content-Range: bytes $start-${payload.size - 1}/${payload.size}\r\n" else ""
                     val headers = "HTTP/1.1 $code Test\r\nContent-Length: ${bytes.size}\r\n${contentRange}Connection: close\r\n\r\n"
                     socket.getOutputStream().write(headers.toByteArray(Charsets.US_ASCII) + bytes)
                 }
@@ -122,6 +122,14 @@ class CraftNativeResumableDownloadTest {
     fun saysWhatTheServerRefusedAndKeepsNothing() = part { file ->
         serve(status = 404) { address, _ ->
             assertEquals(CraftResumableDownload.Fetched.Refused(404), CraftResumableDownload().fetch(address, emptyMap(), file) { false })
+            assertFalse(file.exists())
+        }
+    }
+
+    @Test
+    fun refusesAnUnsolicitedPartialResponseWithoutRetryingIt() = part { file ->
+        serve(status = 206) { address, _ ->
+            assertEquals(CraftResumableDownload.Fetched.Refused(206), CraftResumableDownload().fetch(address, emptyMap(), file) { false })
             assertFalse(file.exists())
         }
     }
