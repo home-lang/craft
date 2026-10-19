@@ -2178,6 +2178,32 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(CraftNativeScreenController.sliderEventValue(7, step: 1), 7)
     }
 
+    func testAScrollDragCanCancelButtonsWhileOtherControlsKeepTracking() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([[
+            "type": "ScrollView", "props": ["key": "page"], "style": ["height": 120],
+            "children": [
+                ["type": "Button", "props": ["key": "button"], "children": ["Tap or drag"]],
+                ["type": "Checkbox", "props": ["key": "checkbox"]],
+                ["type": "Slider", "props": ["key": "slider"]],
+                ["type": "Switch", "props": ["key": "switch"]],
+                ["type": "TextInput", "props": ["key": "field"]],
+                ["type": "DatePicker", "props": ["key": "date"]],
+            ],
+        ]]))
+        let scroll = try XCTUnwrap(find(UIScrollView.self, key: "page", below: controller.view))
+        XCTAssertFalse(scroll.delaysContentTouches, "ordinary taps still reach controls immediately")
+        for key in ["button", "checkbox"] {
+            let button = try XCTUnwrap(find(UIButton.self, key: key, below: scroll))
+            XCTAssertTrue(scroll.touchesShouldCancel(in: button), "\(key) must yield to a scroll drag")
+        }
+        for key in ["slider", "switch", "field", "date"] {
+            let control = try XCTUnwrap(find(UIControl.self, key: key, below: scroll))
+            XCTAssertFalse(scroll.touchesShouldCancel(in: control), "\(key) retains its tracking gesture")
+        }
+    }
+
     func testANestedScrollViewsDragDoesNotScrollItsParent() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()

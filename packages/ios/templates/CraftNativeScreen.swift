@@ -3993,6 +3993,9 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
     required init?(coder: NSCoder) { nil }
 
     override func touchesShouldCancel(in view: UIView) -> Bool {
+        // A drag beginning on a button scrolls; lifting without dragging
+        // remains a tap. Sliders, switches and text fields keep tracking.
+        if view is UIButton { return true }
         if view is UIControl { return false }
         return super.touchesShouldCancel(in: view)
     }
