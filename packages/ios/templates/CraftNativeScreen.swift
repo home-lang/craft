@@ -5017,10 +5017,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// A request a screen-owned module answers, by request token, and how to
     /// call it off when it times out or is cancelled.
     private var screenRequestCancellers: [String: () -> Void] = [:]
-    /// Shown at least once: a later appearance is the screen coming back.
-    private var hasAppeared = false
-    /// Whether the script was last told the screen is on screen.
-    private var reportedVisible = false
+    /// Whether the script was last told the screen is on screen; nil until the
+    /// first report. A screen first reported hidden - an adjacent tab the
+    /// shell prepares ahead of a swipe - must hear that, or its script takes
+    /// itself to be in front and acts on it: a sign-in guard on a prepared
+    /// Record tab pushed Login over the Feed at launch.
+    private var reportedVisible: Bool?
     private let capabilityScope = UUID().uuidString
     private var pendingCapabilityRequests = Set<String>()
     private var pendingCapabilityDeadlines: [String: DispatchWorkItem] = [:]
@@ -5206,8 +5208,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// The screen came on screen or went off it: a screen pushed over it was
     /// popped, or the hybrid shell switched to or away from its tab (which
     /// hides a stack rather than moving it, so UIKit says nothing). The first
-    /// appearance is the screen's mount, not news; every later one is
-    /// `SCREEN_FOCUS { focused: true }`, and going away is `focused: false`.
+    /// appearance of a screen shown as it mounts is the mount, not news; every
+    /// later one is `SCREEN_FOCUS { focused: true }`, and going away is
+    /// `focused: false`. A screen that mounts hidden is told `focused: false`
+    /// first, so its first showing is news too.
     func screenVisibilityChanged(_ visible: Bool) {
         guard !runtimeDisposed else { return }
         if !visible, isViewLoaded { stopCelebrations(in: view) }
@@ -5216,12 +5220,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // chrome even when no new SCREEN_FOCUS event is needed.
         if visible { restoreShellChrome() }
         guard visible != reportedVisible else { return }
+        let first = reportedVisible == nil
         reportedVisible = visible
         if visible { DeepLinkManager.shared.replayNativeLinks() }
-        if visible, !hasAppeared {
-            hasAppeared = true
-            return
-        }
+        if first, visible { return }
         send(type: "SCREEN_FOCUS", payload: ["focused": visible])
     }
 
@@ -5351,6 +5353,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         jsContext.setObject(routeParams as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString)
         jsContext.setObject(routeProps as NSDictionary, forKeyedSubscript: "__stxNativeProps" as NSString)
+        // Hidden before its script ran: the SCREEN_FOCUS saying so reached no
+        // callback, so the script reads it as it starts instead.
+        if reportedVisible == false {
+            jsContext.setObject(false, forKeyedSubscript: "__stxNativeFocused" as NSString)
+        }
         jsContext.exceptionHandler = { [weak self] context, exception in
             // Never stringify an arbitrary JS object here. JavaScriptCore can
             // re-enter this handler while coercing an exception whose
@@ -6418,7 +6425,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard !isAppScript else { return }
         deepLinkListener = DeepLinkManager.shared.addNativeListener(canReceive: { [weak self] in
             guard let self = self else { return false }
-            return self.reportedVisible && !self.runtimeDisposed && self.navigationController?.topViewController === self
+            return self.reportedVisible == true && !self.runtimeDisposed && self.navigationController?.topViewController === self
         }) { [weak self] url, initial in
             guard let self = self else { return }
             var payload = CraftNativeActions.deepLinkData(url)

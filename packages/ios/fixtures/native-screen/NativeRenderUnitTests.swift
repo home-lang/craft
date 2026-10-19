@@ -2396,6 +2396,31 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(controller.evaluateScript("__heard.join('|')")?.toString(), "ROUTE_PARAMS:8|SCREEN_FOCUS:false|SCREEN_FOCUS:true")
     }
 
+    /// The shell prepares an adjacent tab hidden, ahead of a swipe. That
+    /// screen's script must not take itself to be in front: a prepared Record
+    /// tab's sign-in guard pushed Login over the Feed at launch.
+    func testAScreenPreparedHiddenIsToldSoAndItsFirstShowingIsNews() throws {
+        let listen = "globalThis.__heard = []; globalThis.__stxNativeCallback = function(json) { var m = JSON.parse(json); if (m.type === 'SCREEN_FOCUS') __heard.push(String(m.payload.focused)); };"
+
+        // Hidden before its script ran: the script reads it as it starts.
+        let early = CraftNativeScreenController(config: CraftConfig(), routeName: "Record")
+        early.screenVisibilityChanged(false)
+        early.loadViewIfNeeded()
+        XCTAssertEqual(early.evaluateScript("String(globalThis.__stxNativeFocused)")?.toString(), "false")
+        early.evaluateScript(listen)
+        early.screenVisibilityChanged(true)
+        XCTAssertEqual(early.evaluateScript("__heard.join('|')")?.toString(), "true")
+
+        // Hidden after its script ran: it hears so, then hears the showing.
+        let prepared = CraftNativeScreenController(config: CraftConfig(), routeName: "Menu")
+        prepared.loadViewIfNeeded()
+        XCTAssertEqual(prepared.evaluateScript("String(globalThis.__stxNativeFocused)")?.toString(), "undefined")
+        prepared.evaluateScript(listen)
+        prepared.screenVisibilityChanged(false)
+        prepared.screenVisibilityChanged(true)
+        XCTAssertEqual(prepared.evaluateScript("__heard.join('|')")?.toString(), "false|true")
+    }
+
     func testAVideoTakesItsSourceFromSrcToo() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
