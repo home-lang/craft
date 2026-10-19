@@ -2485,7 +2485,7 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     private var renderedVisible = false
     private var dismissSuppressedByRequest = false
     private var animationGeneration = 0
-    var onRequestClose: (() -> Unit)? = null
+    var onRequestClose: ((String) -> Unit)? = null
 
     var transparent: Boolean = false
         set(value) {
@@ -2497,7 +2497,7 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
         isClickable = true
         blocker.isClickable = true
         blocker.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_UP) requestClose()
+            if (event.action == MotionEvent.ACTION_UP) requestClose(reason = "backdrop")
             true
         }
         blocker.setBackgroundColor(Color.argb(82, 0, 0, 0))
@@ -2505,12 +2505,12 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
         addView(content, LayoutParams(-1, -1))
     }
 
-    fun requestClose() {
+    fun requestClose(reason: String = "backdrop") {
         val handler = onRequestClose ?: return
         dismissSuppressedByRequest = true
         isClickable = false
         blocker.isEnabled = false
-        handler()
+        handler(reason)
     }
 
     fun consumeDismissSuppression(): Boolean {
@@ -5301,7 +5301,7 @@ class MainActivity : AppCompatActivity() {
                 val requestClose = craftNativeOptionalString(events.opt("onRequestClose")).orEmpty()
                 if (requestClose.isNotBlank()) screen.modalCloseHandlers[this] = requestClose else screen.modalCloseHandlers.remove(this)
                 onRequestClose = if (requestClose.isNotBlank()) {
-                    { send(screen, "EVENT", JSONObject().put("handlerName", requestClose).put("nativeEvent", JSONObject())) }
+                    { reason -> send(screen, "EVENT", JSONObject().put("handlerName", requestClose).put("nativeEvent", JSONObject().put("reason", reason))) }
                 } else {
                     null
                 }
@@ -7411,7 +7411,7 @@ class MainActivity : AppCompatActivity() {
         val screen = screens.lastOrNull() ?: return back()
         val modal = screen.modalVisibility.entries.lastOrNull { (view, visible) -> visible && view.visibility == View.VISIBLE }
         if (modal != null) {
-            (modal.key as? CraftNativeModalView)?.requestClose()
+            (modal.key as? CraftNativeModalView)?.requestClose(reason = "back")
             return
         }
         back()
