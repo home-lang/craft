@@ -65,6 +65,8 @@ const zigMain = readFileSync(join(root, 'packages/zig/src/main.zig'), 'utf8')
 const componentTypes = readFileSync(join(root, 'packages/typescript/src/components/index.ts'), 'utf8')
 const iosReadme = readFileSync(join(root, 'packages/ios/README.md'), 'utf8')
 const androidReadme = readFileSync(join(root, 'packages/android/README.md'), 'utf8')
+const macosReadme = readFileSync(join(root, 'packages/macos/README.md'), 'utf8')
+const troubleshootingGuide = readFileSync(join(root, 'docs/guides/troubleshooting.md'), 'utf8')
 const iosNavigationReadme = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/README.md'), 'utf8')
 const hybridNavigationReadme = readFileSync(join(root, 'packages/ios/fixtures/hybrid-navigation/README.md'), 'utf8')
 const androidNavigationReadme = readFileSync(join(root, 'packages/android/fixtures/native-navigation/README.md'), 'utf8')
@@ -100,6 +102,14 @@ const COMPONENTS: Array<[string, string, string]> = [
 ]
 
 describe('native renderer component contract', () => {
+  it('documents the macOS WebView pointer-lock limitation and fallback', () => {
+    expect(macosReadme).toContain('does not support `Element.requestPointerLock()`')
+    expect(macosReadme).toContain('public `WKUIDelegate` has no pointer-lock permission callback')
+    expect(macosReadme).toMatch(/drag or\nfullscreen control fallback/)
+    expect(troubleshootingGuide).toContain('### Pointer lock fails on macOS')
+    expect(troubleshootingGuide).toContain('listen for `pointerlockerror`')
+  })
+
   it('keeps browser-safe capability bridges reachable in DOM-free hosts', () => {
     expect(ios).toContain('if (typeof globalThis.window === "undefined") { globalThis.window = globalThis; }')
     expect(androidChrome).toContain("if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;")
