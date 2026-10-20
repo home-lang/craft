@@ -579,6 +579,8 @@ intrinsically measured row instead of being forced to its top edge.
 `aspectRatio` derives a missing width or height from the other definite
 dimension in both flex and grid trees; invalid, zero, or non-finite ratios are
 ignored just like invalid host style values.
+Flex and grid siblings also accept numeric `order`; lower values are laid out
+first and equal values retain authored order on both maintained hosts.
 
 The same runtime also exports `craft_native_grid` for equal-track grids. It
 accepts intrinsic measurements and alignment as plain data, leaving platform

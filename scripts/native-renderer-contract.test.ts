@@ -1120,6 +1120,7 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('craft_native_flex_line_breaks')
     expect(guide).toContain('craft_native_flex_line_distribution')
     expect(guide).toContain('non-finite widths, positions, and frames')
+    expect(guide).toContain('Flex and grid siblings also accept numeric `order`; lower values are laid out')
   })
 
   it('keeps flex/grid order typed and stable across maintained hosts', () => {
