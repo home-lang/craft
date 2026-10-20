@@ -1,8 +1,9 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { bootSimulator, build, init, pickSimulator } from '../src/index'
 import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './insert-project-targets'
 import { nativeNavigationGroup, verifyNativeNavigationResults } from './native-navigation-groups'
+import { nativeNavigationResultBundle } from './native-navigation-result'
 import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 const fixture = join(import.meta.dir, '..', 'fixtures', 'native-navigation')
@@ -134,12 +135,9 @@ try {
     const device = requested ? { udid: requested, name: requested, state: 'Booted', runtime: 'iOS' } : await pickSimulator()
     if (!device) throw new Error('No iOS simulator is available for native navigation tests')
     await bootSimulator(device)
-    // Write directly into retained evidence: a job timeout can terminate Bun
-    // before a post-test copy or finally block gets to run.
-    const resultBundle = process.env.CRAFT_NATIVE_NAVIGATION_RESULT
-      ? resolve(process.env.CRAFT_NATIVE_NAVIGATION_RESULT)
-      : join(workspace, 'NativeNavigation.xcresult')
-    mkdirSync(dirname(resultBundle), { recursive: true })
+    // Write directly into retained evidence: a CI cancellation can terminate
+    // this process before any post-test copy or finally block can run.
+    const resultBundle = nativeNavigationResultBundle(workspace, process.env.CRAFT_NATIVE_NAVIGATION_RESULT)
     const selectedTest = process.env.CRAFT_NATIVE_NAVIGATION_TEST
     const selectedTarget = process.env.CRAFT_ONLY_TESTING
     const group = process.env.CRAFT_NATIVE_NAVIGATION_GROUP
@@ -159,7 +157,7 @@ try {
     run([...xcodeArgs, 'build-for-testing'], output)
     runXcodeTests([
       // Retain live XCTest activity as well as the structured result bundle.
-      ...xcodeArgs.filter(argument => argument !== '-quiet'),
+      ...xcodeArgs.filter(arg => arg !== '-quiet'),
       '-resultBundlePath', resultBundle,
       ...selection,
       'test-without-building',
