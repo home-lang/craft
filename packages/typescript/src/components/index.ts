@@ -599,6 +599,10 @@ export interface VideoProps extends BaseProps {
   currentTime?: number
   paused?: boolean
   resizeMode?: 'contain' | 'cover' | 'stretch'
+  /** The source began loading. */
+  onLoadStart?: () => void
+  /** The source became ready for playback. */
+  onLoadEnd?: () => void
   /**
    * Carries on in a floating window (Picture in Picture) when the app goes to
    * the background or another app opens while it plays, and comes back into

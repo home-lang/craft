@@ -2993,7 +2993,8 @@ internal class CraftNativeInputEcho {
  * A native screen's `<Video>`: the platform's VideoView.
  *
  * It plays without taking audio focus, so the person's music carries on
- * under it, as on iOS. `onLoad`, `onPlay`, `onPause`, `onEnd` and `onError`
+ * under it, as on iOS. `onLoadStart`, `onLoad`, `onLoadEnd`, `onPlay`,
+ * `onPause`, `onEnd` and `onError`
  * reach the screen in the web's names, from the controls as well as from
  * props. With `pictureInPicture` the activity takes it into a floating
  * window when the person leaves the app while it plays (MainActivity
@@ -3087,6 +3088,7 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
             // A copy kept on the phone (craft.media.keep) plays in place of
             // the address: offline in a gym with no signal.
             val kept = CraftNativeMedia.local(context, uri)
+            fire("onLoadStart")
             setVideoURI(if (kept != null) Uri.fromFile(kept) else Uri.parse(uri))
             setOnPreparedListener { mediaPlayer ->
                 preparedPlayer = mediaPlayer
@@ -3096,6 +3098,7 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
                 mediaPlayer.setVolume(volume, volume)
                 applyPendingSeek()
                 fire("onLoad", JSONObject().put("duration", duration / 1000.0))
+                fire("onLoadEnd")
                 if (shouldPlay) start()
             }
             setOnCompletionListener {

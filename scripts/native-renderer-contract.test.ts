@@ -965,7 +965,11 @@ describe('native renderer component contract', () => {
 
   it('keeps native video playback available on both hosts', () => {
     expect(componentTypes).toContain('currentTime?: number')
+    expect(componentTypes).toContain('onLoadStart?: () => void')
+    expect(componentTypes).toContain('onLoadEnd?: () => void')
     expect(ios).toContain('CraftNativeVideoView')
+    expect(ios).toContain('fire("onLoadStart")')
+    expect(ios).toContain('fire("onLoadEnd"')
     expect(ios).toContain('case "video": return "Video"')
     expect(android).toContain('"video" -> "Video"')
     expect(ios).toContain('AVPlayerViewController')
@@ -974,6 +978,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('"Video", "TextInput"')
     expect(ios).toContain('AVPlayerItemDidPlayToEndTime')
     expect(android).toContain('CraftNativeVideoView')
+    expect(android).toContain('fire("onLoadStart")')
+    expect(android).toContain('fire("onLoadEnd"')
     expect(android).toContain('VideoView')
     expect(android).toContain('fire("onProgress", JSONObject()')
     expect(android).toContain('progressHandler.postDelayed(this, 500L)')

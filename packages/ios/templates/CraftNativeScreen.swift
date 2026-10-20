@@ -1099,7 +1099,8 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
     /// This video holds a claim on the audio session (`CraftNativeSounds`).
     private var claimedSession = false
     /// The screen's handlers by event name (`onEnd`, `onPlay`, `onPause`,
-    /// `onProgress`, `onLoad`, `onError`), and how an event reaches them.
+    /// `onProgress`, `onLoadStart`, `onLoad`, `onLoadEnd`, `onError`), and how
+    /// an event reaches them.
     var handlers: [String: String] = [:]
     var emit: ((_ handler: String, _ nativeEvent: [String: Any]) -> Void)?
 
@@ -1216,6 +1217,7 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
                 return
             }
             let next = AVPlayer(url: url)
+            fire("onLoadStart")
             player = next
             playerController.player = next
             observe(next)
@@ -1278,6 +1280,7 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
                     case .readyToPlay:
                         self.applyPendingSeek()
                         self.fire("onLoad", ["duration": self.seconds(item.duration)])
+                        self.fire("onLoadEnd")
                     case .failed: self.fire("onError", ["message": item.error?.localizedDescription ?? "The video could not be played"])
                     default: break
                     }
