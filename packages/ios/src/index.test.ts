@@ -1662,7 +1662,7 @@ describe('Craft iOS builder', () => {
     expect(hybrid).toContain('screen.handleBackForModal()')
     expect(hybrid).toContain('let nav = CraftNativeNavigationController(rootViewController: root)')
     const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
-    expect(swift).toContain('fileprivate func handleBackForModal() -> Bool')
+    expect(swift).toContain('func handleBackForModal() -> Bool')
     expect(swift).toContain('modal.requestClose(reason: "back")')
   })
 

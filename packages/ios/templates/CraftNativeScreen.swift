@@ -5403,7 +5403,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// The native route's Back button dismisses the top presented modal before
     /// it pops the route, matching Android's activity back callback.
     @discardableResult
-    fileprivate func handleBackForModal() -> Bool {
+    func handleBackForModal() -> Bool {
         let modal = view.subviews.reversed().compactMap { $0 as? CraftNativeModalView }.first {
             !$0.isHidden && $0.alpha > 0.01 && ($0.blocksBackground || $0.dismissOnOutsideTap)
         }
