@@ -985,13 +985,7 @@ export interface ActivityIndicatorProps extends BaseProps {
  * FlatList component props.
  */
 export interface FlatListProps<T> extends ScrollViewBaseProps {
-  /** Data array */
-  data: T[]
-  /** Render item function */
-  renderItem: (info: { item: T; index: number }) => any
-  /** Key extractor function */
-  keyExtractor?: (item: T, index: number) => string
-  /** Number of columns */
+  /** Number of columns in the keyed child tree. */
   numColumns?: number
   /** Render rows in reverse order along the scroll axis. */
   inverted?: boolean

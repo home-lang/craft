@@ -360,8 +360,10 @@ describe('native renderer component contract', () => {
 
   it('keeps FlatList chrome and virtualization on the native child protocol', () => {
     const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewBaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
-    expect(flatListProps).toContain('data: T[]')
     expect(flatListProps).toContain('numColumns?: number')
+    expect(flatListProps).not.toContain('data: T[]')
+    expect(flatListProps).not.toContain('renderItem:')
+    expect(flatListProps).not.toContain('keyExtractor?:')
     expect(flatListProps).not.toContain('ItemSeparatorComponent?:')
     expect(flatListProps).not.toContain('ListHeaderComponent?:')
     expect(flatListProps).not.toContain('ListFooterComponent?:')
