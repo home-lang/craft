@@ -15,6 +15,15 @@ final class NativeNavigationUITests: XCTestCase {
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
+    private func waitForAbsence(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let predicate = NSPredicate { object, _ in
+            guard let candidate = object as? XCUIElement else { return false }
+            return !candidate.exists
+        }
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
     private func waitForLayoutIncrease(
         _ element: XCUIElement,
         from baseline: Int,
@@ -1012,6 +1021,10 @@ final class NativeNavigationUITests: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
         XCTAssertTrue(waitForLabel(app.staticTexts["modal-request-status"], "modal requested backdrop"))
         XCTAssertTrue(app.staticTexts["modal dismissed"].waitForExistence(timeout: 5))
+        modalToggle.tap()
+        XCTAssertTrue(app.otherElements["native-modal"].waitForExistence(timeout: 5))
+        app.buttons["remove-modal"].tap()
+        XCTAssertTrue(waitForAbsence(app.otherElements["native-modal"]), "unmounted modal should be removed from the screen overlay")
 
         let slider = app.sliders["native-slider"]
         reveal(slider, in: rootScroll)

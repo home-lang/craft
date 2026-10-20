@@ -30,6 +30,7 @@ const invalidControlColors = state(false)
 const invalidControlStyleStatus = state('')
 const dateEventStatus = state('date event pending')
 const modalVisible = state(false)
+const modalMounted = state(true)
 const modalStatus = state('')
 const modalRequestStatus = state('')
 const modalOpacity = state(1)
@@ -448,6 +449,11 @@ function toggleModal() {
   modalVisible.update(value => !value)
 }
 
+function removeModal() {
+  modalMounted.set(false)
+  modalVisible.set(false)
+}
+
 function modalShown() {
   modalRequestStatus.set('')
   modalStatus.set('modal shown')
@@ -841,9 +847,10 @@ function openDetailsThenUpdateBackground() {
     <Text testID="invalid-control-style-status" :text="invalidControlStyleStatus" />
     <Text testID="date-event-status" :text="dateEventStatus" />
     <Button testID="toggle-modal" @click="toggleModal()">Toggle modal</Button>
-    <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} @show="modalShown()" @dismiss="modalDismissed()" @request-close="modalRequested($event)">
+    <Modal :if="modalMounted()" testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} @show="modalShown()" @dismiss="modalDismissed()" @request-close="modalRequested($event)">
       <Text testID="modal-content">Modal content</Text>
       <Button testID="toggle-modal-opacity" @click="toggleModalOpacity()">Toggle modal opacity</Button>
+      <Button testID="remove-modal" @click="removeModal()">Remove modal</Button>
       <Text testID="modal-opacity" :text="modalOpacity" />
       <Button testID="close-modal" @click="toggleModal()">Close modal</Button>
     </Modal>

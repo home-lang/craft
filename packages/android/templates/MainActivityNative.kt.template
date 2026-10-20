@@ -7467,6 +7467,12 @@ class MainActivity : AppCompatActivity() {
         // released/recycled rows so a later identity cannot inherit a closure
         // that still captures the previous row's screen state.
         released.forEach {
+            // Modals are promoted out of their logical layout into the
+            // screen overlay. Removing the logical node therefore does not
+            // remove the native view through ordinary child reconciliation;
+            // detach every released view so an open popup cannot survive as
+            // an orphan after its owner unmounts.
+            (it.parent as? ViewGroup)?.removeView(it)
             // AdapterView (including Spinner, our native Picker) rejects
             // setOnClickListener altogether. Its selection callback is
             // detached below; ordinary Views still need their click target
