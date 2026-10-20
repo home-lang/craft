@@ -83,6 +83,10 @@ pressable flow containers. `Modal` renders a parent-scoped native layer in nativ
 unless outside-tap dismissal is explicitly enabled. `FlatList` item roots receive the same `onLayout` callback as ordinary native
 views when rows are materialized or recycled.
 
+`View.measure` and non-modal `left`/`top` placement use the same `screenViewport`
+coordinate space. Safe-area and navigation-bar offsets are not added implicitly;
+anchored callers must clamp against the measured viewport when needed.
+
 ```bash
 bun add craft-native
 ```

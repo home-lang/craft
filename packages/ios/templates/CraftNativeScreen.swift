@@ -5366,11 +5366,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
 
             // Non-modal overlays are viewport children, not full-screen
-            // scrims. Their absolute style is resolved against the safe-area
-            // content viewport so a popup cannot hide below a navigation bar
-            // or behind the home indicator. The Android host uses the same
-            // screen-content coordinate space in its root layout.
-            let viewport = view.bounds.inset(by: insets)
+            // scrims. Their absolute style uses the same full screenViewport
+            // origin that View.measure returns. Safe-area-aware placement is
+            // owned by the caller (for example, STX's anchor/clamp logic), so
+            // an authored left/top is never shifted by an implicit inset.
+            let viewport = view.bounds
             let style = modal.craftLayoutStyle
             let width = style.left != nil && style.right != nil
                 ? max(0, viewport.width - (style.left ?? 0) - (style.right ?? 0))
