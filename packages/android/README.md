@@ -362,11 +362,14 @@ and `openSettings` (`healthAvailability`). `healthConnect: { read, write,
 background, history }` lists the types the manifest declares; Play reviews
 each one. `startWorkout`, `pauseWorkout`, `resumeWorkout`, and `endWorkout`
 currently provide a foreground lifecycle contract and write the completed
-session back through Health Connect; they do not claim Health Services
-background execution or live sensor samples. The future Health Services
-adapter must add its own foreground-service and device-capability gate rather
-than silently upgrading this fallback. `bun scripts/test-native-health.ts`
-runs the Health Connect contract against an Android 14+ emulator.
+session back through Health Connect. Native apps can additionally set
+`enableHealthServices: true` to retain `ExerciseClient` in a foreground
+service, check device capabilities, and emit the shared `craftHealthWorkout`
+event with live heart-rate, active-energy and distance metrics. The adapter
+supports running, walking, hiking and cycling; unsupported devices or types
+emit a typed `error` event and leave the Health Connect fallback untouched.
+`bun scripts/test-native-health.ts` runs the Health Connect contract against
+an Android 14+ emulator.
 
 ### 3. Open in Android Studio
 
@@ -405,6 +408,7 @@ Edit `craft.config.json` in your Android project:
   "enableGeolocation": true,
   "enableBackgroundLocation": false,
   "enableHealthConnect": false,
+  "enableHealthServices": false,
   "enableHeartRate": false,
   "enableKeepAwake": true,
   "enableDeepLinks": true,
@@ -889,6 +893,7 @@ The generator adds manifest permissions from enabled capabilities:
 | `enablePushNotifications` | `POST_NOTIFICATIONS` |
 | `enableKeepAwake` | `WAKE_LOCK` |
 | `enableHealthConnect` | the configured Health Connect read/write permissions |
+| `enableHealthServices` | `BODY_SENSORS`, `ACTIVITY_RECOGNITION`, location, `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_HEALTH`; adds `androidx.health:health-services-client` |
 | `enableHeartRate` | `BLUETOOTH_SCAN` (`neverForLocation`), `BLUETOOTH_CONNECT`; `BLUETOOTH`, `BLUETOOTH_ADMIN` and `ACCESS_FINE_LOCATION` up to Android 11; `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_CONNECTED_DEVICE` for the recording's service |
 
 Use `permissions.check('location')` and `permissions.request('location')` from
