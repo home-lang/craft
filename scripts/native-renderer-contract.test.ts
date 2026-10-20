@@ -3522,7 +3522,9 @@ describe('native renderer component contract', () => {
   })
 
   it('waits for asynchronous Android native fixture updates before asserting', () => {
-    expect(androidFlatListTest).toContain('list.smoothScrollToPosition(99)')
+    expect(androidFlatListTest).toContain('list.smoothScrollBy(0, list.height)')
+    expect(androidFlatListTest).toContain('momentumEnded.await(2500, TimeUnit.MILLISECONDS)')
+    expect(androidFlatListTest).toContain('assertEquals(RecyclerView.SCROLL_STATE_IDLE, list.scrollState)')
     expect(androidFlatListTest).toContain('ActivityScenario.launch(MainActivity::class.java)')
     expect(androidNavigationTest).toContain('awaitText(activity, "input-style-status", "input colors on")')
     expect(androidNavigationTest).toContain('awaitText(activity, "native-link-status", "link pressed")')

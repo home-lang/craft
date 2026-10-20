@@ -12,10 +12,13 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -180,26 +183,30 @@ class NativeFlatListTest {
         val scrollCount = AtomicInteger()
         val momentumBeginCount = AtomicInteger()
         val momentumEndCount = AtomicInteger()
+        val momentumEnded = CountDownLatch(1)
         val rows = (0 until 100).map(::row)
         try {
             instrumentation.runOnMainSync {
                 list.onScrollEvent = { scrollCount.incrementAndGet() }
                 list.onMomentumScrollBegin = { momentumBeginCount.incrementAndGet() }
-                list.onMomentumScrollEnd = { momentumEndCount.incrementAndGet() }
+                list.onMomentumScrollEnd = {
+                    momentumEndCount.incrementAndGet()
+                    momentumEnded.countDown()
+                }
                 list.apply(rows, false, 1, false, 0.1, renderer(context, AtomicInteger()), { _ -> }, { _ -> }, null)
             }
             awaitCount(list, 100)
             instrumentation.runOnMainSync {
                 attach(list)
-                list.smoothScrollToPosition(99)
+                // Exercise a real viewport-sized animation, rather than
+                // coupling callback delivery to a 99-row traversal's duration.
+                list.smoothScrollBy(0, list.height)
             }
-            repeat(50) {
-                if (momentumEndCount.get() > 0) return@repeat
-                SystemClock.sleep(50)
-            }
+            assertTrue("RecyclerView did not finish its native momentum animation", momentumEnded.await(2500, TimeUnit.MILLISECONDS))
             assertTrue("RecyclerView did not emit scroll callbacks", scrollCount.get() > 0)
             assertEquals(1, momentumBeginCount.get())
             assertEquals(1, momentumEndCount.get())
+            instrumentation.runOnMainSync { assertEquals(RecyclerView.SCROLL_STATE_IDLE, list.scrollState) }
         } finally {
             scenario.close()
         }
