@@ -760,17 +760,34 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var applyingPadding = false
     private var safeAreaEdges = setOf("top", "right", "bottom", "left")
     private var shieldedModalTouch = false
+    private var dismissibleModalTouch: CraftNativeModalView? = null
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             val x = event.x.roundToInt()
             val y = event.y.roundToInt()
+            dismissibleModalTouch = (childCount - 1 downTo 0).asSequence()
+                .map { getChildAt(it) }
+                .filterIsInstance<CraftNativeModalView>()
+                .firstOrNull { child ->
+                    child.dismissOnOutsideTap && child.visibility == View.VISIBLE && child.alpha > 0.01f
+                        && (x < child.left || x >= child.right || y < child.top || y >= child.bottom)
+                }
             shieldedModalTouch = (childCount - 1 downTo 0).any { index ->
                 val child = getChildAt(index)
                 child is CraftNativeModalView && !child.blocksBackground && child.visibility == View.VISIBLE
                     && (x < child.left || x >= child.right || y < child.top || y >= child.bottom)
                     && child.hasBlockingModalBelow()
             }
+        }
+        dismissibleModalTouch?.let { modal ->
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                modal.requestClose(reason = "backdrop")
+                dismissibleModalTouch = null
+            } else if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                dismissibleModalTouch = null
+            }
+            return true
         }
         if (shieldedModalTouch) {
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) shieldedModalTouch = false
@@ -2610,6 +2627,9 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
             blocker.isEnabled = value
         }
 
+    /** A non-modal popup may opt into consuming an outside tap for dismissal. */
+    var dismissOnOutsideTap: Boolean = false
+
     init {
         isClickable = true
         blocker.isClickable = true
@@ -2623,7 +2643,7 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     }
 
     fun requestClose(reason: String = "backdrop") {
-        if (!blocksBackground) return
+        if (!blocksBackground && !dismissOnOutsideTap) return
         val handler = onRequestClose ?: return
         isClickable = false
         blocker.isEnabled = false
@@ -2688,12 +2708,17 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
         alpha = 0f
         isClickable = true
         blocksBackground = true
+        dismissOnOutsideTap = false
         blocker.isEnabled = true
         onRequestClose = null
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!blocksBackground) {
+            if (dismissOnOutsideTap && event.action == MotionEvent.ACTION_UP) {
+                requestClose(reason = "backdrop")
+                return true
+            }
             // Do not let an outside popup tap fall through to a blocking modal
             // below it; a normal non-modal popup remains pass-through.
             return hasBlockingModalBelow()
@@ -5441,6 +5466,7 @@ class MainActivity : AppCompatActivity() {
                 val focusBeforeContent = screen.view.findFocus()
                 transparent = craftNativeBoolean(props.opt("transparent"))
                 blocksBackground = !craftNativeBoolean(props.opt("nonModal"))
+                dismissOnOutsideTap = craftNativeBoolean(props.opt("dismissOnOutsideTap"))
                 // Modal nodes are promoted from their declaration parent to
                 // the screen root. Keep the authored layout style with that
                 // promoted child so non-modal absolute coordinates remain in

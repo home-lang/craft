@@ -291,13 +291,16 @@ Countdown values are durations: numeric values are seconds and text values use
 `HH:mm` or `HH:mm:ss`; their event value is always `HH:mm:ss`, `iso` is an
 ISO-8601 duration such as `PT5400S`, and `timestamp` is the duration in
 milliseconds. Native countdown controls clamp values to `23:59:59`.
-`Modal` is parent-scoped: `visible` controls a native blocking layer around its
+`Modal` is parent-scoped: `visible` controls a native layer around its
 children, `transparent` removes the dimming scrim, and hidden modals do not
 participate in layout or touch handling. `animationType` accepts `none`,
 `fade`, or `slide`; `slide` enters from and exits toward the bottom edge on
 both hosts. `onShow` and `onDismiss` fire on visibility transitions,
 and `onRequestClose` fires when Android back or the modal blocker requests a
-close. The default WebView renderer remains unchanged.
+close. Set `nonModal` for a popup that leaves the screen interactive; it is
+pass-through by default. Add `dismissOnOutsideTap` when the popup should
+consume an outside tap and call `onRequestClose` on both hosts. The default
+WebView renderer remains unchanged.
 `Text` supports positive `numberOfLines` values and `ellipsizeMode` (`head`,
 `middle`, `tail`, or `clip`) on both hosts; omitting the line count keeps the
 label intrinsically multiline.

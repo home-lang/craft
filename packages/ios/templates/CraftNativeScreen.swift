@@ -3801,6 +3801,10 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     var blocksBackground = true {
         didSet { blocker.isUserInteractionEnabled = blocksBackground }
     }
+    /// An opt-in non-modal dismissal policy. The default popup remains
+    /// pass-through; when enabled, an outside tap is consumed and routed to
+    /// onRequestClose instead of reaching the view below.
+    var dismissOnOutsideTap = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -3884,11 +3888,12 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
         alpha = 0
         isUserInteractionEnabled = true
         blocksBackground = true
+        dismissOnOutsideTap = false
         onRequestClose = nil
     }
 
     func requestClose(reason: String = "backdrop") {
-        guard blocksBackground else { return }
+        guard blocksBackground || dismissOnOutsideTap else { return }
         guard let onRequestClose else { return }
         isUserInteractionEnabled = false
         onRequestClose(reason)
@@ -3922,9 +3927,11 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
             }
         }
         if !blocksBackground {
-            // A popup above a modal owns the outside hit only long enough to
-            // keep the modal scrim from dismissing the layer underneath it.
-            // With no blocking modal below, the screen remains pass-through.
+            // A dismissible popup consumes its outside hit so the close event
+            // cannot also activate the screen below. Otherwise it owns the
+            // hit only when a blocking modal is underneath it; with no modal
+            // below, the screen remains pass-through.
+            if dismissOnOutsideTap { return self }
             return craftScreenController?.hasBlockingModalBelow(self) == true ? self : nil
         }
         return blocker.hitTest(blocker.convert(point, from: self), with: event)
@@ -7405,6 +7412,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let focusBeforeContent = firstResponder(in: rootStack) ?? lastFocusedInput
             modal.transparent = props["transparent"] as? Bool == true
             modal.blocksBackground = props["nonModal"] as? Bool != true
+            modal.dismissOnOutsideTap = props["dismissOnOutsideTap"] as? Bool == true
             let visible: Bool
             if let propVisible = props["visible"] as? Bool {
                 // An explicit visible prop owns modal visibility. The
