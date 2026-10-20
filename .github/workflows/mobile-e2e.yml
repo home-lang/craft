@@ -623,6 +623,9 @@ jobs:
             artifacts/mobile-e2e/ios-zig-slice/console.plain
             artifacts/mobile-e2e/ios-zig-slice/app-stdout.log
             artifacts/mobile-e2e/ios-zig-slice/app-stderr.log
+            artifacts/mobile-e2e/ios-zig-slice/failure.png
+            artifacts/mobile-e2e/ios-zig-slice/failure-screenshot.log
+            artifacts/mobile-e2e/ios-zig-slice/failure-location.log
           if-no-files-found: error
           retention-days: 30
 

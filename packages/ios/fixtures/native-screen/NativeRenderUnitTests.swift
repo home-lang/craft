@@ -2614,7 +2614,7 @@ final class NativeRenderUnitTests: XCTestCase {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
         let screen: ([String: Any]) -> [String: Any] = { props in
-            document([[
+            self.document([[
                 "type": "Switch",
                 "props": ["key": "consent", "value": props["value"] as Any],
                 "events": ["onValueChange": "consentChanged"],

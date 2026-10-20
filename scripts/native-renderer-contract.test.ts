@@ -1882,8 +1882,15 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('each ancestor `onScroll` event as placement invalidations')
     expect(iosReadme).toContain('host-neutral invalidation signals for')
     expect(androidReadme).toContain('host-neutral invalidation signals for')
-    expect(androidReadme).toContain('do not claim Health Services')
-    expect(guide).toContain('provide Health Services background execution or live sensor samples')
+  })
+
+  it('documents optional native Health Services with capability checks and explicit failures', () => {
+    expect(androidReadme).toContain('`enableHealthServices: true` to retain `ExerciseClient` in a foreground')
+    expect(androidReadme).toContain('"enableHealthServices": false')
+    expect(androidReadme).toContain('emit a typed `error` event and leave the Health Connect fallback untouched')
+    expect(guide).toContain('`enableHealthServices: true`. Craft retains `ExerciseClient` in a foreground')
+    expect(guide).toContain('checks device capabilities before starting')
+    expect(guide).toContain('produce an `error` event rather than silently upgrading the fallback')
   })
 
   it('exposes screen-owned scrolling for mounted native scroll views', () => {
