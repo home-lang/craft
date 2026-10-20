@@ -2995,7 +2995,8 @@ internal class CraftNativeInputEcho {
  * A native screen's `<Video>`: the platform's VideoView.
  *
  * It plays without taking audio focus, so the person's music carries on
- * under it, as on iOS. `onLoad`, `onPlay`, `onPause`, `onEnd` and `onError`
+ * under it, as on iOS. `onLoadStart`, `onLoad`, `onLoadEnd`, `onPlay`,
+ * `onPause`, `onEnd` and `onError`
  * reach the screen in the web's names, from the controls as well as from
  * props. With `pictureInPicture` the activity takes it into a floating
  * window when the person leaves the app while it plays (MainActivity
@@ -3011,6 +3012,8 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     private var ended = false
     private var muted = false
     private var resizeMode = "contain"
+    private var requestedTimeSeconds: Double? = null
+    private var pendingSeekSeconds: Double? = null
     private var preparedPlayer: MediaPlayer? = null
     /** The screen's handlers by event name, and how an event reaches them. */
     var handlers: JSONObject = JSONObject()
@@ -3039,11 +3042,24 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         setAudioFocusRequest(AudioManager.AUDIOFOCUS_NONE)
     }
 
-    fun configure(source: Any?, autoplay: Boolean, paused: Boolean, loop: Boolean, muted: Boolean, controls: Boolean, resizeMode: String?, pictureInPicture: Boolean = false) {
+    private fun applyPendingSeek() {
+        val target = pendingSeekSeconds ?: return
+        if (preparedPlayer == null) return
+        val current = currentPosition.coerceAtLeast(0) / 1000.0
+        pendingSeekSeconds = null
+        if (kotlin.math.abs(current - target) > 0.25) seekTo((target * 1000.0).roundToInt().coerceAtLeast(0))
+    }
+
+    fun configure(source: Any?, autoplay: Boolean, paused: Boolean, loop: Boolean, muted: Boolean, currentTime: Any?, controls: Boolean, resizeMode: String?, pictureInPicture: Boolean = false) {
         val uri = when (source) {
             is String -> source
             is JSONObject -> craftNativeOptionalString(source.opt("uri")).orEmpty()
             else -> ""
+        }
+        val nextTime = craftNativeNumber(currentTime)?.takeIf { it.isFinite() && it >= 0.0 }
+        if (nextTime != requestedTimeSeconds) {
+            requestedTimeSeconds = nextTime
+            pendingSeekSeconds = nextTime
         }
         shouldLoop = loop
         val nextShouldPlay = autoplay && !paused
@@ -3064,6 +3080,7 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         setMediaController(if (controls) MediaController(context).also { it.setAnchorView(this) } else null)
         if (uri != sourceUri) {
             sourceUri = uri
+            pendingSeekSeconds = requestedTimeSeconds
             userPaused = false
             ended = false
             stopPlayback()
@@ -3073,6 +3090,7 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
             // A copy kept on the phone (craft.media.keep) plays in place of
             // the address: offline in a gym with no signal.
             val kept = CraftNativeMedia.local(context, uri)
+            fire("onLoadStart")
             setVideoURI(if (kept != null) Uri.fromFile(kept) else Uri.parse(uri))
             setOnPreparedListener { mediaPlayer ->
                 preparedPlayer = mediaPlayer
@@ -3080,7 +3098,9 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
                 mediaPlayer.isLooping = shouldLoop
                 val volume = if (this.muted) 0f else 1f
                 mediaPlayer.setVolume(volume, volume)
+                applyPendingSeek()
                 fire("onLoad", JSONObject().put("duration", duration / 1000.0))
+                fire("onLoadEnd")
                 if (shouldPlay) start()
             }
             setOnCompletionListener {
@@ -3098,6 +3118,7 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
             }
         }
         if (uri.isBlank()) return
+        applyPendingSeek()
         runCatching {
             if (shouldPlay && !isPlaying && !userPaused && !ended) start()
             else if (!shouldPlay && isPlaying) pause()
@@ -3167,6 +3188,8 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
         stopPlayback()
         setPlaying(false)
         sourceUri = ""
+        requestedTimeSeconds = null
+        pendingSeekSeconds = null
         playIntent = null
         userPaused = false
         ended = false
@@ -5731,6 +5754,7 @@ class MainActivity : AppCompatActivity() {
                     paused = craftNativeBoolean(props.opt("paused")),
                     loop = craftNativeBoolean(props.opt("loop")),
                     muted = craftNativeBoolean(props.opt("muted")),
+                    currentTime = props.opt("currentTime"),
                     controls = craftNativeBoolean(props.opt("controls")),
                     resizeMode = craftNativeResizeMode(style, props),
                     pictureInPicture = craftNativeBoolean(props.opt("pictureInPicture")),
