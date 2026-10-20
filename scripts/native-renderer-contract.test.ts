@@ -1835,6 +1835,7 @@ describe('native renderer component contract', () => {
     expect(androidReadme).toContain('non-modal absolute `left`/`top` placement use the same')
     expect(iosNavigationTest).toContain('screenViewport coordinates, not an implicit safe-area offset')
     expect(androidNavigationTest).toContain('screenViewport origin, not a second safe-area offset')
+    expect(iosNativeUnitTests).toContain('testPopupMovedOutOfScrollViewKeepsLiveInputIdentityAndSelection')
     expect(guide).toContain('Anchored overlays should remeasure their anchor after every `onLayout` callback')
     expect(guide).toContain('each ancestor `onScroll` event as placement invalidations')
     expect(iosReadme).toContain('host-neutral invalidation signals for')
