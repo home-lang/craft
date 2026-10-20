@@ -270,6 +270,7 @@ describe('the native app shell in a generated project', () => {
       await init({ name: 'Plain', packageName: 'dev.craft.plain', output: plain, runtimeDir: null, config: { renderer: 'native' } })
       const plainJava = join(plain, 'app/src/main/java/dev/craft/plain')
       expect(readFileSync(join(plainJava, 'CraftNativeHealth.kt'), 'utf8')).toContain('CAPABILITY_DISABLED')
+      expect(readFileSync(join(plainJava, 'CraftHealthServices.kt'), 'utf8')).toContain('CAPABILITY_DISABLED')
       expect(existsSync(join(plainJava, 'CraftNativeMessagingService.kt'))).toBe(false)
       expect(readFileSync(join(plainJava, 'CraftNativeServices.kt'), 'utf8')).toContain('Push notifications are disabled')
     }

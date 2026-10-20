@@ -749,12 +749,11 @@ function writeNativeShellSources(output: string, packagePath: string, packageNam
   write('CraftNativeHaptics.kt.template', 'CraftNativeHaptics.kt')
   write('CraftNativeBackground.kt.template', 'CraftNativeBackground.kt')
   write(config.enableHealthConnect ? 'CraftNativeHealth.kt.template' : 'CraftNativeHealthStub.kt.template', 'CraftNativeHealth.kt')
+  write(config.enableHealthServices ? 'CraftHealthServices.kt.template' : 'CraftHealthServicesStub.kt.template', 'CraftHealthServices.kt')
   if (config.enableHealthServices) {
-    write('CraftHealthServices.kt.template', 'CraftHealthServices.kt')
     write('CraftHealthServicesService.kt.template', 'CraftHealthServicesService.kt')
   }
   else {
-    rmSync(join(javaDir, 'CraftHealthServices.kt'), { force: true })
     rmSync(join(javaDir, 'CraftHealthServicesService.kt'), { force: true })
   }
   write('CraftNativeServices.kt.template', 'CraftNativeServices.kt', source => source
