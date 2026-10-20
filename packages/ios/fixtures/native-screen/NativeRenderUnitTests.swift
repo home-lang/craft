@@ -2163,6 +2163,50 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(controller.evaluateScript("__modalEvents.join('|')")?.toString(), "shown|requested:backdrop|dismissed|shown|dismissed")
     }
 
+    /// A form in a modal whose fields fit the screen until the keyboard
+    /// rises: the button at the end has to scroll up above the keyboard. A
+    /// trail review's Save sat under the keyboard with nothing to scroll.
+    func testAModalFormScrollsItsLastButtonAboveTheKeyboard() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["id": "composer", "type": "Modal", "props": ["key": "composer", "visible": true, "animationType": "none"], "children": [
+                ["type": "KeyboardAvoidingView", "props": ["key": "avoid"], "style": ["flex": 1], "children": [
+                    ["type": "ScrollView", "props": ["key": "form", "testID": "form"], "style": ["flex": 1], "children": [
+                        ["type": "View", "props": ["key": "fields"], "style": ["height": 520]],
+                        ["type": "TextInput", "props": ["key": "review", "testID": "review", "multiline": true], "style": ["height": 96]],
+                        ["type": "Button", "props": ["key": "save", "testID": "save"], "style": ["height": 50], "children": ["Save review"]],
+                    ]],
+                ]],
+            ]],
+        ]))
+        controller.view.layoutIfNeeded()
+        let form = try XCTUnwrap(find(UIScrollView.self, key: "form", below: controller.view))
+        let input = try XCTUnwrap(find(UITextView.self, key: "review", below: controller.view))
+        let save = try XCTUnwrap(find(UIButton.self, key: "save", below: controller.view))
+        XCTAssertTrue(input.becomeFirstResponder())
+
+        let screen = window.bounds
+        let keyboard = CGRect(x: 0, y: screen.height - 336, width: screen.width, height: 336)
+        NotificationCenter.default.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
+            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: keyboard),
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0,
+            UIResponder.keyboardAnimationCurveUserInfoKey: 0,
+        ])
+        controller.view.layoutIfNeeded()
+        form.layoutIfNeeded()
+
+        // As far as the form scrolls.
+        let end = max(-form.adjustedContentInset.top, form.contentSize.height + form.adjustedContentInset.bottom - form.bounds.height)
+        form.setContentOffset(CGPoint(x: 0, y: end), animated: false)
+        form.layoutIfNeeded()
+        let saveFrame = save.convert(save.bounds, to: window)
+        XCTAssertLessThanOrEqual(saveFrame.maxY, keyboard.minY + 0.5, "Save review cannot be scrolled out from under the keyboard (form \(form.frame), content \(form.contentSize), inset \(form.adjustedContentInset))")
+    }
+
     func testHidingAModalDismissesItsKeyboardWithoutRestoringHiddenInputFocus() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
@@ -2539,6 +2583,20 @@ final class NativeRenderUnitTests: XCTestCase {
             return XCTFail("negative badge unexpectedly succeeded")
         }
         XCTAssertEqual(error.code, "INVALID_ARGUMENT")
+    }
+
+    func testASharedLinkIsCopiedAsTextAndSentAsALink() throws {
+        let url = try XCTUnwrap(URL(string: "https://wildloop.org/trail/21"))
+        let link = CraftShareLink(url: url, title: "Craggy Gardens Trail")
+        let sheet = UIActivityViewController(activityItems: [link], applicationActivities: nil)
+        // Copy: the address as text, which UIPasteboard.string and every
+        // paste target read. A URL-only item there pastes as nothing.
+        XCTAssertEqual(link.activityViewController(sheet, itemForActivityType: .copyToPasteboard) as? String, url.absoluteString)
+        // Everywhere else it stays a URL, for the rich link preview.
+        XCTAssertEqual(link.activityViewController(sheet, itemForActivityType: .message) as? URL, url)
+        XCTAssertEqual(link.activityViewController(sheet, itemForActivityType: .airDrop) as? URL, url)
+        XCTAssertEqual(link.activityViewController(sheet, itemForActivityType: nil) as? URL, url)
+        XCTAssertEqual(link.activityViewControllerPlaceholderItem(sheet) as? URL, url)
     }
 
     func testDecodesStreamedTextAcrossSplitCharacters() {

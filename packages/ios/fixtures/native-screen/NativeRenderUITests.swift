@@ -63,4 +63,23 @@ final class NativeRenderUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "1")
         XCTAssertEqual(app.staticTexts["switch-result"].label, "Switch on")
     }
+
+    /// A drag that starts on a button scrolls the page, and presses nothing.
+    /// UIKit leaves a touch with the control it began on unless the scroll
+    /// view cancels it, so on a page made of buttons - a trail page's map
+    /// controls, a form's pickers - a drag from most places did nothing.
+    func testADragThatStartsOnAButtonScrolls() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let first = app.buttons["scroll-button-0"]
+        XCTAssertTrue(first.waitForExistence(timeout: 15))
+        let before = first.frame.minY
+        let start = app.buttons["scroll-button-2"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -100)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertLessThan(first.frame.minY, before - 40, "a drag from a button did not scroll its scroll view")
+        XCTAssertEqual(app.staticTexts["scroll-presses"].label, "Scroll presses: 0", "the drag pressed the button it started on")
+        // A tap still presses one.
+        app.buttons["scroll-button-3"].tap()
+        XCTAssertEqual(app.staticTexts["scroll-presses"].label, "Scroll presses: 1")
+    }
 }
