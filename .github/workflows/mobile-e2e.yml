@@ -172,7 +172,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 9d003f90714dc5c36daf262aaaa285a9671245e7
+          ref: 1a89af00b1db3c75948d826b4fab4234f236731f
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
@@ -294,7 +294,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 9d003f90714dc5c36daf262aaaa285a9671245e7
+          ref: 1a89af00b1db3c75948d826b4fab4234f236731f
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
@@ -444,7 +444,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 9d003f90714dc5c36daf262aaaa285a9671245e7
+          ref: 1a89af00b1db3c75948d826b4fab4234f236731f
           path: .stx-compiler
 
       - name: Install Android stx compiler dependencies
@@ -651,7 +651,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 9d003f90714dc5c36daf262aaaa285a9671245e7
+          ref: 1a89af00b1db3c75948d826b4fab4234f236731f
           path: .stx-compiler
       - run: bun install --frozen-lockfile
         working-directory: .stx-compiler
