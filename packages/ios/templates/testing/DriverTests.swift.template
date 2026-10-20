@@ -68,6 +68,26 @@ final class DriverTests: XCTestCase {
         return result
     }
 
+    /// The journey, from the runner's control server, asked for again
+    /// until a minute has passed.
+    ///
+    /// The server is up before the test starts, but a freshly created
+    /// simulator's first request can outlast one wait: the first journey of
+    /// a CI run spent 15s on it and failed before doing anything. XCTWaiter
+    /// reports a timeout instead of failing the test, so a slow first answer
+    /// is retried rather than fatal.
+    func remoteScript(seconds: Double = 60) -> Data? {
+        let end = Date().addingTimeInterval(seconds)
+        repeat {
+            var result: Data?
+            let done = XCTestExpectation(description: "/script")
+            URLSession.shared.dataTask(with: URL(string: control + "/script")!) { data, _, _ in result = data; done.fulfill() }.resume()
+            if XCTWaiter().wait(for: [done], timeout: 15) == .completed, let result, !result.isEmpty { return result }
+            Thread.sleep(forTimeInterval: 1)
+        } while Date() < end
+        return nil
+    }
+
     func post(_ path: String, _ body: Data) {
         if bundledJourney {
             guard path.hasPrefix("/save?"),
@@ -246,7 +266,7 @@ final class DriverTests: XCTestCase {
             bundledJourney = true
             data = try Data(contentsOf: resource)
         } else {
-            data = get("/script")
+            data = remoteScript()
         }
         guard let data, let script = String(data: data, encoding: .utf8) else {
             XCTFail("no script")

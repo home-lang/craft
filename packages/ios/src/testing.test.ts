@@ -144,6 +144,9 @@ describe('package-owned iOS shells', () => {
     expect(scrolling).not.toContain('app.swipeUp()')
     expect(source).toContain('thenHoldForDuration: 0.2')
     expect(source).toContain('keyboard.frame.minY - 24')
+    // A fresh simulator's first request to the runner can outlast one wait.
+    expect(source).toContain('data = remoteScript()')
+    expect(source).toContain('XCTWaiter().wait(for: [done], timeout: 15) == .completed')
   })
 
   it('checks actual native field values after a real edit-menu gesture', () => {
