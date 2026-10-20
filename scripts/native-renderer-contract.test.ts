@@ -1557,7 +1557,7 @@ describe('native renderer component contract', () => {
     // A modal covers the screen it is declared on, not its parent's box.
     expect(ios).toContain('view.bringSubviewToFront(modal)')
     expect(ios).toContain('if modal.frame != view.bounds { modal.frame = view.bounds }')
-    expect(ios).toContain('let viewport = view.bounds.inset(by: insets)')
+    expect(ios).toContain('let viewport = view.bounds')
     expect(ios).toContain('guard !modal.blocksBackground else')
     expect(ios).toContain('modal.contentInsets = .zero')
     expect(ios).toContain('hasBlockingModalBelow')
@@ -1822,6 +1822,14 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('"unit": "points"')
     expect(android).toContain('TYPE_VIEW_FOCUSED')
     expect(android).toContain('"unit", "dp"')
+  })
+
+  it('keeps non-modal placement in the measured screen viewport', () => {
+    expect(ios).toContain('let viewport = view.bounds')
+    expect(ios).toContain('same full screenViewport')
+    expect(iosReadme).toContain('non-modal `left`/`top` placement use the same `screenViewport`')
+    expect(android).toContain('same screenViewport origin')
+    expect(androidReadme).toContain('non-modal absolute `left`/`top` placement use the same')
   })
 
   it('exposes screen-owned scrolling for mounted native scroll views', () => {

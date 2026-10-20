@@ -1058,6 +1058,9 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     // A non-modal popup is still promoted to the screen root,
                     // but its authored absolute style controls its viewport
                     // frame instead of turning it into a full-screen child.
+                    // The root content box is the same screenViewport origin
+                    // returned by View.measure; safe-area padding is not
+                    // injected a second time here.
                     val childWidth = measureChildWidth(child, style, width - paddingLeft - paddingRight, horizontalMargins)
                     val childHeight = measureChildHeight(child, style, height - paddingTop - paddingBottom, verticalMargins)
                     absolute += Entry(child, style, childWidth, childHeight)

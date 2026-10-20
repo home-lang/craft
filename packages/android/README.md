@@ -184,6 +184,8 @@ pass-through unless outside-tap dismissal is explicitly enabled. System Back dis
 the top modal before it pops the native route. `Switch` supports state-aware `trackColor`
 and `thumbColor`, while `Slider` supports track/thumb tint props and `step`
 snapping without collapsing stepped ranges to a fixed pixel-like precision.
+`View.measure` and non-modal absolute `left`/`top` placement use the same
+`screenViewport` origin; safe-area offsets are not added implicitly.
 `ActivityIndicator` keeps a visible stopped indicator genuinely
 non-animated when `animating={false}` and `hidesWhenStopped={false}`. `Image`
 reports load lifecycle events and structured failures. Native image sources
