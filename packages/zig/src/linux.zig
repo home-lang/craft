@@ -22,6 +22,8 @@ pub extern "c" fn gtk_init(argc: ?*c_int, argv: ?*anyopaque) void;
 pub extern "c" fn gtk_application_new(application_id: [*:0]const u8, flags: c_int) ?*anyopaque;
 pub extern "c" fn g_application_register(app: *anyopaque, cancellable: ?*anyopaque, err: ?*?*anyopaque) c_int;
 pub extern "c" fn g_application_get_is_remote(app: *anyopaque) c_int;
+pub extern "c" fn g_application_get_dbus_connection(app: *anyopaque) ?*anyopaque;
+pub extern "c" fn g_dbus_connection_flush_sync(connection: *anyopaque, cancellable: ?*anyopaque, err: ?*?*anyopaque) c_int;
 pub extern "c" fn g_application_open(app: *anyopaque, files: [*]*anyopaque, n_files: c_int, hint: [*:0]const u8) void;
 pub extern "c" fn g_file_new_for_uri(uri: [*:0]const u8) ?*anyopaque;
 pub extern "c" fn g_file_get_uri(file: *anyopaque) ?[*:0]u8;
@@ -832,6 +834,11 @@ pub fn forwardDeepLinkIfRunning(url: []const u8) !bool {
     defer g_object_unref(file);
     var files = [_]*anyopaque{file};
     g_application_open(remote, &files, 1, "");
+    // GApplication queues remote Open calls on D-Bus. This forwarding process
+    // does not run g_application_run(), whose shutdown normally flushes them.
+    // Flush before unref/exit so a warm link cannot die in the sender's queue.
+    const connection = g_application_get_dbus_connection(remote) orelse return error.ApplicationBusUnavailable;
+    if (g_dbus_connection_flush_sync(connection, null, null) == 0) return error.DeepLinkDispatchFailed;
     return true;
 }
 
