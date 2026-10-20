@@ -168,8 +168,9 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
           const systemUi = await run([adb, '-s', serial, 'shell', 'pidof', 'com.android.systemui'], undefined, probeTimeout(), true)
           // Native acceptance must be able to observe platform crashes before
           // launching any app. boot_completed/System UI can precede logd's ADB
-          // event stream; declaring readiness then loses that first health check.
-          const events = await run([adb, '-s', serial, 'logcat', '-b', 'events', '-d', '-t', '1'], undefined, probeTimeout(), true)
+          // event stream. Require a complete history read so a partial transport
+          // read cannot admit the device before its first health check.
+          const events = await run([adb, '-s', serial, 'logcat', '-b', 'events', '-d', '-v', 'threadtime'], undefined, probeTimeout(), true)
           // AOSP's first boot can report all those services ready while its
           // automatic SDK setup activity still owns HOME. Launching HOME then
           // opens that transient activity; after it finishes UI automation has
@@ -180,10 +181,15 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
           const temporaryHome = homeActivity.startsWith('com.android.sdksetup/')
             || /^com\.android\.settings\/(?:\.|com\.android\.settings\.)FallbackHome$/.test(homeActivity)
             || /^android\/.*(?:Resolver|Chooser)Activity$/.test(homeActivity)
+          // Resolving HOME can precede its first input window during cold
+          // provisioning. Hand off only once the launcher actually has focus.
+          const windows = await run([adb, '-s', serial, 'shell', 'dumpsys', 'window'], undefined, probeTimeout(), true)
+          const focusedPackage = windows.stdout.match(/^\s*mCurrentFocus\s*=\s*Window\{[^}\r\n]*\bu\d+\s+([\w.]+)\//m)?.[1]
           booted = settings.code === 0 && packages.code === 0 && systemUi.code === 0 && events.code === 0
             && /^package:\/\S+/m.test(packages.stdout) && /^\d+(?:\s+\d+)*$/.test(systemUi.stdout.trim())
             && (!requiresPlayStore || (playStore?.code === 0 && /^package:\/\S+/m.test(playStore.stdout)))
             && home.code === 0 && /^[\w.]+\/[\w.$]+$/.test(homeActivity) && !temporaryHome
+            && windows.code === 0 && focusedPackage === homeActivity.split('/')[0]
         }
       }
       const checkedAt = Date.now()
