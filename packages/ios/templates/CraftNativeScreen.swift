@@ -2543,6 +2543,7 @@ final class CraftNativeCelebration {
             group.duration = 2.2 + Double(spread) * 0.45
             group.beginTime = now + Double(index % 7) * 0.018
             group.fillMode = .backwards
+            group.atDisplayRate()
             piece.add(group, forKey: "craft.celebration.particle")
         }
 
@@ -2556,6 +2557,7 @@ final class CraftNativeCelebration {
         entrance.stiffness = 160
         entrance.mass = 1
         entrance.duration = 0.95
+        entrance.atDisplayRate()
         view.layer.add(entrance, forKey: "craft.celebration.entrance")
 
         let sheen = CAGradientLayer()
@@ -2581,6 +2583,7 @@ final class CraftNativeCelebration {
         shine.animations = [sweep, light]
         shine.duration = 1.15
         shine.beginTime = now + 0.55
+        shine.atDisplayRate()
         sheen.add(shine, forKey: "craft.celebration.sweep")
         let cleanup = DispatchWorkItem { [weak self] in self?.stop() }
         self.cleanup = cleanup
@@ -4882,6 +4885,62 @@ enum CraftNativeScriptThread {
     }
 }
 
+extension CAAnimation {
+    /// Asks for the display's full rate, up to 120Hz on ProMotion. Core
+    /// Animation otherwise picks a rate for the motion and often stays at 60;
+    /// a transition or a spring the eye follows reads smoother at 120.
+    func atDisplayRate() {
+        if #available(iOS 15.0, *) { preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120) }
+    }
+}
+
+/// `requestAnimationFrame` for native screens: one display link, at the
+/// display's own rate (up to 120Hz on a ProMotion iPhone, which the app
+/// allows with `CADisableMinimumFrameDurationOnPhone`), running only while a
+/// screen on display is waiting for a frame. Each frame hands every waiting
+/// screen one `__craftNativeFireFrame`, where its script runs; a screen asks
+/// again for the frame after, as a browser's page does. A screen out of sight
+/// waits until it is shown, as a browser pauses a hidden tab's frames, and as
+/// Craft's Android host does (Choreographer). Main thread only.
+final class CraftNativeFrameClock: NSObject {
+    static let shared = CraftNativeFrameClock()
+
+    private var waiting: [ObjectIdentifier: () -> Void] = [:]
+    private var link: CADisplayLink?
+
+    /// How many screens wait for the next frame.
+    var waitingCount: Int { waiting.count }
+    /// Whether the display link is counting frames now.
+    var isRunning: Bool { link.map { !$0.isPaused } ?? false }
+
+    /// `deliver` on the next frame, once. Asking again before it comes keeps one.
+    func request(_ owner: AnyObject, _ deliver: @escaping () -> Void) {
+        waiting[ObjectIdentifier(owner)] = deliver
+        if link == nil {
+            let link = CADisplayLink(target: self, selector: #selector(frame(_:)))
+            if #available(iOS 15.0, *) {
+                link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 120)
+            }
+            link.add(to: .main, forMode: .common)
+            self.link = link
+        }
+        link?.isPaused = false
+    }
+
+    /// `owner` no longer waits: it went out of sight or away.
+    func cancel(_ owner: AnyObject) {
+        waiting.removeValue(forKey: ObjectIdentifier(owner))
+        if waiting.isEmpty { link?.isPaused = true }
+    }
+
+    @objc private func frame(_ link: CADisplayLink) {
+        let due = waiting
+        waiting.removeAll()
+        if waiting.isEmpty { link.isPaused = true }
+        due.values.forEach { $0() }
+    }
+}
+
 /// The native screens' JavaScript. A screen is a JavaScriptCore context of
 /// its own and evaluates the whole file it is given, so each route has a file
 /// of its own when stx wrote one (`dist/native-screens/<route>.js`, stx's
@@ -5107,6 +5166,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         var pending: [Int: DispatchWorkItem] = [:]
     }
     private let timers = Timers()
+    /// The script asked for an animation frame it has not had yet
+    /// (`requestAnimationFrame`, CraftNativeFrameClock). Main thread only.
+    private var frameWanted = false
     private var lifecycleObservers: [NSObjectProtocol] = []
     private var deepLinkListener: UUID?
     private var keyboardSafeAreaInset: CGFloat = 0
@@ -5289,6 +5351,23 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self)
     }
 
+    /// `requestAnimationFrame`: the next display frame, for a screen on display
+    /// (or the app script, which is never shown). One out of sight keeps the
+    /// request until it is shown again (screenVisibilityChanged).
+    private func requestFrame() {
+        guard !runtimeDisposed, !frameWanted else { return }
+        frameWanted = true
+        guard isAppScript || reportedVisible != false else { return }
+        CraftNativeFrameClock.shared.request(self) { [weak self] in self?.fireFrame() }
+    }
+
+    private func fireFrame() {
+        guard frameWanted, !runtimeDisposed else { return }
+        frameWanted = false
+        let context = jsContext
+        CraftNativeScriptThread.run { context.objectForKeyedSubscript("__craftNativeFireFrame")?.call(withArguments: []) }
+    }
+
     /// The screen came on screen or went off it: a screen pushed over it was
     /// popped, or the hybrid shell switched to or away from its tab (which
     /// hides a stack rather than moving it, so UIKit says nothing). The first
@@ -5303,6 +5382,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // preview also restores a screen that never lost focus, so restore its
         // chrome even when no new SCREEN_FOCUS event is needed.
         if visible { restoreShellChrome() }
+        if visible, frameWanted { CraftNativeFrameClock.shared.request(self) { [weak self] in self?.fireFrame() } }
+        if !visible { CraftNativeFrameClock.shared.cancel(self) }
         guard visible != reportedVisible else { return }
         let first = reportedVisible == nil
         reportedVisible = visible
@@ -5329,6 +5410,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func disposeRuntime() {
         guard !runtimeDisposed else { return }
         runtimeDisposed = true
+        frameWanted = false
+        CraftNativeFrameClock.shared.cancel(self)
         disposeRenderedTree()
         let context = jsContext
         CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }
@@ -5551,6 +5634,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         jsContext.setObject(scheduleTimer, forKeyedSubscript: "craftNativeScheduleTimer" as NSString)
         jsContext.setObject(cancelTimer, forKeyedSubscript: "craftNativeCancelTimer" as NSString)
+        // The next display frame, from the script's thread; the frame itself
+        // comes back there as `__craftNativeFireFrame`.
+        let requestFrame: @convention(block) () -> Void = { [weak self] in
+            CraftNativeScriptThread.toMain { self?.requestFrame() }
+        }
+        jsContext.setObject(requestFrame, forKeyedSubscript: "craftNativeRequestFrame" as NSString)
         let capabilityJSON = inputs.capabilityJSON
         // The app's site and build, as JSON strings: the site an all-native
         // app's paths and links belong to (`devServerURL`), and the version a
@@ -5586,6 +5675,41 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         jsContext.evaluateScript(Self.nativeWebAPICompatibilityPrelude)
         installHostAPIs()
         jsContext.evaluateScript("""
+            // requestAnimationFrame on the display's frames (CraftNativeFrameClock),
+            // at its own rate, 120 a second on ProMotion: a timer guessing at 60
+            // would cap every animation a screen draws itself. One request covers
+            // every callback for the frame; a callback that throws does not stop
+            // the others, and is reported after them.
+            if (typeof globalThis.requestAnimationFrame !== 'function') {
+                (function() {
+                    var frames = [];
+                    var cancelled = new Set();
+                    var nextFrame = 0;
+                    globalThis.requestAnimationFrame = function(callback) {
+                        if (typeof callback !== 'function') return 0;
+                        var id = ++nextFrame;
+                        frames.push({ id: id, callback: callback });
+                        if (frames.length === 1) craftNativeRequestFrame();
+                        return id;
+                    };
+                    globalThis.cancelAnimationFrame = function(id) {
+                        if (frames.some(function(frame) { return frame.id === id; })) cancelled.add(id);
+                    };
+                    globalThis.__craftNativeFireFrame = function() {
+                        var due = frames;
+                        var skip = cancelled;
+                        frames = [];
+                        cancelled = new Set();
+                        var now = globalThis.performance && typeof globalThis.performance.now === 'function' ? globalThis.performance.now() : Date.now();
+                        var failures = [];
+                        for (var i = 0; i < due.length; i++) {
+                            if (skip.has(due[i].id)) continue;
+                            try { due[i].callback(now); } catch (error) { failures.push(error); }
+                        }
+                        failures.forEach(function(error) { globalThis.setTimeout(function() { throw error; }, 0); });
+                    };
+                })();
+            }
             if (typeof globalThis.setTimeout !== 'function') {
                 (function() {
                     var timers = new Map();
@@ -10115,6 +10239,7 @@ extension CraftNativeScreenController {
             }
             animation.fromValue = from
             let key = "\(CraftNativeRunningAnimation.key).\(keyPath)"
+            animation.atDisplayRate()
             layer.add(animation, forKey: key)
             running.layers.append((layer, key))
         }

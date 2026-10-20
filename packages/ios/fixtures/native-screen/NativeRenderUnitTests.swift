@@ -1909,6 +1909,53 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(list.visibleItemIdentities.contains(retainedAnchor))
     }
 
+    /// requestAnimationFrame rides the display (CraftNativeFrameClock): a run
+    /// of frames in order, a cancelled callback skipped, a throwing one not
+    /// stopping the rest, a hidden screen waiting until it is shown, and the
+    /// display link stopping once nobody waits.
+    func testAnimationFramesComeFromTheDisplayAndWaitWhileHidden() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        func number(_ script: String) -> Double { controller.evaluateScript(script)?.toDouble() ?? .nan }
+        func wait(_ what: String, _ check: () -> Bool) {
+            let deadline = Date().addingTimeInterval(10)
+            while !check() {
+                if Date() > deadline { XCTFail("Timed out waiting for \(what)"); return }
+                RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+            }
+        }
+
+        controller.evaluateScript("""
+            globalThis.__frames = [];
+            (function tick(time) { __frames.push(time); if (__frames.length < 20) requestAnimationFrame(tick); })(0);
+        """)
+        wait("twenty frames") { number("__frames.length") == 20 }
+        XCTAssertEqual(controller.evaluateScript("__frames.every(function(t, i) { return i === 0 || t > __frames[i - 1]; })")?.toBool(), true)
+        wait("the display link to stop") { !CraftNativeFrameClock.shared.isRunning }
+        XCTAssertEqual(CraftNativeFrameClock.shared.waitingCount, 0)
+
+        controller.evaluateScript("""
+            globalThis.__hits = 0;
+            var gone = requestAnimationFrame(function() { __hits += 100; });
+            requestAnimationFrame(function() { throw new Error('one callback failing'); });
+            requestAnimationFrame(function() { __hits += 1; });
+            cancelAnimationFrame(gone);
+        """)
+        wait("the frame") { number("__hits") == 1 }
+
+        controller.screenVisibilityChanged(false)
+        controller.evaluateScript("globalThis.__shown = 0; requestAnimationFrame(function() { __shown = 1; });")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.25))
+        XCTAssertEqual(number("__shown"), 0, "a hidden screen's frame waits")
+        XCTAssertEqual(CraftNativeFrameClock.shared.waitingCount, 0)
+        controller.screenVisibilityChanged(true)
+        wait("the frame once shown") { number("__shown") == 1 }
+    }
+
     /// A window in the test host's scene: one made with only a frame is in
     /// no scene, so nothing in it can take the keyboard.
     private func hostWindow() throws -> UIWindow {
