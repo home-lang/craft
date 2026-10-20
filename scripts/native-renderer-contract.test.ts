@@ -1529,6 +1529,9 @@ describe('native renderer component contract', () => {
     // A modal covers the screen it is declared on, not its parent's box.
     expect(ios).toContain('view.bringSubviewToFront(modal)')
     expect(ios).toContain('if modal.frame != view.bounds { modal.frame = view.bounds }')
+    expect(ios).toContain('let viewport = view.bounds.inset(by: insets)')
+    expect(ios).toContain('guard !modal.blocksBackground else')
+    expect(ios).toContain('modal.contentInsets = .zero')
     expect(ios).toContain('!($0 is CraftNativeModalView)')
     expect(android).toContain('private class CraftNativeModalView(context: Context) : FrameLayout(context)')
     expect(android).toContain('if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE)')
@@ -1559,6 +1562,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('onRequestClose = if (requestClose.isNotBlank())')
     expect(android).toContain('craftNativeOptionalString(events.opt("onShow"))')
     expect(android).toContain('if (child is CraftNativeModalView)')
+    expect(android).toContain('if (child.blocksBackground)')
+    expect(android).toContain('screen.view.setChildStyle(this, style, resources.displayMetrics.density)')
+    expect(android).toContain('private fun promoteModalOverlays(screen: Screen, controls: Collection<View>)')
+    expect(android).toContain('promoteModalOverlays(screen, next.values)')
     expect(android).toContain('entry.view.bringToFront()')
   })
 

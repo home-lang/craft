@@ -1010,13 +1010,22 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val horizontalMargins = (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
             val verticalMargins = (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
             if (child is CraftNativeModalView) {
-                val modalWidth = max(0, width - paddingLeft - paddingRight)
-                val modalHeight = max(0, height - paddingTop - paddingBottom)
-                child.measure(
-                    View.MeasureSpec.makeMeasureSpec(modalWidth, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(modalHeight, View.MeasureSpec.EXACTLY),
-                )
-                absolute += Entry(child, style, modalWidth, modalHeight)
+                if (child.blocksBackground) {
+                    val modalWidth = max(0, width - paddingLeft - paddingRight)
+                    val modalHeight = max(0, height - paddingTop - paddingBottom)
+                    child.measure(
+                        View.MeasureSpec.makeMeasureSpec(modalWidth, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(modalHeight, View.MeasureSpec.EXACTLY),
+                    )
+                    absolute += Entry(child, style, modalWidth, modalHeight)
+                } else {
+                    // A non-modal popup is still promoted to the screen root,
+                    // but its authored absolute style controls its viewport
+                    // frame instead of turning it into a full-screen child.
+                    val childWidth = measureChildWidth(child, style, width - paddingLeft - paddingRight, horizontalMargins)
+                    val childHeight = measureChildHeight(child, style, height - paddingTop - paddingBottom, verticalMargins)
+                    absolute += Entry(child, style, childWidth, childHeight)
+                }
                 continue
             }
             val childWidth = measureChildWidth(child, style, width - paddingLeft - paddingRight, horizontalMargins)
@@ -1109,13 +1118,19 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val horizontalMargins = (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
             val verticalMargins = (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
             if (child is CraftNativeModalView) {
-                val modalWidth = max(0, width - paddingLeft - paddingRight)
-                val modalHeight = max(0, height - paddingTop - paddingBottom)
-                child.measure(
-                    View.MeasureSpec.makeMeasureSpec(modalWidth, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(modalHeight, View.MeasureSpec.EXACTLY),
-                )
-                absolute += Entry(child, style, modalWidth, modalHeight)
+                if (child.blocksBackground) {
+                    val modalWidth = max(0, width - paddingLeft - paddingRight)
+                    val modalHeight = max(0, height - paddingTop - paddingBottom)
+                    child.measure(
+                        View.MeasureSpec.makeMeasureSpec(modalWidth, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(modalHeight, View.MeasureSpec.EXACTLY),
+                    )
+                    absolute += Entry(child, style, modalWidth, modalHeight)
+                } else {
+                    val childWidth = measureChildWidth(child, style, width - paddingLeft - paddingRight, horizontalMargins)
+                    val childHeight = measureChildHeight(child, style, height - paddingTop - paddingBottom, verticalMargins)
+                    absolute += Entry(child, style, childWidth, childHeight)
+                }
                 continue
             }
             val childWidth = measureChildWidth(child, style, cellWidth.roundToInt(), horizontalMargins)
@@ -5011,12 +5026,24 @@ class MainActivity : AppCompatActivity() {
         screen.controls.putAll(next)
         screen.handlers.keys.retainAll(retainedViews(screen))
         screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)
+        promoteModalOverlays(screen, next.values)
         updateSafeAreaViews()
         // A full render can change a view's custom layout style without
         // changing the root bounds. Ensure native @layout observers still see
         // the settled child frame after the next traversal.
         scheduleLayoutEvents(screen)
         if (visibleScreen === screen) applyStatusBar(screen)
+    }
+
+    /** Keep Modal nodes in the screen viewport even when declared in a clipped subtree. */
+    private fun promoteModalOverlays(screen: Screen, controls: Collection<View>) {
+        controls.filterIsInstance<CraftNativeModalView>().forEach { modal ->
+            if (modal.parent !== screen.view) {
+                (modal.parent as? ViewGroup)?.removeView(modal)
+                screen.view.addView(modal)
+            }
+            modal.bringToFront()
+        }
     }
 
     private fun applyStatusBar(screen: Screen) {
@@ -5382,6 +5409,11 @@ class MainActivity : AppCompatActivity() {
                 val focusBeforeContent = screen.view.findFocus()
                 transparent = craftNativeBoolean(props.opt("transparent"))
                 blocksBackground = !craftNativeBoolean(props.opt("nonModal"))
+                // Modal nodes are promoted from their declaration parent to
+                // the screen root. Keep the authored layout style with that
+                // promoted child so non-modal absolute coordinates remain in
+                // the screen viewport rather than the old clipped parent.
+                screen.view.setChildStyle(this, style, resources.displayMetrics.density)
                 content.configure(style, resources.displayMetrics.density)
                 reconcileChildren(screen, content, children, identity, next, style, previousControls)
                 // Dynamic :visible bindings arrive as a display style mutation;

@@ -5322,8 +5322,34 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if bar.intersects(view.bounds) { insets.top = max(insets.top, bar.maxY) }
         }
         for modal in modals {
-            if modal.frame != view.bounds { modal.frame = view.bounds }
-            modal.contentInsets = insets
+            guard !modal.blocksBackground else {
+                if modal.frame != view.bounds { modal.frame = view.bounds }
+                modal.contentInsets = insets
+                continue
+            }
+
+            // Non-modal overlays are viewport children, not full-screen
+            // scrims. Their absolute style is resolved against the safe-area
+            // content viewport so a popup cannot hide below a navigation bar
+            // or behind the home indicator. The Android host uses the same
+            // screen-content coordinate space in its root layout.
+            let viewport = view.bounds.inset(by: insets)
+            let style = modal.craftLayoutStyle
+            let width = style.left != nil && style.right != nil
+                ? max(0, viewport.width - (style.left ?? 0) - (style.right ?? 0))
+                : style.width?.resolve(viewport.width)
+                    ?? min(viewport.width, modal.contentStack.sizeThatFits(viewport.size).width)
+            let height = style.top != nil && style.bottom != nil
+                ? max(0, viewport.height - (style.top ?? 0) - (style.bottom ?? 0))
+                : style.height?.resolve(viewport.height)
+                    ?? min(viewport.height, modal.contentStack.sizeThatFits(viewport.size).height)
+            let x = viewport.minX + (style.left ?? (style.right.map { viewport.width - $0 - width } ?? 0))
+            let y = viewport.minY + (style.top ?? (style.bottom.map { viewport.height - $0 - height } ?? 0))
+            let frame = CGRect(x: x, y: y, width: width, height: height)
+            if modal.frame != frame { modal.frame = frame }
+            // The frame already excludes the safe area; inset the content no
+            // further or authored top/left coordinates would be shifted twice.
+            modal.contentInsets = .zero
         }
     }
 

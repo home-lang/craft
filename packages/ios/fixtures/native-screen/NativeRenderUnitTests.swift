@@ -2363,6 +2363,27 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(controller.view.hitTest(outside, with: nil) === underlay)
     }
 
+    func testANonModalOverlayUsesItsViewportFrame() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["type": "View", "props": ["key": "page"], "style": ["flex": 1]],
+            ["type": "Modal", "props": ["key": "popup", "visible": true, "nonModal": true, "animationType": "none"],
+             "style": ["position": "absolute", "left": 24, "top": 36, "width": 180, "height": 72],
+             "children": [["type": "Text", "props": ["key": "label"], "children": ["Popup"]]]],
+        ]))
+        controller.view.layoutIfNeeded()
+        let popup = try XCTUnwrap(find(UIView.self, key: "popup", below: controller.view))
+        XCTAssertEqual(popup.frame.origin.x, 24, accuracy: 0.5)
+        XCTAssertEqual(popup.frame.origin.y, 36, accuracy: 0.5)
+        XCTAssertEqual(popup.frame.size.width, 180, accuracy: 0.5)
+        XCTAssertEqual(popup.frame.size.height, 72, accuracy: 0.5)
+        XCTAssertNotEqual(popup.frame, controller.view.bounds)
+    }
+
     func testASliderReportsTheDecimalItShows() {
         // UISlider keeps a Float; the script hears the number, not its
         // binary neighbour.
