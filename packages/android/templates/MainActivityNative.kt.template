@@ -6865,6 +6865,7 @@ class MainActivity : AppCompatActivity() {
                 linkedControl -> "link"
                 type in setOf("TouchableOpacity", "TouchableHighlight", "Pressable") -> "button"
                 type == "Icon" -> "image"
+                type in setOf("FlatList", "SectionList") -> "list"
                 else -> type.lowercase()
             }
         }

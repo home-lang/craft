@@ -318,6 +318,9 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain("| 'scrollbar'")
     expect(ios).toContain('["tablist", "radiogroup", "list", "menu", "menubar", "toolbar"]')
     expect(android).toContain('"scrollbar" -> ScrollView::class.java.name')
+    expect(ios).toContain('["FlatList", "SectionList"].contains(type) ? "list"')
+    expect(android).toContain('type in setOf("FlatList", "SectionList") -> "list"')
+    expect(iosNativeUnitTests).toContain('testListsExposeSharedListAccessibilityRoleWithoutOverridingAuthoredRoles')
   })
 
   it('types ScrollView refresh controls instead of falling back to any', () => {
