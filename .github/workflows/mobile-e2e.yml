@@ -100,10 +100,10 @@ defaults:
     shell: bash
 
 # One source of truth for the compiler used by every native fixture. Keep this
-# at the workflow level so a compiler qualification changes one line, not four
-# checkout steps plus documentation and a second test constant.
+# at the workflow level so a released compiler qualification changes one line,
+# not four checkout steps plus documentation and a second test constant.
 env:
-  STX_COMPILER_REF: 9773b46b2465680aa070537914fda183262cdda6
+  STX_COMPILER_VERSION: v0.2.608
 
 jobs:
   media-cache:
@@ -172,13 +172,13 @@ jobs:
 
       # The fixtures compile real .stx sources. Pin the
       # @stacksjs/stx compiler (`stx native compile`) so this job cannot silently change
-      # underneath us. Both iOS jobs and Android use the same compiler revision.
+      # underneath us. Both iOS jobs and Android use the same released version.
       - name: Checkout stx compiler
         if: ${{ startsWith(matrix.suite, 'navigation') }}
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: ${{ env.STX_COMPILER_REF }}
+          ref: ${{ env.STX_COMPILER_VERSION }}
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
@@ -300,7 +300,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: ${{ env.STX_COMPILER_REF }}
+          ref: ${{ env.STX_COMPILER_VERSION }}
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
@@ -450,7 +450,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: ${{ env.STX_COMPILER_REF }}
+          ref: ${{ env.STX_COMPILER_VERSION }}
           path: .stx-compiler
 
       - name: Install Android stx compiler dependencies
@@ -657,7 +657,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: ${{ env.STX_COMPILER_REF }}
+          ref: ${{ env.STX_COMPILER_VERSION }}
           path: .stx-compiler
       - run: bun install --frozen-lockfile
         working-directory: .stx-compiler

@@ -1252,9 +1252,9 @@ describe('native renderer component contract', () => {
     expect(migrationGuide).toContain('The WebView fallback remains CSS-driven.')
   })
 
-  it('pins one @stacksjs/stx compiler revision across mobile E2E hosts', () => {
-    const pin = mobileE2EWorkflow.match(/STX_COMPILER_REF:\s*([0-9a-f]{40})/)
-    const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: (\$\{\{ env\.STX_COMPILER_REF \}\})/g)].map(match => match[1])
+  it('pins one released @stacksjs/stx compiler version across mobile E2E hosts', () => {
+    const pin = mobileE2EWorkflow.match(/STX_COMPILER_VERSION:\s*v\d+\.\d+\.\d+/)
+    const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: (\$\{\{ env\.STX_COMPILER_VERSION \}\})/g)].map(match => match[1])
     expect(pin).not.toBeNull()
     expect(refs).toHaveLength(4)
     expect(new Set(refs).size).toBe(1)
@@ -1263,8 +1263,8 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps the native STX guide aligned with the mobile compiler pin', () => {
-    expect(mobileE2EWorkflow).toContain('STX_COMPILER_REF:')
-    expect(guide).toContain('The workflow-level `STX_COMPILER_REF` is the single source')
+    expect(mobileE2EWorkflow).toContain('STX_COMPILER_VERSION:')
+    expect(guide).toContain('The workflow-level `STX_COMPILER_VERSION` is the')
     expect(guide).toContain('Native `View`, `Text`, `Button`, and `Link` props also accept `onClick`')
     expect(guide).toContain('Maps accept `standard`, `satellite`, or `hybrid` styles')
     expect(guide).toContain('and `markers` arrays on both maintained hosts')

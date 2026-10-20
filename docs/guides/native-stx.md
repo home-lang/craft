@@ -76,11 +76,11 @@ This behavior is identical on iOS JavaScriptCore and Android
 JavaScriptSandbox; it is not a capability gate and does not change the web
 renderer.
 
-The maintained Mobile E2E workflow checks out one exact stx compiler commit for
-both simulator hosts. The workflow-level `STX_COMPILER_REF` is the single source
-of truth for every native checkout; update that one value when qualifying a new
-STX revision. The workflow contract test rejects compiler skew between hosts.
-The current pin targets STX main at `9773b46b2465680aa070537914fda183262cdda6`, which preserves authored reconciliation keys
+The maintained Mobile E2E workflow checks out one released STX compiler version
+for both simulator hosts. The workflow-level `STX_COMPILER_VERSION` is the
+single source of truth for every native checkout; update that one value when a
+new STX release is qualified. The workflow contract test rejects compiler skew
+between hosts. The current pin targets `v0.2.608`, which preserves authored reconciliation keys
 and explicit grid row tracks in
 static and reactive native styles, and keeps template indentation out of native
 leaf button labels. Touchable primitives preserve authored accessibility roles

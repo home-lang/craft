@@ -98,16 +98,16 @@ test.each(['ci.yml', 'mobile-e2e.yml'])('%s lets Main acceptance finish while su
   expect(policy.queue ?? 'single').toBe('single')
 })
 
-test('mobile device jobs use the same pinned stx compiler', () => {
+test('mobile device jobs use the same released stx compiler version', () => {
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { env: Record<string, string>, jobs: Record<string, Job> }
-  expect(workflow.env.STX_COMPILER_REF).toMatch(/^[0-9a-f]{40}$/)
+  expect(workflow.env.STX_COMPILER_VERSION).toMatch(/^v\d+\.\d+\.\d+$/)
   const compilerCheckouts = Object.values(workflow.jobs).flatMap(job => job.steps ?? []).filter((step) => {
     const options = step.with as Record<string, string> | undefined
     return options?.repository === 'stacksjs/stx'
   })
   expect(compilerCheckouts).toHaveLength(4)
   for (const step of compilerCheckouts)
-    expect((step.with as Record<string, string>).ref).toBe('${{ env.STX_COMPILER_REF }}')
+    expect((step.with as Record<string, string>).ref).toBe('${{ env.STX_COMPILER_VERSION }}')
   const compilerInstalls = Object.values(workflow.jobs).flatMap(job => job.steps ?? [])
     .filter(step => step['working-directory'] === '.stx-compiler')
   expect(compilerInstalls).toHaveLength(4)
