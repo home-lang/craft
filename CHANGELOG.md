@@ -1,5 +1,106 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.251...v0.0.252)
+
+## 🐛 Bug Fixes
+
+- **android**: wait for bundled Play Store provisioning ([e7d069d](https://github.com/craft-native/craft/commit/e7d069d)) _(by Chris Breuer)_
+- **android**: settle media work before retry callbacks ([d9fc1b1](https://github.com/craft-native/craft/commit/d9fc1b1)) _(by Chris Breuer)_
+- **linux**: flush forwarded deep links before exiting ([e87bf92](https://github.com/craft-native/craft/commit/e87bf92)) _(by Chris Breuer)_
+- integrate native readiness and keyboard-safe scroll tests ([fb026df](https://github.com/craft-native/craft/commit/fb026df)) _(by Chris Breuer)_
+- **native**: integrate current media ownership and settled hit testing ([ce19677](https://github.com/craft-native/craft/commit/ce19677)) _(by Chris Breuer)_
+- **ios**: let button drags scroll native lists ([1adcc44](https://github.com/craft-native/craft/commit/1adcc44)) _(by Chris Breuer)_
+- **android**: round authored padding to physical pixels ([e7ca1bd](https://github.com/craft-native/craft/commit/e7ca1bd)) _(by Chris Breuer)_
+- **android**: preserve integer defaults in direct layout payloads ([11662fd](https://github.com/craft-native/craft/commit/11662fd)) _(by Chris Breuer)_
+- **android**: encode native grid counts as integer ABI fields ([889b220](https://github.com/craft-native/craft/commit/889b220)) _(by Chris Breuer)_
+- **android**: size explicit grid row tracks with consistent units ([c980467](https://github.com/craft-native/craft/commit/c980467)) _(by Chris Breuer)_
+- **tests**: pass native modal close details to the fixture handler ([e8abe43](https://github.com/craft-native/craft/commit/e8abe43)) _(by Chris Breuer)_
+- **android**: use typed geometry when fitting Google map overlays ([76eedf7](https://github.com/craft-native/craft/commit/76eedf7)) _(by Chris Breuer)_
+- **ios**: validate native script thread across both config readers ([a27a170](https://github.com/craft-native/craft/commit/a27a170)) _(by Chris Breuer)_
+- **mobile**: reconcile native SDK fixes with Craft 0.0.247 ([1f16550](https://github.com/craft-native/craft/commit/1f16550)) _(by Chris Breuer)_
+- **android**: preserve media requests across cache cleanup and worker completion ([c7c3968](https://github.com/craft-native/craft/commit/c7c3968)) _(by Chris Breuer)_
+- **android**: refuse unsolicited partial media responses ([f4da503](https://github.com/craft-native/craft/commit/f4da503)) _(by Chris Breuer)_
+- **android**: discard empty media parts and verify automatic recovery ([ddeeefc](https://github.com/craft-native/craft/commit/ddeeefc)) _(by Chris Breuer)_
+- **android**: wait past fallback Home activities during emulator startup ([123d817](https://github.com/craft-native/craft/commit/123d817)) _(by Chris Breuer)_
+- **android**: expose native tabs as accessible identified buttons ([fcfb16b](https://github.com/craft-native/craft/commit/fcfb16b)) _(by Chris Breuer)_
+- **ios**: keep text editing active inside native scroll containers ([0937024](https://github.com/craft-native/craft/commit/0937024)) _(by Chris Breuer)_
+- **ios**: preserve tab pans over vertical native lists ([38b02a8](https://github.com/craft-native/craft/commit/38b02a8)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- align native compiler guide with qualified release pin ([6bfe7ed](https://github.com/craft-native/craft/commit/6bfe7ed)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: await native viewport scroll completion ([f770faf](https://github.com/craft-native/craft/commit/f770faf)) _(by Chris Breuer)_
+- **ios**: align hybrid cold-start accessibility readiness ([adc59c0](https://github.com/craft-native/craft/commit/adc59c0)) _(by Chris Breuer)_
+- **android**: inspect current settled-work replacement ([9fb0fad](https://github.com/craft-native/craft/commit/9fb0fad)) _(by Chris Breuer)_
+- **ios**: align field drag coverage with native scrolling ([2b1a518](https://github.com/craft-native/craft/commit/2b1a518)) _(by Chris Breuer)_
+- **ios**: diagnose retained button hits and preserve control gestures ([b15edd9](https://github.com/craft-native/craft/commit/b15edd9)) _(by Chris Breuer)_
+- **ios**: require exact native UI coverage counts ([1c05acc](https://github.com/craft-native/craft/commit/1c05acc)) _(by Chris Breuer)_
+- **ios**: scale native reveal gestures to target distance ([ae4e1ac](https://github.com/craft-native/craft/commit/ae4e1ac)) _(by Chris Breuer)_
+- **ios**: distinguish typed text from bridge acknowledgements ([838ca1c](https://github.com/craft-native/craft/commit/838ca1c)) _(by Chris Breuer)_
+- **android**: report sticky header scroll ownership ([0369aa2](https://github.com/craft-native/craft/commit/0369aa2)) _(by Chris Breuer)_
+- **android**: observe mounted native views on the UI thread ([911c627](https://github.com/craft-native/craft/commit/911c627)) _(by Chris Breuer)_
+- **android**: supply required row removal callbacks ([378a8d4](https://github.com/craft-native/craft/commit/378a8d4)) _(by Chris Breuer)_
+- **ios**: align renderer lifecycle contracts with native ownership ([e31bedc](https://github.com/craft-native/craft/commit/e31bedc)) _(by Chris Breuer)_
+- **ios**: select native review text explicitly before replacement ([e4fe6bf](https://github.com/craft-native/craft/commit/e4fe6bf)) _(by Chris Breuer)_
+- **ios**: run native navigation targets in independent required jobs ([e121df7](https://github.com/craft-native/craft/commit/e121df7)) _(by Chris Breuer)_
+- **android**: enable AndroidX in the durable media probe ([f3f8a06](https://github.com/craft-native/craft/commit/f3f8a06)) _(by Chris Breuer)_
+- **android**: compile complete durable media probes with portable HTTP fixtures ([fd7be83](https://github.com/craft-native/craft/commit/fd7be83)) _(by Chris Breuer)_
+- **android**: verify the generated WorkManager network policy ([b40f006](https://github.com/craft-native/craft/commit/b40f006)) _(by Chris Breuer)_
+- settle bridge requests before leaving identity coverage ([889b506](https://github.com/craft-native/craft/commit/889b506)) _(by Chris Breuer)_
+- **ios**: cover tab gestures inside native vertical lists ([92bfb1c](https://github.com/craft-native/craft/commit/92bfb1c)) _(by Chris Breuer)_
+
+## 🤖 Continuous Integration
+
+- qualify every native UI case in bounded required suites ([e4a0a47](https://github.com/craft-native/craft/commit/e4a0a47)) _(by Chris Breuer)_
+- qualify native fixtures with corrected compiler labels ([5325e80](https://github.com/craft-native/craft/commit/5325e80)) _(by Chris Breuer)_
+- qualify exact SDK release tags before publication ([3c0e183](https://github.com/craft-native/craft/commit/3c0e183)) _(by Chris Breuer)_
+- pin native fixtures to the explicit-grid-row compiler release ([9d28f2a](https://github.com/craft-native/craft/commit/9d28f2a)) _(by Chris Breuer)_
+- install native compiler with its frozen supported toolchain ([3034603](https://github.com/craft-native/craft/commit/3034603)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- integrate qualified Pantry toolchain and modal checks ([c719f84](https://github.com/craft-native/craft/commit/c719f84)) _(by Chris Breuer)_
+- **native**: qualify the published stx 0.2.593 compiler ([ad8b090](https://github.com/craft-native/craft/commit/ad8b090)) _(by Chris Breuer)_
+- integrate native focus and picker accessibility fixes ([72a29c2](https://github.com/craft-native/craft/commit/72a29c2)) _(by Chris Breuer)_
+- integrate current native toolchain and accessibility fixes ([ea81312](https://github.com/craft-native/craft/commit/ea81312)) _(by Chris Breuer)_
+- integrate native touchable accessibility improvements ([e1a9803](https://github.com/craft-native/craft/commit/e1a9803)) _(by Chris Breuer)_
+- integrate current native runtime improvements ([8877be1](https://github.com/craft-native/craft/commit/8877be1)) _(by Chris Breuer)_
+- integrate native live workout and popup retention updates ([974cff9](https://github.com/craft-native/craft/commit/974cff9)) _(by Chris Breuer)_
+- integrate retained native view identity and capability updates ([8bcd3cb](https://github.com/craft-native/craft/commit/8bcd3cb)) _(by Chris Breuer)_
+- integrate native pass capabilities and anchored layout fixes ([220b23e](https://github.com/craft-native/craft/commit/220b23e)) _(by Chris Breuer)_
+- integrate qualified native text container access ([6f4fdaf](https://github.com/craft-native/craft/commit/6f4fdaf)) _(by Chris Breuer)_
+- integrate native iOS shared grid row layout ([814eb74](https://github.com/craft-native/craft/commit/814eb74)) _(by Chris Breuer)_
+- integrate shared explicit grid row layout ([6459ef3](https://github.com/craft-native/craft/commit/6459ef3)) _(by Chris Breuer)_
+- integrate native control tracking and grid regression coverage ([7f338d6](https://github.com/craft-native/craft/commit/7f338d6)) _(by Chris Breuer)_
+- integrate explicit native grid row tracks ([e1220e2](https://github.com/craft-native/craft/commit/e1220e2)) _(by Chris Breuer)_
+- integrate native browser diagnostics coverage ([b10948b](https://github.com/craft-native/craft/commit/b10948b)) _(by Chris Breuer)_
+- integrate native route props and selectable text ([507ff72](https://github.com/craft-native/craft/commit/507ff72)) _(by Chris Breuer)_
+- integrate native scrolling and switch coverage ([99a6222](https://github.com/craft-native/craft/commit/99a6222)) _(by Chris Breuer)_
+- integrate current native map and focus improvements ([a6054fd](https://github.com/craft-native/craft/commit/a6054fd)) _(by Chris Breuer)_
+- integrate native switch regression coverage ([733ecef](https://github.com/craft-native/craft/commit/733ecef)) _(by Chris Breuer)_
+- integrate current native lifecycle and control fixes ([be2b676](https://github.com/craft-native/craft/commit/be2b676)) _(by Chris Breuer)_
+- integrate safe native picker teardown ([ebf1723](https://github.com/craft-native/craft/commit/ebf1723)) _(by Chris Breuer)_
+- reconcile matching Android fixture fixes ([c381d20](https://github.com/craft-native/craft/commit/c381d20)) _(by Chris Breuer)_
+- integrate current native renderer fixes ([603a38e](https://github.com/craft-native/craft/commit/603a38e)) _(by Chris Breuer)_
+- integrate Craft 0.0.245 release ([807ae33](https://github.com/craft-native/craft/commit/807ae33)) _(by Chris Breuer)_
+- integrate native Android media lifecycle updates ([7da6de4](https://github.com/craft-native/craft/commit/7da6de4)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge pull request #369 from craft-native/codex/native-vertical-scroll-tab-swipes ([299bce5](https://github.com/craft-native/craft/commit/299bce5)) _(by Chris)_ ([#369](https://github.com/craft-native/craft/issues/369))
+- Merge remote-tracking branch 'origin/main' into codex/native-vertical-scroll-tab-swipes ([d570d81](https://github.com/craft-native/craft/commit/d570d81)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/native-vertical-scroll-tab-swipes ([eb407c0](https://github.com/craft-native/craft/commit/eb407c0)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/native-vertical-scroll-tab-swipes ([c184ea9](https://github.com/craft-native/craft/commit/c184ea9)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/native-vertical-scroll-tab-swipes ([36edf59](https://github.com/craft-native/craft/commit/36edf59)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.250...v0.0.251)
 
 ## 🐛 Bug Fixes
