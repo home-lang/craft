@@ -1885,12 +1885,14 @@ describe('native renderer component contract', () => {
   })
 
   it('documents optional native Health Services with capability checks and explicit failures', () => {
-    expect(androidReadme).toContain('`enableHealthServices: true` to retain `ExerciseClient` in a foreground')
-    expect(androidReadme).toContain('"enableHealthServices": false')
-    expect(androidReadme).toContain('emit a typed `error` event and leave the Health Connect fallback untouched')
-    expect(guide).toContain('`enableHealthServices: true`. Craft retains `ExerciseClient` in a foreground')
-    expect(guide).toContain('checks device capabilities before starting')
-    expect(guide).toContain('produce an `error` event rather than silently upgrading the fallback')
+    const androidDocs = androidReadme.replace(/\s+/g, ' ')
+    const guideDocs = guide.replace(/\s+/g, ' ')
+    expect(androidDocs).toContain('`enableHealthServices: true` to retain `ExerciseClient` in a foreground')
+    expect(androidDocs).toContain('"enableHealthServices": false')
+    expect(androidDocs).toContain('emit a typed `error` event and leave the Health Connect fallback untouched')
+    expect(guideDocs).toContain('`enableHealthServices: true`. Craft retains `ExerciseClient` in a foreground')
+    expect(guideDocs).toContain('checks device capabilities before starting')
+    expect(guideDocs).toContain('produce an `error` event rather than silently upgrading the fallback')
   })
 
   it('exposes screen-owned scrolling for mounted native scroll views', () => {
