@@ -3123,7 +3123,8 @@ private class CraftNativeFlowView: UIStackView {
                 frames: &frames
             )
         }
-        if place, flow.count == children.count, let sharedTree = sharedTreeFrames(flow, width: width, height: height), (sharedTree.nodes.count > flow.count + 1 || grid) {
+        if place, flow.count == children.count, let sharedTree = sharedTreeFrames(flow, width: width, height: height),
+           (sharedTree.nodes.count > flow.count + 1 || grid || reverse || wrapReverse || gridAutoRows != nil || gridRows != nil) {
             frames = []
             for index in 1..<sharedTree.nodes.count {
                 guard let view = sharedTree.nodes[index].view else { continue }

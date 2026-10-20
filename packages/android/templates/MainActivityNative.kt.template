@@ -1858,7 +1858,7 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         if (absolute.isEmpty() && lines.isNotEmpty() && (lines.size == 1 || wrap)) {
             val sharedEntries = if (wrap) lines.flatMap { it.entries } else lines[0].entries
             val sharedTree = sharedTreeFrames(sharedEntries, width, height)
-            if (sharedTree != null && (sharedTree.nodes.size > sharedEntries.size + 1 || grid)) {
+            if (sharedTree != null && (sharedTree.nodes.size > sharedEntries.size + 1 || grid || reverse || wrapReverse || gridAutoRows != null || gridRows != null)) {
                 for (index in 1 until sharedTree.nodes.size) {
                     val view = sharedTree.nodes[index].view ?: continue
                     val offset = index * 4

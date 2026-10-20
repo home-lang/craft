@@ -1882,8 +1882,9 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('each ancestor `onScroll` event as placement invalidations')
     expect(iosReadme).toContain('host-neutral invalidation signals for')
     expect(androidReadme).toContain('host-neutral invalidation signals for')
-    expect(androidReadme).toContain('do not claim Health Services')
-    expect(guide).toContain('provide Health Services background execution or live sensor samples')
+    expect(androidReadme).toContain('enableHealthServices: true')
+    expect(androidReadme).toContain('foreground service')
+    expect(guide).toContain('Craft retains `ExerciseClient` in a foreground')
   })
 
   it('exposes screen-owned scrolling for mounted native scroll views', () => {
@@ -2200,6 +2201,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('if place, flow.count == children.count, let shared = sharedDirectFrames(flow, width: width, height: height)')
     expect(ios).toContain('frames = shared')
     expect(ios).toContain('sharedTree.nodes.count > flow.count + 1')
+    expect(ios).toContain('|| reverse || wrapReverse || gridAutoRows != nil || gridRows != nil')
     expect(ios).toContain('offset.x - parentFrame.x')
     expect(ios).toContain('CraftNativeTreeLayoutBridge.treeFrames(root: root, width: width, height: height)')
     expect(ios).toContain('craft_native_layout_tree_v2')
@@ -2234,7 +2236,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('autoRowsAware -> 34')
     expect(android).toContain('if (fields >= 33) putEnum(base, 32, (if (node.reverse) 1 else 0) or (if (node.wrapReverse) 2 else 0))')
     expect(android).toContain('put(base, 33, sharedLength(node.gridAutoRows, contentHeight))')
-    expect(android).toContain('if (sharedTree != null && (sharedTree.nodes.size > sharedEntries.size + 1 || grid))')
+    expect(android).toContain('if (sharedTree != null && (sharedTree.nodes.size > sharedEntries.size + 1 || grid || reverse || wrapReverse || gridAutoRows != null || gridRows != null))')
     expect(android).toContain('val parentOffset = sharedTree.parents[index] * 4')
     expect(android).toContain('if (sharedFrames != null)')
     expect(android).toContain('return null')

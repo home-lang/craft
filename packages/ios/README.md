@@ -231,9 +231,9 @@ Follow it with `selected` and content checks, then a full `swipe` to verify the
 next gesture still works. Synchronized XCTest gestures do not replace separate
 direct-input rapid-tap checks.
 
-The iOS host uses the shared tree-layout ABI for eligible definite-size,
-non-grid, non-wrapped containers and retains a local fallback for older
-runtimes or unsupported styles. Both paths implement wrapped-line and grid
+The iOS host uses the shared tree-layout ABI for eligible definite-size
+containers, including reverse and wrap-reverse direct flows, and retains a
+local fallback for older runtimes or unsupported styles. Both paths implement wrapped-line and grid
 `alignContent`, including `space-evenly`, so a missing optional shared symbol
 does not change placement semantics.
 Reverse flex directions also retain wrapped line order on the cross axis while
