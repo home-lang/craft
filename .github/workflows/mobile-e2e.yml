@@ -99,6 +99,12 @@ defaults:
   run:
     shell: bash
 
+# One source of truth for the compiler used by every native fixture. Keep this
+# at the workflow level so a compiler qualification changes one line, not four
+# checkout steps plus documentation and a second test constant.
+env:
+  STX_COMPILER_REF: 9773b46b2465680aa070537914fda183262cdda6
+
 jobs:
   media-cache:
     if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'android' && inputs.scope != 'ios-render' }}
@@ -172,7 +178,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 0096bc955dd42ce4263fccb0a1feedeb0d8e3603
+          ref: ${{ env.STX_COMPILER_REF }}
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
@@ -294,7 +300,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 0096bc955dd42ce4263fccb0a1feedeb0d8e3603
+          ref: ${{ env.STX_COMPILER_REF }}
           path: .stx-compiler
 
       - name: Install stx compiler dependencies
@@ -444,7 +450,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 0096bc955dd42ce4263fccb0a1feedeb0d8e3603
+          ref: ${{ env.STX_COMPILER_REF }}
           path: .stx-compiler
 
       - name: Install Android stx compiler dependencies
@@ -651,7 +657,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
-          ref: 0096bc955dd42ce4263fccb0a1feedeb0d8e3603
+          ref: ${{ env.STX_COMPILER_REF }}
           path: .stx-compiler
       - run: bun install --frozen-lockfile
         working-directory: .stx-compiler

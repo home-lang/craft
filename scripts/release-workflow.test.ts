@@ -20,7 +20,6 @@ type Job = {
 }
 const release = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/release.yml'), 'utf8')) as { jobs: Record<string, Job> }
 const artifactDownload = 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093'
-const stxCompilerCommit = '0096bc955dd42ce4263fccb0a1feedeb0d8e3603'
 const needs = (job: Job) => typeof job.needs === 'string' ? [job.needs] : job.needs ?? []
 const steps = (job: Job) => job.steps?.map(step => step.run ?? '').join('\n') ?? ''
 
@@ -100,14 +99,15 @@ test.each(['ci.yml', 'mobile-e2e.yml'])('%s lets Main acceptance finish while su
 })
 
 test('mobile device jobs use the same pinned stx compiler', () => {
-  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { env: Record<string, string>, jobs: Record<string, Job> }
+  expect(workflow.env.STX_COMPILER_REF).toMatch(/^[0-9a-f]{40}$/)
   const compilerCheckouts = Object.values(workflow.jobs).flatMap(job => job.steps ?? []).filter((step) => {
     const options = step.with as Record<string, string> | undefined
     return options?.repository === 'stacksjs/stx'
   })
   expect(compilerCheckouts).toHaveLength(4)
   for (const step of compilerCheckouts)
-    expect((step.with as Record<string, string>).ref).toBe(stxCompilerCommit)
+    expect((step.with as Record<string, string>).ref).toBe('${{ env.STX_COMPILER_REF }}')
   const compilerInstalls = Object.values(workflow.jobs).flatMap(job => job.steps ?? [])
     .filter(step => step['working-directory'] === '.stx-compiler')
   expect(compilerInstalls).toHaveLength(4)
@@ -250,19 +250,33 @@ test('every publishing path depends on release identity validation', () => {
 })
 
 test('tag publication requires the complete source and native acceptance workflows', () => {
-  for (const [name, file] of [['source-acceptance', 'ci.yml'], ['native-acceptance', 'mobile-e2e.yml']]) {
-    const gate = release.jobs[name]
-    expect(gate.uses).toBe(`./.github/workflows/${file}`)
+  for (const [gateName, suiteName, file] of [['source-acceptance', 'source-suite', 'ci.yml'], ['native-acceptance', 'native-suite', 'mobile-e2e.yml']]) {
+    // The gate reuses main's push run of the same workflow on this exact SHA.
+    const gate = release.jobs[gateName]
     expect(needs(gate)).toEqual(['validate-release'])
     expect(gate.if).toBeUndefined()
-    expect(gate.with).toBeUndefined() // A release cannot request a focused suite.
+    const reuse = (gate.steps ?? []).find(step => step.run?.includes('scripts/release-acceptance.ts'))
+    expect(reuse?.run).toBe(`bun scripts/release-acceptance.ts ${file}`)
+    expect((reuse?.env as Record<string, string>)?.RELEASE_SHA).toBe('${{ github.sha }}')
+    // With nothing to reuse, the release runs the complete suite on its tag.
+    const suite = release.jobs[suiteName]
+    expect(suite.uses).toBe(`./.github/workflows/${file}`)
+    expect(needs(suite)).toEqual([gateName])
+    expect(suite.if).toBe(`needs.${gateName}.outputs.reused != 'true'`)
+    expect(suite.with).toBeUndefined() // A release cannot request a focused suite.
     const called = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows', file), 'utf8')) as { on: Record<string, unknown> }
     expect(called.on.workflow_call).toEqual({}) // No selectors or diagnostic inputs are accepted by callers.
   }
+  // Publishing needs both gates, and each suite passed or was reused.
+  const accepted = "needs.source-acceptance.result == 'success' && needs.native-acceptance.result == 'success' && (needs.source-acceptance.outputs.reused == 'true' || needs.source-suite.result == 'success') && (needs.native-acceptance.outputs.reused == 'true' || needs.native-suite.result == 'success')"
   for (const name of ['pantry', 'publish-release']) {
-    expect(needs(release.jobs[name])).toContain('source-acceptance')
-    expect(needs(release.jobs[name])).toContain('native-acceptance')
-    expect(release.jobs[name].if).toBeUndefined()
+    for (const job of ['source-acceptance', 'source-suite', 'native-acceptance', 'native-suite'])
+      expect(needs(release.jobs[name])).toContain(job)
+    expect(release.jobs[name].if).toContain(accepted)
+    expect(release.jobs[name].if?.startsWith("${{ !cancelled() && needs.validate-release.result == 'success'")).toBe(true)
+    // Every other prerequisite still has to succeed.
+    for (const dependency of needs(release.jobs[name]).filter(job => !job.endsWith('-suite')))
+      expect(release.jobs[name].if).toContain(`needs.${dependency}.result == 'success'`)
   }
   function prerequisites(name: string, found = new Set<string>()): Set<string> {
     for (const dependency of needs(release.jobs[name])) {
@@ -290,8 +304,11 @@ test('registry indexing waits for the public release and all of its verification
   const notify = release.jobs['notify-registry']
   expect(notify).toBeDefined()
   expect(needs(notify)).toEqual(['publish-release', 'publish-pantry'])
-  expect(needs(release.jobs['publish-release']).sort()).toEqual(['attach-release-sbom', 'native-acceptance', 'prepare-npm', 'source-acceptance', 'validate-release', 'verify-desktop-downloads', 'verify-macos-downloads', 'verify-release'])
-  expect(release.jobs['publish-release'].if).toBeUndefined() // A failed or skipped gate cannot publish a draft.
+  expect(needs(release.jobs['publish-release']).sort()).toEqual(['attach-release-sbom', 'native-acceptance', 'native-suite', 'prepare-npm', 'source-acceptance', 'source-suite', 'validate-release', 'verify-desktop-downloads', 'verify-macos-downloads', 'verify-release'])
+  // A failed or skipped gate cannot publish a draft; only a suite skipped
+  // because its acceptance was reused may be.
+  for (const dependency of needs(release.jobs['publish-release']).filter(job => !job.endsWith('-suite')))
+    expect(release.jobs['publish-release'].if).toContain(`needs.${dependency}.result == 'success'`)
   expect(notify.if).toBeUndefined() // Default success gating: never bypass failed prerequisites.
   expect(steps(notify)).toContain('https://registry.pantry.dev/api/rebuild')
   expect(steps(notify)).toContain('All platform archives and release SBOMs verified.')
@@ -379,7 +396,10 @@ test('a failed native leg cannot publish a partial GitHub, Zig, or npm release',
 
   const finalizer = release.jobs['publish-release']
   expect(finalizer).toBeDefined()
-  expect(finalizer.if).toBeUndefined()
+  // Not skipped by a reused acceptance's skipped suite, and still blocked by
+  // any other prerequisite that did not succeed.
+  for (const dependency of needs(finalizer).filter(job => !job.endsWith('-suite')))
+    expect(finalizer.if).toContain(`needs.${dependency}.result == 'success'`)
   expect(needs(finalizer)).toContain('verify-release')
   expect(needs(finalizer)).toContain('verify-macos-downloads')
   expect(needs(finalizer)).toContain('verify-desktop-downloads')

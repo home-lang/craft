@@ -58,6 +58,12 @@ blocks; bindings update native controls through the mutation protocol. Native
 scripts also receive the `globalThis.craft` route, navigation, storage, and
 capability APIs from the host.
 
+Native `View`, `Text`, `Button`, and `Link` props also accept `onClick` as a
+DOM-compatible alias for `onPress`; `@click` lowers to the same native event.
+Maps accept `standard`, `satellite`, or `hybrid` styles and keyed `polylines`
+and `markers` arrays on both maintained hosts; child map overlays remain
+supported.
+
 Native screens do not run in a browser context. The host supplies the language
 runtime, `globalThis.craft`, `fetch`, timers, and the enabled capability APIs,
 but it does not provide browser URL or encoding globals. `URL`,
@@ -71,10 +77,11 @@ JavaScriptSandbox; it is not a capability gate and does not change the web
 renderer.
 
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
-both simulator hosts. Update the iOS and Android refs together; the workflow
-contract test rejects compiler skew between them.
-The current pair is pinned to `0096bc955dd42ce4263fccb0a1feedeb0d8e3603` (STX main),
-which preserves authored reconciliation keys and explicit grid row tracks in
+both simulator hosts. The workflow-level `STX_COMPILER_REF` is the single source
+of truth for every native checkout; update that one value when qualifying a new
+STX revision. The workflow contract test rejects compiler skew between hosts.
+The current pin targets STX main at `9773b46b2465680aa070537914fda183262cdda6`, which preserves authored reconciliation keys
+and explicit grid row tracks in
 static and reactive native styles, and keeps template indentation out of native
 leaf button labels. Touchable primitives preserve authored accessibility roles
 and let the hosts infer link or button semantics from their current destination.
@@ -578,6 +585,8 @@ intrinsically measured row instead of being forced to its top edge.
 `aspectRatio` derives a missing width or height from the other definite
 dimension in both flex and grid trees; invalid, zero, or non-finite ratios are
 ignored just like invalid host style values.
+Flex and grid siblings also accept numeric `order`; lower values are laid out
+first and equal values retain authored order on both maintained hosts.
 
 The same runtime also exports `craft_native_grid` for equal-track grids. It
 accepts intrinsic measurements and alignment as plain data, leaving platform

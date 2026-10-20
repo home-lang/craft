@@ -1120,6 +1120,16 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('craft_native_flex_line_breaks')
     expect(guide).toContain('craft_native_flex_line_distribution')
     expect(guide).toContain('non-finite widths, positions, and frames')
+    expect(guide).toContain('Flex and grid siblings also accept numeric `order`; lower values are laid out')
+  })
+
+  it('keeps flex/grid order typed and stable across maintained hosts', () => {
+    expect(componentTypes).toContain('order?: number')
+    expect(ios).toContain('let order: Int')
+    expect(ios).toContain('craftLayoutStyle.order < $1.element.craftLayoutStyle.order')
+    expect(android).toContain('val order: Int = 0')
+    expect(android).toContain('styles[getChildAt(it)]?.order ?: 0')
+    expect(android).toContain('desired.sortWith(compareBy { desiredOrder[it] ?: 0 })')
   })
 
   it('rejects non-finite authored lengths before host measurement', () => {
@@ -1243,7 +1253,9 @@ describe('native renderer component contract', () => {
   })
 
   it('pins one @stacksjs/stx compiler revision across mobile E2E hosts', () => {
-    const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: ([0-9a-f]{40})/g)].map(match => match[1])
+    const pin = mobileE2EWorkflow.match(/STX_COMPILER_REF:\s*([0-9a-f]{40})/)
+    const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: (\$\{\{ env\.STX_COMPILER_REF \}\})/g)].map(match => match[1])
+    expect(pin).not.toBeNull()
     expect(refs).toHaveLength(4)
     expect(new Set(refs).size).toBe(1)
     expect(mobileE2EWorkflow).toContain('stx native compile')
@@ -1251,9 +1263,11 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps the native STX guide aligned with the mobile compiler pin', () => {
-    const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: ([0-9a-f]{40})/g)].map(match => match[1])
-    expect(refs).not.toHaveLength(0)
-    expect(guide).toContain(`The current pair is pinned to \`${refs[0]}\``)
+    expect(mobileE2EWorkflow).toContain('STX_COMPILER_REF:')
+    expect(guide).toContain('The workflow-level `STX_COMPILER_REF` is the single source')
+    expect(guide).toContain('Native `View`, `Text`, `Button`, and `Link` props also accept `onClick`')
+    expect(guide).toContain('Maps accept `standard`, `satellite`, or `hybrid` styles')
+    expect(guide).toContain('and `markers` arrays on both maintained hosts')
     expect(guide.split('\n').filter(line => line.startsWith('| \`View\`, \`SafeAreaView\` |'))).toHaveLength(1)
   })
 
@@ -1502,6 +1516,7 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('XCTAssertEqual(picker.accessibilityTraits, referencePicker.accessibilityTraits)')
     expect(iosNativeUnitTests).toContain('testSwitchReceivesNativeTouchesWhenMountedInAFlowView')
     expect(iosNativeUnitTests).toContain('testUncontrolledSwitchKeepsItsNativeValueAcrossReconciliation')
+    expect(iosNativeUnitTests).toContain('testControlledSwitchDoesNotInterruptTheNativeTapAnimation')
     expect(iosNativeUnitTests).toContain('testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges')
     expect(iosNativeUnitTests).toContain('testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles')
     expect(iosNativeScreenUITests).toContain('testSwitchTapChangesUIKitStateAndDeliversValueChange')
@@ -1593,7 +1608,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('return craftScreenController?.hasBlockingModalBelow(self) == true ? self : nil')
     expect(ios).toContain('private final class CraftNativeScreenRootView: UIView')
     expect(ios).toContain('if !modal.bounds.contains(local) && (modal.dismissOnOutsideTap || controller.hasBlockingModalBelow(modal)) { return modal }')
-    expect(ios).toContain('!($0 is CraftNativeModalView)')
+    expect(ios).toContain('!($0.element is CraftNativeModalView)')
     expect(android).toContain('private class CraftNativeModalView(context: Context) : FrameLayout(context)')
     expect(android).toContain('if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE)')
     expect(android).toContain('if (visible && alpha != opacity) alpha = opacity')
@@ -3703,7 +3718,8 @@ describe('native renderer component contract', () => {
 
   it('keeps malformed Switch state deterministic across native hosts', () => {
     expect(ios).toContain('if let value = props["value"] as? Bool ?? props["checked"] as? Bool')
-    expect(ios).toContain('if toggle.isOn != value { toggle.isOn = value }')
+    expect(ios).toContain('toggle.setOn(value, animated: false)')
+    expect(ios).toContain('switchUserValues[id] != value')
     expect(android).toContain('requestedValue as? Boolean ?: false')
     expect(android).toContain('else if (requestedChecked is Boolean)')
     expect(android).not.toContain('requestedChecked.isBlank()')

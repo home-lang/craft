@@ -2046,6 +2046,8 @@ private struct CraftNativeLayoutStyle {
     let bottom: CGFloat?
     let left: CGFloat?
     let alignSelf: String?
+    /// CSS/Yoga order; equal values retain source order.
+    let order: Int
     let flexGrow: CGFloat
     /// Nil when the style does not say: the parent picks the default for the
     /// kind of view (text shrinks along a row, a box does not).
@@ -2083,6 +2085,7 @@ private struct CraftNativeLayoutStyle {
         left = number(raw["left"])
         let align = raw["alignSelf"] as? String
         alignSelf = align == "auto" ? nil : align
+        order = number(raw["order"]).map { Int($0.rounded(.towardZero)) } ?? 0
         // `flex: n` is the web's and React Native's shorthand: a positive
         // number grows by n, shrinks, and starts from nothing, so `flex-1`
         // siblings share a row equally whatever their content.
@@ -2910,7 +2913,15 @@ private class CraftNativeFlowView: UIStackView {
 
     /// Children that take part in the flow: shown, not a modal overlay.
     private var visibleChildren: [UIView] {
-        flowChildren.filter { $0.superview === self && !$0.isHidden && !($0 is CraftNativeModalView) }
+        flowChildren.enumerated()
+            .filter { $0.element.superview === self && !$0.element.isHidden && !($0.element is CraftNativeModalView) }
+            .sorted {
+                if $0.element.craftLayoutStyle.order != $1.element.craftLayoutStyle.order {
+                    return $0.element.craftLayoutStyle.order < $1.element.craftLayoutStyle.order
+                }
+                return $0.offset < $1.offset
+            }
+            .map(\.element)
     }
 
     /// Builds the eligible portion of this container for the host-neutral
@@ -5017,6 +5028,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var scrollMomentumEndHandlers: [ObjectIdentifier: String] = [:]
     private var sliderCompleteHandlers: [ObjectIdentifier: String] = [:]
     private var sliderSteps: [ObjectIdentifier: Float] = [:]
+    /// A controlled switch can be reconciled while UIKit is still animating
+    /// the user's tap. Remember that native value briefly so the echo does not
+    /// interrupt the animation and leave the thumb painted at its old edge.
+    private var switchUserValues: [ObjectIdentifier: Bool] = [:]
     private var pickerOptions: [ObjectIdentifier: [(value: String, label: String)]] = [:]
     private var modalVisibility: [ObjectIdentifier: Bool] = [:]
     private var modalFocusRestore: [ObjectIdentifier: UIView] = [:]
@@ -7507,7 +7522,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 // UIKit has already changed the value before emitting the
                 // event. Echoing it through the script must not restart its
                 // native animation.
-                if toggle.isOn != value { toggle.isOn = value }
+                let id = ObjectIdentifier(toggle)
+                if switchUserValues[id] != value, toggle.isOn != value {
+                    // Programmatic changes should settle immediately. A
+                    // native tap is handled above without touching UIKit
+                    // while its own thumb animation is in flight.
+                    toggle.setOn(value, animated: false)
+                }
             }
             toggle.isEnabled = props["disabled"] as? Bool != true
             if let track = props["trackColor"] as? [String: Any] {
@@ -8227,6 +8248,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         imageLoadEndHandlers.removeValue(forKey: id)
         imageErrorHandlers.removeValue(forKey: id)
         checkboxIndeterminate.removeValue(forKey: id)
+        switchUserValues.removeValue(forKey: id)
         if let video = node.view as? CraftNativeVideoView { video.stop() }
         if let map = node.view as? CraftNativeMapView { map.destroy() }
         for child in node.children { forgetHandlers(child, preservingInputDrafts: preservingInputDrafts) }
@@ -9405,7 +9427,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     @objc private func switchChanged(_ sender: UISwitch) {
-        guard let handler = handlers[ObjectIdentifier(sender)] else { return }
+        let id = ObjectIdentifier(sender)
+        switchUserValues[id] = sender.isOn
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self, weak sender] in
+            guard let self, let sender, self.switchUserValues[id] == sender.isOn else { return }
+            self.switchUserValues.removeValue(forKey: id)
+        }
+        guard let handler = handlers[id] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": sender.isOn]])
     }
 

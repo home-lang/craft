@@ -2610,6 +2610,27 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(toggle.isOn)
     }
 
+    func testControlledSwitchDoesNotInterruptTheNativeTapAnimation() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        let screen: ([String: Any]) -> [String: Any] = { props in
+            document([[
+                "type": "Switch",
+                "props": ["key": "consent", "value": props["value"] as Any],
+                "events": ["onValueChange": "consentChanged"],
+            ]])
+        }
+
+        controller.render(screen(["value": false]))
+        let toggle = try XCTUnwrap(find(UISwitch.self, key: "consent", below: controller.view))
+        toggle.setOn(true, animated: true)
+        toggle.sendActions(for: .valueChanged)
+        controller.render(screen(["value": true]))
+
+        XCTAssertTrue(toggle.isOn)
+        XCTAssertEqual(toggle.layer.animationKeys() ?? [], [], "the reconciliation must not add a second switch animation")
+    }
+
     func testSwitchReceivesNativeTouchesWhenMountedInAFlowView() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))

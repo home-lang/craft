@@ -29,11 +29,41 @@ jobs:
       - name: Review dependency advisories
         run: bun scripts/advisory-policy.ts
 
-  # Relative reusable workflows check the exact tagged commit. Main may keep
-  # moving while these full suites run; publication remains tied to this tag.
+  # Acceptance is the complete CI and Mobile E2E workflows on the exact tagged
+  # commit. release:patch pushes that commit to main with its tag, and main
+  # runs both workflows on it; calling them again here ran the whole suite
+  # twice at once on the same SHA, both copies queueing for the same macOS
+  # runners (scripts/release-acceptance.ts). So each gate first waits for
+  # main's run on this SHA and reuses its verdict, failing as soon as one of
+  # its jobs fails. Only when there is nothing to reuse - main never ran the
+  # workflow on this commit, or a newer commit superseded the pending run -
+  # does the release run the suite itself, still against this tag.
   source-acceptance:
     name: accept exact release source
     needs: validate-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reused: ${{ steps.main.outputs.reused }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - id: main
+        name: Reuse main's CI run of this commit
+        run: bun scripts/release-acceptance.ts ci.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+
+  source-suite:
+    name: run release source suite
+    needs: source-acceptance
+    if: needs.source-acceptance.outputs.reused != 'true'
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
@@ -41,6 +71,29 @@ jobs:
   native-acceptance:
     name: accept exact native runtimes
     needs: validate-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reused: ${{ steps.main.outputs.reused }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - id: main
+        name: Reuse main's Mobile E2E run of this commit
+        run: bun scripts/release-acceptance.ts mobile-e2e.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+
+  native-suite:
+    name: run release native suite
+    needs: native-acceptance
+    if: needs.native-acceptance.outputs.reused != 'true'
     uses: ./.github/workflows/mobile-e2e.yml
     permissions:
       contents: read
@@ -56,7 +109,10 @@ jobs:
   pantry:
     # The reusable SBOM workflow includes the vulnerability scan. Publishing
     # must wait for its existing Critical gate, not merely attach it afterward.
-    needs: [validate-release, release-sbom, source-acceptance, native-acceptance]
+    needs: [validate-release, release-sbom, source-acceptance, source-suite, native-acceptance, native-suite]
+    # A reused acceptance skips its suite, which a plain needs would read as a
+    # reason to skip publishing too.
+    if: ${{ !cancelled() && needs.validate-release.result == 'success' && needs.release-sbom.result == 'success' && needs.source-acceptance.result == 'success' && needs.native-acceptance.result == 'success' && (needs.source-acceptance.outputs.reused == 'true' || needs.source-suite.result == 'success') && (needs.native-acceptance.outputs.reused == 'true' || needs.native-suite.result == 'success') }}
     name: pantry (${{ matrix.platform.name }})
     strategy:
       fail-fast: false
@@ -697,7 +753,8 @@ jobs:
 
   publish-release:
     name: publish complete verified release
-    needs: [validate-release, source-acceptance, native-acceptance, verify-release, verify-macos-downloads, verify-desktop-downloads, attach-release-sbom, prepare-npm]
+    needs: [validate-release, source-acceptance, source-suite, native-acceptance, native-suite, verify-release, verify-macos-downloads, verify-desktop-downloads, attach-release-sbom, prepare-npm]
+    if: ${{ !cancelled() && needs.validate-release.result == 'success' && needs.source-acceptance.result == 'success' && needs.native-acceptance.result == 'success' && (needs.source-acceptance.outputs.reused == 'true' || needs.source-suite.result == 'success') && (needs.native-acceptance.outputs.reused == 'true' || needs.native-suite.result == 'success') && needs.verify-release.result == 'success' && needs.verify-macos-downloads.result == 'success' && needs.verify-desktop-downloads.result == 'success' && needs.attach-release-sbom.result == 'success' && needs.prepare-npm.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
