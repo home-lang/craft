@@ -1187,6 +1187,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         tabSwipeRecognizers.append(recognizer)
     }
 
+    private func shouldCompleteTabSwipe(progress: CGFloat, speed: CGFloat) -> Bool {
+        speed > -700 && (progress >= max(32, view.bounds.width * 0.28) || speed > 700)
+    }
+
     @objc private func tabSwipeRecognized(_ recognizer: UIPanGestureRecognizer) {
         // A finger that lands while the last swipe settles takes the screens
         // from where they are, as a paging scroll view does. This swipe used
@@ -1198,7 +1202,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         let translation = recognizer.translation(in: view).x
         let velocity = recognizer.velocity(in: view).x
         switch recognizer.state {
-        case .changed:
+        case .began, .changed:
+            // Catching a settle can begin at zero translation. Keep its
+            // committed selection until the new finger actually moves.
+            if recognizer.state == .began, caughtSettle != nil, abs(translation) <= 1 { return }
             if activeTabSwipeTarget == nil {
                 let direction = abs(translation) > 1 ? translation : velocity
                 guard abs(direction) > 1 else { return }
@@ -1213,9 +1220,14 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
                 // the caught screens finish where they were going.
                 if caughtSettle != nil { settleCaughtScreens(); return }
                 guard recognizer.state == .ended else { return }
-                let delta = abs(translation) >= 32 ? translation : velocity
-                guard abs(delta) >= 32 else { return }
-                let next = delta < 0 ? index + 1 : index - 1
+                // UIKit can coalesce a short gesture without a changed
+                // callback. Keep the same completion rule as the animated
+                // path instead of treating any 32-point drag as a full page.
+                let direction = abs(translation) > 1 ? translation : velocity
+                guard abs(direction) > 1 else { return }
+                let sign: CGFloat = direction < 0 ? -1 : 1
+                guard shouldCompleteTabSwipe(progress: translation * sign, speed: velocity * sign) else { return }
+                let next = direction < 0 ? index + 1 : index - 1
                 guard tabs.indices.contains(next) else { return }
                 CraftChrome.shared.swipe(to: tabs[next])
                 return
@@ -1228,8 +1240,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             let direction: CGFloat = tabSwipeFrom > 0 ? -1 : 1
             let progress = (translation + tabSwipeBase) * direction
             let speed = velocity * direction
-            let complete = recognizer.state == .ended && speed > -700
-                && (progress >= max(32, view.bounds.width * 0.28) || speed > 700)
+            let complete = recognizer.state == .ended && shouldCompleteTabSwipe(progress: progress, speed: speed)
             finishInteractiveTabSwipe(completed: complete, velocity: velocity) { [weak self] in
                 CraftFramePacing.shared.end("tab swipe")
                 self?.activeTabSwipeTarget = nil

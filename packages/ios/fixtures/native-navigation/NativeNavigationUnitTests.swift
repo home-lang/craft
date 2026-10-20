@@ -441,6 +441,44 @@ final class NativeNavigationUnitTests: XCTestCase {
         await settle()
     }
 
+    func testFirstPanMovementCancelsAShortDragWithoutAChangedEvent() async throws {
+        mountDetails()
+        let width = shell.view.bounds.width
+        let home = try XCTUnwrap(stack("/"))
+        let details = try XCTUnwrap(stack("/details"))
+        let distance = width * 0.1
+        drag(-distance, phase: .began)
+        XCTAssertEqual(details.view.frame.minX, width - distance, accuracy: 0.5,
+                       "the first recognized movement must move the incoming native screen")
+        drag(-distance, phase: .ended)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/", "a short pan without changed events must cancel")
+        XCTAssertEqual(home.view.frame.minX, 0, accuracy: 0.5)
+        XCTAssertTrue(details.view.isHidden)
+
+        drag(-width * 0.6, phase: .began)
+        drag(-width * 0.6, phase: .ended)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/details", "the next full pan must still commit")
+        XCTAssertEqual(details.view.frame.minX, 0, accuracy: 0.5)
+        XCTAssertFalse(details.view.isHidden)
+    }
+
+    func testEndedOnlyPanKeepsTheInteractiveCompletionThresholds() async throws {
+        mountDetails()
+        let width = shell.view.bounds.width
+        drag(-width * 0.1, phase: .ended)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/", "the fallback must cancel a short slow drag too")
+
+        drag(-width * 0.1, phase: .ended, speed: -900)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/details", "a deliberate fast flick must remain supported")
+        let details = try XCTUnwrap(stack("/details"))
+        XCTAssertEqual(details.view.frame.minX, 0, accuracy: 0.5)
+        XCTAssertFalse(details.view.isHidden)
+    }
+
     func testIncomingTabKeepsItsEdgePastHalfwayInBothDirections() async throws {
         mountDetails()
         let width = shell.view.bounds.width
