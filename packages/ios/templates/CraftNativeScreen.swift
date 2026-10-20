@@ -3921,7 +3921,12 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
                 candidate = view.superview
             }
         }
-        if !blocksBackground { return nil }
+        if !blocksBackground {
+            // A popup above a modal owns the outside hit only long enough to
+            // keep the modal scrim from dismissing the layer underneath it.
+            // With no blocking modal below, the screen remains pass-through.
+            return craftScreenController?.hasBlockingModalBelow(self) == true ? self : nil
+        }
         return blocker.hitTest(blocker.convert(point, from: self), with: event)
     }
 
@@ -4910,6 +4915,25 @@ enum CraftNativeBundle {
     }
 }
 
+private final class CraftNativeScreenRootView: UIView {
+    weak var controller: CraftNativeScreenController?
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        // A popup's host frame is only its authored card, so UIKit would not
+        // ask it about an outside point. Shield that point at the screen root
+        // only when a blocking modal is underneath; ordinary non-modal
+        // overlays remain pass-through.
+        if let controller {
+            for modal in controller.view.subviews.compactMap({ $0 as? CraftNativeModalView }).reversed()
+                where !modal.blocksBackground && !modal.isHidden && modal.alpha > 0.01 {
+                let local = modal.convert(point, from: self)
+                if !modal.bounds.contains(local) && controller.hasBlockingModalBelow(modal) { return modal }
+            }
+        }
+        return super.hitTest(point, with: event)
+    }
+}
+
 final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate, UITextFieldDelegate, UITextViewDelegate, UIPickerViewDataSource, UIPickerViewDelegate {
     private final class RenderedNode {
         /// A recycled list row's root takes the identity of the row it shows next.
@@ -5064,6 +5088,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    override func loadView() {
+        let root = CraftNativeScreenRootView()
+        root.controller = self
+        view = root
     }
 
     deinit {
@@ -5350,6 +5380,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             // The frame already excludes the safe area; inset the content no
             // further or authored top/left coordinates would be shifted twice.
             modal.contentInsets = .zero
+        }
+    }
+
+    /// A non-modal popup above a blocking modal must not leak its outside tap
+    /// to the modal's scrim and dismiss the wrong layer.
+    fileprivate func hasBlockingModalBelow(_ modal: CraftNativeModalView) -> Bool {
+        guard let index = view.subviews.firstIndex(where: { $0 === modal }) else { return false }
+        return view.subviews[..<index].contains { candidate in
+            guard let other = candidate as? CraftNativeModalView else { return false }
+            return other.blocksBackground && !other.isHidden && other.alpha > 0.01
         }
     }
 

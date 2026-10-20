@@ -759,6 +759,25 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var safeAreaPadding = intArrayOf(0, 0, 0, 0)
     private var applyingPadding = false
     private var safeAreaEdges = setOf("top", "right", "bottom", "left")
+    private var shieldedModalTouch = false
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val x = event.x.roundToInt()
+            val y = event.y.roundToInt()
+            shieldedModalTouch = (childCount - 1 downTo 0).any { index ->
+                val child = getChildAt(index)
+                child is CraftNativeModalView && !child.blocksBackground && child.visibility == View.VISIBLE
+                    && (x < child.left || x >= child.right || y < child.top || y >= child.bottom)
+                    && child.hasBlockingModalBelow()
+            }
+        }
+        if (shieldedModalTouch) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) shieldedModalTouch = false
+            return true
+        }
+        return super.dispatchTouchEvent(event)
+    }
 
     override fun setPadding(left: Int, top: Int, right: Int, bottom: Int) {
         if (!applyingPadding) authoredPadding = intArrayOf(left, top, right, bottom)
@@ -2674,8 +2693,21 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (!blocksBackground) return false
+        if (!blocksBackground) {
+            // Do not let an outside popup tap fall through to a blocking modal
+            // below it; a normal non-modal popup remains pass-through.
+            return hasBlockingModalBelow()
+        }
         return super.onTouchEvent(event)
+    }
+
+    fun hasBlockingModalBelow(): Boolean {
+        val group = parent as? ViewGroup ?: return false
+        val index = group.indexOfChild(this)
+        return index > 0 && (0 until index).any { siblingIndex ->
+            val sibling = group.getChildAt(siblingIndex)
+            sibling is CraftNativeModalView && sibling.blocksBackground && sibling.visibility == View.VISIBLE && sibling.alpha > 0.01f
+        }
     }
 }
 
