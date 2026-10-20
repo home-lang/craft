@@ -1645,9 +1645,18 @@ class NativeNavigationTest {
             click(activity, "toggle-modal")
             awaitText(activity, "modal-status", "modal shown")
             click(activity, "toggle-nested-popup")
-            val nestedPopup = awaitView(activity, "nested-popup")
+            val popupDensity = activity.resources.displayMetrics.density
+            val nestedPopup = awaitView(activity, "nested-popup") {
+                it.width == (160 * popupDensity).roundToInt() && it.height == (64 * popupDensity).roundToInt()
+                    && it.left == (48 * popupDensity).roundToInt() && it.top == (72 * popupDensity).roundToInt()
+            }
             awaitText(activity, "nested-popup-content", "Nested popup")
-            val popupRoot = awaitView(activity, "root")
+            // Modal overlays are promoted beside the authored root. Dispatch
+            // through their actual screen viewport, as real touch input does.
+            val popupRoot = nestedPopup.parent as ViewGroup
+            assertSame("nested popup should share its modal's screen viewport", modal.parent, popupRoot)
+            assertSame("authored root should remain inside that viewport", awaitView(activity, "root").parent, popupRoot)
+            assertTrue("nested popup should remain above its parent modal (popup=${popupRoot.indexOfChild(nestedPopup)}, modal=${popupRoot.indexOfChild(modal)})", popupRoot.indexOfChild(nestedPopup) > popupRoot.indexOfChild(modal))
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()
                 val x = (popupRoot.width - 20).toFloat()
@@ -1668,13 +1677,19 @@ class NativeNavigationTest {
             }
             assertTrue("dismissed nested popup should be removed", nestedPopupRemoved || nestedPopup.visibility != View.VISIBLE)
             assertEquals("dismissing a nested popup should retain its parent modal", View.VISIBLE, modal.visibility)
+            // Close the parent before the independent popup test. Otherwise
+            // the later reopen can incorrectly pass on a stale onShow label.
+            click(activity, "toggle-modal")
+            awaitText(activity, "modal-status", "modal dismissed")
             click(activity, "toggle-popup")
-            val popup = awaitView(activity, "native-popup")
+            val popup = awaitView(activity, "native-popup") {
+                it.width == (180 * popupDensity).roundToInt() && it.height == (72 * popupDensity).roundToInt()
+                    && it.left == (24 * popupDensity).roundToInt() && it.top == (36 * popupDensity).roundToInt()
+            }
             awaitText(activity, "popup-content", "Popup content")
-            val safeRoot = awaitView(activity, "root")
-            assertTrue(
+            assertEquals(
                 "non-modal top should use the screenViewport origin, not a second safe-area offset",
-                popup.top < safeRoot.top + safeRoot.paddingTop + 36,
+                (36 * popupDensity).roundToInt(), popup.top,
             )
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()

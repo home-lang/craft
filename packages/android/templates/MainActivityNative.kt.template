@@ -2622,6 +2622,8 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     private var animationGeneration = 0
     var focusToRestore: View? = null
     var onRequestClose: ((String) -> Unit)? = null
+    var viewportStyle = JSONObject()
+    var declarationPath = ""
 
     var transparent: Boolean = false
         set(value) {
@@ -5029,6 +5031,9 @@ class MainActivity : AppCompatActivity() {
             if (!updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())) return false
         }
         if (applied.isNotEmpty()) {
+            // Updating a modal's content may reattach its nested popups to
+            // their declaration parent. Restore the screen overlay contract.
+            promoteModalOverlays(screen)
             scheduleLayoutEvents(screen)
         }
         return true
@@ -5118,7 +5123,7 @@ class MainActivity : AppCompatActivity() {
         screen.controls.putAll(next)
         screen.handlers.keys.retainAll(retainedViews(screen))
         screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)
-        promoteModalOverlays(screen, next.values)
+        promoteModalOverlays(screen)
         updateSafeAreaViews()
         // A full render can change a view's custom layout style without
         // changing the root bounds. Ensure native @layout observers still see
@@ -5128,11 +5133,39 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Keep Modal nodes in the screen viewport even when declared in a clipped subtree. */
-    private fun promoteModalOverlays(screen: Screen, controls: Collection<View>) {
-        controls.filterIsInstance<CraftNativeModalView>().forEach { modal ->
+    private fun promoteModalOverlays(screen: Screen) {
+        if (screen.modalVisibility.isEmpty()) return
+        // Snapshot parent-before-child order before moving anything. The
+        // controls map registers descendants first, which would place a
+        // parent modal above its own popup when brought forward in that order.
+        val overlays = mutableListOf<CraftNativeModalView>()
+        fun collect(view: View) {
+            if (view is CraftNativeModalView) overlays.add(view)
+            if (view is ViewGroup) for (index in 0 until view.childCount) collect(view.getChildAt(index))
+        }
+        collect(screen.view)
+        // A previous targeted update may already have promoted siblings in a
+        // different order. Use declaration paths, with numeric child indices,
+        // so a nested popup stays above its parent after every update.
+        overlays.sortWith(Comparator { first, second ->
+            val firstPath = first.declarationPath.split('.')
+            val secondPath = second.declarationPath.split('.')
+            for (index in 0 until min(firstPath.size, secondPath.size)) {
+                val left = firstPath[index]
+                val right = secondPath[index]
+                val leftIndex = left.toIntOrNull()
+                val rightIndex = right.toIntOrNull()
+                val order = if (leftIndex != null && rightIndex != null) leftIndex.compareTo(rightIndex) else left.compareTo(right)
+                if (order != 0) return@Comparator order
+            }
+            firstPath.size.compareTo(secondPath.size)
+        })
+        overlays.forEach { modal ->
             if (modal.parent !== screen.view) {
                 (modal.parent as? ViewGroup)?.removeView(modal)
                 screen.view.addView(modal)
+                // Removing a view clears its old parent's flex style.
+                screen.view.setChildStyle(modal, modal.viewportStyle, resources.displayMetrics.density)
             }
             modal.bringToFront()
         }
@@ -5506,6 +5539,8 @@ class MainActivity : AppCompatActivity() {
                 // the screen root. Keep the authored layout style with that
                 // promoted child so non-modal absolute coordinates remain in
                 // the screen viewport rather than the old clipped parent.
+                viewportStyle = style
+                declarationPath = path
                 screen.view.setChildStyle(this, style, resources.displayMetrics.density)
                 content.configure(style, resources.displayMetrics.density)
                 reconcileChildren(screen, content, children, identity, next, style, previousControls)
