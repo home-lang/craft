@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.256...v0.0.257)
+
+## 🚀 Features
+
+- **ios**: requestAnimationFrame at the display's rate, up to 120Hz ([98e2ce9](https://github.com/craft-native/craft/commit/98e2ce9)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.255...v0.0.256)
 
 ## 🐛 Bug Fixes
