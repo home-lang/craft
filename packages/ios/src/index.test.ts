@@ -1655,6 +1655,17 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('private(set) var navigationBarHidden: Bool?')
   })
 
+  it('lets a native popup consume Back before the route pops', () => {
+    const hybrid = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftHybrid.swift'), 'utf8')
+    expect(hybrid).toContain('final class CraftNativeNavigationController: UINavigationController')
+    expect(hybrid).toContain('if let screen = topViewController as? CraftNativeScreenController')
+    expect(hybrid).toContain('screen.handleBackForModal()')
+    expect(hybrid).toContain('let nav = CraftNativeNavigationController(rootViewController: root)')
+    const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    expect(swift).toContain('fileprivate func handleBackForModal() -> Bool')
+    expect(swift).toContain('modal.requestClose(reason: "back")')
+  })
+
   it('keeps the outgoing hybrid web page visible while a web push animates', () => {
     const hybrid = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftHybrid.swift'), 'utf8')
     const slot = hybrid.slice(hybrid.indexOf('final class CraftHybridWebSlot'))

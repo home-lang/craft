@@ -1076,6 +1076,18 @@ final class CraftHybridWebSlot: UIViewController {
     }
 }
 
+/// A native stack lets the top screen consume Back for its presented modal
+/// before UIKit removes the screen from the navigation stack.
+final class CraftNativeNavigationController: UINavigationController {
+    override func popViewController(animated: Bool) -> UIViewController? {
+        if let screen = topViewController as? CraftNativeScreenController,
+           screen.handleBackForModal() {
+            return nil
+        }
+        return super.popViewController(animated: animated)
+    }
+}
+
 final class CraftHybridController: UIViewController, UINavigationControllerDelegate, UIGestureRecognizerDelegate, CraftHybridScreenEvents {
     private let config: CraftConfig
     private let hybrid = CraftHybrid.shared
@@ -1566,7 +1578,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         // Constructing the navigation controller can load the root's view and
         // mount its script immediately. Set its initial focus before that.
         if hidden { (root as? CraftNativeScreenController)?.screenVisibilityChanged(false) }
-        let nav = UINavigationController(rootViewController: root)
+        let nav = CraftNativeNavigationController(rootViewController: root)
         nav.delegate = self
         nav.view.backgroundColor = config.resolvedBackgroundColor
         nav.additionalSafeAreaInsets.bottom = safeAreaForTabBar()
