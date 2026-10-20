@@ -1,5 +1,23 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.255...v0.0.256)
+
+## 🐛 Bug Fixes
+
+- **android**: generate compatible live health projects ([5082cb2](https://github.com/craft-native/craft/commit/5082cb2)) _(by Chris Breuer)_
+- **ci**: preserve Windows sources with the published installer ([ce7addb](https://github.com/craft-native/craft/commit/ce7addb)) _(by Chris Breuer)_
+- **layout**: share direct reverse flows across native hosts ([4ad5ced](https://github.com/craft-native/craft/commit/4ad5ced)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: select the legacy checked control protocol ([f07276a](https://github.com/craft-native/craft/commit/f07276a)) _(by Chris Breuer)_
+- **ios**: retain modal filter coverage for ordered children ([043ab12](https://github.com/craft-native/craft/commit/043ab12)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.254...v0.0.255)
 
 ## 🚀 Features
