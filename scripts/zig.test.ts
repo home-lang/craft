@@ -80,7 +80,9 @@ test('fails early for absent executables, invalid lock versions, and invalid com
 test('forwards arguments, core working directory, package version and compiler exit status', () => {
   const f = fixture()
   expect(runZig(f.root, ['--core', '--versioned', 'build', '-Doptimize=ReleaseSafe', '-Dfoo=a b'], f.env)).toBe(23)
-  expect(JSON.parse(readFileSync(f.env.ZIG_TEST_LOG, 'utf8'))).toEqual({ cwd: join(f.root, 'packages/zig'), args: ['build', '-Doptimize=ReleaseSafe', '-Dfoo=a b', '-Dversion=1.2.3'] })
+  expect(JSON.parse(readFileSync(f.env.ZIG_TEST_LOG, 'utf8'))).toEqual({ cwd: join(f.root, 'packages/zig'), args: ['build', '--build-file', join(f.root, 'packages/zig/build.zig'), '-Doptimize=ReleaseSafe', '-Dfoo=a b', '-Dversion=1.2.3'] })
+  expect(runZig(f.root, ['--core', 'fmt', 'src/'], f.env)).toBe(23)
+  expect(JSON.parse(readFileSync(f.env.ZIG_TEST_LOG, 'utf8'))).toEqual({ cwd: join(f.root, 'packages/zig'), args: ['fmt', 'src/'] })
   expect(runZig(f.root, ['fmt', 'src/'], f.env)).toBe(23)
   expect(JSON.parse(readFileSync(f.env.ZIG_TEST_LOG, 'utf8'))).toEqual({ cwd: f.root, args: ['fmt', 'src/'] })
 })
