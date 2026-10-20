@@ -2384,6 +2384,37 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertNotEqual(popup.frame, controller.view.bounds)
     }
 
+    func testPopupMovedOutOfScrollViewKeepsLiveInputIdentityAndSelection() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(["id": "root", "type": "View", "children": [[
+            "id": "page", "type": "ScrollView", "props": ["key": "page"], "style": ["height": 120],
+            "children": [
+                ["id": "spacer", "type": "View", "props": ["key": "spacer"], "style": ["height": 800]],
+                ["id": "popup", "type": "Modal", "props": ["key": "popup", "visible": true, "nonModal": true, "animationType": "none"],
+                 "children": [["id": "popup-field", "type": "TextInput", "props": ["key": "popup-field"]]]],
+            ],
+        ]]])
+
+        let field = try XCTUnwrap(find(UITextField.self, key: "popup-field", below: controller.view))
+        field.text = "draft"
+        let caret = try XCTUnwrap(field.position(from: field.beginningOfDocument, offset: 3))
+        field.selectedTextRange = field.textRange(from: caret, to: caret)
+
+        controller.render(["id": "root", "type": "View", "children": [
+            ["id": "page", "type": "ScrollView", "props": ["key": "page"], "style": ["height": 120],
+             "children": [["id": "spacer", "type": "View", "props": ["key": "spacer"], "style": ["height": 800]]]],
+            ["id": "popup", "type": "Modal", "props": ["key": "popup", "visible": true, "nonModal": true, "animationType": "none"],
+             "children": [["id": "popup-field", "type": "TextInput", "props": ["key": "popup-field"]]]],
+        ]])
+
+        let retained = try XCTUnwrap(find(UITextField.self, key: "popup-field", below: controller.view))
+        XCTAssertTrue(field === retained)
+        XCTAssertEqual(retained.text, "draft")
+        let selection = try XCTUnwrap(retained.selectedTextRange)
+        XCTAssertEqual(retained.offset(from: retained.beginningOfDocument, to: selection.start), 3)
+    }
+
     func testANonModalOverlayDoesNotDismissABlockingModalBelowIt() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
