@@ -39,14 +39,20 @@ final class NativeRenderUITests: XCTestCase {
         notes.tap()
         XCTAssertTrue(keyboardIsVisible(app))
         notes.typeText("Easy run")
-        // Read the original acknowledgement first: inspecting other UIKit
-        // elements must not hide a delayed bridge update from this assertion.
-        let acknowledgement = app.staticTexts["notes"].label
+        // The native value and the script acknowledgement cross different threads.
+        let firstAcknowledgement = app.staticTexts["notes"].label
         let typedValue = notes.value as? String
         let keyboardVisible = app.keyboards.firstMatch.exists
         XCTAssertEqual(typedValue, "Easy run", "the native text view lost typed characters")
         XCTAssertTrue(keyboardVisible, "typing dismissed the native keyboard")
-        XCTAssertEqual(acknowledgement, "Notes: Easy run", "native value: \(typedValue ?? "nil"), keyboard visible: \(keyboardVisible)")
+        let acknowledgement = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", "Notes: Easy run"),
+            object: app.staticTexts["notes"]
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [acknowledgement], timeout: 5), .completed, "first acknowledgement: \(firstAcknowledgement)")
+        XCTAssertEqual(app.staticTexts["notes"].label, "Notes: Easy run")
+        XCTAssertEqual(notes.value as? String, "Easy run", "the script acknowledgement overwrote native typing")
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "the script acknowledgement dismissed the keyboard")
     }
 
     func testSwitchTapChangesUIKitStateAndDeliversValueChange() throws {

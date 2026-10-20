@@ -2612,13 +2612,20 @@ final class NativeRenderUnitTests: XCTestCase {
 
     func testSwitchReceivesNativeTouchesWhenMountedInAFlowView() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = controller
         controller.loadViewIfNeeded()
         controller.render(document([[
             "type": "View",
             "props": ["key": "root"],
             "children": [["type": "Switch", "props": ["testID": "native-switch"]]],
         ]]))
+        window.isHidden = false
+        defer { window.isHidden = true }
+        controller.view.layoutIfNeeded()
         let toggle = try XCTUnwrap(find(UISwitch.self, key: "native-switch", below: controller.view))
+        XCTAssertGreaterThan(toggle.bounds.width, 0)
+        XCTAssertGreaterThan(toggle.bounds.height, 0)
         XCTAssertTrue(toggle.isUserInteractionEnabled)
         XCTAssertTrue(toggle.isEnabled)
         let point = toggle.convert(CGPoint(x: toggle.bounds.midX, y: toggle.bounds.midY), to: controller.view)
