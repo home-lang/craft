@@ -746,6 +746,14 @@ function writeNativeShellSources(output: string, packagePath: string, packageNam
   write('CraftNativeHaptics.kt.template', 'CraftNativeHaptics.kt')
   write('CraftNativeBackground.kt.template', 'CraftNativeBackground.kt')
   write(config.enableHealthConnect ? 'CraftNativeHealth.kt.template' : 'CraftNativeHealthStub.kt.template', 'CraftNativeHealth.kt')
+  if (config.enableHealthServices) {
+    write('CraftHealthServices.kt.template', 'CraftHealthServices.kt')
+    write('CraftHealthServicesService.kt.template', 'CraftHealthServicesService.kt')
+  }
+  else {
+    rmSync(join(javaDir, 'CraftHealthServices.kt'), { force: true })
+    rmSync(join(javaDir, 'CraftHealthServicesService.kt'), { force: true })
+  }
   write('CraftNativeServices.kt.template', 'CraftNativeServices.kt', source => source
     .replace('{{NATIVE_PUSH_IMPORTS}}', config.enablePushNotifications ? 'import com.google.firebase.messaging.FirebaseMessaging' : '')
     .replace('{{NATIVE_PUSH_REGISTER}}', config.enablePushNotifications
@@ -1153,7 +1161,7 @@ export async function init(options: InitOptions): Promise<void> {
       ? '        <service android:name=".CraftHeartRateService" android:exported="false" android:foregroundServiceType="connectedDevice" />'
       : '')
     .replace(/\{\{HEALTH_SERVICES_SERVICE\}\}/g, config.enableHealthServices
-      ? '        <service android:name="com.craft.runtime.CraftHealthServicesService" android:exported="false" android:foregroundServiceType="health" android:stopWithTask="false" />'
+      ? '        <service android:name=".CraftHealthServicesService" android:exported="false" android:foregroundServiceType="health" android:stopWithTask="false" />'
       : '')
     .replace(/\{\{NATIVE_NOTIFICATION_RECEIVER\}\}/g, config.renderer === 'native'
       ? renderNativeShellManifest(config)

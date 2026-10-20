@@ -60,6 +60,9 @@ internal class CraftNativeServices(
 ) {
     private val main = Handler(Looper.getMainLooper())
     private val heartRateEnabled = config.optBoolean("enableHeartRate")
+    private val healthServices: CraftHealthServices? = if (config.optBoolean("enableHealthServices")) {
+        CraftHealthServices(context, activity)
+    } else null
     private val health: CraftNativeHealth? = if (config.optBoolean("enableHealthConnect")) {
         CraftNativeHealth(context, activity, config.optBoolean("enableHealthConnectBackground"), config.optBoolean("enableHealthConnectHistory")) { detail ->
             CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftHealthWorkout").put("detail", detail))
@@ -108,13 +111,14 @@ internal class CraftNativeServices(
         add("media")
         if (config.optBoolean("enableShare")) add("share")
         if (config.optBoolean("enablePushNotifications")) add("push")
-        if (health != null) {
+        if (health != null || healthServices != null) {
             add("health")
             // Health Connect may need installing or updating, and its grants
             // are managed in its own screen: `health.availability()`,
             // `health.grantedTypes()` and `health.openSettings()`.
             add("healthAvailability")
         }
+        if (healthServices != null) add("healthServices")
         if (config.optBoolean("enableWallet")) add("wallet")
         if (config.optBoolean("enableKeepAwake")) add("keepAwake")
         if (config.optBoolean("enableGeolocation") || config.optBoolean("enableBackgroundLocation")) {
@@ -147,7 +151,9 @@ internal class CraftNativeServices(
                 "Linking" -> linking(method, args.optString(0), done)
                 "Share" -> share(args.optJSONObject(0) ?: JSONObject(), done)
                 "Push" -> push(method, done)
-                "Health" -> health?.perform(method, args, done) ?: done(failure("CAPABILITY_DISABLED", "Health Connect is not enabled for this app"))
+                "Health" -> if (healthServices != null && method in setOf("startWorkout", "pauseWorkout", "resumeWorkout", "endWorkout")) {
+                    healthServices.perform(method, args, done)
+                } else health?.perform(method, args, done) ?: done(failure("CAPABILITY_DISABLED", "Health is not enabled for this app"))
                 "Wallet" -> wallet(method, args, done)
                 "KeepAwake" -> keepAwake(args.optBoolean(0, true), done)
                 "Brightness" -> brightness(method, args, done)
