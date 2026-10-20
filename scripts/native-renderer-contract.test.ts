@@ -1830,6 +1830,8 @@ describe('native renderer component contract', () => {
     expect(iosReadme).toContain('non-modal `left`/`top` placement use the same `screenViewport`')
     expect(android).toContain('same screenViewport origin')
     expect(androidReadme).toContain('non-modal absolute `left`/`top` placement use the same')
+    expect(iosNavigationTest).toContain('screenViewport coordinates, not an implicit safe-area offset')
+    expect(androidNavigationTest).toContain('screenViewport origin, not a second safe-area offset')
   })
 
   it('exposes screen-owned scrolling for mounted native scroll views', () => {
