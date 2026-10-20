@@ -241,6 +241,9 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<Icon testID="native-icon"')
     expect(navigationHome).toContain('<Video testID="native-video"')
     expect(navigationHome).toContain('testID="native-modal"')
+    expect(navigationHome).toContain('testID="native-popup" visible={popupVisible} nonModal dismissOnOutsideTap')
+    expect(iosNavigationTest).toContain('testNonModalPopupDismissesOnOutsideTap')
+    expect(androidNavigationTest).toContain('dismissed non-modal popup should be removed')
     expect(navigationHome).toContain('<ActivityIndicator testID="scaled-indicator"')
   })
 

@@ -1607,6 +1607,29 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync { activity.onBackPressed() }
             awaitText(activity, "modal-request-status", "modal requested back")
             awaitText(activity, "modal-status", "modal dismissed")
+            click(activity, "toggle-popup")
+            val popup = awaitView(activity, "native-popup")
+            awaitText(activity, "popup-content", "Popup content")
+            val root = awaitView(activity, "root")
+            instrumentation.runOnMainSync {
+                val downTime = SystemClock.uptimeMillis()
+                val x = (root.width - 20).toFloat()
+                val y = (root.height - 20).toFloat()
+                val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
+                root.dispatchTouchEvent(down)
+                down.recycle()
+                val up = MotionEvent.obtain(downTime, downTime + 32, MotionEvent.ACTION_UP, x, y, 0)
+                root.dispatchTouchEvent(up)
+                up.recycle()
+            }
+            awaitText(activity, "popup-request-status", "popup requested backdrop")
+            var popupRemoved = false
+            repeat(25) {
+                instrumentation.runOnMainSync { popupRemoved = find(activity.window.decorView, "native-popup") == null }
+                if (popupRemoved) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertTrue("dismissed non-modal popup should be removed", popupRemoved || popup.visibility != View.VISIBLE)
             click(activity, "toggle-modal")
             awaitText(activity, "modal-status", "modal shown")
             click(activity, "remove-modal")

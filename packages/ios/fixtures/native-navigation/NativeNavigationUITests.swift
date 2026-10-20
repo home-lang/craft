@@ -1354,4 +1354,20 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(waitForLabel(app.staticTexts["modal-request-status"], "modal requested backdrop"))
         XCTAssertTrue(app.staticTexts["modal dismissed"].waitForExistence(timeout: 5))
     }
+
+    func testNonModalPopupDismissesOnOutsideTap() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let rootScroll = app.scrollViews["native-root-scroll"]
+        XCTAssertTrue(rootScroll.waitForExistence(timeout: 15))
+        let toggle = app.buttons["toggle-popup"]
+        reveal(toggle, in: rootScroll)
+        toggle.tap()
+        XCTAssertTrue(app.otherElements["native-popup"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["popup-content"].exists)
+
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["popup-request-status"], "popup requested backdrop"))
+        XCTAssertTrue(waitForAbsence(app.otherElements["native-popup"]))
+    }
 }
