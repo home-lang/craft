@@ -1412,7 +1412,15 @@ final class NativeNavigationUITests: XCTestCase {
         reveal(toggle, in: rootScroll)
         toggle.tap()
         XCTAssertTrue(app.otherElements["native-popup"].waitForExistence(timeout: 5))
+        let popup = app.otherElements["native-popup"]
         XCTAssertTrue(app.staticTexts["popup-content"].exists)
+        let navigationBar = app.navigationBars.firstMatch
+        XCTAssertTrue(navigationBar.exists)
+        XCTAssertLessThan(
+            popup.frame.minY,
+            navigationBar.frame.maxY,
+            "non-modal left/top must use screenViewport coordinates, not an implicit safe-area offset"
+        )
 
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
         XCTAssertTrue(waitForLabel(app.staticTexts["popup-request-status"], "popup requested backdrop"))

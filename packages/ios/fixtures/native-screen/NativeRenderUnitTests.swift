@@ -2615,6 +2615,23 @@ final class NativeRenderUnitTests: XCTestCase {
         }
     }
 
+    func testListsExposeSharedListAccessibilityRoleWithoutOverridingAuthoredRoles() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([
+            ["type": "FlatList", "props": ["key": "flat"]],
+            ["type": "SectionList", "props": ["key": "section"]],
+            ["type": "FlatList", "props": ["key": "authored", "accessibilityRole": "region"]],
+        ]))
+
+        let flat = try XCTUnwrap(find(UIView.self, key: "flat", below: controller.view))
+        let section = try XCTUnwrap(find(UIView.self, key: "section", below: controller.view))
+        let authored = try XCTUnwrap(find(UIView.self, key: "authored", below: controller.view))
+        XCTAssertFalse(flat.isAccessibilityElement)
+        XCTAssertFalse(section.isAccessibilityElement)
+        XCTAssertEqual(authored.accessibilityContainerType, .none)
+    }
+
     func testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

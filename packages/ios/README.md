@@ -85,7 +85,10 @@ views when rows are materialized or recycled.
 
 `View.measure` and non-modal `left`/`top` placement use the same `screenViewport`
 coordinate space. Safe-area and navigation-bar offsets are not added implicitly;
-anchored callers must clamp against the measured viewport when needed.
+anchored callers must clamp against the measured viewport when needed. Re-run
+measurement after the anchor or screen root emits `onLayout`, and after every
+`onScroll` from an ancestor; those are the host-neutral invalidation signals for
+repositioning an anchored popup.
 
 ```bash
 bun add craft-native

@@ -600,6 +600,13 @@ On iOS, keyboard frame changes are folded into the controller's additional safe
 area while a native input is focused, so the same measurement contract updates
 as the keyboard animates and returns to the original inset when it hides.
 
+Anchored overlays should remeasure their anchor after every `onLayout` callback
+from the anchor or its screen root, and after `onScroll` from any scrolling
+ancestor. These callbacks cover safe-area, rotation, responsive-size, and
+scroll-offset changes; there is no second host-specific viewport transform to
+apply. Recompute `View.measure` and clamp the resulting `left`/`top` against
+`viewportWidth`/`viewportHeight` before updating a non-modal popup.
+
 ## Images and scrolling
 
 Use either a URI string or `{ uri: value }` for an image source. Dimensions belong in the `Image`
@@ -1182,6 +1189,9 @@ logical units (`points` on iOS and density-independent `dp` on Android).
 Coordinates therefore move as a scroll view moves, include the screen's safe
 area and exclude any window chrome outside the native screen root. Calls made
 after reconciliation but before layout settle on the host's main/UI thread.
+An anchored popup must treat the anchor's `onLayout`, the screen root's
+`onLayout`, and each ancestor `onScroll` event as placement invalidations; the
+next `measure` response is the authoritative position in `screenViewport`.
 
 `scrollTo` targets a mounted native `ScrollView`. Its `x` and `y` values are
 optional logical offsets (`points` on iOS and density-independent `dp` on
@@ -1236,6 +1246,11 @@ string values and persists them in the iOS Keychain or Android encrypted
 preferences. The `badge` capability is iOS-only and does not request notification
 authorization; `craft.badge.set(count)` and `craft.badge.clear()` update the app
 icon without requiring local notifications.
+On Android, the current Health workout methods expose only a foreground
+lifecycle and save the finished session through Health Connect. They do not
+provide Health Services background execution or live sensor samples; callers
+must treat `craftHealthWorkout` state events as lifecycle notifications until
+the dedicated Health Services adapter and its capability gate are available.
 A native passkey screen requires both `enablePasskeys: true` and at least one
 `webcredentials:<host>` entry in `associatedDomains`; otherwise the host does
 not advertise `passkeys`. `craft.passkeys.isAvailable()` is a configuration

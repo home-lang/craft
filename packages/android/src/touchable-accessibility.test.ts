@@ -28,7 +28,10 @@ fun main() {
     }
     check(role("Text", emptyMap()) == "text")
     check(role("Icon", emptyMap()) == "image")
-    println("PASS touchable link/button roles, href/to changes, authored overrides and ordinary native roles")
+    check(role("FlatList", emptyMap()) == "list")
+    check(role("SectionList", emptyMap()) == "list")
+    check(role("FlatList", mapOf("accessibilityRole" to "region")) == "region")
+    println("PASS touchable link/button roles, list roles, authored overrides and ordinary native roles")
 }
 `)
 }, 180_000)

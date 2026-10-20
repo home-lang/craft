@@ -1636,6 +1636,11 @@ class NativeNavigationTest {
             click(activity, "toggle-popup")
             val popup = awaitView(activity, "native-popup")
             awaitText(activity, "popup-content", "Popup content")
+            val safeRoot = awaitView(activity, "root")
+            assertTrue(
+                "non-modal top should use the screenViewport origin, not a second safe-area offset",
+                popup.top < safeRoot.top + safeRoot.paddingTop + 36,
+            )
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()
                 val x = (root.width - 20).toFloat()

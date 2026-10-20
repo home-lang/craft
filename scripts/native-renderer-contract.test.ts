@@ -318,6 +318,9 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain("| 'scrollbar'")
     expect(ios).toContain('["tablist", "radiogroup", "list", "menu", "menubar", "toolbar"]')
     expect(android).toContain('"scrollbar" -> ScrollView::class.java.name')
+    expect(ios).toContain('["FlatList", "SectionList"].contains(type) ? "list"')
+    expect(android).toContain('type in setOf("FlatList", "SectionList") -> "list"')
+    expect(iosNativeUnitTests).toContain('testListsExposeSharedListAccessibilityRoleWithoutOverridingAuthoredRoles')
   })
 
   it('types ScrollView refresh controls instead of falling back to any', () => {
@@ -1830,6 +1833,14 @@ describe('native renderer component contract', () => {
     expect(iosReadme).toContain('non-modal `left`/`top` placement use the same `screenViewport`')
     expect(android).toContain('same screenViewport origin')
     expect(androidReadme).toContain('non-modal absolute `left`/`top` placement use the same')
+    expect(iosNavigationTest).toContain('screenViewport coordinates, not an implicit safe-area offset')
+    expect(androidNavigationTest).toContain('screenViewport origin, not a second safe-area offset')
+    expect(guide).toContain('Anchored overlays should remeasure their anchor after every `onLayout` callback')
+    expect(guide).toContain('each ancestor `onScroll` event as placement invalidations')
+    expect(iosReadme).toContain('host-neutral invalidation signals for')
+    expect(androidReadme).toContain('host-neutral invalidation signals for')
+    expect(androidReadme).toContain('do not claim Health Services')
+    expect(guide).toContain('provide Health Services background execution or live sensor samples')
   })
 
   it('exposes screen-owned scrolling for mounted native scroll views', () => {
