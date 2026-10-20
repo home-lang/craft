@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.261...v0.0.262)
+
+## 🧪 Tests
+
+- **ios**: require cell ownership before releasing row views ([b0ad5b3](https://github.com/craft-native/craft/commit/b0ad5b3)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.260...v0.0.261)
 
 ## 🐛 Bug Fixes
