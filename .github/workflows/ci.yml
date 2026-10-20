@@ -187,13 +187,23 @@ jobs:
       - name: First-party Zig dependencies
         uses: ./.github/actions/first-party-zig-deps
 
+      - name: Verify workspace relinking preserves tracked core sources
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:GITHUB_WORKSPACE 'packages/zig/build.zig'
+          $expected = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+          pantry install --no-save
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $expected) {
+            throw 'Workspace relinking changed the tracked core build file'
+          }
+
       - name: Build Windows CLI
         # scripts/zig.ts resolves the actual managed binary from pantry.lock,
         # including its adjacent standard library on Windows.
         run: bun run build:core
 
       - name: Verify pinned compiler core project selection
-        if: ${{ !cancelled() }}
         run: bun scripts/verify-zig-core-project.ts
 
       - name: Stage pinned WebView2 loader
