@@ -375,6 +375,16 @@ Connect fallback untouched.
 `bun scripts/test-native-health.ts` runs the Health Connect contract against
 an Android 14+ emulator.
 
+### Google Wallet
+
+Set `enableWallet: true` to expose `craft.wallet` to native screens. Android
+accepts an HTTPS Google Wallet save link, or a signed pass JWT through
+`craft.wallet.add({ jwt })`; the latter uses Google's `PayClient` SDK and
+returns the result of the native save sheet. `craft.wallet.isAvailable()` asks
+the SDK whether the JWT save API is available on this device. `has()` remains
+unsupported on Android because Google Wallet does not expose local pass lookup
+through this API. Pass signing and updates stay server-side.
+
 ### 3. Open in Android Studio
 
 ```bash
@@ -414,6 +424,7 @@ Edit `craft.config.json` in your Android project:
   "enableHealthConnect": false,
   "enableHealthServices": false,
   "enableHeartRate": false,
+  "enableWallet": false,
   "enableKeepAwake": true,
   "enableDeepLinks": true,
   "urlSchemes": ["myapp"],
