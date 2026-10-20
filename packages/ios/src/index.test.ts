@@ -271,7 +271,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('modal.setVisible(visible, opacity: number(style["opacity"]) ?? 1, animationType: props["animationType"] as? String)')
     expect(nativeSwift).toContain('if let propVisible = props["visible"] as? Bool')
     expect(nativeSwift).toContain('visible = display != nil && display != "none"')
-    expect(nativeSwift).toContain('!($0 is CraftNativeModalView)')
+    expect(nativeSwift).toContain('!($0.element is CraftNativeModalView)')
     expect(nativeSwift).toContain('button.isEnabled = props["disabled"] as? Bool != true')
     expect(nativeSwift).toContain('let transformedTitle = transformedText(title, style: style)')
     expect(nativeSwift).toContain('private func transformedText(_ text: String, style: [String: Any])')
