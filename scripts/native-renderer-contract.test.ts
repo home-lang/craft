@@ -42,6 +42,7 @@ const androidShell = readFileSync(join(root, 'packages/android/templates/CraftNa
 const androidCapabilityTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeCapabilityUiTest.kt'), 'utf8')
 const androidMutationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeMutationTest.kt'), 'utf8')
 const androidBuilderTest = readFileSync(join(root, 'packages/android/src/index.test.ts'), 'utf8')
+const androidRetainedIdentity = readFileSync(join(root, 'packages/android/src/retained-identity.test.ts'), 'utf8')
 const androidFlatListTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeFlatListTest.kt'), 'utf8')
 const iosNavigationTest = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/NativeNavigationUITests.swift'), 'utf8')
 const iosNavigationUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/NativeNavigationUnitTests.swift'), 'utf8')
@@ -457,6 +458,8 @@ describe('native renderer component contract', () => {
     expect(iosMutation).toContain('throw CraftNativeMutationFailure("SAME_PARENT"')
     expect(ios).toContain('private var previousNodesByProtocolID: [String: RenderedNode] = [:]')
     expect(ios).toContain('indexPreviousNodes(previous)')
+    expect(ios).toContain('protocolId.flatMap { id in')
+    expect(ios).toContain('adoptedPreviousProtocolIDs.insert(protocolId)')
     expect(iosActions).toContain('"viewReparent"')
     expect(android).toContain('put("viewReparent")')
     expect(ios).toContain('guard let target = drawnTarget(id) else { return false }')
@@ -473,6 +476,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val previous = protocolId?.let { previousControls["id:$it"] } ?: keyedPrevious')
     expect(android).toContain('next["id:$it"] = control')
     expect(android).toContain('!screen.mutations.containsNode(previousId)')
+    expect(androidRetainedIdentity).toContain('Reparenting lost the protocol alias')
   })
 
   it('exports the flat flex ABI for mobile hosts', () => {

@@ -66,6 +66,8 @@ fun main() {
         if (moveFirst) { move(); refill() } else { refill(); move() }
         check(reparented === original) { "Reparenting lost the protocol view (moveFirst=$moveFirst)" }
         check(replacement !== original) { "Refilling a vacated keyed slot stole a surviving protocol view (moveFirst=$moveFirst)" }
+        check(next["id:moving"] === original) { "Reparenting lost the protocol alias (moveFirst=$moveFirst)" }
+        check(next["id:replacement"] === replacement) { "Replacement was not registered under its protocol alias (moveFirst=$moveFirst)" }
         check(next["id:moving"] !== next["id:replacement"])
     }
     println("PASS keyed replacement, protocol reparenting, selector isolation, parent scoping, return, removal and both refill traversal orders")
