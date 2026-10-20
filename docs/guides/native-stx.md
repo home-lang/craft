@@ -73,7 +73,7 @@ renderer.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
-The current pair is pinned to `6ff576f174b160c9b8f7259bff7ecf70d6ea7c0d` (STX main),
+The current pair is pinned to `e8abed57d95abc66c08bea0d4c87dafeb3259baf` (STX main),
 which preserves authored reconciliation keys and explicit grid row tracks in
 static and reactive native styles, and keeps template indentation out of native
 leaf button labels. Touchable primitives preserve authored accessibility roles
@@ -643,9 +643,10 @@ its virtualized collection or recycler host, including the same
 `contentOffset`, `contentSize`, and `layoutMeasurement` payload. `FlatList` now
 accepts `onRefresh` and controlled
 `refreshing`; pull-to-refresh is backed by UIKit's `UIRefreshControl` on iOS and
-AndroidX `SwipeRefreshLayout` on Android. Use
-`ScrollView` for bounded content and `FlatList` for data sets that need
-recycling.
+AndroidX `SwipeRefreshLayout` on Android. Use `ScrollView` for bounded content
+and `FlatList` for keyed child rows that
+need recycling. The maintained protocol is driven by the shared STX tree, not
+by a serialized `data`/`renderItem` callback pair.
 When `scrollEnabled={false}`, the list is measured to its full vertical content
 height on both hosts, so it can be placed inside an outer native `ScrollView`
 without clipping rows.
@@ -685,13 +686,13 @@ therefore are not part of the native `SectionList` contract yet.
 
 ## Recycling lists
 
-`FlatList` compiles a keyed item template into retained native rows. iOS uses a
+`FlatList` compiles keyed child rows into retained native rows. iOS uses a
 diffable `UICollectionView` data source; Android uses `RecyclerView`, stable
 IDs, and `DiffUtil`. Inserts, updates, moves, and removals reuse unaffected rows
 instead of rebuilding the list. Visible text inputs retain their draft, focus,
 accessibility metadata, and event handlers, and keyed updates retain the
 viewport anchor. The simulator and emulator suites exercise this contract with
-10,000 rows without materializing the full data set.
+10,000 keyed rows without rebuilding unaffected rows.
 
 ```stx
 <script>
@@ -702,16 +703,10 @@ function loadMore() {
 }
 </script>
 
-<FlatList
-  data={people}
-  keyExtractor={item.id}
-  numColumns={2}
-  onEndReached={loadMore}
-  onEndReachedThreshold={0.2}
->
+<FlatList numColumns={2} onEndReached={loadMore} onEndReachedThreshold={0.2}>
   <Text listRole="header">People</Text>
-  <View listRole="item" accessibilityLabel={item.name}>
-    <Text>{index}: {item.name}</Text>
+  <View listRole="item" :for="person, index in people" :key="person.id" :accessibilityLabel="person.name">
+    <Text>{{ index }}: {{ person.name }}</Text>
   </View>
   <View listRole="separator" style="height: 1" />
   <Text listRole="empty">Nobody here</Text>
@@ -719,22 +714,22 @@ function loadMore() {
 </FlatList>
 ```
 
-The item template can reference `item` and its zero-based `index`.
-`keyExtractor` must produce a stable, unique value; moving an item with the
-same key keeps its native row state. `horizontal`, `inverted`, and
+The `listRole="item"` child is expanded by the ordinary STX `:for` binding and
+can reference its loop value and zero-based index. Its `:key` must be stable and
+unique; moving a row with the same key keeps its native row state. `horizontal`, `inverted`, and
 `numColumns` select the native layout. `numColumns` applies to vertical lists;
 header, separator, empty, and footer content span every column. Empty content
-is shown only when the data set has no items. Separator content is inserted
+is shown only when the keyed row set has no items. Separator content is inserted
 between item rows, never before the first or after the last.
 List chrome belongs in child slots marked with `listRole`; component props such
-as `ListHeaderComponent`, `ItemSeparatorComponent`, and render-window tuning
-are intentionally outside the maintained native protocol.
+as `ListHeaderComponent`, `ItemSeparatorComponent`, `renderItem`, and
+render-window tuning are intentionally outside the maintained native protocol.
 
-`onEndReachedThreshold` is the fraction of data rows allowed to remain when
+`onEndReachedThreshold` is the fraction of keyed rows allowed to remain when
 `onEndReached` fires. Header, separator, empty, and footer nodes do not count
-toward the threshold and a chrome-only list does not fire it. A given content
-signature fires at most once, but appending data creates a new signature and
-may fire again if the viewport is still within the threshold; handlers should
+toward the threshold and a chrome-only list does not fire it. A given child-tree
+signature fires at most once; keyed inserts or moves create a new signature and
+may fire again if the viewport is still within the threshold. Handlers should
 therefore guard concurrent pagination requests.
 
 Item rows participate in the same layout contract as ordinary views. Put an

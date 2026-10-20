@@ -360,8 +360,10 @@ describe('native renderer component contract', () => {
 
   it('keeps FlatList chrome and virtualization on the native child protocol', () => {
     const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewBaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
-    expect(flatListProps).toContain('data: T[]')
     expect(flatListProps).toContain('numColumns?: number')
+    expect(flatListProps).not.toContain('data: T[]')
+    expect(flatListProps).not.toContain('renderItem:')
+    expect(flatListProps).not.toContain('keyExtractor?:')
     expect(flatListProps).not.toContain('ItemSeparatorComponent?:')
     expect(flatListProps).not.toContain('ListHeaderComponent?:')
     expect(flatListProps).not.toContain('ListFooterComponent?:')
@@ -371,6 +373,13 @@ describe('native renderer component contract', () => {
     expect(flatListProps).not.toContain('windowSize?:')
     expect(flatListProps).not.toContain('getItemLayout?:')
     expect(guide).toContain('listRole="header"')
+    expect(guide).toContain('keyed child rows')
+    expect(guide).toContain('`data`/`renderItem` callback pair')
+    expect(guide).not.toContain('keyExtractor={item.id}')
+    expect(iosReadme).toContain('keyed `:for` child rows')
+    expect(iosReadme).toContain('does not serialize `data`/`renderItem` callbacks')
+    expect(androidReadme).toContain('keyed `:for` child-row')
+    expect(androidReadme).toContain('does not serialize `data`/`renderItem`')
   })
 
   it('verifies Android inverted FlatList order through mounted identities', () => {

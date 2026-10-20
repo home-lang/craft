@@ -97,8 +97,13 @@ describe('Component System', () => {
     expect(scroll.onScroll).toBeDefined()
     expect(scroll.scrollTarget).toMatchObject({ id: 'today', animated: false })
     expect(scroll.refreshControl?.tintColor).toBe('#2563eb')
-    const list: FlatListProps<string> = { data: ['today'], renderItem: ({ item }) => item, inverted: true }
+    const list: FlatListProps<string> = { children: ['today'], inverted: true }
     expect(list.inverted).toBe(true)
+    // The maintained list protocol is keyed children, not data/renderItem.
+    // @ts-expect-error data is intentionally unsupported until the versioned list-data protocol exists.
+    list.data = ['today']
+    // @ts-expect-error renderItem is intentionally unsupported on child-based FlatList.
+    list.renderItem = ({ item }) => item
     // Sticky headers are implemented by ScrollView, not the virtualized FlatList hosts.
     // @ts-expect-error stickyHeaderIndices is intentionally ScrollView-only.
     list.stickyHeaderIndices = [0]
@@ -187,11 +192,11 @@ describe('Component System', () => {
     sections.renderSectionHeader = () => null
     // FlatList chrome and virtualization tuning use the native list-role slots.
     // @ts-expect-error ItemSeparatorComponent is not part of the native list protocol.
-    const unsupportedSeparator: FlatListProps<string> = { data: [], renderItem: () => null, ItemSeparatorComponent: () => null }
+    const unsupportedSeparator: FlatListProps<string> = { children: [], ItemSeparatorComponent: () => null }
     // @ts-expect-error getItemLayout is not consumed by either maintained host.
-    const unsupportedMeasurement: FlatListProps<string> = { data: [], renderItem: () => null, getItemLayout: () => ({ length: 1, offset: 0, index: 0 }) }
-    expect(unsupportedSeparator.data).toHaveLength(0)
-    expect(unsupportedMeasurement.data).toHaveLength(0)
+    const unsupportedMeasurement: FlatListProps<string> = { children: [], getItemLayout: () => ({ length: 1, offset: 0, index: 0 }) }
+    expect(unsupportedSeparator.children).toHaveLength(0)
+    expect(unsupportedMeasurement.children).toHaveLength(0)
     const datePicker: DatePickerProps = { mode: 'datetime-local', value: '2026-10-12T07:30' }
     // Presentation style is iOS-only and is not part of the shared native contract.
     // @ts-expect-error display is intentionally unsupported cross-platform.
