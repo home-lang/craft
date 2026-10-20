@@ -186,6 +186,21 @@ describe('the native shell prelude (JavaScriptSandbox has no synchronous host ca
 })
 
 describe('the native app shell in a generated project', () => {
+  it('declares one location permission when live health and Bluetooth both need it', () => {
+    const permissions = renderAndroidPermissions({
+      appName: 'Live health', packageName: 'dev.craft.livehealth', renderer: 'native',
+      enableHealthServices: true, enableHeartRate: true,
+    })
+    expect(permissions.match(/android\.permission\.ACCESS_FINE_LOCATION/g)).toHaveLength(1)
+    expect(permissions).toContain('<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />')
+    expect(permissions).not.toContain('ACCESS_FINE_LOCATION" android:maxSdkVersion')
+    const bluetooth = renderAndroidPermissions({
+      appName: 'Bluetooth', packageName: 'dev.craft.bluetooth', renderer: 'native', enableHeartRate: true,
+    })
+    expect(bluetooth.match(/android\.permission\.ACCESS_FINE_LOCATION/g)).toHaveLength(1)
+    expect(bluetooth).toContain('ACCESS_FINE_LOCATION" android:maxSdkVersion="30"')
+  })
+
   it('declares only the Health Connect permissions the app reads and writes', () => {
     const permissions = healthConnectPermissions({ healthConnect: { read: ['sleep', 'workouts'], write: ['mindful'], background: true } })
     expect(permissions).toContain('android.permission.health.READ_SLEEP')
