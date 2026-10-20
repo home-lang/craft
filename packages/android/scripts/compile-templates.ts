@@ -50,6 +50,9 @@ const fixtures: CompileFixture[] = [
     config: {
       renderer: 'native',
       enableHealthConnect: true,
+      // Compile the retained Android Health Services owner in CI, not only
+      // the generator's source-string test.
+      enableHealthServices: true,
       // A native screen's HeartRate module (CraftHeartRate.kt).
       enableHeartRate: true,
       enableHaptics: true,
