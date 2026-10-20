@@ -1355,6 +1355,30 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["modal dismissed"].waitForExistence(timeout: 5))
     }
 
+    func testNestedNonModalPopupDismissesAboveModal() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let rootScroll = app.scrollViews["native-root-scroll"]
+        XCTAssertTrue(rootScroll.waitForExistence(timeout: 15))
+        let modalToggle = app.buttons["toggle-modal"]
+        reveal(modalToggle, in: rootScroll)
+        modalToggle.tap()
+        XCTAssertTrue(app.otherElements["native-modal"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["modal shown"].waitForExistence(timeout: 5))
+
+        let nestedToggle = app.buttons["toggle-nested-popup"]
+        XCTAssertTrue(nestedToggle.waitForExistence(timeout: 5))
+        nestedToggle.tap()
+        XCTAssertTrue(app.otherElements["nested-popup"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["nested-popup-content"].exists)
+
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["nested-popup-request-status"], "nested popup requested backdrop"))
+        XCTAssertTrue(waitForAbsence(app.otherElements["nested-popup"]))
+        XCTAssertTrue(app.otherElements["native-modal"].exists, "dismissing a nested popup must not dismiss its parent modal")
+        XCTAssertTrue(app.staticTexts["modal shown"].exists)
+    }
+
     func testNonModalPopupDismissesOnOutsideTap() throws {
         let app = XCUIApplication()
         app.launch()

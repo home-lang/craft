@@ -36,6 +36,8 @@ const modalRequestStatus = state('')
 const modalOpacity = state(1)
 const popupVisible = state(false)
 const popupRequestStatus = state('')
+const nestedPopupVisible = state(false)
+const nestedPopupRequestStatus = state('')
 const sliderValue = state(0.5)
 const indicatorSize = state('small')
 const indicatorHidesWhenStopped = state(false)
@@ -483,6 +485,15 @@ function popupRequested(event) {
   popupVisible.set(false)
 }
 
+function toggleNestedPopup() {
+  nestedPopupVisible.update(value => !value)
+}
+
+function nestedPopupRequested(event) {
+  nestedPopupRequestStatus.set(`nested popup requested ${event.reason || 'unknown'}`)
+  nestedPopupVisible.set(false)
+}
+
 function moveSlider(event) {
   sliderValue.set(event.value)
   status.set('slider moved')
@@ -863,10 +874,15 @@ function openDetailsThenUpdateBackground() {
       <Button testID="toggle-modal-opacity" @click="toggleModalOpacity()">Toggle modal opacity</Button>
       <Button testID="remove-modal" @click="removeModal()">Remove modal</Button>
       <Text testID="modal-opacity" :text="modalOpacity" />
+      <Button testID="toggle-nested-popup" @click="toggleNestedPopup()">Toggle nested popup</Button>
+      <Modal testID="nested-popup" visible={nestedPopupVisible} nonModal dismissOnOutsideTap animationType="none" style={{"position":"absolute","left":48,"top":72,"width":160,"height":64,"backgroundColor":"#1e293b"}} @request-close="nestedPopupRequested($event)">
+        <Text testID="nested-popup-content">Nested popup</Text>
+      </Modal>
       <Button testID="close-modal" @click="toggleModal()">Close modal</Button>
     </Modal>
     <Text testID="modal-status" :text="modalStatus" />
     <Text testID="modal-request-status" :text="modalRequestStatus" />
+    <Text testID="nested-popup-request-status" :text="nestedPopupRequestStatus" />
     <Button testID="toggle-popup" @click="togglePopup()">Toggle popup</Button>
     <Modal testID="native-popup" visible={popupVisible} nonModal dismissOnOutsideTap animationType="none" style={{"position":"absolute","left":24,"top":36,"width":180,"height":72,"backgroundColor":"#334155"}} @request-close="popupRequested($event)">
       <Text testID="popup-content">Popup content</Text>

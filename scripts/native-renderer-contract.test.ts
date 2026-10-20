@@ -242,8 +242,12 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<Video testID="native-video"')
     expect(navigationHome).toContain('testID="native-modal"')
     expect(navigationHome).toContain('testID="native-popup" visible={popupVisible} nonModal dismissOnOutsideTap')
+    expect(navigationHome).toContain('testID="toggle-nested-popup"')
+    expect(navigationHome).toContain('testID="nested-popup" visible={nestedPopupVisible} nonModal dismissOnOutsideTap')
     expect(iosNavigationTest).toContain('testNonModalPopupDismissesOnOutsideTap')
+    expect(iosNavigationTest).toContain('testNestedNonModalPopupDismissesAboveModal')
     expect(androidNavigationTest).toContain('dismissed non-modal popup should be removed')
+    expect(androidNavigationTest).toContain('dismissed nested popup should be removed')
     expect(navigationHome).toContain('<ActivityIndicator testID="scaled-indicator"')
   })
 

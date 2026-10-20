@@ -1607,10 +1607,35 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync { activity.onBackPressed() }
             awaitText(activity, "modal-request-status", "modal requested back")
             awaitText(activity, "modal-status", "modal dismissed")
+            click(activity, "toggle-modal")
+            awaitText(activity, "modal-status", "modal shown")
+            click(activity, "toggle-nested-popup")
+            val nestedPopup = awaitView(activity, "nested-popup")
+            awaitText(activity, "nested-popup-content", "Nested popup")
+            val root = awaitView(activity, "root")
+            instrumentation.runOnMainSync {
+                val downTime = SystemClock.uptimeMillis()
+                val x = (root.width - 20).toFloat()
+                val y = (root.height - 20).toFloat()
+                val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
+                root.dispatchTouchEvent(down)
+                down.recycle()
+                val up = MotionEvent.obtain(downTime, downTime + 32, MotionEvent.ACTION_UP, x, y, 0)
+                root.dispatchTouchEvent(up)
+                up.recycle()
+            }
+            awaitText(activity, "nested-popup-request-status", "nested popup requested backdrop")
+            var nestedPopupRemoved = false
+            repeat(25) {
+                instrumentation.runOnMainSync { nestedPopupRemoved = find(activity.window.decorView, "nested-popup") == null }
+                if (nestedPopupRemoved) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertTrue("dismissed nested popup should be removed", nestedPopupRemoved || nestedPopup.visibility != View.VISIBLE)
+            assertEquals("dismissing a nested popup should retain its parent modal", View.VISIBLE, modal.visibility)
             click(activity, "toggle-popup")
             val popup = awaitView(activity, "native-popup")
             awaitText(activity, "popup-content", "Popup content")
-            val root = awaitView(activity, "root")
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()
                 val x = (root.width - 20).toFloat()
