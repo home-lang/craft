@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.257...v0.0.258)
+
+## 🐛 Bug Fixes
+
+- **android**: retain nested popup viewport after updates ([535c2b1](https://github.com/craft-native/craft/commit/535c2b1)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.256...v0.0.257)
 
 ## 🚀 Features
