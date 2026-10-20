@@ -1809,8 +1809,10 @@ describe('native renderer component contract', () => {
       expect(host).toContain('screenViewport')
     }
     expect(iosActions).toContain('"viewFocus", "viewMeasure"')
+    expect(iosActions).toContain('"viewNonModalPresentation"')
     expect(android).toContain('viewFocus')
     expect(android).toContain('viewMeasure')
+    expect(android).toContain('put("viewNonModalPresentation")')
     expect(ios).toContain('UIAccessibility.post(notification: .layoutChanged, argument: node.view)')
     expect(ios).toContain('"unit": "points"')
     expect(android).toContain('TYPE_VIEW_FOCUSED')
@@ -2283,7 +2285,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps native iOS badges permission-free and capability-advertised', () => {
-    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]')
+    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation"]')
     expect(iosActions).toContain('case ("Badge", "set"):')
     expect(iosActions).toContain('case ("Badge", "clear"):')
     expect(iosActions).toContain('without requesting notification authorization')

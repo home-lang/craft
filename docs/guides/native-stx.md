@@ -1195,7 +1195,11 @@ with `VIEW_NOT_MOUNTED`; unsupported focus targets reject with
 code and rejects non-finite coordinates with `INVALID_ARGUMENT`. The
 `viewFocus`, `viewMeasure`, and `viewScroll` capability flags are advertised
 independently so shared components can gate these operations on older Craft
-hosts.
+hosts. Hosts that support the viewport-owned, non-blocking popup contract also
+advertise `viewNonModalPresentation`. Gate `Modal` usage with
+`nonModal: true` and `dismissOnOutsideTap: true` on that capability; an older
+host may only understand the blocking modal behavior. The flag covers viewport
+promotion, outside-tap dismissal, and nested overlay teardown together.
 
 // Native iOS passkeys (capability `passkeys`). The server still creates and
 // verifies the WebAuthn challenge; Craft presents Apple's credential sheet and

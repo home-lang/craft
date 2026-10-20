@@ -42,7 +42,7 @@ enum CraftNativeActions {
     static func capabilities(config: CraftConfig) -> [String] {
         // `speech`, `audio` (background sound) and `eventStream` (a fetch read
         // as it arrives) need nothing the app has to declare.
-        var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]
+        var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation"]
         values.append("storageCompareAndSet")
         values.append("storageSetIfAbsent")
         values.append("viewScroll")

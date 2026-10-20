@@ -4707,6 +4707,7 @@ class MainActivity : AppCompatActivity() {
         put("viewMeasure")
         put("viewScroll")
         put("viewReparent")
+        put("viewNonModalPresentation")
     }
 
     private fun appVersion(): Pair<String, String> = runCatching {
