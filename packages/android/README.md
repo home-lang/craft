@@ -185,7 +185,10 @@ the top modal before it pops the native route. `Switch` supports state-aware `tr
 and `thumbColor`, while `Slider` supports track/thumb tint props and `step`
 snapping without collapsing stepped ranges to a fixed pixel-like precision.
 `View.measure` and non-modal absolute `left`/`top` placement use the same
-`screenViewport` origin; safe-area offsets are not added implicitly.
+`screenViewport` origin; safe-area offsets are not added implicitly. Re-run
+measurement after the anchor or screen root emits `onLayout`, and after every
+`onScroll` from an ancestor; those are the host-neutral invalidation signals for
+repositioning an anchored popup.
 `ActivityIndicator` keeps a visible stopped indicator genuinely
 non-animated when `animating={false}` and `hidesWhenStopped={false}`. `Image`
 reports load lifecycle events and structured failures. Native image sources

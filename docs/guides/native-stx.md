@@ -600,6 +600,13 @@ On iOS, keyboard frame changes are folded into the controller's additional safe
 area while a native input is focused, so the same measurement contract updates
 as the keyboard animates and returns to the original inset when it hides.
 
+Anchored overlays should remeasure their anchor after every `onLayout` callback
+from the anchor or its screen root, and after `onScroll` from any scrolling
+ancestor. These callbacks cover safe-area, rotation, responsive-size, and
+scroll-offset changes; there is no second host-specific viewport transform to
+apply. Recompute `View.measure` and clamp the resulting `left`/`top` against
+`viewportWidth`/`viewportHeight` before updating a non-modal popup.
+
 ## Images and scrolling
 
 Use either a URI string or `{ uri: value }` for an image source. Dimensions belong in the `Image`
@@ -1182,6 +1189,9 @@ logical units (`points` on iOS and density-independent `dp` on Android).
 Coordinates therefore move as a scroll view moves, include the screen's safe
 area and exclude any window chrome outside the native screen root. Calls made
 after reconciliation but before layout settle on the host's main/UI thread.
+An anchored popup must treat the anchor's `onLayout`, the screen root's
+`onLayout`, and each ancestor `onScroll` event as placement invalidations; the
+next `measure` response is the authoritative position in `screenViewport`.
 
 `scrollTo` targets a mounted native `ScrollView`. Its `x` and `y` values are
 optional logical offsets (`points` on iOS and density-independent `dp` on
