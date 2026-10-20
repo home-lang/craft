@@ -109,6 +109,7 @@ internal class CraftHealthServicesService : Service() {
                     else ((System.currentTimeMillis() - workoutStartedAt - pausedMillis).coerceAtLeast(0) / 1000.0)
                     val result = JSONObject()
                         .put("id", id)
+                        .put("activityId", id)
                         .put("type", workoutType)
                         .put("startDate", workoutStartedAt)
                         .put("workoutId", id)

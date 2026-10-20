@@ -2377,6 +2377,7 @@ describe('Craft Android builder', () => {
       expect(adapter).toContain('fallback.invoke("saveWorkout"')
       expect(service).toContain('activeEnergyCalories')
       expect(service).toContain('distanceMeters')
+      expect(service).toContain('"activityId", id')
       expect(service).toContain('"workoutId", id')
       expect(service).toContain('DataType.HEART_RATE_BPM')
       expect(service).toContain('DataType.CALORIES_TOTAL')
