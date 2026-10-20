@@ -59,10 +59,17 @@ export function runZig(root: string, args: string[], env: NodeJS.ProcessEnv = pr
     const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
     command.push(`-Dversion=${version}`)
   }
+  if (core && command[0] === 'build') {
+    // Select the core project explicitly. A monorepo has another build.zig
+    // at its root; compiler build discovery must not select that wrapper.
+    command.splice(1, 0, '--build-file', join(root, 'packages/zig/build.zig'))
+  }
   const zig = resolveZig(root, env)
+  const cwd = core ? join(root, 'packages/zig') : root
   console.error(`Zig ${zig.version}: ${zig.path}${zig.overridden ? ' (explicit unpinned override)' : ''}`)
+  console.error(`Zig project directory: ${cwd}`)
   const result = Bun.spawnSync([zig.path, ...command], {
-    cwd: core ? join(root, 'packages/zig') : root,
+    cwd,
     env,
     stdin: 'inherit',
     stdout: 'inherit',
