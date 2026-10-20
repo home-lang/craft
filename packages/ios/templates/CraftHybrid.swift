@@ -2080,7 +2080,14 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     /// The edge swipe goes ahead of the web view's own gestures, which
     /// otherwise hold every touch over the page until the page has answered it.
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        gestureRecognizer === visibleStack?.interactivePopGestureRecognizer
+        if gestureRecognizer === visibleStack?.interactivePopGestureRecognizer { return true }
+        guard tabSwipeRecognizers.contains(where: { $0 === gestureRecognizer }),
+              let scroll = otherGestureRecognizer.view as? UIScrollView,
+              otherGestureRecognizer === scroll.panGestureRecognizer,
+              scroll.isScrollEnabled else { return false }
+        // A vertical list must not suppress the shell's horizontal tab pan.
+        // Horizontal content keeps ownership of its own drag instead.
+        return !scroll.alwaysBounceHorizontal && scroll.contentSize.width <= scroll.bounds.width + 1
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer) -> Bool {

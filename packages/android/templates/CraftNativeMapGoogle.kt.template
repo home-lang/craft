@@ -413,7 +413,6 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         markers.values.forEach { builder.include(it.position); count++ }
         polylines.values.flatMap { it.points }.forEach { builder.include(it); count++ }
         polygons.values.flatMap { it.points }.forEach { builder.include(it); count++ }
-        polygons.values.flatMap { it.points }.forEach { builder.include(it); count++ }
         if (count == 0) return false
         post {
             if (width > 0 && height > 0) {

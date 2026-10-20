@@ -336,14 +336,17 @@ describe('bridge reply correlation', () => {
 
   it('puts a distinct id on every message, fire-and-forget included', async () => {
     const h = loadBridge()
-    h.craft.tags.get('/a')
+    const tags = h.craft.tags.get('/a')
     h.craft.keychain.set('svc', 'acct', 'pw') // _send, no reply expected
     h.craft.window.show?.()
-    h.craft.autoLaunch.isEnabled()
+    const autoLaunch = h.craft.autoLaunch.isEnabled()
 
     const ids = h.sent.map(m => m.i)
     expect(ids.every(i => typeof i === 'number' && i > 0)).toBe(true)
     expect(new Set(ids).size).toBe(ids.length)
+    h.reply('get', { tags: [] }, h.sent[0].i!)
+    h.reply('isEnabled', { value: true }, h.sent.at(-1)!.i!)
+    await Promise.all([tags, autoLaunch])
   })
 
   it('reports a fire-and-forget failure rather than rejecting a live call', async () => {

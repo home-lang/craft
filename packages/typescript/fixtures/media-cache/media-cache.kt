@@ -1,3 +1,14 @@
+/** Holds a completed attempt in RUNNING, before WorkManager commits its result. */
+class SettledMediaAttemptWorker(context: Context, parameters: androidx.work.WorkerParameters) : androidx.work.Worker(context, parameters) {
+    private val released = java.util.concurrent.CountDownLatch(1)
+    override fun doWork(): Result {
+        setProgressAsync(androidx.work.workDataOf("craft.media.attemptSettled" to true)).get()
+        released.await(30, java.util.concurrent.TimeUnit.SECONDS)
+        return Result.retry()
+    }
+    override fun onStopped() { released.countDown() }
+}
+
 class DownloadProbe : android.app.Instrumentation() {
     override fun onCreate(arguments: android.os.Bundle?) {
         super.onCreate(arguments)
@@ -22,6 +33,13 @@ class DownloadProbe : android.app.Instrumentation() {
         }
         check(done.await(25, java.util.concurrent.TimeUnit.SECONDS), "operation settled")
         return ok
+    }
+    private fun awaitCached(address: String) {
+        // The worker authors a 30-second first retry. Allow that backoff plus
+        // the existing 25-second transfer budget, without issuing another keep.
+        val until = System.currentTimeMillis() + 60000
+        while (CraftNativeMedia.local(targetContext, address) == null && System.currentTimeMillis() < until) Thread.sleep(25)
+        check(CraftNativeMedia.local(targetContext, address) != null, "the durable worker recovers the complete file without another keep")
     }
     override fun onStart() {
         val result = android.os.Bundle()
@@ -80,10 +98,11 @@ class DownloadProbe : android.app.Instrumentation() {
                     val until = System.currentTimeMillis() + 25000
                     while (!partial() && System.currentTimeMillis() < until) Thread.sleep(25)
                     check(partial(), "download is in progress before process death")
+                    check(CraftNativeMedia.local(targetContext, restart) == null, "interrupted process never published a partial video")
                     android.os.Process.killProcess(android.os.Process.myPid())
                 }
                 "recover" -> {
-                    check(CraftNativeMedia.local(targetContext, restart) == null, "interrupted process never published a partial video")
+                    awaitCached(restart)
                     check(keep(restart), "retry after process death downloads a complete video")
                     val media = android.media.MediaMetadataRetriever()
                     try {
@@ -98,12 +117,34 @@ class DownloadProbe : android.app.Instrumentation() {
                     check(!keep(broken), "truncated transfer fails")
                     check(CraftNativeMedia.local(targetContext, broken) == null, "truncated transfer is not playable cache")
                     val root = CraftNativeMedia.file(targetContext, broken).parentFile!!
-                    val brokenTarget = CraftNativeMedia.file(targetContext, broken)
-                    check(root.listFiles()?.none { it.name.endsWith(".part") && it.name != "${brokenTarget.name}.part" } != false, "a failed transfer leaves only its own part, to resume")
-                    check(keep(broken), "same URL retries successfully, at once")
-                    check(root.listFiles()?.none { it.name.endsWith(".part") } != false, "a finished transfer leaves no staging files")
-                    val queued = "$base/queued.mp4"
+                    check(CraftNativeMedia.part(targetContext, broken).length() > 0, "a truncated transfer retains bytes for resumption")
+                    awaitCached(broken)
+                    check(keep(broken), "same URL retries successfully")
+                    val retry = "$base/retry.mp4"
+                    check(!keep(retry), "a separate interrupted transfer reports its failure")
+                    check(keep(retry), "an explicit retry runs immediately, without waiting for backoff")
+                    check(root.listFiles()?.none { it.name.endsWith(".part") } != false, "finished retries leave no staging files")
                     val work = androidx.work.WorkManager.getInstance(targetContext)
+                    val settled = "$base/settled.mp4"
+                    val settledName = "craft-media:${CraftNativeMedia.digest(settled)}:any"
+                    val settledRequest = androidx.work.OneTimeWorkRequestBuilder<SettledMediaAttemptWorker>()
+                        .addTag("craft-media").addTag("craft-media:${CraftNativeMedia.digest(settled)}")
+                        .addTag("craft-media:generation:${CraftNativeMedia.generation(targetContext)}").build()
+                    work.enqueueUniqueWork(settledName, androidx.work.ExistingWorkPolicy.KEEP, settledRequest).result.get()
+                    val settledDeadline = System.currentTimeMillis() + 10000
+                    var settledInfo = work.getWorkInfoById(settledRequest.id).get()!!
+                    while ((settledInfo.state != androidx.work.WorkInfo.State.RUNNING || !settledInfo.progress.getBoolean("craft.media.attemptSettled", false)) && System.currentTimeMillis() < settledDeadline) {
+                        Thread.sleep(25)
+                        settledInfo = work.getWorkInfoById(settledRequest.id).get()!!
+                    }
+                    check(settledInfo.state == androidx.work.WorkInfo.State.RUNNING && settledInfo.progress.getBoolean("craft.media.attemptSettled", false), "the settled attempt still has WorkManager's running identity")
+                    check(keep(settled), "an explicit keep replaces a settled running attempt immediately")
+                    // REPLACE can prune the old WorkSpec. Inspect the current
+                    // unique chain rather than requiring the removed row.
+                    val replacement = work.getWorkInfosForUniqueWork(settledName).get()
+                    check(replacement.size == 1 && replacement.single().id != settledRequest.id && replacement.single().state != androidx.work.WorkInfo.State.CANCELLED, "the settled work identity was replaced, not joined")
+
+                    val queued = "$base/queued.mp4"
                     val queuedName = "craft-media:${CraftNativeMedia.digest(queued)}:any"
                     val queuedRequest = androidx.work.OneTimeWorkRequestBuilder<CraftNativeMediaWorker>()
                         .setInitialDelay(10, java.util.concurrent.TimeUnit.SECONDS)

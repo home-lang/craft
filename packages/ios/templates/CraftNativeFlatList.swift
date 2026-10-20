@@ -371,24 +371,9 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     @objc private func keyboardTap() {
         guard keyboardShouldPersistTaps != "always" else { return }
         let point = keyboardTapGesture.location(in: self)
-        var hit = hitTest(point, with: nil)
-        var onControl = false
-        var onButton = false
-        while let view = hit, view !== self {
-            if view is UIButton { onButton = true }
-            if view is UIControl || !(view.gestureRecognizers ?? []).isEmpty { onControl = true; break }
-            hit = view.superview
+        craftHandleKeyboardTap(in: self, hit: hitTest(point, with: nil), persistTaps: keyboardShouldPersistTaps) {
+            self.craftScreenController?.forgetFocusedInput()
         }
-        if keyboardShouldPersistTaps == "handled", onControl { return }
-        // A button keeps the keyboard: its press gives the focus straight
-        // back. Ending editing first only let the keyboard's inset go while
-        // the finger was down, the button moved out from under it, and the
-        // press was lost.
-        if onButton { return }
-        // Otherwise the keyboard goes; after a tap on nothing, for good (the
-        // next render must not bring the last input back).
-        if !onControl { craftScreenController?.forgetFocusedInput() }
-        window?.endEditing(true)
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {

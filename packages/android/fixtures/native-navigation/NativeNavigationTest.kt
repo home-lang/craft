@@ -784,6 +784,19 @@ class NativeNavigationTest {
         }
         try {
             awaitView(activity, "home-title")
+            val homeTab = node("craft-tab-/")
+            assertEquals("Home", homeTab.contentDescription.toString())
+            assertEquals(Button::class.java.name, homeTab.className.toString())
+            assertTrue(homeTab.isSelected)
+            val detailsTab = node("craft-tab-/details")
+            assertEquals("Details", detailsTab.contentDescription.toString())
+            assertFalse(detailsTab.isSelected)
+            assertTrue("The native tab did not accept its accessibility click",
+                detailsTab.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            awaitView(activity, "details-title")
+            assertTrue(node("craft-tab-/details").isSelected)
+            assertTrue(node("craft-tab-/").performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            awaitView(activity, "home-title")
             val title = node("home-title")
             assertEquals("Home", title.text.toString())
             assertEquals("The test identity must not become a spoken label", null, title.contentDescription)
@@ -1113,7 +1126,7 @@ class NativeNavigationTest {
             val templateFirst = awaitView(activity, "grid-template-rows-first")
             val templateThird = awaitView(activity, "grid-template-rows-third")
             assertEquals(templateFirst.height, templateThird.height)
-            assertTrue("explicit grid rows did not fill the definite height", templateThird.top - templateFirst.top > (30 * density).toInt())
+            assertEquals("explicit grid rows did not fill the definite height", 44.0 * density, (templateThird.top - templateFirst.top).toDouble(), 1.0)
             val fractionalGrid = awaitView(activity, "grid-fractional-wrap")
             val fractionalFirst = awaitView(activity, "grid-fractional-first")
             val fractionalSecond = awaitView(activity, "grid-fractional-second")
@@ -1883,10 +1896,19 @@ class NativeNavigationTest {
                 people.scrollTo(0, (peopleContent?.height ?: 0) - people.height)
             }
             SystemClock.sleep(150)
-            assertTrue(
-                "ScrollView sticky header did not remain pinned",
-                screenTop(peopleHeader) >= screenTop(people) + (8 * density).toInt() - 1,
-            )
+            instrumentation.runOnMainSync {
+                // Sticky headers stay at the native host's effective viewport
+                // edge, including its authored content inset.
+                val headerTop = screenTop(peopleHeader)
+                val viewportTop = screenTop(people) + peopleContent.paddingTop
+                val firstChild = (peopleContent as? ViewGroup)?.getChildAt(0)
+                val layout = "scrollY=${people.scrollY} headerTop=${peopleHeader.top} translationY=${peopleHeader.translationY} contentHeight=${peopleContent.height} viewportHeight=${people.height} firstChild=${firstChild?.tag} firstTranslation=${firstChild?.translationY} headerIsDirectChild=${peopleHeader.parent === peopleContent} focus=${activity.currentFocus?.tag} refreshing=${peopleHost.isRefreshing}"
+                assertTrue("ScrollView did not retain the requested scroll: $layout", people.scrollY > 0)
+                assertTrue(
+                    "ScrollView sticky header did not remain pinned: header=$headerTop viewport=$viewportTop $layout",
+                    kotlin.math.abs(headerTop - viewportTop) <= 1,
+                )
+            }
             val peopleLayouts = awaitView(activity, "people-layout-status") as TextView
             val initialRowLayouts = peopleLayouts.text.toString().substringAfterLast(": ").toInt()
             assertTrue("ScrollView rows did not report layout", initialRowLayouts > 0)

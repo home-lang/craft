@@ -41,9 +41,23 @@ final class NativeNavigationUITests: XCTestCase {
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
+    /// A scroll view can extend behind the software keyboard. Its covered
+    /// portion is not a surface on which a real page drag can begin.
+    private func visibleViewport(_ scroll: XCUIElement) -> CGRect {
+        var viewport = scroll.frame
+        let keyboard = XCUIApplication().keyboards.firstMatch
+        if keyboard.exists {
+            let covered = viewport.intersection(keyboard.frame)
+            if !covered.isNull && covered.width >= viewport.width - 1 {
+                viewport.size.height = max(0, covered.minY - viewport.minY)
+            }
+        }
+        return viewport
+    }
+
     private func inside(_ element: XCUIElement, _ scroll: XCUIElement) -> Bool {
         let frame = element.frame
-        let viewport = scroll.frame
+        let viewport = visibleViewport(scroll)
         return !frame.isEmpty && frame.minY >= viewport.minY - 0.5 && frame.maxY <= viewport.maxY + 0.5
     }
 
@@ -193,25 +207,31 @@ final class NativeNavigationUITests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        XCTAssertTrue(element.waitForExistence(timeout: 10), "missing control before scrolling", file: file, line: line)
+        guard element.waitForExistence(timeout: 10) else {
+            XCTFail("missing control before scrolling", file: file, line: line)
+            return
+        }
         if let root { reveal(scroll, in: root, file: file, line: line) }
         let application = XCUIApplication()
         var activeScrollViews: Set<String> = [scroll.identifier]
         if let root { activeScrollViews.insert(root.identifier) }
-        for attempt in 0..<24 {
+        // Budget for actual distance while requiring the same fully visible,
+        // hittable target and retaining a hard bound on manual drags.
+        let distanceToTarget = abs(element.frame.midY - visibleViewport(scroll).midY)
+        let attempts = min(128, max(24, Int(ceil(distanceToTarget / 200)) + 8))
+        for attempt in 0..<attempts {
             if inside(element, scroll) && element.isHittable { return }
-            let viewport = scroll.frame
-            let competingTypes: [XCUIElement.ElementType] = [.picker, .pickerWheel, .datePicker, .slider, .switch]
-            let controls = competingTypes.flatMap { type in
-                scroll.descendants(matching: type).allElementsBoundByIndex.map { $0.frame }
-            }
-            // Keyboard avoidance insets content without changing the scroll
-            // frame. A drag in that covered area would type instead of scroll.
+            let scrollFrame = scroll.frame
+            let viewport = visibleViewport(scroll)
+            // Native value controls, selection and nested scrolling retain
+            // their gesture ownership; search the remaining visible gaps.
+            let trackingTypes: [XCUIElement.ElementType] = [.scrollView, .picker, .pickerWheel, .datePicker, .slider, .switch, .stepper, .textField, .secureTextField, .textView, .segmentedControl]
+            let controls = scroll.descendants(matching: .any)
+                .matching(NSPredicate(format: "elementType IN %@", trackingTypes.map { NSNumber(value: $0.rawValue) }))
+                .allElementsBoundByIndex.map { $0.frame }
             let keyboards = application.keyboards.allElementsBoundByIndex.map { $0.frame }
-            // The prediction strip is a sibling scroll surface above the
-            // keyboard's key-area AX frame, outside the app scroll's subtree.
-            // Include actual application-wide bounds, excluding the scroll
-            // receiving the drag and its explicitly supplied outer scroll.
+            // Prediction strips can be sibling scroll surfaces outside the
+            // app's subtree. Exclude only the active scroll and its root.
             let scrolling = application.scrollViews.allElementsBoundByIndex.map { (identifier: $0.identifier, frame: $0.frame) }
             let competing = manualScrollBlockers(
                 controls: controls + keyboards,
@@ -219,11 +239,14 @@ final class NativeNavigationUITests: XCTestCase {
                 excluding: activeScrollViews
             ).map { $0.insetBy(dx: -4, dy: -4) }
                 .filter { !$0.isEmpty && $0.intersects(viewport) }
-            let start = manualScrollOrigin(in: viewport, avoiding: competing)
-            guard let start else {
+            guard let origin = manualScrollOrigin(in: viewport, avoiding: competing) else {
                 XCTFail("no safe manual scroll origin: target=\(element.frame), viewport=\(viewport), competing=\(competing)", file: file, line: line)
                 return
             }
+            let start = CGVector(
+                dx: (viewport.minX + origin.dx * viewport.width - scrollFrame.minX) / scrollFrame.width,
+                dy: (viewport.minY + origin.dy * viewport.height - scrollFrame.minY) / scrollFrame.height
+            )
             // Content moves the opposite way to the finger, which may leave
             // a short scroll view: the drag stays its own until it lifts.
             let distance = max(-240, min(240, element.frame.midY - viewport.midY))
@@ -306,6 +329,42 @@ final class NativeNavigationUITests: XCTestCase {
         swipeTab(app, left: false)
         XCTAssertTrue(home.waitForExistence(timeout: 10))
         XCTAssertEqual(home.frame.minX, baseline.minX, accuracy: 1)
+    }
+
+    func testDraggingFromAButtonScrollsWithoutActivatingIt() {
+        let app = XCUIApplication()
+        app.launch()
+        let scroll = app.scrollViews["native-root-scroll"]
+        let button = app.buttons["toggle-safe-area"]
+        let marker = app.staticTexts["home-title"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+        XCTAssertTrue(button.waitForExistence(timeout: 10))
+        let baseline = marker.frame.minY
+        let start = button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -120)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertLessThan(marker.frame.minY, baseline - 30, "A drag that starts on a button must scroll the list")
+        XCTAssertEqual(app.staticTexts["safe-area-status"].label, "Safe edges: top,bottom", "Scrolling must cancel the button's tap")
+    }
+
+    func testMultilineInputKeepsKeyboardFocusWhenTapped() {
+        let app = XCUIApplication()
+        app.launch()
+        let root = app.scrollViews["native-root-scroll"]
+        XCTAssertTrue(root.waitForExistence(timeout: 10))
+        let notes = app.textViews["notes-input"]
+        reveal(notes, in: root)
+        notes.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "The scroll container dismissed the text area's keyboard")
+        // A native tap can place the caret anywhere. Exercise the review edit
+        // interaction explicitly instead of assuming insertion is at the end.
+        notes.press(forDuration: 1)
+        let selectAll = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Select All")).firstMatch
+        XCTAssertTrue(selectAll.waitForExistence(timeout: 5), "The text area must retain its native selection menu")
+        selectAll.tap()
+        notes.typeText("Draft edited")
+        XCTAssertEqual(notes.value as? String, "Draft edited")
+        notes.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "Tapping the text area again must preserve editing")
     }
 
     func testHorizontalCarouselKeepsItsSwipe() {
@@ -751,7 +810,7 @@ final class NativeNavigationUITests: XCTestCase {
         let templateThird = app.otherElements["grid-template-rows-third"]
         XCTAssertTrue(templateRows.waitForExistence(timeout: 5) && templateFirst.exists && templateThird.exists)
         XCTAssertEqual(templateFirst.frame.height, templateThird.frame.height, accuracy: 2, "explicit grid rows did not use equal tracks")
-        XCTAssertGreaterThan(templateThird.frame.minY, templateFirst.frame.minY + 30, "explicit grid rows did not fill the definite height")
+        XCTAssertEqual(templateThird.frame.minY - templateFirst.frame.minY, 44, accuracy: 1, "explicit grid rows did not fill the definite height")
         let fractionalGrid = app.otherElements["grid-fractional-wrap"]
         let fractionalFirst = app.otherElements["grid-fractional-first"]
         let fractionalSecond = app.otherElements["grid-fractional-second"]

@@ -19,6 +19,15 @@ export interface MobileMediaCacheTestOptions {
   log?: (line: string) => void
 }
 
+/** Keep the probe on the complete shipped downloader, including its durable worker. */
+export function androidMediaProbeSource(shell: string): string {
+  return ['internal object CraftNativeMedia', 'internal class CraftResumableDownload', 'internal class CraftNativeMediaWorker'].map(declaration => {
+    const source = shell.match(new RegExp(`${declaration}\\b[\\s\\S]*?\\n\\}`))?.[0]
+    if (!source) throw new Error(`Android media implementation missing: ${declaration}`)
+    return source
+  }).join('\n\n')
+}
+
 /** Real ENOSPC, cache cleanup, retry, coalescing and offline video decode on an isolated native probe. */
 export async function verifyMobileMediaCache(options: MobileMediaCacheTestOptions): Promise<{ platform: string, requests: Record<string, number> }> {
   if (options.platform !== 'ios' && options.platform !== 'android') throw new Error('Choose ios or android')
@@ -81,7 +90,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
         }
         const empty = path.endsWith('/empty.mp4')
         const partial = path.endsWith('/partial.mp4')
-        const cut = (path.endsWith('/broken.mp4') || path.endsWith('/restart.mp4')) && n === 1
+        const cut = (path.endsWith('/broken.mp4') || path.endsWith('/retry.mp4') || path.endsWith('/restart.mp4')) && n === 1
         const slow = path.endsWith('/slow.mp4') || (path.endsWith('/restart.mp4') && n === 1)
         socket.write(`HTTP/1.1 ${partial ? '206 Partial Content' : '200 OK'}\r\nContent-Type: video/mp4\r\nContent-Length: ${empty ? 0 : bytes.length}\r\nConnection: close\r\n\r\n`)
         if (empty) { socket.end();
@@ -176,12 +185,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
       serial = options.device || ''
       if (!/^emulator-\d+$/.test(serial)) throw new Error('Select a disposable Android emulator with ANDROID_SERIAL')
       const shell = await Bun.file(join(root, 'android/templates/CraftNativeShell.kt.template')).text()
-      // The media object, and what it hands transfers to: the WorkManager
-      // worker that runs each keep and the resumable fetch it makes.
-      const pieces = ['internal object CraftNativeMedia {', 'internal class CraftResumableDownload(', 'internal class CraftNativeMediaWorker(']
-        .map(start => shell.match(new RegExp(`${start.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?\\n\\}`))?.[0])
-      if (pieces.some(piece => !piece)) throw new Error('Android media implementation missing')
-      const media = pieces.join('\n\n')
+      const media = androidMediaProbeSource(shell)
       const android = join(scratch, 'android')
       const app = join(android, 'app')
       const sources = join(app, 'src/main/java/dev/craft/mediaprobe')
@@ -189,7 +193,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
       await Bun.write(join(android, 'settings.gradle.kts'), 'pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositories { google(); mavenCentral() } }\nrootProject.name = "HQDownloadProbe"\ninclude(":app")')
       await Bun.write(join(android, 'build.gradle.kts'), 'plugins { id("com.android.application") version "8.9.1" apply false; id("org.jetbrains.kotlin.android") version "2.0.21" apply false }')
       await Bun.write(join(android, 'local.properties'), `sdk.dir=${sdk}\n`)
-      await Bun.write(join(android, 'gradle.properties'), 'org.gradle.jvmargs=-Xmx768m\norg.gradle.workers.max=2\nandroid.useAndroidX=true\n')
+      await Bun.write(join(android, 'gradle.properties'), 'android.useAndroidX=true\norg.gradle.jvmargs=-Xmx768m\norg.gradle.workers.max=2\n')
       await Bun.write(join(app, 'build.gradle.kts'), `plugins { id("com.android.application");
   id("org.jetbrains.kotlin.android") }\nandroid { namespace = "${packageName}";
   compileSdk = 36;
@@ -201,7 +205,7 @@ export async function verifyMobileMediaCache(options: MobileMediaCacheTestOption
   kotlinOptions { jvmTarget = "17" } }
 dependencies { implementation("androidx.work:work-runtime-ktx:2.9.1") }`)
       await Bun.write(join(app, 'src/main/AndroidManifest.xml'), `<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/><application android:usesCleartextTraffic="true" android:label="HQ Download Probe"/><instrumentation android:name=".DownloadProbe" android:targetPackage="${packageName}"/></manifest>`)
-      await Bun.write(join(sources, 'DownloadProbe.kt'), `package ${packageName}\nimport android.content.Context\nimport android.content.SharedPreferences\nimport android.net.Uri\nimport android.os.Handler\nimport android.os.Looper\nimport org.json.JSONObject\nimport java.io.File\nimport java.util.concurrent.ConcurrentHashMap\nimport java.util.concurrent.Executors\ninternal data class CraftNativeCapabilityResult(val data: Any? = null, val code: String? = null, val message: String? = null)\n${media}\n${await Bun.file(join(fixtures, 'media-cache.kt')).text()}`)
+      await Bun.write(join(sources, 'DownloadProbe.kt'), `package ${packageName}\nimport android.content.Context\nimport android.content.SharedPreferences\nimport android.net.Uri\nimport android.os.Handler\nimport android.os.Looper\nimport org.json.JSONObject\nimport java.io.File\nimport java.util.concurrent.Executors\nimport java.util.concurrent.ConcurrentHashMap\ninternal data class CraftNativeCapabilityResult(val data: Any? = null, val code: String? = null, val message: String? = null)\n${media}\n${await Bun.file(join(fixtures, 'media-cache.kt')).text()}`)
       await run([options.gradle || process.env.GRADLE_EXECUTABLE || 'gradle', ...(options.online ? [] : ['--offline']), '--no-daemon', ':app:assembleDebug'], android)
       print(await run([adb, '-s', serial, 'install', '-r', join(app, 'build/outputs/apk/debug/app-debug.apk')]))
       const base = `http://10.0.2.2:${server.port}/android`
@@ -231,6 +235,8 @@ dependencies { implementation("androidx.work:work-runtime-ktx:2.9.1") }`)
         await probe('interrupt', true)
         if (counts.get('/android/restart.mp4') !== 1) throw new Error('Android process did not start interrupted download')
         await probe('recover')
+        if (counts.get('/android/retry.mp4') !== 2) throw new Error('Android explicit retry did not fetch once more immediately')
+        if (counts.get('/android/settled.mp4') !== 1) throw new Error('Android explicit keep did not replace the settled running attempt exactly once')
         if (!resumed.has('/android/restart.mp4')) throw new Error('Android did not resume the interrupted download from its part file')
         if (counts.get('/android/slow.mp4') !== 1) throw new Error('Android duplicate fetch: keep did not coalesce')
         if (counts.get('/android/queued.mp4') !== 1) throw new Error('Android queued work was replaced instead of joined')

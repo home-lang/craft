@@ -20,7 +20,7 @@ type Job = {
 }
 const release = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/release.yml'), 'utf8')) as { jobs: Record<string, Job> }
 const artifactDownload = 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093'
-const stxCompilerCommit = '617826427dea89a203e7f6d254dffea211bad1ba'
+const stxCompilerCommit = '9d003f90714dc5c36daf262aaaa285a9671245e7'
 const needs = (job: Job) => typeof job.needs === 'string' ? [job.needs] : job.needs ?? []
 const steps = (job: Job) => job.steps?.map(step => step.run ?? '').join('\n') ?? ''
 
@@ -115,6 +115,20 @@ test('mobile device jobs use the same pinned stx compiler', () => {
     expect(step.run).toBe('bun install --frozen-lockfile')
 })
 
+test('native compiler jobs use a supported Bun and preserve its frozen lockfile', () => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
+  for (const name of ['ios-native', 'ios-simulator', 'android-emulator', 'android-navigation']) {
+    const job = workflow.jobs[name]
+    const jobSteps = job.steps ?? []
+    const tool = jobSteps.findIndex(step => step.uses === 'oven-sh/setup-bun@v2' && step.with?.['bun-version'] === '1.4.3')
+    const install = jobSteps.findIndex(step => step['working-directory'] === '.stx-compiler')
+    expect(tool).toBeGreaterThanOrEqual(0)
+    expect(install).toBeGreaterThan(tool)
+    expect(jobSteps[install].run).toBe('bun install --frozen-lockfile')
+    expect(steps(job)).not.toContain('bun install --no-save')
+  }
+})
+
 test('native iOS suites and protocol checks have independent required jobs', () => {
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
   const native = workflow.jobs['ios-native']
@@ -133,6 +147,35 @@ test('native iOS suites and protocol checks have independent required jobs', () 
   expect(summary.steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-native.result')
   for (const name of ['ios-native', 'ios-simulator', 'ios-zig-slice'])
     expect(workflow.jobs[name].env?.DEVELOPER_DIR).toBe('/Applications/Xcode_26.2.app/Contents/Developer')
+})
+
+test('navigation shards retain both complete XCTest targets and focused selection', () => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
+  const native = workflow.jobs['ios-native']
+  const expression = (native.strategy?.matrix as unknown as { suite: string }).suite
+  const navigation = native.steps?.find(step => step.name === 'Test native multi-screen navigation')
+  const evaluate = (value: string, scope: string, selectors = '', suite = '') => runInNewContext(value.replace(/^\$\{\{\s*|\s*\}\}$/g, ''), {
+    inputs: { scope, selectors }, matrix: { suite }, fromJSON: JSON.parse,
+    startsWith: (text: string, prefix: string) => text.startsWith(prefix), cancelled: () => false,
+  }, { timeout: 100 })
+  for (const scope of ['', 'all'])
+    expect(evaluate(expression, scope)).toEqual(['uikit', 'navigation-unit', 'navigation-ui-core', 'navigation-ui-controls'])
+  expect(evaluate(expression, 'ios-navigation')).toEqual(['navigation-unit', 'navigation-ui-core', 'navigation-ui-controls'])
+  expect(evaluate(expression, 'ios-render')).toEqual(['uikit'])
+  const focused = 'NativeNavigationUITests/NativeNavigationUITests/testMultilineInputKeepsKeyboardFocusWhenTapped'
+  expect(evaluate(expression, 'ios-navigation', focused)).toEqual(['navigation'])
+  expect(evaluate(navigation!.env!.CRAFT_ONLY_TESTING, 'all', '', 'navigation-unit')).toBe('NativeNavigationUnitTests')
+  for (const [suite, group] of [['navigation-ui-core', 'core'], ['navigation-ui-controls', 'controls']]) {
+    expect(evaluate(navigation!.env!.CRAFT_ONLY_TESTING, 'all', '', suite)).toBe('')
+    expect(evaluate(navigation!.env!.CRAFT_NATIVE_NAVIGATION_GROUP, 'all', '', suite)).toBe(group)
+  }
+  expect(evaluate(navigation!.env!.CRAFT_ONLY_TESTING, 'ios-navigation', focused, 'navigation')).toBe(focused)
+  expect(evaluate(navigation!.env!.CRAFT_NATIVE_NAVIGATION_GROUP, 'ios-navigation', focused, 'navigation')).toBe('')
+  for (const suite of ['navigation-unit', 'navigation-ui-core', 'navigation-ui-controls', 'navigation'])
+    expect(evaluate(navigation!.if!, 'all', '', suite)).toBe(true)
+  expect(evaluate(navigation!.if!, 'all', '', 'uikit')).toBe(false)
+  expect(native.strategy?.['fail-fast']).toBe(false)
+  expect(workflow.jobs['mobile-summary'].steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-native.result')
 })
 
 test('mobile device jobs preserve runner diagnostics when the harness fails', () => {
@@ -206,11 +249,48 @@ test('every publishing path depends on release identity validation', () => {
   expect(release.jobs.npm.if).toBe("${{ !cancelled() && needs.validate-release.result == 'success' && needs.release-sbom.result == 'success' && needs.prepare-npm.result == 'success' && needs.publish-release.result == 'success' }}")
 })
 
+test('tag publication requires the complete source and native acceptance workflows', () => {
+  for (const [name, file] of [['source-acceptance', 'ci.yml'], ['native-acceptance', 'mobile-e2e.yml']]) {
+    const gate = release.jobs[name]
+    expect(gate.uses).toBe(`./.github/workflows/${file}`)
+    expect(needs(gate)).toEqual(['validate-release'])
+    expect(gate.if).toBeUndefined()
+    expect(gate.with).toBeUndefined() // A release cannot request a focused suite.
+    const called = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows', file), 'utf8')) as { on: Record<string, unknown> }
+    expect(called.on.workflow_call).toEqual({}) // No selectors or diagnostic inputs are accepted by callers.
+  }
+  for (const name of ['pantry', 'publish-release']) {
+    expect(needs(release.jobs[name])).toContain('source-acceptance')
+    expect(needs(release.jobs[name])).toContain('native-acceptance')
+    expect(release.jobs[name].if).toBeUndefined()
+  }
+  function prerequisites(name: string, found = new Set<string>()): Set<string> {
+    for (const dependency of needs(release.jobs[name])) {
+      if (found.has(dependency)) continue
+      found.add(dependency)
+      prerequisites(dependency, found)
+    }
+    return found
+  }
+  for (const name of ['pantry', 'publish-release', 'publish-pantry', 'npm', 'notify-registry']) {
+    expect(prerequisites(name).has('source-acceptance')).toBe(true)
+    expect(prerequisites(name).has('native-acceptance')).toBe(true)
+  }
+})
+
+test('called source and native acceptance have independent concurrency groups', () => {
+  const parse = (file: string): { concurrency: { group: string } } => Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows', file), 'utf8'))
+  const source = parse('ci.yml').concurrency.group
+  const native = parse('mobile-e2e.yml').concurrency.group
+  expect(source.startsWith('source-ci-')).toBe(true)
+  expect(native.startsWith('mobile-e2e-')).toBe(true)
+})
+
 test('registry indexing waits for the public release and all of its verification gates', () => {
   const notify = release.jobs['notify-registry']
   expect(notify).toBeDefined()
   expect(needs(notify)).toEqual(['publish-release', 'publish-pantry'])
-  expect(needs(release.jobs['publish-release']).sort()).toEqual(['attach-release-sbom', 'prepare-npm', 'validate-release', 'verify-desktop-downloads', 'verify-macos-downloads', 'verify-release'])
+  expect(needs(release.jobs['publish-release']).sort()).toEqual(['attach-release-sbom', 'native-acceptance', 'prepare-npm', 'source-acceptance', 'validate-release', 'verify-desktop-downloads', 'verify-macos-downloads', 'verify-release'])
   expect(release.jobs['publish-release'].if).toBeUndefined() // A failed or skipped gate cannot publish a draft.
   expect(notify.if).toBeUndefined() // Default success gating: never bypass failed prerequisites.
   expect(steps(notify)).toContain('https://registry.pantry.dev/api/rebuild')

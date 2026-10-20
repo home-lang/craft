@@ -172,6 +172,25 @@ final class NativeNavigationUnitTests: XCTestCase {
         CraftChrome.shared.selected = "/"
     }
 
+    func testVerticalNativeScrollDoesNotPreventTheHorizontalTabGesture() throws {
+        _ = shell.tabTapped("/details", reselect: false)
+        let details = try XCTUnwrap(stack("/details"))
+        details.view.layoutIfNeeded()
+        func scroll(in view: UIView) -> UIScrollView? {
+            if view.accessibilityIdentifier == "people-list" { return view as? UIScrollView }
+            return view.subviews.lazy.compactMap { scroll(in: $0) }.first
+        }
+        let people = try XCTUnwrap(scroll(in: details.view))
+        let tabPan = try XCTUnwrap(shell.view.gestureRecognizers?.compactMap { $0 as? UIPanGestureRecognizer }.first)
+        XCTAssertFalse(people.alwaysBounceHorizontal)
+        XCTAssertLessThanOrEqual(people.contentSize.width, people.bounds.width + 1)
+        XCTAssertTrue(shell.gestureRecognizer(tabPan, shouldRecognizeSimultaneouslyWith: people.panGestureRecognizer),
+                      "the vertical list's pan must not win the horizontal tab gesture")
+        people.alwaysBounceHorizontal = true
+        XCTAssertFalse(shell.gestureRecognizer(tabPan, shouldRecognizeSimultaneouslyWith: people.panGestureRecognizer),
+                       "a horizontal scroller must keep its own gesture")
+    }
+
     func testNativeLinkRetainsItsTapRecognizerAcrossUnrelatedUpdates() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
@@ -224,6 +243,46 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertTrue(text.isSelectable)
         XCTAssertFalse(text.isEditable)
         XCTAssertFalse(text.isScrollEnabled)
+    }
+
+    func testKeyedRowButtonKeepsItsNativeHitTargetAndDispatchAfterInputReordersRows() async throws {
+        let home = try XCTUnwrap(stack("/"))
+        let screen = try XCTUnwrap(home.topViewController as? CraftNativeScreenController)
+        func find(_ id: String, in view: UIView) -> UIView? {
+            if view.accessibilityIdentifier == id { return view }
+            return view.subviews.lazy.compactMap { find(id, in: $0) }.first
+        }
+        await displayWait("keyed input mounted") { find("navigation-input-b", in: screen.view) != nil }
+        let input = try XCTUnwrap(find("navigation-input-b", in: screen.view) as? UITextField)
+        XCTAssertTrue(input.becomeFirstResponder())
+        input.text = "draft"
+        input.sendActions(for: .editingChanged)
+        await displayWait("input-driven keyed reorder") {
+            find("navigation-input-c", in: screen.view) != nil
+        }
+        XCTAssertTrue(input === find("navigation-input-b", in: screen.view))
+        let button = try XCTUnwrap(find("navigation-select-b", in: screen.view) as? UIButton)
+        let scroll = try XCTUnwrap(find("native-root-scroll", in: screen.view) as? UIScrollView)
+        // Becoming first responder animates the scroll view's bounds. During
+        // that transition UIKit legitimately keeps the scroll view as the hit
+        // target. Sample the retained button after the native geometry settles.
+        await displayWait("keyed row keyboard geometry settled", diagnostic: {
+            "bounds=\(scroll.bounds), animations=\(scroll.layer.animationKeys() ?? [])"
+        }) {
+            screen.view.layoutIfNeeded()
+            return scroll.layer.animationKeys()?.isEmpty ?? true
+        }
+        scroll.scrollRectToVisible(button.convert(button.bounds, to: scroll), animated: false)
+        window.layoutIfNeeded()
+        await renderFrames()
+        let point = button.convert(CGPoint(x: button.bounds.midX, y: button.bounds.midY), to: window)
+        let hit = window.hitTest(point, with: nil)
+        XCTAssertTrue(hit === button || hit?.isDescendant(of: button) == true,
+                      "The retained button's visible center hit \(String(describing: hit)) at \(point), button frame \(button.frame)")
+        button.sendActions(for: .touchUpInside)
+        await displayWait("retained row button callback") {
+            (find("keyed-list-status", in: screen.view) as? UILabel)?.text == "Selected: b"
+        }
     }
 
     func testRepeatedSelectorsRetainDistinctProtocolViewsAcrossReorders() throws {

@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { join, resolve } from 'node:path'
 import { bootSimulator, build, init, pickSimulator } from '../src/index'
 import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './insert-project-targets'
+import { nativeNavigationGroup, verifyNativeNavigationResults } from './native-navigation-groups'
 import { nativeNavigationResultBundle } from './native-navigation-result'
 import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
@@ -20,7 +21,7 @@ function run(args: string[], cwd: string): void {
     throw new Error(`${args[0]} exited with ${result.exitCode}`)
 }
 
-function runXcodeTests(args: string[], cwd: string, resultBundle: string): void {
+function runXcodeTests(args: string[], cwd: string, resultBundle: string, expectedTestCount?: number): void {
   console.log(args.join(' '))
   const result = Bun.spawnSync(args, { cwd, stdout: 'inherit', stderr: 'inherit' })
   const evidence = process.env.CRAFT_NATIVE_NAVIGATION_RESULT
@@ -29,8 +30,7 @@ function runXcodeTests(args: string[], cwd: string, resultBundle: string): void 
     if (summary.exitCode !== 0) throw new Error(`Could not read XCTest results: ${summary.stderr.toString()}`)
     const counts = JSON.parse(summary.stdout.toString())
     if (evidence) writeFileSync(`${resolve(evidence)}.summary.json`, summary.stdout)
-    if (counts.result !== 'Passed' || !Number.isInteger(counts.totalTestCount) || counts.totalTestCount < 1 || counts.passedTests !== counts.totalTestCount || counts.failedTests !== 0 || counts.skippedTests !== 0)
-      throw new Error(`Expected passed native navigation tests with no empty selection or skips: ${JSON.stringify(counts)}`)
+    verifyNativeNavigationResults(counts, expectedTestCount)
     console.log(`XCTest verified ${counts.passedTests} passed tests, zero failures and skips`)
     return
   }
@@ -140,7 +140,10 @@ try {
     const resultBundle = nativeNavigationResultBundle(workspace, process.env.CRAFT_NATIVE_NAVIGATION_RESULT)
     const selectedTest = process.env.CRAFT_NATIVE_NAVIGATION_TEST
     const selectedTarget = process.env.CRAFT_ONLY_TESTING
-    const selection = selectedTarget ? selectedTarget.split(',').map(target => target.trim()).filter(Boolean).map(target => `-only-testing:${target}`) : selectedTest
+    const group = process.env.CRAFT_NATIVE_NAVIGATION_GROUP
+    if (group && (selectedTarget || selectedTest)) throw new Error('A required native UI group cannot be combined with focused selectors')
+    const groupCases = group ? nativeNavigationGroup(readFileSync(join(fixture, 'NativeNavigationUITests.swift'), 'utf8'), group) : undefined
+    const selection = groupCases ? groupCases.map(target => `-only-testing:${target}`) : selectedTarget ? selectedTarget.split(',').map(target => target.trim()).filter(Boolean).map(target => `-only-testing:${target}`) : selectedTest
       ? [`-only-testing:NativeNavigationUITests/NativeNavigationUITests/${selectedTest}`]
       : []
     const xcodeArgs = [
@@ -153,11 +156,12 @@ try {
     // launching a hosted XCTest bundle, even after compilation has finished.
     run([...xcodeArgs, 'build-for-testing'], output)
     runXcodeTests([
+      // Retain live XCTest activity as well as the structured result bundle.
       ...xcodeArgs.filter(arg => arg !== '-quiet'),
       '-resultBundlePath', resultBundle,
       ...selection,
       'test-without-building',
-    ], output, resultBundle)
+    ], output, resultBundle, groupCases?.length)
     console.log('Native navigation simulator tests passed')
   }
 }

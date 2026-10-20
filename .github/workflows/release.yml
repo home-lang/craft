@@ -29,6 +29,22 @@ jobs:
       - name: Review dependency advisories
         run: bun scripts/advisory-policy.ts
 
+  # Relative reusable workflows check the exact tagged commit. Main may keep
+  # moving while these full suites run; publication remains tied to this tag.
+  source-acceptance:
+    name: accept exact release source
+    needs: validate-release
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  native-acceptance:
+    name: accept exact native runtimes
+    needs: validate-release
+    uses: ./.github/workflows/mobile-e2e.yml
+    permissions:
+      contents: read
+
   release-sbom:
     needs: validate-release
     uses: ./.github/workflows/sbom.yml
@@ -40,7 +56,7 @@ jobs:
   pantry:
     # The reusable SBOM workflow includes the vulnerability scan. Publishing
     # must wait for its existing Critical gate, not merely attach it afterward.
-    needs: [validate-release, release-sbom]
+    needs: [validate-release, release-sbom, source-acceptance, native-acceptance]
     name: pantry (${{ matrix.platform.name }})
     strategy:
       fail-fast: false
@@ -681,7 +697,7 @@ jobs:
 
   publish-release:
     name: publish complete verified release
-    needs: [validate-release, verify-release, verify-macos-downloads, verify-desktop-downloads, attach-release-sbom, prepare-npm]
+    needs: [validate-release, source-acceptance, native-acceptance, verify-release, verify-macos-downloads, verify-desktop-downloads, attach-release-sbom, prepare-npm]
     runs-on: ubuntu-latest
     permissions:
       contents: write

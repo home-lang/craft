@@ -2,6 +2,34 @@
 import { test } from 'bun:test'
 import { runKotlinFixture } from './testing'
 
+test('snaps authored padding to the nearest physical pixel at fractional density', async () => {
+  const template = await Bun.file(new URL('../templates/MainActivityNative.kt.template', import.meta.url)).text()
+  const padding = template.match(/internal fun craftNativePadding\([^]*?\n\}/)?.[0]
+  const number = template.match(/private fun craftNativeNumber\([^]*?\n    \?\.takeIf \{ it\.isFinite\(\) \}/)?.[0]
+  if (!padding || !number) throw new Error('Native padding normalization is missing')
+  await runKotlinFixture(`
+import kotlin.math.roundToInt
+
+class JSONObject(private val values: Map<String, Any?>) {
+    fun opt(name: String): Any? = values[name]
+}
+${number}
+${padding}
+
+fun main() {
+    val density = 2.625f
+    check(craftNativePadding(JSONObject(mapOf("padding" to 4)), "padding", 0, density) == 11)
+    check(craftNativePadding(JSONObject(mapOf("padding" to 8)), "padding", 0, density) == 21)
+    check(craftNativePadding(JSONObject(mapOf("padding" to 4)), "padding", 0, 1f) == 4)
+    for (invalid in listOf(null, -1, Double.NaN, Double.POSITIVE_INFINITY, true, "4")) {
+        check(craftNativePadding(JSONObject(mapOf("padding" to invalid)), "padding", 7, density) == 7)
+    }
+    check(craftNativePadding(null, "padding", 7, density) == 7)
+    println("PASS native padding rounds once to the nearest physical pixel and retains invalid-value defaults")
+}
+`)
+}, 180_000)
+
 test('sizes occupied and empty explicit grid rows after padding and fractional gaps', async () => {
   const template = await Bun.file(new URL('../templates/MainActivityNative.kt.template', import.meta.url)).text()
   const allocation = template.match(/        val rowHeights = if \(gridRows != null\) \{[\s\S]*?\n        \} else naturalRowHeights/)?.[0]
@@ -31,6 +59,34 @@ fun main() {
     expectTracks(listOf(0f, 0f), allocate(emptyList(), 2, 0, 4f))
     expectTracks(listOf(12f, 18f), allocate(listOf(12f, 18f), null, 84, 4f))
     println("PASS explicit grid rows allocate occupied and empty tracks with padding, fractional gaps and overflow rows")
+}
+`)
+}, 180_000)
+
+
+test('encodes shared grid counts as the unsigned integer fields in the native ABI', async () => {
+  const template = await Bun.file(new URL('../templates/MainActivityNative.kt.template', import.meta.url)).text()
+  const columns = template.match(/^[^\n]*put(?:Enum)?\(base, 29, node\.gridColumns[^\n]*$/m)?.[0]
+  const rows = template.match(/^[^\n]*if \(explicitRowsAware\) put(?:Enum)?\(base, 34, [^\n]*$/m)?.[0]
+  const directColumns = template.match(/^[^\n]*put(?:Enum)?\(base, 29, 1f?\)[^\n]*$/m)?.[0]
+  if (!columns || !rows || !directColumns) throw new Error('Shared grid count serialization is missing')
+  await runKotlinFixture(`
+data class GridNode(val gridColumns: Int, val gridRows: Int?)
+
+fun main() {
+    val base = 0
+    val node = GridNode(2, 3)
+    val explicitRowsAware = true
+    val nodeData = FloatArray(35) { Float.NaN }
+    fun put(base: Int, index: Int, value: Float) { nodeData[base + index] = value }
+    fun putEnum(base: Int, index: Int, value: Int) { put(base, index, Float.fromBits(value)) }
+${columns}
+${rows}
+    check(nodeData[29].toRawBits() == 2) { "grid_columns is not encoded as u32" }
+    check(nodeData[34].toRawBits() == 3) { "grid_rows is not encoded as u32" }
+${directColumns}
+    check(nodeData[29].toRawBits() == 1) { "direct layout grid_columns default is not encoded as u32" }
+    println("PASS native grid counts retain the integer bit patterns consumed by Zig")
 }
 `)
 }, 180_000)

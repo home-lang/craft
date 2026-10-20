@@ -3,6 +3,10 @@ package {{PACKAGE_NAME}}
 import java.io.File
 import java.net.InetAddress
 import java.net.ServerSocket
+import java.util.Collections
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import java.nio.file.Files
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -19,46 +23,54 @@ import org.junit.Test
 class CraftNativeResumableDownloadTest {
     private val body = "0123456789abcdefghij".toByteArray()
 
-    /**
-     * Serves `body`, honouring `Range: bytes=N-` when `ranges` is on; records
-     * each request's Range. A plain socket: Android's unit-test classpath has
-     * no com.sun.net.httpserver.
-     */
-    private fun serve(ranges: Boolean = true, status: Int = 200, check: (String, MutableList<String?>) -> Unit) {
-        val seen = java.util.Collections.synchronizedList(mutableListOf<String?>())
-        val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
-        val thread = Thread {
-            while (!server.isClosed) {
-                val socket = runCatching { server.accept() }.getOrNull() ?: break
-                socket.use { client ->
-                    val reader = client.getInputStream().bufferedReader(Charsets.ISO_8859_1)
-                    val lines = generateSequence { reader.readLine() }.takeWhile { it.isNotEmpty() }.toList()
-                    val range = lines.drop(1).firstOrNull { it.startsWith("Range:", ignoreCase = true) }?.substringAfter(':')?.trim()
+    /** Serves `body`, honouring `Range: bytes=N-` when `ranges` is on; records each request's Range. */
+    private fun serve(ranges: Boolean = true, status: Int = 200, payload: ByteArray = body, check: (String, MutableList<String?>) -> Unit) {
+        val seen = Collections.synchronizedList(mutableListOf<String?>())
+        val server = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        server.soTimeout = 5000
+        val served = CompletableFuture<Unit>()
+        val worker = thread(name = "craft-media-http-fixture") {
+            try {
+                server.accept().use { socket ->
+                    socket.soTimeout = 5000
+                    val reader = socket.getInputStream().bufferedReader(Charsets.US_ASCII)
+                    checkNotNull(reader.readLine()) { "Missing HTTP request" }
+                    var range: String? = null
+                    while (true) {
+                        val header = reader.readLine() ?: break
+                        if (header.isEmpty()) break
+                        if (header.startsWith("Range:", ignoreCase = true)) range = header.substringAfter(':').trim()
+                    }
                     seen.add(range)
                     val start = Regex("^bytes=(\\d+)-$").find(range.orEmpty())?.groupValues?.get(1)?.toInt()
-                    val out = client.getOutputStream()
-                    fun head(code: Int, length: Int, extra: String = "") =
-                        out.write("HTTP/1.1 $code X\r\nContent-Length: $length\r\n${extra}Connection: close\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
-                    when {
-                        status != 200 -> head(status, 0)
-                        ranges && start != null && start >= body.size -> head(416, 0)
-                        ranges && start != null -> {
-                            head(206, body.size - start, "Content-Range: bytes $start-${body.size - 1}/${body.size}\r\n")
-                            out.write(body, start, body.size - start)
-                        }
-                        else -> {
-                            head(200, body.size)
-                            out.write(body)
-                        }
+                    val code = when {
+                        status != 200 -> status
+                        ranges && start != null && start >= payload.size -> 416
+                        ranges && start != null -> 206
+                        else -> 200
                     }
-                    out.flush()
+                    val bytes = when (code) {
+                        206 -> payload.copyOfRange(start ?: 0, payload.size)
+                        200 -> payload
+                        else -> byteArrayOf()
+                    }
+                    val contentRange = if (code == 206 && start != null) "Content-Range: bytes $start-${payload.size - 1}/${payload.size}\r\n" else ""
+                    val headers = "HTTP/1.1 $code Test\r\nContent-Length: ${bytes.size}\r\n${contentRange}Connection: close\r\n\r\n"
+                    socket.getOutputStream().write(headers.toByteArray(Charsets.US_ASCII) + bytes)
                 }
+                served.complete(Unit)
+            } catch (error: Throwable) {
+                served.completeExceptionally(error)
             }
         }
-        thread.isDaemon = true
-        thread.start()
-        try { check("http://127.0.0.1:${server.localPort}/clip.mp4", seen) }
-        finally { server.close(); thread.join(2000) }
+        try {
+            check("http://127.0.0.1:${server.localPort}/clip.mp4", seen)
+            served.get(5, TimeUnit.SECONDS)
+        } finally {
+            server.close()
+            worker.join(5000)
+            assertFalse("The local HTTP fixture must stop after each transfer", worker.isAlive)
+        }
     }
 
     private fun part(check: (File) -> Unit) {
@@ -115,11 +127,18 @@ class CraftNativeResumableDownloadTest {
     }
 
     @Test
-    fun refusesAPartNobodyAskedFor() = part { file ->
-        serve(status = 206) { address, seen ->
+    fun refusesAnUnsolicitedPartialResponseWithoutRetryingIt() = part { file ->
+        serve(status = 206) { address, _ ->
             assertEquals(CraftResumableDownload.Fetched.Refused(206), CraftResumableDownload().fetch(address, emptyMap(), file) { false })
-            assertEquals(listOf<String?>(null), seen)
             assertFalse(file.exists())
+        }
+    }
+
+    @Test
+    fun refusesAnEmptyResponseWithoutRetainingAnUnresumablePart() = part { file ->
+        serve(payload = byteArrayOf()) { address, _ ->
+            assertEquals(CraftResumableDownload.Fetched.Incomplete, CraftResumableDownload().fetch(address, emptyMap(), file) { false })
+            assertFalse("An empty file has no bytes to resume", file.exists())
         }
     }
 

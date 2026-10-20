@@ -788,6 +788,19 @@ test "optional fields are type-checked when present" {
     }
 }
 
+test "the native script thread matches Swift optional string decoding" {
+    inline for (.{ "\"nativeScriptThread\":\"main\"", "\"nativeScriptThread\":\"background\"", "\"nativeScriptThread\":null" }) |good| {
+        const json = try completeConfig(testing.allocator, good);
+        defer testing.allocator.free(json);
+        try testing.expectEqual(std.enums.values(Feature).len, parse(testing.allocator, json).count());
+    }
+    inline for (.{ "\"nativeScriptThread\":true", "\"nativeScriptThread\":1", "\"nativeScriptThread\":[]" }) |bad| {
+        const json = try completeConfig(testing.allocator, bad);
+        defer testing.allocator.free(json);
+        try testing.expectEqual(@as(usize, 0), parse(testing.allocator, json).count());
+    }
+}
+
 test "number fields take any JSON number and nothing else" {
     // `Double` decodes an integer as readily as a fraction; a quoted number
     // or a boolean throws. Checked against `swiftc`.

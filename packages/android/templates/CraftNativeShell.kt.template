@@ -21,6 +21,9 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.view.AccessibilityDelegateCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.content.ContextCompat
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -838,7 +841,17 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             cell.background = rippleBackground()
             cell.contentDescription = tab.title
             cell.tag = "craft-tab-${tab.id}"
+            cell.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+            ViewCompat.setAccessibilityDelegate(cell, object : AccessibilityDelegateCompat() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.viewIdResourceName = "craft-tab-${tab.id}"
+                    info.className = android.widget.Button::class.java.name
+                    info.isSelected = host.isSelected
+                }
+            })
             val icon = TextView(context)
+            icon.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             icon.text = CraftNativeSymbols.glyph(tab.symbol)
             icon.textSize = 22f
             icon.minWidth = dp(26)
@@ -846,6 +859,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
             icon.gravity = Gravity.CENTER
             icon.includeFontPadding = false
             val label = TextView(context)
+            label.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             label.text = tab.title
             label.textSize = 12f
             label.fontFeatureSettings = "tnum"
@@ -1234,6 +1248,7 @@ internal object CraftNativeSymbols {
  * transfer finishes on its own; the next keep answers from the copy.
  */
 internal object CraftNativeMedia {
+    const val ATTEMPT_SETTLED = "craft.media.attemptSettled"
     private const val TAG = "craft-media"
     private const val PREFS = "craft.media"
     private val lock = Any()
@@ -1301,7 +1316,7 @@ internal object CraftNativeMedia {
             try {
                 if (generation(app) == started) {
                     val pending = work.getWorkInfosForUniqueWork(name).get().any {
-                        "$TAG:generation:$started" in it.tags &&
+                        "$TAG:generation:$started" in it.tags && !it.progress.getBoolean(ATTEMPT_SETTLED, false) &&
                             (it.state == androidx.work.WorkInfo.State.RUNNING ||
                                 (it.state == androidx.work.WorkInfo.State.ENQUEUED && it.runAttemptCount == 0))
                     }
@@ -1349,12 +1364,22 @@ internal object CraftNativeMedia {
      * file where it stopped, moves it into place whole, and answers whoever
      * waits. RETRY leaves the part file for the next attempt.
      */
-    fun transfer(context: Context, address: String, headers: JSONObject, started: Int, attempt: Int, stopped: () -> Boolean): Outcome {
+    fun transfer(context: Context, address: String, headers: JSONObject, started: Int, attempt: Int, beforeAnswer: () -> Unit = {}, stopped: () -> Boolean): Outcome {
+        fun answer(result: CraftNativeCapabilityResult) {
+            // The callback can immediately call keep again. Publish completion
+            // before that callback, while WorkManager may still say RUNNING.
+            synchronized(lock) {
+                // A keep registered after this marker belongs to the next
+                // attempt; it must not enter the old callback batch.
+                beforeAnswer()
+                deliver(context, address, started, result)
+            }
+        }
         // clear() already answered the old generation's waiters. Never answer
         // a new athlete's waiters from an obsolete worker for the same URL.
         if (generation(context) != started) return Outcome.DONE
         local(context, address)?.let {
-            deliver(context, address, started, CraftNativeCapabilityResult(data = describe(address, it)))
+            answer(CraftNativeCapabilityResult(data = describe(address, it)))
             return Outcome.DONE
         }
         val writer = writers.getOrPut(address) { Any() }
@@ -1364,7 +1389,7 @@ internal object CraftNativeMedia {
             if (generation(context) != started) return Outcome.DONE
             if (stopped()) return Outcome.RETRY
             local(context, address)?.let {
-                deliver(context, address, started, CraftNativeCapabilityResult(data = describe(address, it)))
+                answer(CraftNativeCapabilityResult(data = describe(address, it)))
                 return Outcome.DONE
             }
             val target = file(context, address)
@@ -1383,22 +1408,22 @@ internal object CraftNativeMedia {
                 }
                 if (full) {
                     staging.delete()
-                    deliver(context, address, started, CraftNativeCapabilityResult(code = "NO_SPACE", message = error.message ?: "The phone is out of space"))
+                    answer(CraftNativeCapabilityResult(code = "NO_SPACE", message = error.message ?: "The phone is out of space"))
                     return Outcome.DONE
                 }
                 if (stopped()) return Outcome.RETRY
                 // Lost the connection part way: the part waits for the next attempt.
-                deliver(context, address, started, if (!online(context)) queued(address, "offline") else CraftNativeCapabilityResult(code = if (error is java.net.SocketTimeoutException) "TIMEOUT" else "NETWORK_ERROR", message = error.message ?: "media.keep failed"))
+                answer(if (!online(context)) queued(address, "offline") else CraftNativeCapabilityResult(code = if (error is java.net.SocketTimeoutException) "TIMEOUT" else "NETWORK_ERROR", message = error.message ?: "media.keep failed"))
                 return if (attempt < 8) Outcome.RETRY else Outcome.DONE.also { staging.delete() }
             }
             when (fetched) {
                 is CraftResumableDownload.Fetched.Stopped, is CraftResumableDownload.Fetched.Restart -> return Outcome.RETRY
                 is CraftResumableDownload.Fetched.Refused -> {
-                    deliver(context, address, started, CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("status", fetched.status)))
+                    answer(CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("status", fetched.status)))
                     return Outcome.DONE
                 }
                 is CraftResumableDownload.Fetched.Incomplete -> {
-                    deliver(context, address, started, CraftNativeCapabilityResult(code = "NETWORK_ERROR", message = "media.keep received an incomplete file"))
+                    answer(CraftNativeCapabilityResult(code = "NETWORK_ERROR", message = "media.keep received an incomplete file"))
                     return if (attempt < 8) Outcome.RETRY else Outcome.DONE.also { staging.delete() }
                 }
                 is CraftResumableDownload.Fetched.Complete -> Unit
@@ -1410,11 +1435,11 @@ internal object CraftNativeMedia {
                 }
                 target.delete()
                 if (!staging.renameTo(target)) {
-                    deliver(context, address, started, CraftNativeCapabilityResult(code = "IO_ERROR", message = "media.keep could not store the file"))
+                    answer(CraftNativeCapabilityResult(code = "IO_ERROR", message = "media.keep could not store the file"))
                     return Outcome.DONE
                 }
             }
-            deliver(context, address, started, CraftNativeCapabilityResult(data = describe(address, target)))
+            answer(CraftNativeCapabilityResult(data = describe(address, target)))
             return Outcome.DONE
         }
     }
@@ -1432,13 +1457,13 @@ internal object CraftNativeMedia {
         capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     }.getOrDefault(true)
 
-    /** Removes every copy whose address is not in `keep`, and stops their transfers; answers how many files went. */
+    /** Removes idle copies outside `keep` and cancels their jobs; pending keeps retain ownership. */
     fun prune(context: Context, keep: List<String>): Int {
         val wanted = keep.map { digest(it) }.toSet()
         var removed = 0
-        // A keep still waiting owns its address's files and its transfer until it is answered.
-        val active = synchronized(lock) { waiting.keys.map { digest(it) }.toSet() }
         synchronized(lock) {
+            // A keep still waiting owns its files until it is answered.
+            val active = waiting.keys.map { digest(it) }.toSet()
             root(context).listFiles()?.forEach { file ->
                 val owner = file.name.substringBefore('.')
                 // Part files from before transfers resumed (`<sha>.<ext>.<id>.part`) are never picked up again.
@@ -1451,8 +1476,16 @@ internal object CraftNativeMedia {
             runCatching {
                 androidx.work.WorkManager.getInstance(app).getWorkInfosByTag(TAG).get()
                     .filter { !it.state.isFinished }
-                    .filter { info -> info.tags.none { it.startsWith("$TAG:") && it.removePrefix("$TAG:").let { owner -> owner in wanted || owner in active } } }
-                    .forEach { androidx.work.WorkManager.getInstance(app).cancelWorkById(it.id) }
+                    .forEach { info ->
+                        synchronized(lock) {
+                            // The query runs asynchronously: a new keep may now
+                            // own an address that was idle when prune was called.
+                            val active = waiting.keys.map { digest(it) }.toSet()
+                            if (info.tags.none { it.startsWith("$TAG:") && it.removePrefix("$TAG:") in wanted + active }) {
+                                androidx.work.WorkManager.getInstance(app).cancelWorkById(info.id)
+                            }
+                        }
+                    }
             }
         }
         return removed
@@ -1470,9 +1503,10 @@ internal object CraftNativeMedia {
             root(context).listFiles()?.forEach { file ->
                 if (file.delete()) removed++ else failure = java.io.IOException("The video cache could not be cleared")
             }
+            // Schedule cancellation before a new generation can enqueue its work.
+            androidx.work.WorkManager.getInstance(context.applicationContext).cancelAllWorkByTag(TAG)
             callbacks
         }
-        androidx.work.WorkManager.getInstance(context.applicationContext).cancelAllWorkByTag(TAG)
         main.post { answered.forEach { it.answer(CraftNativeCapabilityResult(code = "CANCELLED", message = "The video cache was cleared")) } }
         failure?.let { throw it }
         return removed
@@ -1511,12 +1545,10 @@ internal class CraftResumableDownload(
         if (have > 0) connection.setRequestProperty("Range", "bytes=$have-")
         try {
             val status = connection.responseCode
-            // Part of a file nobody asked a part of: not something to keep.
-            if (status == 206 && have == 0L) return Fetched.Refused(status)
             val resumed = status == 206 && have > 0 && rangeStart(connection.getHeaderField("Content-Range")) == have
             if (status == 416 || (status == 206 && !resumed)) {
                 part.delete()
-                return Fetched.Restart
+                return if (have > 0) Fetched.Restart else Fetched.Refused(status)
             }
             if (status != 200 && !resumed) {
                 part.delete()
@@ -1539,8 +1571,8 @@ internal class CraftResumableDownload(
             // HttpURLConnection inflates gzip itself; a Content-Length is then the compressed size.
             val encoded = connection.getHeaderField("Content-Encoding") != null
             if (size <= 0 || (!encoded && total >= 0 && size != total)) {
-                // Longer than the file says it is: nothing to resume from.
-                if (total in 0 until size) part.delete()
+                // Empty or longer than the file says: nothing useful to resume.
+                if (size <= 0 || total in 0 until size) part.delete()
                 return Fetched.Incomplete
             }
             return Fetched.Complete(size)
@@ -1563,8 +1595,21 @@ internal class CraftNativeMediaWorker(context: Context, parameters: androidx.wor
     override fun doWork(): Result {
         val address = inputData.getString("address") ?: return Result.failure()
         val headers = runCatching { JSONObject(inputData.getString("headers") ?: "{}") }.getOrDefault(JSONObject())
-        val outcome = CraftNativeMedia.transfer(applicationContext, address, headers, inputData.getInt("generation", 0), runAttemptCount) { isStopped }
-        return if (outcome == CraftNativeMedia.Outcome.RETRY) Result.retry() else Result.success()
+        val started = inputData.getInt("generation", 0)
+        return try {
+            setProgressAsync(androidx.work.workDataOf(CraftNativeMedia.ATTEMPT_SETTLED to false)).get()
+            val outcome = CraftNativeMedia.transfer(applicationContext, address, headers, started, runAttemptCount,
+                beforeAnswer = { setProgressAsync(androidx.work.workDataOf(CraftNativeMedia.ATTEMPT_SETTLED to true)).get() }
+            ) { isStopped }
+            if (outcome == CraftNativeMedia.Outcome.RETRY) Result.retry() else Result.success()
+        } catch (error: Exception) {
+            if (error is InterruptedException) Thread.currentThread().interrupt()
+            // A replacement owns the address's new waiters. A real progress
+            // storage failure still needs an answer instead of a lost callback.
+            if (!isStopped) CraftNativeMedia.deliver(applicationContext, address, started,
+                CraftNativeCapabilityResult(code = "IO_ERROR", message = error.message ?: "media.keep could not store worker progress"))
+            if (isStopped) Result.retry() else Result.failure()
+        }
     }
 }
 

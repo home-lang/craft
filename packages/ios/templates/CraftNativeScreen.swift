@@ -3954,6 +3954,23 @@ func craftScrollGesture(_ gesture: UIGestureRecognizer, runsWith other: UIGestur
     return false
 }
 
+/// Scroll containers observe taps without cancelling native input focus or
+/// selection. Text views are not UIControls, and their selection subviews may
+/// have recognizers of their own, so inspect the whole ancestor chain.
+func craftHandleKeyboardTap(in container: UIView, hit: UIView?, persistTaps: String, forgetFocus: () -> Void) {
+    guard persistTaps != "always" else { return }
+    var candidate = hit
+    var onControl = false
+    while let view = candidate, view !== container {
+        if view is UITextField || view is UITextView || view is UIButton { return }
+        if view is UIControl || !(view.gestureRecognizers ?? []).isEmpty { onControl = true }
+        candidate = view.superview
+    }
+    if persistTaps == "handled", onControl { return }
+    if !onControl { forgetFocus() }
+    container.window?.endEditing(true)
+}
+
 private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDelegate {
     let contentStack = CraftNativeFlowView()
     private let keyboardTapGesture = UITapGestureRecognizer()
@@ -4226,24 +4243,9 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
     @objc private func keyboardTap() {
         guard keyboardShouldPersistTaps != "always" else { return }
         let point = keyboardTapGesture.location(in: self)
-        var hit = hitTest(point, with: nil)
-        var onControl = false
-        var onButton = false
-        while let view = hit, view !== self {
-            if view is UIButton { onButton = true }
-            if view is UIControl || !(view.gestureRecognizers ?? []).isEmpty { onControl = true; break }
-            hit = view.superview
+        craftHandleKeyboardTap(in: self, hit: hitTest(point, with: nil), persistTaps: keyboardShouldPersistTaps) {
+            self.craftScreenController?.forgetFocusedInput()
         }
-        if keyboardShouldPersistTaps == "handled", onControl { return }
-        // A button keeps the keyboard: its press gives the focus straight
-        // back. Ending editing first only let the keyboard's inset go while
-        // the finger was down, the button moved out from under it, and the
-        // press was lost.
-        if onButton { return }
-        // Otherwise the keyboard goes; after a tap on nothing, for good (the
-        // next render must not bring the last input back).
-        if !onControl { craftScreenController?.forgetFocusedInput() }
-        window?.endEditing(true)
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {

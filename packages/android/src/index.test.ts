@@ -1524,8 +1524,9 @@ describe('Craft Android builder', () => {
     expect(shell).toContain('val matching = pending.filter { it.generation == started }')
     expect(shell).toContain('work.enqueueUniqueWork(name, if (pending) androidx.work.ExistingWorkPolicy.KEEP else androidx.work.ExistingWorkPolicy.REPLACE, request).result.get()')
     // A prune never stops the transfer a keep still waits on; a 206 nobody asked for is refused.
-    expect(shell).toContain('owner in wanted || owner in active')
-    expect(shell).toContain('if (status == 206 && have == 0L) return Fetched.Refused(status)')
+    expect(shell).toContain('owner !in active && (owner !in wanted || stale)')
+    expect(shell).toContain('if (status == 416 || (status == 206 && !resumed))')
+    expect(shell).toContain('return if (have > 0) Fetched.Restart else Fetched.Refused(status)')
     expect(shell).toContain('if (wifiOnly) androidx.work.NetworkType.UNMETERED else androidx.work.NetworkType.CONNECTED')
     // Resumed from the part file an earlier attempt left.
     expect(shell).toContain('connection.setRequestProperty("Range", "bytes=$have-")')
