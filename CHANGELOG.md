@@ -1,5 +1,35 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.249...v0.0.250)
+
+## 🐛 Bug Fixes
+
+- **testing**: type into a field only once it holds the keyboard ([9a11f9a](https://github.com/craft-native/craft/commit/9a11f9a)) _(by Chris Breuer)_
+- **ios**: copy a shared link as text ([1e4320f](https://github.com/craft-native/craft/commit/1e4320f)) _(by Chris Breuer)_
+- **ios**: avoid sibling keyboard surfaces in scroll fixtures ([f32eb66](https://github.com/craft-native/craft/commit/f32eb66)) _(by Chris Breuer)_
+- **ios**: retain native test evidence during cancellation ([42459e9](https://github.com/craft-native/craft/commit/42459e9)) _(by Chris Breuer)_
+- **ios**: surface required simulator permission failures ([f292816](https://github.com/craft-native/craft/commit/f292816)) _(by Chris Breuer)_
+- **ios**: derive manual scroll origins from visible geometry ([d05bd86](https://github.com/craft-native/craft/commit/d05bd86)) _(by Chris Breuer)_
+- **ios**: keep manual scrolling off native value controls ([accdc85](https://github.com/craft-native/craft/commit/accdc85)) _(by Chris Breuer)_
+- **android**: reconnect the owned stale emulator transport ([6dc1392](https://github.com/craft-native/craft/commit/6dc1392)) _(by Chris Breuer)_
+- **android**: coalesce media work within its cache generation ([6c72442](https://github.com/craft-native/craft/commit/6c72442)) _(by Chris Breuer)_
+- **native**: deliver modal dismissal after close requests ([86575e7](https://github.com/craft-native/craft/commit/86575e7)) _(by Chris Breuer)_
+- **ios**: keep fields scrollable and honor hidden indicators ([36d8872](https://github.com/craft-native/craft/commit/36d8872)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: a drag from a button scrolls, a modal form clears the keyboard ([6a1ebd5](https://github.com/craft-native/craft/commit/6a1ebd5)) _(by Chris Breuer)_
+- **ios**: require independent modal dismiss lifecycle ([ead0a6b](https://github.com/craft-native/craft/commit/ead0a6b)) _(by Chris Breuer)_
+- **android**: verify replacement through its current work identity ([439b2a8](https://github.com/craft-native/craft/commit/439b2a8)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- qualify mobile CI with the published Pantry 101 toolchain ([884ede5](https://github.com/craft-native/craft/commit/884ede5)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.248...v0.0.249)
 
 ## 🚀 Features
