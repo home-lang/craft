@@ -964,6 +964,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps native video playback available on both hosts', () => {
+    expect(componentTypes).toContain('currentTime?: number')
     expect(ios).toContain('CraftNativeVideoView')
     expect(ios).toContain('case "video": return "Video"')
     expect(android).toContain('"video" -> "Video"')
@@ -981,11 +982,15 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private var playIntent: Boolean? = null')
     expect(android).toContain('private var userPaused = false')
     expect(android).toContain('private var ended = false')
+    expect(android).toContain('currentTime = props.opt("currentTime")')
+    expect(android).toContain('private fun applyPendingSeek()')
     expect(android).toContain('!userPaused && !ended')
     expect(android).toContain('ended = true')
     expect(ios).toContain('private var playIntent: Bool?')
     expect(ios).toContain('private var userPaused = false')
     expect(ios).toContain('private var ended = false')
+    expect(ios).toContain('currentTime: props["currentTime"]')
+    expect(ios).toContain('private func applyPendingSeek()')
     expect(ios).toContain('if !userPaused && !ended { player.play() }')
     expect(ios).toContain('self.ended = !self.loops')
     expect(android).toContain('notifyPictureInPicture(active: Boolean)')

@@ -595,6 +595,8 @@ export interface VideoProps extends BaseProps {
   autoPlay?: boolean
   loop?: boolean
   muted?: boolean
+  /** Controlled playback position in seconds. */
+  currentTime?: number
   paused?: boolean
   resizeMode?: 'contain' | 'cover' | 'stretch'
   /**

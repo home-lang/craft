@@ -1090,6 +1090,8 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
     private var playingObservation: NSKeyValueObservation?
     private var timeObserver: Any?
     private var loops = false
+    private var requestedTime: Double?
+    private var pendingSeek: Double?
     private var wasPlaying: Bool?
     private var playIntent: Bool?
     private var userPaused = false
@@ -1170,8 +1172,21 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
         CraftNativeSounds.releaseSession()
     }
 
-    func configure(source: Any?, autoplay: Bool, paused: Bool, loop: Bool, muted: Bool, controls: Bool, resizeMode: String?, pictureInPicture: Bool = false) {
+    private func applyPendingSeek() {
+        guard let target = pendingSeek, let player, let item = player.currentItem, item.status == .readyToPlay else { return }
+        let current = seconds(player.currentTime())
+        pendingSeek = nil
+        guard abs(current - target) > 0.25 else { return }
+        player.seek(to: CMTime(seconds: target, preferredTimescale: 600))
+    }
+
+    func configure(source: Any?, autoplay: Bool, paused: Bool, loop: Bool, muted: Bool, currentTime: Any?, controls: Bool, resizeMode: String?, pictureInPicture: Bool = false) {
         let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String ?? ""
+        let nextTime = number(currentTime).map(Double.init).map { max(0, $0) }
+        if nextTime != requestedTime {
+            requestedTime = nextTime
+            pendingSeek = nextTime
+        }
         let nextShouldPlay = autoplay && !paused
         if playIntent != nextShouldPlay {
             userPaused = false
@@ -1184,6 +1199,7 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
             userPaused = false
             ended = false
             loops = false
+            pendingSeek = requestedTime
             // The copy `craft.media.keep` put on the phone plays in place of
             // the address, so a kept video plays with no signal.
             let kept = CraftNativeMedia.local(uri)
@@ -1205,6 +1221,7 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
             observe(next)
         }
         guard let player else { return }
+        applyPendingSeek()
         player.isMuted = muted
         // A muted video makes no sound, so it leaves the session as it is.
         if muted { releaseSession() } else { claimSession() }
@@ -1258,7 +1275,9 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
                 DispatchQueue.main.async {
                     guard let self, self.player?.currentItem === item else { return }
                     switch item.status {
-                    case .readyToPlay: self.fire("onLoad", ["duration": self.seconds(item.duration)])
+                    case .readyToPlay:
+                        self.applyPendingSeek()
+                        self.fire("onLoad", ["duration": self.seconds(item.duration)])
                     case .failed: self.fire("onError", ["message": item.error?.localizedDescription ?? "The video could not be played"])
                     default: break
                     }
@@ -1306,6 +1325,8 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
         playerController.player = nil
         playerController.delegate = nil
         sourceURI = ""
+        requestedTime = nil
+        pendingSeek = nil
         playIntent = nil
         userPaused = false
         ended = false
@@ -7610,6 +7631,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 paused: (props["paused"] as? Bool) == true,
                 loop: (props["loop"] as? Bool) == true,
                 muted: (props["muted"] as? Bool) == true,
+                currentTime: props["currentTime"],
                 controls: (props["controls"] as? Bool) == true,
                 resizeMode: style["resizeMode"] as? String ?? props["resizeMode"] as? String,
                 pictureInPicture: (props["pictureInPicture"] as? Bool) == true
