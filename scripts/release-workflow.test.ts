@@ -198,13 +198,18 @@ test('mobile device jobs preserve runner diagnostics when the harness fails', ()
 })
 
 test('workflow setup uses a known Pantry CLI instead of resolving latest', () => {
-  for (const file of ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml', 'native-lifecycle.yml']) {
+  for (const file of ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml', 'native-lifecycle.yml', 'windows-source-provenance.yml']) {
     const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/', file), 'utf8')) as { jobs: Record<string, Job> }
     for (const [name, job] of Object.entries(workflow.jobs)) {
       for (const step of job.steps ?? []) {
         if (step.uses?.startsWith('pantry-pm/pantry/packages/action@')) {
-          expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe('0.11.101')
-          expect(step.uses, `${file} ${name} must pin the matching action source`).toBe('pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf')
+          // Windows needs the published fix that removes workspace links
+          // without following them into the tracked source checkout.
+          const preservesWindowsSources = file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
+          const version = preservesWindowsSources ? '0.11.109' : '0.11.101'
+          const source = preservesWindowsSources ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9' : 'ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf'
+          expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe(version)
+          expect(step.uses, `${file} ${name} must pin the matching action source`).toBe(`pantry-pm/pantry/packages/action@${source}`)
         }
       }
     }
