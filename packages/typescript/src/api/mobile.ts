@@ -2663,6 +2663,11 @@ export interface NativeTabBarOptions {
   tintDark?: string
   /** Whether Craft's horizontal tab-switch gesture may begin over the page. Defaults to true. */
   swipeEnabled?: boolean
+  /** The selected tab highlight. Omit to keep the default capsule. */
+  selection?: {
+    /** Continuous corner radius in points. The highlight height is the upper bound. */
+    cornerRadius?: number
+  }
 }
 
 interface ChromeHandler { postMessage: (message: unknown) => void }

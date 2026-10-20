@@ -137,6 +137,35 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(chrome.selected, "/today")
     }
 
+    func testTabSelectionCornerRadiusIsOptionalAndValidated() {
+        let chrome = CraftChrome.shared
+        let tabs = chrome.tabs
+        let selected = chrome.selected
+        defer {
+            chrome.handle(["type": "tabBar", "tabs": []])
+            chrome.tabs = tabs
+            chrome.selected = selected
+        }
+
+        let payload: [String: Any] = [
+            "type": "tabBar",
+            "tabs": [["id": "/today", "title": "Today", "symbol": "house"]],
+            "selection": ["cornerRadius": 6.0],
+        ]
+        chrome.handle(payload)
+        XCTAssertEqual(chrome.tabSelectionCornerRadius, 6)
+
+        chrome.handle(["type": "tabBar", "tabs": payload["tabs"] as Any])
+        XCTAssertNil(chrome.tabSelectionCornerRadius, "omitting selection keeps the default capsule")
+
+        chrome.handle([
+            "type": "tabBar",
+            "tabs": payload["tabs"] as Any,
+            "selection": ["cornerRadius": -1.0],
+        ])
+        XCTAssertNil(chrome.tabSelectionCornerRadius, "negative radii are ignored")
+    }
+
     func testLiveTabReadingPublishesOnceAndEqualReadingsDoNotRedrawChrome() {
         let chrome = CraftChrome.shared
         let previous = chrome.tabs
@@ -2614,7 +2643,7 @@ final class NativeRenderUnitTests: XCTestCase {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
         let screen: ([String: Any]) -> [String: Any] = { props in
-            document([[
+            self.document([[
                 "type": "Switch",
                 "props": ["key": "consent", "value": props["value"] as Any],
                 "events": ["onValueChange": "consentChanged"],

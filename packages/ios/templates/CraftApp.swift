@@ -686,6 +686,9 @@ final class CraftChrome: ObservableObject {
     /// Whether a hybrid page lets the shell claim horizontal swipes for tabs.
     /// Native screens use their own per-screen `tabSwipeEnabled` option.
     private(set) var tabSwipeEnabled = true
+    /// The selected tab highlight's corner radius. Nil preserves the default
+    /// capsule, while a finite non-negative value opts into a rounded rect.
+    private(set) var tabSelectionCornerRadius: CGFloat?
 
     weak var webView: WKWebView?
     /// What the tab bar covers at the bottom of the screen, in points.
@@ -823,6 +826,7 @@ final class CraftChrome: ObservableObject {
         switch body["type"] as? String {
         case "tabBar":
             pendingHide?.cancel()
+            tabSelectionCornerRadius = Self.selectionCornerRadius(body["selection"])
             tabs = (body["tabs"] as? [[String: Any]] ?? []).compactMap { item in
                 guard let id = item["id"] as? String, let title = item["title"] as? String else { return nil }
                 let badge = (item["badge"] as? String).flatMap { $0.isEmpty ? nil : $0 }
@@ -870,6 +874,15 @@ final class CraftChrome: ObservableObject {
         default:
             break
         }
+    }
+
+    private static func selectionCornerRadius(_ value: Any?) -> CGFloat? {
+        guard let selection = value as? [String: Any],
+              let raw = selection["cornerRadius"] as? NSNumber,
+              raw.doubleValue.isFinite,
+              raw.doubleValue >= 0,
+              raw.doubleValue <= Double(CGFloat.greatestFiniteMagnitude) else { return nil }
+        return CGFloat(raw.doubleValue)
     }
 
     /// A tap on a tab: the page navigates, and says which tab is current.
@@ -1175,7 +1188,7 @@ struct CraftTabBarView: View {
                     }
                     .foregroundStyle(isSelected ? selectedColor : Color.primary)
                     .frame(maxWidth: .infinity, minHeight: 54)
-                    .contentShape(Capsule())
+                    .contentShape(CraftTabSelectionShape(cornerRadius: chrome.tabSelectionCornerRadius))
                 }
                 .buttonStyle(.plain)
                 .accessibilityShowsLargeContentViewer {
@@ -1188,7 +1201,11 @@ struct CraftTabBarView: View {
             }
         }
         .background {
-            CraftTabSelectionIndicator(selected: chrome.tabs.firstIndex(where: { $0.id == chrome.selected }), count: chrome.tabs.count)
+            CraftTabSelectionIndicator(
+                selected: chrome.tabs.firstIndex(where: { $0.id == chrome.selected }),
+                count: chrome.tabs.count,
+                cornerRadius: chrome.tabSelectionCornerRadius
+            )
         }
     }
 
@@ -1230,18 +1247,33 @@ struct CraftTabBarView: View {
     }
 }
 
+private struct CraftTabSelectionShape: Shape {
+    let cornerRadius: CGFloat?
+
+    func path(in rect: CGRect) -> Path {
+        if let cornerRadius {
+            return RoundedRectangle(
+                cornerRadius: min(cornerRadius, min(rect.width, rect.height) / 2),
+                style: .continuous
+            ).path(in: rect)
+        }
+        return Capsule().path(in: rect)
+    }
+}
+
 private struct CraftTabSelectionIndicator: View {
     @ObservedObject private var progress = CraftChrome.shared.tabSwipeProgress
     let selected: Int?
     let count: Int
+    let cornerRadius: CGFloat?
 
     var body: some View {
         GeometryReader { geometry in
             if let position = progress.position ?? selected.map({ CGFloat($0) }) {
                 let width = geometry.size.width / CGFloat(max(1, count))
-                Capsule()
-                    .fill(Color.primary.opacity(0.09))
+                CraftTabSelectionShape(cornerRadius: cornerRadius)
                     .frame(width: width, height: geometry.size.height)
+                    .foregroundStyle(Color.primary.opacity(0.09))
                     .offset(x: position * width)
             }
         }

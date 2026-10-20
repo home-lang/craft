@@ -1236,6 +1236,10 @@ describe('Craft iOS builder', () => {
     expect(tap).not.toContain('FeedbackGenerator')
     expect(swift).toContain('private(set) var tabSwipeEnabled = true')
     expect(swift).toContain('if let swipeEnabled = body["swipeEnabled"] as? Bool { tabSwipeEnabled = swipeEnabled }')
+    expect(swift).toContain('tabSelectionCornerRadius = Self.selectionCornerRadius(body["selection"])')
+    expect(swift).toContain('private struct CraftTabSelectionShape: Shape')
+    expect(swift).toContain('contentShape(CraftTabSelectionShape(cornerRadius: chrome.tabSelectionCornerRadius))')
+    expect(swift).toContain('cornerRadius: chrome.tabSelectionCornerRadius')
     expect(hybrid).toContain('guard CraftChrome.shared.tabSwipeEnabled else { return false }')
   })
 
