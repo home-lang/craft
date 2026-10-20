@@ -1,10 +1,11 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { resolveZig } from './zig'
 
 const source = resolve(import.meta.dir, '..')
 const zig = resolveZig(source)
+console.log('Tracked core project:', JSON.stringify({ file: join(source, 'packages/zig/build.zig'), exists: existsSync(join(source, 'packages/zig/build.zig')) }))
 const root = mkdtempSync(join(tmpdir(), 'craft-core-project-'))
 const core = join(root, 'packages', 'zig')
 try {
