@@ -1612,7 +1612,11 @@ class NativeNavigationTest {
             click(activity, "toggle-nested-popup")
             val nestedPopup = awaitView(activity, "nested-popup")
             awaitText(activity, "nested-popup-content", "Nested popup")
-            val popupRoot = awaitView(activity, "root")
+            // Popups are promoted beside the authored SafeAreaView. Route the
+            // native touch through their shared screen viewport, which owns
+            // outside-tap dismissal, rather than bypassing it through content.
+            val popupRoot = nestedPopup.parent as ViewGroup
+            assertSame("nested popup must share the screen viewport", awaitView(activity, "root").parent, popupRoot)
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()
                 val x = (popupRoot.width - 20).toFloat()
@@ -1636,6 +1640,7 @@ class NativeNavigationTest {
             click(activity, "toggle-popup")
             val popup = awaitView(activity, "native-popup")
             awaitText(activity, "popup-content", "Popup content")
+            assertSame("standalone popup must share the screen viewport", popupRoot, popup.parent)
             val safeRoot = awaitView(activity, "root")
             assertTrue(
                 "non-modal top should use the screenViewport origin, not a second safe-area offset",
