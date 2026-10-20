@@ -1443,6 +1443,7 @@ describe('Craft iOS builder', () => {
     expect(services).toContain('metadata.originalURL = url')
     expect(services).toContain('metadata.title = title')
     expect(services).toContain('subjectForActivityType activityType: UIActivity.ActivityType?) -> String { title }')
+    expect(services).toContain('activityType == .copyToPasteboard ? url.absoluteString : url')
     for (const source of [swift, services]) {
       expect(source).toContain('items.append(CraftShareLink(url: url, title: title))')
       expect(source).not.toContain('if let title = options["title"] as? String, !title.isEmpty { items.append(title) }')
