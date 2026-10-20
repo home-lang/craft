@@ -1001,6 +1001,10 @@ export interface FlatListProps<T> extends ScrollViewBaseProps {
   refreshing?: boolean
 }
 
+/**
+ * @deprecated Grouped SectionList data is deferred until the versioned native
+ * list-data protocol exists. Use keyed child rows with `listRole` instead.
+ */
 export interface SectionListSection<T> {
   data: T[]
   key?: string

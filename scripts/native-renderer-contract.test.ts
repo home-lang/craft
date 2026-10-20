@@ -350,6 +350,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps SectionList on the maintained child-based fallback', () => {
+    expect(componentTypes).toContain('@deprecated Grouped SectionList data is deferred')
     const sectionListProps = componentTypes.match(/export interface SectionListProps<T> extends ScrollViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(sectionListProps).not.toContain('sections?:')
     expect(sectionListProps).not.toContain('renderItem?:')

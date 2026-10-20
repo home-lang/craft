@@ -183,6 +183,9 @@ describe('Component System', () => {
     const circle: CircleProps = { geometry: [0, 12, 4], fill: '#fff' }
     const label: SvgTextProps = { x: 12, y: 21, textAnchor: 'middle', fontSize: 10 }
     const sections: SectionListProps<string> = { children: ['Header', 'Row'] }
+    // SectionListSection remains exported only as a compatibility placeholder;
+    // the native protocol consumes keyed child rows instead.
+    expect(sections.children).toHaveLength(2)
     // Grouped section data is not part of the maintained native protocol.
     // @ts-expect-error sections is intentionally unsupported until the section-data protocol exists.
     sections.sections = [{ title: 'Trails', data: ['Alpine'] }]
