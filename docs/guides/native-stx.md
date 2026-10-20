@@ -73,7 +73,7 @@ renderer.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
-The current pair is pinned to `7e580c2f1c554e7caf138fd09a97815967d2c77f` (STX main),
+The current pair is pinned to `e65c7648b468c99cafc9b08ed36363b9a33bc155` (STX main),
 which preserves authored reconciliation keys and explicit grid row tracks in
 static and reactive native styles, and keeps template indentation out of native
 leaf button labels. Touchable primitives preserve authored accessibility roles
