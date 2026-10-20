@@ -350,6 +350,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps SectionList on the maintained child-based fallback', () => {
+    expect(componentTypes).toContain('@deprecated Grouped SectionList data is deferred')
     const sectionListProps = componentTypes.match(/export interface SectionListProps<T> extends ScrollViewProps \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(sectionListProps).not.toContain('sections?:')
     expect(sectionListProps).not.toContain('renderItem?:')
@@ -359,6 +360,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps FlatList chrome and virtualization on the native child protocol', () => {
+    expect(componentTypes).toContain("listRole?: 'header' | 'item' | 'separator' | 'empty' | 'footer'")
     const flatListProps = componentTypes.match(/export interface FlatListProps<T> extends ScrollViewBaseProps \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(flatListProps).toContain('numColumns?: number')
     expect(flatListProps).not.toContain('data: T[]')
