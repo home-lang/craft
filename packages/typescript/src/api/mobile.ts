@@ -3418,10 +3418,13 @@ export interface HealthLiveWorkoutResult {
 
 export interface HealthLiveWorkoutEvent {
   id: string
-  event: 'state' | 'error'
+  event: 'state' | 'metrics' | 'error'
   state?: 'notStarted' | 'prepared' | 'running' | 'paused' | 'stopped' | 'ended' | 'unknown'
   /** Epoch milliseconds for a state transition. */
   date?: number
+  heartRateBpm?: number
+  activeEnergyCalories?: number
+  distanceMeters?: number
   message?: string
 }
 
@@ -3561,7 +3564,7 @@ export const health = {
     if (typeof window === 'undefined' || typeof getCraftRoot()?.health?.startWorkout !== 'function') return () => {}
     const listener = (event: Event) => {
       const detail = (event as CustomEvent<unknown>).detail as HealthLiveWorkoutEvent | null | undefined
-      if (detail && typeof detail.id === 'string' && (detail.event === 'state' || detail.event === 'error')) callback(detail)
+      if (detail && typeof detail.id === 'string' && (detail.event === 'state' || detail.event === 'metrics' || detail.event === 'error')) callback(detail)
     }
     window.addEventListener('craftHealthWorkout', listener)
     return () => window.removeEventListener('craftHealthWorkout', listener)

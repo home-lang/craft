@@ -419,6 +419,11 @@ describe('native renderer component contract', () => {
     expect(craftTypes).toContain('export interface CraftHealthWorkoutEvent extends CustomEvent')
     expect(craftTypes).toContain('detail: CraftHealthLiveWorkoutEvent;')
     expect(craftTypes).toContain('craftHealthWorkout: CraftHealthWorkoutEvent;')
+    expect(iosHealth).toContain('private final class CraftHealthWorkoutBuilderDelegate: NSObject, HKLiveWorkoutBuilderDelegate')
+    expect(iosHealth).toContain('detail["heartRateBpm"] = value')
+    expect(iosHealth).toContain('detail["activeEnergyCalories"] = value')
+    expect(iosHealth).toContain('detail["distanceMeters"] = value')
+    expect(iosHealth).toContain('onMain { [weak self] in self?.sendWorkout(detail) }')
   })
 
   it('lets every container both hosts draw take children in a mutation', () => {
