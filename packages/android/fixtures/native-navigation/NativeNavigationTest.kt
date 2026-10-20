@@ -1639,7 +1639,13 @@ class NativeNavigationTest {
             assertTrue("dismissed nested popup should be removed", nestedPopupRemoved || nestedPopup.visibility != View.VISIBLE)
             assertEquals("dismissing a nested popup should retain its parent modal", View.VISIBLE, modal.visibility)
             click(activity, "toggle-popup")
-            val popup = awaitView(activity, "native-popup")
+            val popupDensity = activity.resources.displayMetrics.density
+            val popup = awaitView(activity, "native-popup") { view ->
+                kotlin.math.abs(view.left - 24 * popupDensity) <= 1f
+                    && kotlin.math.abs(view.top - 36 * popupDensity) <= 1f
+                    && kotlin.math.abs(view.width - 180 * popupDensity) <= 1f
+                    && kotlin.math.abs(view.height - 72 * popupDensity) <= 1f
+            }
             awaitText(activity, "popup-content", "Popup content")
             assertSame("standalone popup must share the screen viewport", popupRoot, popup.parent)
             val safeRoot = awaitView(activity, "root")

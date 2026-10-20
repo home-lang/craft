@@ -2608,6 +2608,7 @@ private class CraftNativeIconView(context: Context) : TextView(context) {
 }
 
 private class CraftNativeModalView(context: Context) : FrameLayout(context) {
+    var viewportStyle = JSONObject()
     val content = CraftNativeFlexLayout(context)
     private val blocker = View(context)
     private var renderedVisible = false
@@ -2712,6 +2713,7 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
         isClickable = true
         blocksBackground = true
         dismissOnOutsideTap = false
+        viewportStyle = JSONObject()
         blocker.isEnabled = true
         onRequestClose = null
     }
@@ -4998,6 +5000,7 @@ class MainActivity : AppCompatActivity() {
             if (!updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())) return false
         }
         if (applied.isNotEmpty()) {
+            promoteModalOverlays(screen, screen.controls.values)
             scheduleLayoutEvents(screen)
         }
         return true
@@ -5098,13 +5101,31 @@ class MainActivity : AppCompatActivity() {
 
     /** Keep Modal nodes in the screen viewport even when declared in a clipped subtree. */
     private fun promoteModalOverlays(screen: Screen, controls: Collection<View>) {
-        controls.filterIsInstance<CraftNativeModalView>().forEach { modal ->
+        val promoted = mutableSetOf<CraftNativeModalView>()
+        fun promote(modal: CraftNativeModalView) {
+            if (!promoted.add(modal)) return
+            // Native parents change after promotion; the committed tree keeps
+            // logical modal ancestry so a parent scrim stays below its popup.
+            var parentId = screen.protocolIds[modal]?.let { screen.mutations.parentId(it) }
+            while (parentId != null) {
+                (screen.nodeViews[parentId] as? CraftNativeModalView)?.let { promote(it) }
+                parentId = screen.mutations.parentId(parentId)
+            }
+            // Legacy full renders may not have protocol IDs yet.
+            var parent = modal.parent as? View
+            while (parent != null && parent !== screen.view) {
+                val nextParent = parent.parent as? View
+                if (parent is CraftNativeModalView) promote(parent)
+                parent = nextParent
+            }
             if (modal.parent !== screen.view) {
                 (modal.parent as? ViewGroup)?.removeView(modal)
                 screen.view.addView(modal)
+                screen.view.setChildStyle(modal, modal.viewportStyle, resources.displayMetrics.density)
             }
             modal.bringToFront()
         }
+        controls.filterIsInstance<CraftNativeModalView>().forEach { promote(it) }
     }
 
     private fun applyStatusBar(screen: Screen) {
@@ -5475,6 +5496,7 @@ class MainActivity : AppCompatActivity() {
                 // the screen root. Keep the authored layout style with that
                 // promoted child so non-modal absolute coordinates remain in
                 // the screen viewport rather than the old clipped parent.
+                viewportStyle = style
                 screen.view.setChildStyle(this, style, resources.displayMetrics.density)
                 content.configure(style, resources.displayMetrics.density)
                 reconcileChildren(screen, content, children, identity, next, style, previousControls)
