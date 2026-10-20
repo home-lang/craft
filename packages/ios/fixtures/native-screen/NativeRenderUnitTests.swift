@@ -1519,6 +1519,40 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertLessThan(rendered.count, 100)
     }
 
+    /// A screen keeps one view per row, so a second cell UIKit prepares for a
+    /// row on screen (a prefetch, an update) takes that view from the cell
+    /// showing it. That cell stayed on screen at the row's height with nothing
+    /// in it (HQ's Discover: a blank card where the search and chips were, a
+    /// gap between two people).
+    func testFlatListRowsOnScreenTakeTheirViewsBackFromASecondCell() throws {
+        let list = CraftNativeFlatList()
+        list.frame = CGRect(x: 0, y: 0, width: 320, height: 480)
+        let rows: [[String: Any]] = (0..<6).map { ["id": "row-\($0)", "type": "Text", "children": ["Row \($0)"]] }
+        var views: [String: UIView] = [:]
+        let render: CraftNativeFlatList.RenderItem = { node, identity, _ in
+            if let view = views[identity] { return view }
+            let label = UILabel()
+            label.text = (node["children"] as? [String])?.first
+            views[identity] = label
+            return label
+        }
+        list.apply(nodes: rows, horizontal: false, columns: 1, inverted: false, endReachedThreshold: 0.1, renderItem: render, recycleItem: { _ in }, removeItem: { _ in }, endReached: nil)
+        list.layoutIfNeeded()
+        XCTAssertTrue(list.visibleRowsShowTheirViews)
+        let shown = try XCTUnwrap(list.cellForItem(at: IndexPath(item: 0, section: 0)))
+        XCTAssertTrue(try XCTUnwrap(views["row-0"]).isDescendant(of: shown))
+
+        let second = try XCTUnwrap(list.dataSource?.collectionView(list, cellForItemAt: IndexPath(item: 0, section: 0)))
+        XCTAssertFalse(second === shown)
+        XCTAssertTrue(try XCTUnwrap(views["row-0"]).isDescendant(of: second), "the row's one view went to the second cell")
+        XCTAssertFalse(list.visibleRowsShowTheirViews, "the cell on screen lost it")
+
+        list.setNeedsLayout()
+        list.layoutIfNeeded()
+        XCTAssertTrue(list.visibleRowsShowTheirViews)
+        XCTAssertTrue(try XCTUnwrap(views["row-0"]).isDescendant(of: shown), "the cell on screen has its row back")
+    }
+
     func testFlatListForwardsScrollAndMomentumCallbacks() {
         let list = CraftNativeFlatList()
         list.frame = CGRect(x: 0, y: 0, width: 320, height: 160)

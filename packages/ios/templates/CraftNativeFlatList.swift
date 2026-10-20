@@ -63,11 +63,22 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
             onRecycle = nil
         }
 
+        /// Whether the row view this cell is meant to show is in it. UIKit
+        /// can prepare a second cell for a row (a prefetch, an update), and
+        /// the row's one view then moves there: the first cell keeps its
+        /// height and draws nothing.
+        var showsHostedView: Bool { hostedView.map { $0.superview === contentView } ?? true }
+
         func host(_ view: UIView, identity: String) {
             if let shown = representedIdentity, shown != identity { recycle() }
             representedIdentity = identity
-            guard hostedView !== view else { return }
-            hostedView?.removeFromSuperview()
+            // The same view, already here. A view that left for another cell
+            // and is asked for again is put back below.
+            guard hostedView !== view || view.superview !== contentView else { return }
+            // Only a view still in this cell is taken out of it: one that has
+            // since moved to another cell is that cell's now, and pulling it
+            // from there blanked a row on screen.
+            if let shown = hostedView, shown !== view, shown.superview === contentView { shown.removeFromSuperview() }
             hostedView = view
             view.translatesAutoresizingMaskIntoConstraints = false
             contentView.addSubview(view)
@@ -81,8 +92,14 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
 
         func releaseHostedView() {
             recycle()
-            hostedView?.removeFromSuperview()
+            if let shown = hostedView, shown.superview === contentView { shown.removeFromSuperview() }
             hostedView = nil
+        }
+
+        /// Puts this cell's row view back when another cell took it.
+        func reclaimHostedView() {
+            guard let identity = representedIdentity, let view = hostedView, view.superview !== contentView else { return }
+            host(view, identity: identity)
         }
 
         override func preferredLayoutAttributesFitting(
@@ -279,8 +296,20 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     override func layoutSubviews() {
         updateItemEstimate()
         super.layoutSubviews()
+        reclaimVisibleRows()
         craftApplyCornerRadius()
         scrollToPendingTarget()
+    }
+
+    /// A row on screen whose view went to a cell UIKit prepared for the same
+    /// row and then did not show gets it back, rather than staying blank.
+    private func reclaimVisibleRows() {
+        for case let cell as Cell in visibleCells where !cell.showsHostedView { cell.reclaimHostedView() }
+    }
+
+    /// Every row on screen draws its own view (simulator-hosted XCTest).
+    var visibleRowsShowTheirViews: Bool {
+        visibleCells.allSatisfy { ($0 as? Cell)?.showsHostedView ?? true }
     }
 
     /// Scroll to a virtualized row identified by its native testID, id, or key.
