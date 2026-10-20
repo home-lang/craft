@@ -1,5 +1,127 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.254...v0.0.255)
+
+## 🚀 Features
+
+- **android**: add native Google Wallet JWT saves ([42205cf](https://github.com/craft-native/craft/commit/42205cf)) _(by glennmichael123)_
+- **ios**: configure native tab selection shape ([868d78a](https://github.com/craft-native/craft/commit/868d78a)) _(by glennmichael123)_
+- **android**: persist health services workouts ([e944f22](https://github.com/craft-native/craft/commit/e944f22)) _(by glennmichael123)_
+- **android**: retain Health Services workouts ([081a675](https://github.com/craft-native/craft/commit/081a675)) _(by glennmichael123)_
+- **android**: add Health Services generator gate ([0efd52c](https://github.com/craft-native/craft/commit/0efd52c)) _(by glennmichael123)_
+- **native**: honor flex order on mobile ([5eca88c](https://github.com/craft-native/craft/commit/5eca88c)) _(by glennmichael123)_
+- **native**: expose video load lifecycle events ([7a3cc41](https://github.com/craft-native/craft/commit/7a3cc41)) _(by glennmichael123)_
+- **native**: support controlled video seeking ([e39dbd5](https://github.com/craft-native/craft/commit/e39dbd5)) _(by glennmichael123)_
+- **native**: advertise popup presentation capability ([42e58f2](https://github.com/craft-native/craft/commit/42e58f2)) _(by glennmichael123)_
+- **ios**: emit live workout metrics ([dec6355](https://github.com/craft-native/craft/commit/dec6355)) _(by glennmichael123)_
+- **native**: add dismissible non-modal popups ([68428f9](https://github.com/craft-native/craft/commit/68428f9)) _(by glennmichael123)_
+- **android**: add native live workout lifecycle ([441a17d](https://github.com/craft-native/craft/commit/441a17d)) _(by glennmichael123)_
+- **native**: allow non-modal overlay presentation ([24daedc](https://github.com/craft-native/craft/commit/24daedc)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **android**: advance tabs on the first intercepted swipe move ([928373b](https://github.com/craft-native/craft/commit/928373b)) _(by Chris Breuer)_
+- **android**: pass health activity ids to writer ([604ff80](https://github.com/craft-native/craft/commit/604ff80)) _(by glennmichael123)_
+- **android**: release ended health workouts ([0e8b3e8](https://github.com/craft-native/craft/commit/0e8b3e8)) _(by glennmichael123)_
+- **android**: return health workout end results ([9da77b1](https://github.com/craft-native/craft/commit/9da77b1)) _(by glennmichael123)_
+- **android**: complete health services fallback safely ([911cc9c](https://github.com/craft-native/craft/commit/911cc9c)) _(by glennmichael123)_
+- **android**: keep Health Services disabled builds compilable ([074892f](https://github.com/craft-native/craft/commit/074892f)) _(by glennmichael123)_
+- **android**: preflight Health Services capabilities ([c295660](https://github.com/craft-native/craft/commit/c295660)) _(by glennmichael123)_
+- **android**: declare background workout permissions ([85d8d86](https://github.com/craft-native/craft/commit/85d8d86)) _(by glennmichael123)_
+- **ios**: preserve controlled switch tap animation ([627fafa](https://github.com/craft-native/craft/commit/627fafa)) _(by glennmichael123)_
+- **ci**: use full stx compiler revision ([b0e4877](https://github.com/craft-native/craft/commit/b0e4877)) _(by glennmichael123)_
+- **native**: type list chrome slots ([e2b4044](https://github.com/craft-native/craft/commit/e2b4044)) _(by glennmichael123)_
+- **native**: align list types with keyed protocol ([c2e0b54](https://github.com/craft-native/craft/commit/c2e0b54)) _(by glennmichael123)_
+- **native**: align list accessibility roles ([d56f792](https://github.com/craft-native/craft/commit/d56f792)) _(by glennmichael123)_
+- **native**: align popup viewport coordinates ([3f1d50e](https://github.com/craft-native/craft/commit/3f1d50e)) _(by glennmichael123)_
+- **ios**: expose modal back handling to the shell ([d201ab4](https://github.com/craft-native/craft/commit/d201ab4)) _(by glennmichael123)_
+- **ios**: dismiss native modals before route back ([00d74da](https://github.com/craft-native/craft/commit/00d74da)) _(by glennmichael123)_
+- **ios**: route popup outside taps to dismissal ([c40f8c9](https://github.com/craft-native/craft/commit/c40f8c9)) _(by glennmichael123)_
+- **native**: shield popups above modal scrims ([b183629](https://github.com/craft-native/craft/commit/b183629)) _(by glennmichael123)_
+- **native**: place non-modal overlays in screen viewport ([646bb8a](https://github.com/craft-native/craft/commit/646bb8a)) _(by glennmichael123)_
+- **native**: detach released modal overlays ([f94ab8b](https://github.com/craft-native/craft/commit/f94ab8b)) _(by glennmichael123)_
+
+## 📚 Documentation
+
+- **android**: document native Google Wallet saves ([47d18c5](https://github.com/craft-native/craft/commit/47d18c5)) _(by glennmichael123)_
+- **android**: describe Health Services opt-in ([6228116](https://github.com/craft-native/craft/commit/6228116)) _(by glennmichael123)_
+- **native**: mark section data deferred ([7b3a840](https://github.com/craft-native/craft/commit/7b3a840)) _(by glennmichael123)_
+- **native**: document keyed list protocol ([14d0c45](https://github.com/craft-native/craft/commit/14d0c45)) _(by glennmichael123)_
+- **android**: clarify live workout boundary ([0b02cac](https://github.com/craft-native/craft/commit/0b02cac)) _(by glennmichael123)_
+- **native**: define popup placement invalidations ([1b39ba1](https://github.com/craft-native/craft/commit/1b39ba1)) _(by glennmichael123)_
+- **native**: describe popup dismissal ([07d5c3c](https://github.com/craft-native/craft/commit/07d5c3c)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **android**: compile Health Services templates in CI ([40b3b17](https://github.com/craft-native/craft/commit/40b3b17)) _(by glennmichael123)_
+- **ios**: retain popup identity across reopen cycles ([adb7b8f](https://github.com/craft-native/craft/commit/adb7b8f)) _(by glennmichael123)_
+- **android**: avoid duplicate popup root binding ([58ca10c](https://github.com/craft-native/craft/commit/58ca10c)) _(by glennmichael123)_
+- **android**: pin popup protocol alias retention ([eb656b1](https://github.com/craft-native/craft/commit/eb656b1)) _(by glennmichael123)_
+- **ios**: retain popup input identity across reparenting ([417a5ac](https://github.com/craft-native/craft/commit/417a5ac)) _(by glennmichael123)_
+- **native**: verify popup viewport coordinates ([8393c40](https://github.com/craft-native/craft/commit/8393c40)) _(by glennmichael123)_
+- **android**: cover modal back dismissal ([63fe0c0](https://github.com/craft-native/craft/commit/63fe0c0)) _(by glennmichael123)_
+- **ios**: cover modal back dismissal ([b5d3956](https://github.com/craft-native/craft/commit/b5d3956)) _(by glennmichael123)_
+- **ios**: refresh native capability expectations ([3d6b766](https://github.com/craft-native/craft/commit/3d6b766)) _(by glennmichael123)_
+- **native**: cover nested popup dismissal ([e094f39](https://github.com/craft-native/craft/commit/e094f39)) _(by glennmichael123)_
+- isolate Windows workspace source removal ([6f12f54](https://github.com/craft-native/craft/commit/6f12f54)) _(by Chris Breuer)_
+- **build**: reproduce the release reusable source workflow ([0f2e521](https://github.com/craft-native/craft/commit/0f2e521)) _(by Chris Breuer)_
+- **build**: keep source inspection after the original cold build ([b906339](https://github.com/craft-native/craft/commit/b906339)) _(by Chris Breuer)_
+- **build**: inspect tracked source immediately after compilation ([8690aa9](https://github.com/craft-native/craft/commit/8690aa9)) _(by Chris Breuer)_
+- **build**: trace tracked source presence across Windows setup ([c6a2428](https://github.com/craft-native/craft/commit/c6a2428)) _(by Chris Breuer)_
+- **build**: expose native Windows source cache failures ([e2f4d6a](https://github.com/craft-native/craft/commit/e2f4d6a)) _(by Chris Breuer)_
+- **native**: cover popup outside dismissal ([8457435](https://github.com/craft-native/craft/commit/8457435)) _(by glennmichael123)_
+- **native**: refresh renderer contract expectations ([d98f2bd](https://github.com/craft-native/craft/commit/d98f2bd)) _(by glennmichael123)_
+
+## 🤖 Continuous Integration
+
+- **native**: pin released stx compiler ([4e21012](https://github.com/craft-native/craft/commit/4e21012)) _(by glennmichael123)_
+- **native**: pin map overlay compiler ([5e1bd71](https://github.com/craft-native/craft/commit/5e1bd71)) _(by glennmichael123)_
+- **native**: pin press alias compiler ([d68a0d0](https://github.com/craft-native/craft/commit/d68a0d0)) _(by glennmichael123)_
+- **native**: qualify stx order compiler ([caaf6be](https://github.com/craft-native/craft/commit/caaf6be)) _(by glennmichael123)_
+- **native**: centralize stx compiler pin ([04f6cf8](https://github.com/craft-native/craft/commit/04f6cf8)) _(by glennmichael123)_
+- **native**: pin wallet bridge ([6ab4cbe](https://github.com/craft-native/craft/commit/6ab4cbe)) _(by glennmichael123)_
+- **native**: pin live workout bridge ([4c9f5a4](https://github.com/craft-native/craft/commit/4c9f5a4)) _(by glennmichael123)_
+- **native**: pin scroll event contract ([ceb7fad](https://github.com/craft-native/craft/commit/ceb7fad)) _(by glennmichael123)_
+- **native**: pin status-bar contract ([f23bc43](https://github.com/craft-native/craft/commit/f23bc43)) _(by glennmichael123)_
+- **native**: pin unsupported-prop contract ([c20b839](https://github.com/craft-native/craft/commit/c20b839)) _(by glennmichael123)_
+- **native**: pin image contract compiler ([a3fe84d](https://github.com/craft-native/craft/commit/a3fe84d)) _(by glennmichael123)_
+- **native**: pin stx release ([70a3977](https://github.com/craft-native/craft/commit/70a3977)) _(by glennmichael123)_
+- **native**: pin upstream stx compiler ([0b8f381](https://github.com/craft-native/craft/commit/0b8f381)) _(by glennmichael123)_
+- **native**: pin switch tint compiler ([3a24a8d](https://github.com/craft-native/craft/commit/3a24a8d)) _(by glennmichael123)_
+- **native**: pin image source compiler ([97f1e63](https://github.com/craft-native/craft/commit/97f1e63)) _(by glennmichael123)_
+- **native**: pin scroll compiler ([919d683](https://github.com/craft-native/craft/commit/919d683)) _(by glennmichael123)_
+- **native**: pin video compiler ([d28d175](https://github.com/craft-native/craft/commit/d28d175)) _(by glennmichael123)_
+- **native**: pin modal compiler ([4287212](https://github.com/craft-native/craft/commit/4287212)) _(by glennmichael123)_
+- **native**: pin control vocabulary compiler ([7e3442d](https://github.com/craft-native/craft/commit/7e3442d)) _(by glennmichael123)_
+- **native**: pin image mode compiler ([8479ec2](https://github.com/craft-native/craft/commit/8479ec2)) _(by glennmichael123)_
+- **native**: pin image error compiler ([0a06ed1](https://github.com/craft-native/craft/commit/0a06ed1)) _(by glennmichael123)_
+- **native**: pin control change compiler ([365e273](https://github.com/craft-native/craft/commit/365e273)) _(by glennmichael123)_
+- **release**: reuse main's acceptance of the release commit ([b5cd40a](https://github.com/craft-native/craft/commit/b5cd40a)) _(by Chris Breuer)_
+- **native**: pin final accessibility compiler ([70756ef](https://github.com/craft-native/craft/commit/70756ef)) _(by glennmichael123)_
+- **native**: pin accessibility parity compiler ([6d64c97](https://github.com/craft-native/craft/commit/6d64c97)) _(by glennmichael123)_
+- **native**: pin image accessibility compiler ([14bf813](https://github.com/craft-native/craft/commit/14bf813)) _(by glennmichael123)_
+- **native**: pin text input compiler ([6599662](https://github.com/craft-native/craft/commit/6599662)) _(by glennmichael123)_
+- **native**: pin flat list refresh compiler ([b065cac](https://github.com/craft-native/craft/commit/b065cac)) _(by glennmichael123)_
+- **native**: pin list slot compiler ([3513f6e](https://github.com/craft-native/craft/commit/3513f6e)) _(by glennmichael123)_
+- **native**: pin keyed list compiler ([4b18f63](https://github.com/craft-native/craft/commit/4b18f63)) _(by glennmichael123)_
+- **native**: pin align-content compiler ([0777bc6](https://github.com/craft-native/craft/commit/0777bc6)) _(by glennmichael123)_
+- **native**: pin video lifecycle compiler ([7720e79](https://github.com/craft-native/craft/commit/7720e79)) _(by glennmichael123)_
+- **native**: pin controlled video compiler ([a3704a4](https://github.com/craft-native/craft/commit/a3704a4)) _(by glennmichael123)_
+- **native**: pin mobile E2E to safe area shorthand ([da92950](https://github.com/craft-native/craft/commit/da92950)) _(by glennmichael123)_
+- **native**: pin mobile E2E to safe areas ([1bb2be1](https://github.com/craft-native/craft/commit/1bb2be1)) _(by glennmichael123)_
+- **native**: pin mobile E2E to parent measurements ([9a330b9](https://github.com/craft-native/craft/commit/9a330b9)) _(by glennmichael123)_
+- **native**: pin mobile E2E to layout measurements ([838290d](https://github.com/craft-native/craft/commit/838290d)) _(by glennmichael123)_
+- **native**: pin mobile E2E to browser-safe links ([2af349a](https://github.com/craft-native/craft/commit/2af349a)) _(by glennmichael123)_
+- **native**: pin mobile E2E to rendered links ([6d33ee8](https://github.com/craft-native/craft/commit/6d33ee8)) _(by glennmichael123)_
+- **native**: pin mobile E2E to typed links ([02ca149](https://github.com/craft-native/craft/commit/02ca149)) _(by glennmichael123)_
+- **native**: pin mobile E2E to link-capable stx ([0b0ef27](https://github.com/craft-native/craft/commit/0b0ef27)) _(by glennmichael123)_
+- **native**: pin mobile E2E to current stx ([ec37e35](https://github.com/craft-native/craft/commit/ec37e35)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.253...v0.0.254)
 
 ## 🐛 Bug Fixes
