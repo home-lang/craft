@@ -44,10 +44,10 @@ test.each(['^0.17.0', '0.17.0-dev.1963', '0.17.0-dev.1963+nothex', '0.17.0-dev.1
   expect(() => pinnedZigVersion(f.root)).toThrow('exact Zig version')
 })
 
-test('Windows uses the pinned Pantry installation instead of its .bin shim', () => {
+test.each(['ziglang.org/v', 'ziglang-org/'])('Windows uses the pinned Pantry installation at %s instead of its .bin shim', (layout) => {
   const f = fixture()
   const version = pinnedZigVersion(f.root)
-  const packageDir = join(f.root, 'pantry/ziglang-org/0.17.0-dev.1963_e00c6c439')
+  const packageDir = join(f.root, `pantry/${layout}0.17.0-dev.1963_e00c6c439`)
   const installed = join(packageDir, 'zig.exe')
   expect(pinnedPantryZigPath(f.root, version, f.env, 'win32')).toBeNull()
   mkdirSync(packageDir, { recursive: true })
