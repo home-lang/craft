@@ -1,7 +1,8 @@
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { bootSimulator, build, init, pickSimulator } from '../src/index'
 import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './insert-project-targets'
+import { nativeNavigationResultBundle } from './native-navigation-result'
 import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 const fixture = join(import.meta.dir, '..', 'fixtures', 'native-navigation')
@@ -23,10 +24,6 @@ function runXcodeTests(args: string[], cwd: string, resultBundle: string): void 
   console.log(args.join(' '))
   const result = Bun.spawnSync(args, { cwd, stdout: 'inherit', stderr: 'inherit' })
   const evidence = process.env.CRAFT_NATIVE_NAVIGATION_RESULT
-  if (evidence && existsSync(resultBundle)) {
-    mkdirSync(dirname(resolve(evidence)), { recursive: true })
-    cpSync(resultBundle, resolve(evidence), { recursive: true, force: false, errorOnExist: true })
-  }
   if (result.exitCode === 0) {
     const summary = Bun.spawnSync(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', resultBundle], { stdout: 'pipe', stderr: 'pipe' })
     if (summary.exitCode !== 0) throw new Error(`Could not read XCTest results: ${summary.stderr.toString()}`)
@@ -138,7 +135,9 @@ try {
     const device = requested ? { udid: requested, name: requested, state: 'Booted', runtime: 'iOS' } : await pickSimulator()
     if (!device) throw new Error('No iOS simulator is available for native navigation tests')
     await bootSimulator(device)
-    const resultBundle = join(workspace, 'NativeNavigation.xcresult')
+    // Write directly into retained evidence: a CI cancellation can terminate
+    // this process before any post-test copy or finally block can run.
+    const resultBundle = nativeNavigationResultBundle(workspace, process.env.CRAFT_NATIVE_NAVIGATION_RESULT)
     const selectedTest = process.env.CRAFT_NATIVE_NAVIGATION_TEST
     const selectedTarget = process.env.CRAFT_ONLY_TESTING
     const selection = selectedTarget ? selectedTarget.split(',').map(target => target.trim()).filter(Boolean).map(target => `-only-testing:${target}`) : selectedTest
@@ -154,7 +153,7 @@ try {
     // launching a hosted XCTest bundle, even after compilation has finished.
     run([...xcodeArgs, 'build-for-testing'], output)
     runXcodeTests([
-      ...xcodeArgs,
+      ...xcodeArgs.filter(arg => arg !== '-quiet'),
       '-resultBundlePath', resultBundle,
       ...selection,
       'test-without-building',

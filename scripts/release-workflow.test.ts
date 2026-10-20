@@ -1,9 +1,10 @@
 import { afterAll, expect, test } from 'bun:test'
-import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import { requiredReleaseAssets } from './release-manifest'
 import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
+import { nativeNavigationResultBundle } from '../packages/ios/scripts/native-navigation-result'
 
 // Every scratch directory this file made goes when the file is done (#357).
 afterAll(removeAllTempDirs)
@@ -70,6 +71,19 @@ test.each(['microphone', 'location', 'kTCCServiceSpeechRecognition'])('the Zig s
   expect(result.exitCode).toBe(23)
   expect(result.stderr.toString()).toContain('permission service unavailable')
   expect(result.stdout.toString()).not.toContain('launched app')
+})
+
+test('interrupted native navigation results survive temporary workspace cleanup', () => {
+  const workspace = createTempDir('craft-navigation-work-')
+  const evidence = createTempDir('craft-navigation-evidence-')
+  const destination = join(evidence, 'ios-native', 'navigation.xcresult')
+  const actual = nativeNavigationResultBundle(workspace, destination)
+  expect(existsSync(actual)).toBe(false)
+  mkdirSync(actual)
+  writeFileSync(join(actual, 'progress.log'), 'unfinished XCTest evidence')
+  rmSync(workspace, { recursive: true, force: true })
+  expect(existsSync(destination)).toBe(true)
+  expect(readFileSync(join(destination, 'progress.log'), 'utf8')).toBe('unfinished XCTest evidence')
 })
 
 test.each(['ci.yml', 'mobile-e2e.yml'])('%s lets Main acceptance finish while superseding pull request runs', (file) => {
