@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.259...v0.0.260)
+
+## 🐛 Bug Fixes
+
+- **ios**: a list row on screen keeps its view ([5e4b078](https://github.com/craft-native/craft/commit/5e4b078)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.258...v0.0.259)
 
 ## 🧪 Tests
