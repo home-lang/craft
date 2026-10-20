@@ -56,6 +56,22 @@ test('shared native layout changes trigger mobile acceptance for pushes and pull
   }
 })
 
+test.each(['microphone', 'location', 'kTCCServiceSpeechRecognition'])('the Zig slice stops when %s cannot be granted', (service) => {
+  const fixture = readFileSync(join(import.meta.dir, '../packages/ios/fixtures/zig-slice/build-and-run.sh'), 'utf8')
+  const grants = fixture.split('\n').filter(line => line.startsWith('xcrun simctl privacy ')).join('\n')
+  expect(grants).toBeTruthy()
+  const dir = createTempDir('craft-slice-permissions-')
+  const executable = join(dir, 'xcrun')
+  writeFileSync(executable, '#!/bin/sh\nif [ "$5" = "$FAILED_SERVICE" ]; then\n  printf "permission service unavailable\\n" >&2\n  exit 23\nfi\n')
+  chmodSync(executable, 0o755)
+  const result = Bun.spawnSync(['bash', '-euo', 'pipefail', '-c', `${grants}\nprintf 'launched app'`], {
+    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, UDID: 'fixture-device', BUNDLE_ID: 'app.craft.slice', FAILED_SERVICE: service },
+  })
+  expect(result.exitCode).toBe(23)
+  expect(result.stderr.toString()).toContain('permission service unavailable')
+  expect(result.stdout.toString()).not.toContain('launched app')
+})
+
 test.each(['ci.yml', 'mobile-e2e.yml'])('%s lets Main acceptance finish while superseding pull request runs', (file) => {
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows', file), 'utf8')) as {
     concurrency: { 'group': string, 'cancel-in-progress': boolean | string, 'queue'?: string }

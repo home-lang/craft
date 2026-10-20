@@ -101,8 +101,8 @@ xcrun simctl install "$UDID" "$APP"
 # reason this pair is verifiable end to end and scheduleNotification is not.
 # Granted before launch, because simctl terminates a running app on a
 # permission change.
-xcrun simctl privacy "$UDID" grant microphone "$BUNDLE_ID" 2>/dev/null || true
-xcrun simctl privacy "$UDID" grant location "$BUNDLE_ID" 2>/dev/null || true
+xcrun simctl privacy "$UDID" grant microphone "$BUNDLE_ID"
+xcrun simctl privacy "$UDID" grant location "$BUNDLE_ID"
 xcrun simctl location "$UDID" set 37.3317,-122.0307
 
 # And speech recognition, which needs the raw TCC identifier.
@@ -116,9 +116,9 @@ xcrun simctl location "$UDID" set 37.3317,-122.0307
 # and the fixture timed out with no event at all. With this line, the same
 # build emits craftSpeechStart.
 #
-# If a future Xcode starts validating the argument this fails silently and the
-# i=68 assertion below fails loudly, which is the right way round.
-xcrun simctl privacy "$UDID" grant kTCCServiceSpeechRecognition "$BUNDLE_ID" 2>/dev/null || true
+# These grants are prerequisites. Preserve an unsupported service or simulator
+# failure here instead of launching an app that cannot complete its assertions.
+xcrun simctl privacy "$UDID" grant kTCCServiceSpeechRecognition "$BUNDLE_ID"
 
 # The app's stdout and stderr, each to a file, gathered into $LOG as it runs.
 #
