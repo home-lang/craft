@@ -15,6 +15,7 @@ internal class CraftNativeHealth(
     @Suppress("UNUSED_PARAMETER") activityProvider: () -> Activity?,
     @Suppress("UNUSED_PARAMETER") backgroundReads: Boolean,
     @Suppress("UNUSED_PARAMETER") historyReads: Boolean,
+    @Suppress("UNUSED_PARAMETER") workoutSink: ((org.json.JSONObject) -> Unit)? = null,
 ) {
     fun perform(method: String, args: JSONArray, completion: (CraftNativeCapabilityResult) -> Unit) {
         completion(CraftNativeCapabilityResult(code = "CAPABILITY_DISABLED", message = "Health Connect is not enabled for this app ($method, ${args.length()} arguments)"))

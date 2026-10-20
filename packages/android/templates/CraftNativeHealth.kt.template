@@ -56,6 +56,7 @@ import java.time.LocalDateTime
 import java.time.Period
 import java.time.ZoneId
 import java.util.TreeMap
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -89,9 +90,21 @@ internal class CraftNativeHealth(
     /** Ask for READ_HEALTH_DATA_IN_BACKGROUND / READ_HEALTH_DATA_HISTORY with the read types when the feature is available (the manifest declares them only when these are true). */
     private val backgroundReads: Boolean,
     private val historyReads: Boolean,
+    /** Lifecycle events are broadcast to native screens and the web host. */
+    private val workoutSink: ((JSONObject) -> Unit)? = null,
 ) {
     /** A read or write that did not happen: the bridge's error code and the message a page sees. */
     private class HealthFailure(val code: String, message: String) : Exception(message)
+
+    private data class LiveWorkout(
+        val id: String,
+        val type: String,
+        val start: Instant,
+        val location: String?,
+        var pausedAt: Instant? = null,
+        var pausedMillis: Long = 0,
+        var state: String = "running",
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -108,6 +121,8 @@ internal class CraftNativeHealth(
     private var cachedClient: HealthConnectClient? = null
 
     private val ownOrigin = DataOrigin(context.packageName)
+    private val workoutLock = Any()
+    private val liveWorkout = AtomicReference<LiveWorkout?>(null)
 
     /** A native screen's call (`Health` in CraftNativeActions), by method and arguments as the bridge sends them. */
     fun perform(method: String, args: JSONArray, completion: (CraftNativeCapabilityResult) -> Unit) {
@@ -150,6 +165,10 @@ internal class CraftNativeHealth(
             "getSleepIntervals" -> answer(completion) { getSleepIntervals(options(0)) }
             "saveMindfulSession" -> answer(completion) { saveMindfulSession(options(0)) }
             "getMindfulSessions" -> answer(completion) { getMindfulSessions(options(0)) }
+            "startWorkout" -> answer(completion) { startWorkout(options(0)) }
+            "pauseWorkout" -> answer(completion) { pauseWorkout() }
+            "resumeWorkout" -> answer(completion) { resumeWorkout() }
+            "endWorkout" -> answer(completion) { endWorkout() }
             else -> deliver(completion, CraftNativeCapabilityResult(code = "UNKNOWN_ACTION", message = "Unsupported Health method: $method"))
         }
     }
@@ -165,6 +184,7 @@ internal class CraftNativeHealth(
 
     fun close() {
         closed.set(true)
+        liveWorkout.getAndSet(null)?.let { emitWorkoutState(it, "stopped") }
         pendingPermission.getAndSet(null)?.cancel()
         scope.cancel()
     }
@@ -212,6 +232,101 @@ internal class CraftNativeHealth(
     }
 
     private fun invalid(message: String) = HealthFailure("INVALID_ARGUMENT", message)
+
+    // MARK: - Live workout lifecycle
+
+    /**
+     * Android Health Connect stores the finished ExerciseSessionRecord. The
+     * lifecycle is kept in the foreground host until the Health Services
+     * foreground-session adapter is available; no post-hoc save is implied by
+     * this API, and every transition is still observable by the page.
+     */
+    private suspend fun startWorkout(body: JSONObject): Any {
+        val type = body.optString("type").takeIf { it.isNotBlank() }
+            ?: throw invalid("startWorkout needs a workout type")
+        if (EXERCISE_TYPES[type] == null) throw invalid("Unsupported workout type: $type")
+        if (activityProvider() == null) throw HealthFailure("NEEDS_ACTIVITY", "Live workouts require a foreground activity")
+        val now = Instant.now()
+        val workout = synchronized(workoutLock) {
+            if (liveWorkout.get() != null) throw HealthFailure("BUSY", "A live workout is already running")
+            LiveWorkout("live-${UUID.randomUUID()}", type, now, body.optString("location").takeIf { it.isNotBlank() }).also(liveWorkout::set)
+        }
+        emitWorkoutState(workout, "running", now)
+        return JSONObject()
+            .put("id", workout.id)
+            .put("type", workout.type)
+            .put("startDate", workout.start.ms())
+    }
+
+    private suspend fun pauseWorkout(): Any {
+        val now = Instant.now()
+        val workout = synchronized(workoutLock) {
+            val current = liveWorkout.get() ?: throw HealthFailure("NO_WORKOUT", "No live workout is running")
+            if (current.state != "running") throw HealthFailure("INVALID_STATE", "The live workout is not running")
+            current.pausedAt = now
+            current.state = "paused"
+            current
+        }
+        emitWorkoutState(workout, "paused", now)
+        return true
+    }
+
+    private suspend fun resumeWorkout(): Any {
+        val now = Instant.now()
+        val workout = synchronized(workoutLock) {
+            val current = liveWorkout.get() ?: throw HealthFailure("NO_WORKOUT", "No live workout is running")
+            val pausedAt = current.pausedAt ?: throw HealthFailure("INVALID_STATE", "The live workout is not paused")
+            current.pausedMillis += Duration.between(pausedAt, now).toMillis().coerceAtLeast(0)
+            current.pausedAt = null
+            current.state = "running"
+            current
+        }
+        emitWorkoutState(workout, "running", now)
+        return true
+    }
+
+    private suspend fun endWorkout(): Any {
+        val now = Instant.now()
+        val workout = synchronized(workoutLock) {
+            val current = liveWorkout.getAndSet(null) ?: throw HealthFailure("NO_WORKOUT", "No live workout is running")
+            current.pausedAt?.let { current.pausedMillis += Duration.between(it, now).toMillis().coerceAtLeast(0) }
+            current.pausedAt = null
+            current.state = "ended"
+            current
+        }
+        val body = JSONObject()
+            .put("activityId", workout.id)
+            .put("type", workout.type)
+            .put("startDate", workout.start.ms())
+            .put("endDate", now.ms())
+        val saved = try {
+            saveWorkout(body) as JSONObject
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            emitWorkoutError(workout, error.message ?: "Live workout could not be saved")
+            throw error
+        }
+        val duration = (Duration.between(workout.start, now).toMillis() - workout.pausedMillis).coerceAtLeast(0) / 1000.0
+        emitWorkoutState(workout, "ended", now)
+        return JSONObject()
+            .put("id", workout.id)
+            .put("workoutId", saved.optString("id", workout.id))
+            .put("endDate", now.ms())
+            .put("durationSeconds", duration)
+    }
+
+    private fun emitWorkoutState(workout: LiveWorkout, state: String, date: Instant = Instant.now()) {
+        mainHandler.post {
+            workoutSink?.invoke(JSONObject().put("id", workout.id).put("event", "state").put("state", state).put("date", date.ms()))
+        }
+    }
+
+    private fun emitWorkoutError(workout: LiveWorkout, message: String) {
+        mainHandler.post {
+            workoutSink?.invoke(JSONObject().put("id", workout.id).put("event", "error").put("message", message))
+        }
+    }
 
     // MARK: - Health Connect itself
 
