@@ -14,8 +14,29 @@ on:
 permissions:
   contents: read
 
-# Diagnostic only: use the original complete CI workflow through the same
-# reusable-call boundary as release acceptance. This branch cannot publish.
+# Diagnostic only: repeat the published workspace installer on an ephemeral
+# checkout. Never restore the source or hide the installer's exit status.
 jobs:
-  source:
-    uses: ./.github/workflows/ci.yml
+  workspace-source:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup the published Pantry runtime
+        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        with:
+          version: '0.11.101'
+      - name: Verify workspace installation preserves tracked sources
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:GITHUB_WORKSPACE 'packages/zig/build.zig'
+          $expected = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+          Get-ChildItem -LiteralPath 'pantry' -Force | Where-Object { $_.LinkType } | Select-Object FullName, LinkType, Target | Format-List
+          pantry install --no-save
+          $installExit = $LASTEXITCODE
+          $present = Test-Path -LiteralPath $source
+          Write-Output "Tracked core source present after workspace reinstall: $present"
+          git status --short -- packages/zig/build.zig
+          if (-not $present) { throw 'Workspace reinstall removed the tracked core build file' }
+          if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $expected) { throw 'Workspace reinstall changed the tracked core build file' }
+          if ($installExit -ne 0) { exit $installExit }
