@@ -49,11 +49,14 @@ try {
     env: { JAVA_HOME: javaHome },
   })
   async function adb(args: string[]): Promise<string> {
+    const startedAt = new Date().toISOString()
     const child = Bun.spawn([session!.adb, '-s', session!.serial, ...args], {
       env: session!.env, stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(30_000),
     })
     const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()])
-    if (code !== 0) throw new Error(`ADB verification failed: ${args.join(' ')}: ${stderr}`)
+    const commands = (proof.adbCommands ??= []) as unknown[]
+    commands.push({ args, code, stdout, stderr, startedAt, finishedAt: new Date().toISOString() })
+    if (code !== 0) throw new Error(`ADB verification failed (exit ${code}): ${args.join(' ')}: stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)}`)
     return stdout.trim()
   }
   const api = await adb(['shell', 'getprop', 'ro.build.version.sdk'])

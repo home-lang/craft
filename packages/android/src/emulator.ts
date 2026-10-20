@@ -36,6 +36,7 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
   if (options.acceleration === 'software' && process.arch !== 'x64')
     throw new Error('Android software emulation requires an x86_64 host and system image')
   const bootTimeoutMs = options.bootTimeoutMs ?? 600_000
+  const requiresPlayStore = options.image.split(';')[2] === 'google_apis_playstore'
   const maximumBootTimeoutMs = options.acceleration === 'software' ? 1_200_000 : 600_000
   if (!Number.isSafeInteger(bootTimeoutMs) || bootTimeoutMs < 1000 || bootTimeoutMs > maximumBootTimeoutMs)
     throw new Error(`Android bootTimeoutMs must be an integer between 1000 and ${maximumBootTimeoutMs} milliseconds`)
@@ -159,6 +160,11 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
           // boot_completed can precede SettingsProvider and System UI readiness.
           const settings = await run([adb, '-s', serial, 'shell', 'settings', 'get', 'global', 'animator_duration_scale'], undefined, probeTimeout(), true)
           const packages = await run([adb, '-s', serial, 'shell', 'pm', 'path', 'android'], undefined, probeTimeout(), true)
+          // A stock Play image can expose the framework package and HOME while
+          // first-boot provisioning is still registering its bundled apps.
+          const playStore = requiresPlayStore
+            ? await run([adb, '-s', serial, 'shell', 'pm', 'path', 'com.android.vending'], undefined, probeTimeout(), true)
+            : undefined
           const systemUi = await run([adb, '-s', serial, 'shell', 'pidof', 'com.android.systemui'], undefined, probeTimeout(), true)
           // Native acceptance must be able to observe platform crashes before
           // launching any app. boot_completed/System UI can precede logd's ADB
@@ -176,6 +182,7 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
             || /^android\/.*(?:Resolver|Chooser)Activity$/.test(homeActivity)
           booted = settings.code === 0 && packages.code === 0 && systemUi.code === 0 && events.code === 0
             && /^package:\/\S+/m.test(packages.stdout) && /^\d+(?:\s+\d+)*$/.test(systemUi.stdout.trim())
+            && (!requiresPlayStore || (playStore?.code === 0 && /^package:\/\S+/m.test(playStore.stdout)))
             && home.code === 0 && /^[\w.]+\/[\w.$]+$/.test(homeActivity) && !temporaryHome
         }
       }

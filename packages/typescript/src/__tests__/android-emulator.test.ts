@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { createAndroidEmulator } from '../../../android/src/emulator'
 import type { AndroidEmulatorOptions } from '../../../android/src/emulator'
 
-function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false, delayedHome = false, connection: 'normal' | 'stale' | 'offline' = 'normal', bootstrapHome = 'com.android.sdksetup/.DefaultActivity'): { root: string, options: AndroidEmulatorOptions } {
+function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false, delayedHome = false, connection: 'normal' | 'stale' | 'offline' = 'normal', bootstrapHome = 'com.android.sdksetup/.DefaultActivity', playStore: 'ready' | 'delayed' | 'missing' = 'ready'): { root: string, options: AndroidEmulatorOptions } {
   const root = mkdtempSync(join(tmpdir(), 'craft emulator fixture '))
   const sdk = join(root, 'managed sdk')
   for (const directory of ['bin', 'platform-tools', 'emulator']) mkdirSync(join(sdk, directory), { recursive: true })
@@ -41,6 +41,13 @@ else
       fi
       printf '1\\n' ;;
     *'pm path android') printf 'package:/system/framework/framework-res.apk\\n' ;;
+    *'pm path com.android.vending')
+      if [ '${playStore}' = missing ]; then exit 1; fi
+      if [ '${playStore}' = delayed ] && [ ! -f "$ANDROID_HOME/play-ready" ]; then
+        touch "$ANDROID_HOME/play-ready"
+        exit 1
+      fi
+      printf 'package:/product/priv-app/Phonesky/Phonesky.apk\\n' ;;
     *'pidof com.android.systemui') printf '1234\\n' ;;
     *'cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME')
       if [ '${delayedHome ? 'yes' : 'no'}' = yes ] && [ ! -f "$ANDROID_HOME/home-ready" ]; then
@@ -166,6 +173,48 @@ test('boot and System UI do not admit a device before its event log is readable'
     expect(events.every(entry => entry.args.includes('-d') && entry.args.includes('events'))).toBe(true)
     const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
     expect(Date.parse(events[1].finishedAt)).toBeLessThanOrEqual(Date.parse(identity.bootedAt))
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
+test('a Play image waits for its bundled store after framework and HOME readiness', async () => {
+  const { root, options } = fixture(true, false, false, false, 'normal', 'com.android.sdksetup/.DefaultActivity', 'delayed')
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator(options)
+    const trace = readFileSync(join(options.artifactsDirectory, 'device-commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    const store = trace.filter(entry => entry.args.includes('com.android.vending'))
+    expect(store.map(entry => entry.code)).toEqual([1, 0])
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(Date.parse(store[1].finishedAt)).toBeLessThanOrEqual(Date.parse(identity.bootedAt))
+    expect(identity.bootTimeoutMs).toBe(600_000)
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
+test('a missing Play package fails the existing boot deadline and disposes its owned device', async () => {
+  const { root, options } = fixture(true, false, false, false, 'normal', 'com.android.sdksetup/.DefaultActivity', 'missing')
+  options.bootTimeoutMs = 5000
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    await expect((async () => { session = await createAndroidEmulator(options) })()).rejects.toThrow('did not boot within 5000ms')
+    const trace = readFileSync(join(options.artifactsDirectory, 'device-commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    expect(trace.filter(entry => entry.args.includes('com.android.vending')).length).toBeGreaterThan(0)
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(identity.status).toBe('failed')
+    expect(existsSync(identity.avdDirectory)).toBe(false)
+    expect(() => process.kill(identity.emulatorPid, 0)).toThrow()
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
+test('a non-Play image does not require an unrelated store package', async () => {
+  const { root, options } = fixture(true, false, false, false, 'normal', 'com.android.sdksetup/.DefaultActivity', 'missing')
+  options.image = options.image.replace(';google_apis_playstore;', ';google_apis;')
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator(options)
+    expect(readFileSync(join(options.sdkRoot, 'calls'), 'utf8')).not.toContain('com.android.vending')
   }
   finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
 }, 10_000)
