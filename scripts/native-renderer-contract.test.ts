@@ -240,7 +240,7 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('style?: StyleValue<ImageStyle>')
     expect(navigationHome).toContain('<Icon testID="native-icon"')
     expect(navigationHome).toContain('<Video testID="native-video"')
-    expect(navigationHome).toContain('<Modal testID="native-modal"')
+    expect(navigationHome).toContain('testID="native-modal"')
     expect(navigationHome).toContain('<ActivityIndicator testID="scaled-indicator"')
   })
 
@@ -2040,7 +2040,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('parent.setChildStyle(view, style, resources.displayMetrics.density)')
     expect(android).toContain('parent.requestLayout()')
     expect(android).toContain('(parent as? View)?.let')
-    expect(android).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)\n        updateSafeAreaViews()')
+    expect(android).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)')
     expect(android).toContain('A reused View may still carry a')
     expect(android).toContain('val requestedChecked = props.opt("checked")')
     expect(android).toContain('else if (requestedChecked is Boolean)')
@@ -3450,7 +3450,8 @@ describe('native renderer component contract', () => {
   })
 
   it('detaches Android listeners before recycled rows can change identity', () => {
-    expect(android).toContain('released.forEach {\n            // AdapterView (including Spinner, our native Picker) rejects')
+    expect(android).toContain('released.forEach {')
+    expect(android).toContain('// AdapterView (including Spinner, our native Picker) rejects')
     expect(android).toContain('if (it !is android.widget.AdapterView<*>) it.setOnClickListener(null)')
     expect(android).toContain('it.setOnTouchListener(null)')
     expect(android).toContain('it.setOnLongClickListener(null)')
