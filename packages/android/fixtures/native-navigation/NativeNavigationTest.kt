@@ -1628,7 +1628,16 @@ class NativeNavigationTest {
             click(activity, "toggle-modal")
             awaitText(activity, "modal-status", "modal shown")
             click(activity, "toggle-nested-popup")
-            val nestedPopup = awaitView(activity, "nested-popup")
+            val popupDensity = activity.resources.displayMetrics.density
+            // Modal content is retained while hidden. Wait for the opening
+            // mutation and native layout before delivering an outside touch.
+            val nestedPopup = awaitView(activity, "nested-popup") { view ->
+                view.visibility == View.VISIBLE && view.alpha > 0.01f
+                    && kotlin.math.abs(view.left - 48 * popupDensity) <= 1f
+                    && kotlin.math.abs(view.top - 72 * popupDensity) <= 1f
+                    && kotlin.math.abs(view.width - 160 * popupDensity) <= 1f
+                    && kotlin.math.abs(view.height - 64 * popupDensity) <= 1f
+            }
             awaitText(activity, "nested-popup-content", "Nested popup")
             // Popups are promoted beside the authored SafeAreaView. Route the
             // native touch through their shared screen viewport, which owns
@@ -1657,9 +1666,9 @@ class NativeNavigationTest {
             assertTrue("dismissed nested popup should be removed", nestedPopupRemoved || nestedPopup.visibility != View.VISIBLE)
             assertEquals("dismissing a nested popup should retain its parent modal", View.VISIBLE, modal.visibility)
             click(activity, "toggle-popup")
-            val popupDensity = activity.resources.displayMetrics.density
             val popup = awaitView(activity, "native-popup") { view ->
-                kotlin.math.abs(view.left - 24 * popupDensity) <= 1f
+                view.visibility == View.VISIBLE && view.alpha > 0.01f
+                    && kotlin.math.abs(view.left - 24 * popupDensity) <= 1f
                     && kotlin.math.abs(view.top - 36 * popupDensity) <= 1f
                     && kotlin.math.abs(view.width - 180 * popupDensity) <= 1f
                     && kotlin.math.abs(view.height - 72 * popupDensity) <= 1f
