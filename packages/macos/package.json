@@ -1,6 +1,6 @@
 {
   "name": "@craft-native/macos",
-  "version": "0.0.258",
+  "version": "0.0.259",
   "private": true,
   "type": "module",
   "exports": {

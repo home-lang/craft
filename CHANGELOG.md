@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.258...v0.0.259)
+
+## 🧪 Tests
+
+- **ios**: lay out the mounted switch before hit testing ([44cc87c](https://github.com/craft-native/craft/commit/44cc87c)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.257...v0.0.258)
 
 ## 🐛 Bug Fixes
