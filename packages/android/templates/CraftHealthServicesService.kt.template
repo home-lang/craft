@@ -28,6 +28,12 @@ internal class CraftHealthServicesService : Service() {
     private val executor: Executor by lazy { mainExecutor }
     private var workoutId = ""
     private var workoutType = ""
+    private var workoutStartedAt = 0L
+    private var pausedAt = 0L
+    private var pausedMillis = 0L
+    private var lastDurationSeconds = 0.0
+    private var lastEnergyCalories: Double? = null
+    private var lastDistanceMeters: Double? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -46,9 +52,18 @@ internal class CraftHealthServicesService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> start(intent)
-            ACTION_PAUSE -> exerciseClient.pauseExerciseAsync()
-            ACTION_RESUME -> exerciseClient.resumeExerciseAsync()
-            ACTION_END -> exerciseClient.endExerciseAsync()
+            ACTION_PAUSE -> {
+                if (pausedAt == 0L) pausedAt = System.currentTimeMillis()
+                exerciseClient.pauseExerciseAsync()
+            }
+            ACTION_RESUME -> {
+                if (pausedAt != 0L) {
+                    pausedMillis += (System.currentTimeMillis() - pausedAt).coerceAtLeast(0)
+                    pausedAt = 0L
+                }
+                exerciseClient.resumeExerciseAsync()
+            }
+            ACTION_END -> end()
         }
         return START_STICKY
     }
@@ -56,6 +71,12 @@ internal class CraftHealthServicesService : Service() {
     private fun start(intent: Intent) {
         workoutId = intent.getStringExtra(EXTRA_ID).orEmpty()
         workoutType = intent.getStringExtra(EXTRA_TYPE).orEmpty()
+        workoutStartedAt = System.currentTimeMillis()
+        pausedAt = 0L
+        pausedMillis = 0L
+        lastDurationSeconds = 0.0
+        lastEnergyCalories = null
+        lastDistanceMeters = null
         startForeground(NOTIFICATION_ID, notification())
         val type = exerciseType(workoutType) ?: return emitError("Unsupported Health Services workout type: $workoutType")
         val capabilitiesFuture = exerciseClient.getCapabilitiesAsync()
@@ -73,20 +94,70 @@ internal class CraftHealthServicesService : Service() {
         }, executor)
     }
 
+    private fun end() {
+        val id = workoutId
+        if (pausedAt != 0L) {
+            pausedMillis += (System.currentTimeMillis() - pausedAt).coerceAtLeast(0)
+            pausedAt = 0L
+        }
+        try {
+            val future = exerciseClient.endExerciseAsync()
+            future.addListener({
+                runCatching {
+                    future.get()
+                    val duration = if (lastDurationSeconds > 0) lastDurationSeconds
+                    else ((System.currentTimeMillis() - workoutStartedAt - pausedMillis).coerceAtLeast(0) / 1000.0)
+                    val result = JSONObject()
+                        .put("id", id)
+                        .put("activityId", id)
+                        .put("type", workoutType)
+                        .put("startDate", workoutStartedAt)
+                        .put("workoutId", id)
+                        .put("endDate", System.currentTimeMillis())
+                        .put("durationSeconds", duration)
+                    lastEnergyCalories?.let { result.put("activeEnergyCalories", it) }
+                    lastDistanceMeters?.let { result.put("distanceMeters", it) }
+                    CraftHealthServices.completeEnd(id, CraftNativeCapabilityResult(data = result))
+                    CraftHealthServices.clearActive()
+                    stopSelf()
+                }.onFailure {
+                    CraftHealthServices.failEnd(id, it.message ?: "Health Services workout could not end")
+                    CraftHealthServices.clearActive()
+                    emitError(it.message ?: "Health Services workout could not end")
+                }
+            }, executor)
+        } catch (error: Exception) {
+            CraftHealthServices.failEnd(id, error.message ?: "Health Services workout could not end")
+            CraftHealthServices.clearActive()
+            emitError(error.message ?: "Health Services workout could not end")
+        }
+    }
+
     private fun emit(update: ExerciseUpdate) {
         val state = update.exerciseStateInfo.state
         val detail = JSONObject().put("id", workoutId).put("event", if (state.isEnded) "state" else "metrics")
             .put("state", stateName(state)).put("date", System.currentTimeMillis())
         update.latestMetrics.getData(DataType.HEART_RATE_BPM).lastOrNull()?.value?.let { detail.put("heartRateBpm", it) }
-        update.latestMetrics.getData(DataType.CALORIES_TOTAL)?.total?.let { detail.put("activeEnergyCalories", it) }
-        update.latestMetrics.getData(DataType.DISTANCE_TOTAL)?.total?.let { detail.put("distanceMeters", it) }
+        update.latestMetrics.getData(DataType.CALORIES_TOTAL)?.total?.let {
+            lastEnergyCalories = it
+            detail.put("activeEnergyCalories", it)
+        }
+        update.latestMetrics.getData(DataType.DISTANCE_TOTAL)?.total?.let {
+            lastDistanceMeters = it
+            detail.put("distanceMeters", it)
+        }
         update.activeDurationCheckpoint?.let { detail.put("durationSeconds", it.activeDuration.toMillis() / 1000.0) }
+        detail.optDouble("durationSeconds", -1.0).takeIf { it >= 0 }?.let { lastDurationSeconds = it }
         CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftHealthWorkout").put("detail", detail))
-        if (state.isEnded) stopSelf()
+        if (state.isEnded) {
+            CraftHealthServices.clearActive()
+            stopSelf()
+        }
     }
 
     private fun emitError(message: String) {
         CraftHealthServices.clearActive()
+        CraftHealthServices.failEnd(workoutId, message)
         CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftHealthWorkout").put("detail", JSONObject()
             .put("id", workoutId).put("event", "error").put("message", message)))
         stopSelf()

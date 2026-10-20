@@ -66,7 +66,11 @@ internal class CraftNativeServices(
         }
     } else null
     private val healthServices: CraftHealthServices? = if (config.optBoolean("enableHealthServices")) {
-        CraftHealthServices(context, activity) { method, args, completion -> health?.perform(method, args, completion) }
+        CraftHealthServices(context, activity, health?.let { healthApi ->
+            { method: String, args: JSONArray, completion: (CraftNativeCapabilityResult) -> Unit ->
+                healthApi.perform(method, args, completion)
+            }
+        })
     } else null
     private var pendingPushPermission: ((CraftNativeCapabilityResult) -> Unit)? = null
     private var pendingBrowser: Pair<String?, (CraftNativeCapabilityResult) -> Unit>? = null

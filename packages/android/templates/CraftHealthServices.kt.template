@@ -12,6 +12,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.ConcurrentHashMap
 
 /** Native Health Services entry point; the ExerciseClient lives in the retained service. */
 internal class CraftHealthServices(
@@ -88,16 +89,41 @@ internal class CraftHealthServices(
             ?: return done(failure("NO_WORKOUT", "No live workout is running"))
         try {
             context.startService(Intent(context, CraftHealthServicesService::class.java).setAction(action).putExtra(CraftHealthServicesService.EXTRA_ID, id))
-            if (action == CraftHealthServicesService.ACTION_END) activeId.compareAndSet(id, null)
-            done(CraftNativeCapabilityResult(data = true))
+            if (action == CraftHealthServicesService.ACTION_END) endCompletions[id] = { result -> finishEnd(result, done) }
+            else done(CraftNativeCapabilityResult(data = true))
         } catch (error: Exception) {
+            if (action == CraftHealthServicesService.ACTION_END) endCompletions.remove(id)
             done(failure("UNAVAILABLE", error.message ?: "Health Services command failed"))
+        }
+    }
+
+    private fun finishEnd(result: CraftNativeCapabilityResult, done: (CraftNativeCapabilityResult) -> Unit) {
+        val payload = result.data as? JSONObject
+        if (result.code != null || payload == null || fallback == null) return done(result)
+        fallback.invoke("saveWorkout", JSONArray().put(payload)) { saved ->
+            if (saved.code != null) return@invoke done(saved)
+            val workoutId = (saved.data as? JSONObject)?.optString("id")?.takeIf { it.isNotBlank() }
+                ?: payload.optString("id")
+            done(CraftNativeCapabilityResult(data = JSONObject()
+                .put("id", payload.optString("id"))
+                .put("workoutId", workoutId)
+                .put("endDate", payload.optLong("endDate"))
+                .put("durationSeconds", payload.optDouble("durationSeconds"))))
         }
     }
 
     companion object {
         private val activeId = AtomicReference<String?>(null)
+        private val endCompletions = ConcurrentHashMap<String, (CraftNativeCapabilityResult) -> Unit>()
         private val SUPPORTED_TYPES = setOf("running", "walking", "hiking", "cycling")
+
+        internal fun completeEnd(id: String, result: CraftNativeCapabilityResult) {
+            endCompletions.remove(id)?.invoke(result)
+        }
+
+        internal fun failEnd(id: String, message: String) {
+            completeEnd(id, CraftNativeCapabilityResult(code = "UNAVAILABLE", message = message))
+        }
 
         internal fun clearActive() {
             activeId.set(null)
