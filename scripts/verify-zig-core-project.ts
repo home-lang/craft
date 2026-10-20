@@ -6,6 +6,10 @@ import { cpus } from 'node:os'
 
 const source = resolve(import.meta.dir, '..')
 const zig = resolveZig(source)
+if (process.platform === 'win32') {
+  const provenance = Bun.spawnSync(['pwsh', '-NoProfile', '-NonInteractive', '-File', join(source, 'scripts/inspect-windows-source.ps1'), '-Stage', 'compiler'], { cwd: source, stdout: 'pipe', stderr: 'pipe' })
+  console.log('Source after compiler:', provenance.stdout.toString(), provenance.stderr.toString())
+}
 const trackedBuild = join(source, 'packages/zig/build.zig')
 console.log('Tracked core project:', JSON.stringify({ file: trackedBuild, exists: existsSync(trackedBuild), sha256: existsSync(trackedBuild) ? createHash('sha256').update(readFileSync(trackedBuild)).digest('hex') : null, bun: Bun.version, executable: process.execPath, cpu: cpus()[0]?.model, platform: process.platform }))
 const zigLibrary = join(dirname(realpathSync(zig.path)), 'lib/std/zig.zig')
