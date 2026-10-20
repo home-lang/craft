@@ -30,6 +30,7 @@ import java.io.File
 import java.util.Locale
 import java.util.UUID
 {{NATIVE_PUSH_IMPORTS}}
+{{NATIVE_WALLET_IMPORTS}}
 
 private fun craftLocationFix(location: android.location.Location): JSONObject = JSONObject()
     .put("latitude", location.latitude)
@@ -79,6 +80,7 @@ internal class CraftNativeServices(
     private var speechReady = false
     private val speechQueue = mutableListOf<() -> Unit>()
     private val speeches = mutableMapOf<String, (CraftNativeCapabilityResult) -> Unit>()
+{{NATIVE_WALLET_FIELDS}}
 
     init {
         if (config.optBoolean("enableGeolocation") || config.optBoolean("enableBackgroundLocation")) {
@@ -194,11 +196,17 @@ internal class CraftNativeServices(
     private fun wallet(method: String, args: JSONArray, done: (CraftNativeCapabilityResult) -> Unit) {
         if (!config.optBoolean("enableWallet")) return done(failure("CAPABILITY_DISABLED", "Wallet is disabled"))
         when (method) {
-            "isAvailable" -> done(success(runCatching {
-                context.packageManager.getLaunchIntentForPackage("com.google.android.apps.walletnfcrel") != null
-            }.getOrDefault(false)))
+            "isAvailable" -> {
+{{NATIVE_WALLET_AVAILABILITY}}
+            }
             "add" -> {
                 val source = args.optJSONObject(0) ?: return done(failure("INVALID_ARGUMENT", "Wallet.add needs a source object"))
+                val jwt = source.optString("jwt").trim()
+                if (jwt.isNotEmpty()) {
+                    val host = activity() ?: return done(failure("NEEDS_ACTIVITY", "No screen is showing to open Wallet"))
+{{NATIVE_WALLET_JWT_ADD}}
+                    return
+                }
                 val address = source.optString("url").trim()
                 if (!address.startsWith("https://")) return done(failure("INVALID_ARGUMENT", "Android Wallet.add needs an HTTPS save URL"))
                 val host = activity() ?: return done(failure("NEEDS_ACTIVITY", "No screen is showing to open Wallet"))
@@ -212,6 +220,7 @@ internal class CraftNativeServices(
             else -> done(failure("UNKNOWN_ACTION", "Unsupported Wallet method"))
         }
     }
+{{NATIVE_WALLET_HELPER}}
 
     // MARK: Dialogs
 
@@ -554,8 +563,10 @@ internal class CraftNativeServices(
 
     // MARK: Health Connect
 
-    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean =
-        health?.onActivityResult(requestCode, resultCode, data) == true
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+{{NATIVE_WALLET_RESULT}}
+        return health?.onActivityResult(requestCode, resultCode, data) == true
+    }
 
     // MARK: The screen
 

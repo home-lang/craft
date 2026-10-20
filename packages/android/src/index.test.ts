@@ -737,10 +737,13 @@ describe('Craft Android builder', () => {
     expect(config.enableWallet).toBe(true)
     expect(services).toContain('if (config.optBoolean("enableWallet")) add("wallet")')
     expect(services).toContain('"Wallet" -> wallet(method, args, done)')
-    expect(services).toContain('getLaunchIntentForPackage("com.google.android.apps.walletnfcrel")')
     expect(services).toContain('Android Wallet.add needs an HTTPS save URL')
     expect(services).toContain('host.startActivity(intent)')
     expect(services).toContain('Google Wallet pass lookup is not available through the save-link API')
+    expect(services).toContain('PayClient.RequestType.SAVE_PASSES_JWT')
+    expect(services).toContain('Pay.getClient(host).savePassesJwt(jwt, host, walletRequestCode)')
+    expect(services).toContain('PayClient.SavePassesResult.SAVE_ERROR')
+    expect(readFileSync(join(output, 'app', 'build.gradle.kts'), 'utf8')).toContain('com.google.android.gms:play-services-pay:16.5.0')
   })
 
   it('generates a DayNight background resource for native screens', async () => {

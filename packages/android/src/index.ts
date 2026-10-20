@@ -164,7 +164,7 @@ export interface CraftAndroidConfig {
   enableHealthConnect?: boolean
   /** Android Health Services live exercise tracking for native screens. */
   enableHealthServices?: boolean
-  /** Google Wallet save-link handoff for native screens. */
+  /** Google Wallet save-link or native SDK handoff for native screens. */
   enableWallet?: boolean
   /**
    * The Health Connect data the app reads and writes, by the shared type
@@ -758,6 +758,50 @@ function writeNativeShellSources(output: string, packagePath: string, packageNam
   }
   write('CraftNativeServices.kt.template', 'CraftNativeServices.kt', source => source
     .replace('{{NATIVE_PUSH_IMPORTS}}', config.enablePushNotifications ? 'import com.google.firebase.messaging.FirebaseMessaging' : '')
+    .replace('{{NATIVE_WALLET_IMPORTS}}', config.enableWallet ? `import com.google.android.gms.pay.Pay
+import com.google.android.gms.pay.PayApiAvailabilityStatus
+import com.google.android.gms.pay.PayClient` : '')
+    .replace('{{NATIVE_WALLET_FIELDS}}', config.enableWallet ? `    private var pendingWallet: ((CraftNativeCapabilityResult) -> Unit)? = null
+    private val walletRequestCode = 9517` : '')
+    .replace('{{NATIVE_WALLET_AVAILABILITY}}', config.enableWallet ? `                val host = activity()
+                if (host == null) {
+                    done(success(false))
+                } else {
+                    Pay.getClient(host).getPayApiAvailabilityStatus(PayClient.RequestType.SAVE_PASSES_JWT)
+                        .addOnSuccessListener { status -> done(success(status == PayApiAvailabilityStatus.AVAILABLE)) }
+                        .addOnFailureListener { done(success(false)) }
+                }` : `                done(success(runCatching {
+                    context.packageManager.getLaunchIntentForPackage("com.google.android.apps.walletnfcrel") != null
+                }.getOrDefault(false)))`)
+    .replace('{{NATIVE_WALLET_JWT_ADD}}', config.enableWallet
+      ? '                    saveWalletJwt(jwt, host, done)'
+      : '                    done(failure("UNSUPPORTED", "Android Wallet JWT saves are not enabled"))')
+    .replace('{{NATIVE_WALLET_HELPER}}', config.enableWallet ? `    private fun saveWalletJwt(jwt: String, host: Activity, done: (CraftNativeCapabilityResult) -> Unit) {
+        if (pendingWallet != null) return done(failure("BUSY", "A Google Wallet save is already in progress"))
+        pendingWallet = done
+        try {
+            Pay.getClient(host).savePassesJwt(jwt, host, walletRequestCode)
+        } catch (error: Exception) {
+            pendingWallet = null
+            done(failure("PRESENTATION_FAILED", error.message ?: "Google Wallet could not open"))
+        }
+    }
+` : '')
+    .replace('{{NATIVE_WALLET_RESULT}}', config.enableWallet ? `        if (requestCode == walletRequestCode) {
+            val completion = pendingWallet
+            pendingWallet = null
+            if (completion == null) return true
+            when (resultCode) {
+                Activity.RESULT_OK -> completion(success(true))
+                Activity.RESULT_CANCELED -> completion(success(false))
+                PayClient.SavePassesResult.API_UNAVAILABLE -> completion(failure("UNAVAILABLE", "Google Wallet save is unavailable"))
+                PayClient.SavePassesResult.INTERNAL_ERROR -> completion(failure("WALLET_ERROR", "Google Wallet returned an internal error"))
+                PayClient.SavePassesResult.SAVE_ERROR -> completion(failure("SAVE_ERROR", data?.getStringExtra(PayClient.EXTRA_API_ERROR_MESSAGE) ?: "Google Wallet could not save the pass"))
+                else -> completion(failure("WALLET_ERROR", "Google Wallet returned an unknown result"))
+            }
+            return true
+        }
+` : '')
     .replace('{{NATIVE_PUSH_REGISTER}}', config.enablePushNotifications
       ? `        try {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
@@ -1219,6 +1263,9 @@ export async function init(options: InitOptions): Promise<void> {
       : '')
     .replace(/\{\{HEALTH_SERVICES_DEPENDENCIES\}\}/g, config.enableHealthServices
       ? '    implementation("androidx.health:health-services-client:1.1.0")'
+      : '')
+    .replace(/\{\{WALLET_DEPENDENCY\}\}/g, config.enableWallet
+      ? '    // Native Google Wallet save flow for signed pass JWTs\n    implementation("com.google.android.gms:play-services-pay:16.5.0")'
       : '')
     .replace(/\{\{JAVASCRIPT_ENGINE_DEPENDENCY\}\}/g, config.renderer === 'native'
       ? `    implementation("androidx.javascriptengine:javascriptengine:1.1.0")
