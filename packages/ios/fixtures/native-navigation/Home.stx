@@ -17,6 +17,9 @@ const panelAccessibilityDisabled = state(false)
 const longPressStatus = state('')
 const longPressAccessibilityDisabled = state(false)
 const switchValue = state(false)
+const nullableSwitchChecked = state(true)
+const precedenceSwitchValue = state(false)
+const precedenceCheckboxChecked = state(false)
 const invalidSwitchColors = state(false)
 const pickerValue = state('one')
 const itemsPickerValue = state('one')
@@ -845,8 +848,10 @@ function openDetailsThenUpdateBackground() {
     <Switch testID="native-switch" value={switchValue} accessibilityState={switchAccessibilityState()} trackColor={switchTrackColor()} thumbColor={switchThumbColor()} ios_backgroundColor="#475569" @value-change="toggleSwitch($event)" />
     <Switch testID="uncontrolled-switch" />
     <Button testID="toggle-invalid-switch-colors" @click="toggleInvalidSwitchColors()">Toggle invalid switch colors</Button>
-    <Switch testID="nullable-switch" :value="null" :checked="true" />
-    <Switch testID="switch-value-precedence" :value="false" :checked="true" />
+    <Switch testID="nullable-switch" :value="null" :checked="nullableSwitchChecked" @value-change="nullableSwitchChecked.set($event.value)" />
+    <Text testID="nullable-switch-status" :text="nullableSwitchChecked ? 'nullable switch on' : 'nullable switch off'" />
+    <Switch testID="switch-value-precedence" :value="precedenceSwitchValue" :checked="true" @value-change="precedenceSwitchValue.set($event.value)" />
+    <Text testID="switch-precedence-status" :text="precedenceSwitchValue ? 'precedence switch on' : 'precedence switch off'" />
     <select testID="native-picker" :value="pickerValue" @change="choosePicker($event)">
       <option value="one">One</option>
       <option value="two">Two</option>
@@ -864,7 +869,8 @@ function openDetailsThenUpdateBackground() {
     <Checkbox testID="native-checkbox" label="Accept terms" :value="checkboxValue" :color="invalidControlColors ? 'not-a-color' : '#22c55e'" @value-change="chooseCheckbox($event)" />
     <Text testID="checkbox-status" :text="checkboxStatus" />
     <Checkbox testID="native-checkbox-indeterminate" label="Mixed terms" indeterminate />
-    <Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" />
+    <Checkbox testID="checkbox-checked-precedence" :checked="precedenceCheckboxChecked" :value="true" @value-change="precedenceCheckboxChecked.set($event.value)" />
+    <Text testID="checkbox-precedence-status" :text="precedenceCheckboxChecked ? 'precedence checkbox on' : 'precedence checkbox off'" />
     <Button testID="toggle-invalid-control-colors" @click="toggleInvalidControlColors()">Toggle invalid control colors</Button>
     <Text testID="invalid-control-style-status" :text="invalidControlStyleStatus" />
     <Text testID="date-event-status" :text="dateEventStatus" />

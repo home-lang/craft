@@ -1500,6 +1500,18 @@ class NativeNavigationTest {
             var nullableSwitchInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { nullableSwitchInfo = nullableSwitch.createAccessibilityNodeInfo() }
             assertTrue("native checked state should remain accessible without accessibilityState", nullableSwitchInfo?.isChecked == true)
+            instrumentation.runOnMainSync { nullableSwitch.performClick() }
+            awaitText(activity, "nullable-switch-status", "nullable switch off")
+            assertFalse("nullable switch should reconcile its native change", nullableSwitch.isChecked)
+            instrumentation.runOnMainSync { nullableSwitch.performClick() }
+            awaitText(activity, "nullable-switch-status", "nullable switch on")
+            assertTrue("nullable switch should restore checked through its change handler", nullableSwitch.isChecked)
+            instrumentation.runOnMainSync { precedenceSwitch.performClick() }
+            awaitText(activity, "switch-precedence-status", "precedence switch on")
+            assertTrue("switch value should reconcile its native change", precedenceSwitch.isChecked)
+            instrumentation.runOnMainSync { precedenceSwitch.performClick() }
+            awaitText(activity, "switch-precedence-status", "precedence switch off")
+            assertFalse("switch value should still take precedence after reconciliation", precedenceSwitch.isChecked)
             click(activity, "toggle-invalid-switch-colors")
             awaitText(activity, "invalid-control-style-status", "invalid switch colors on")
             assertTrue("uncontrolled switch should survive reconciliation", uncontrolledSwitch.isChecked)
@@ -1574,6 +1586,12 @@ class NativeNavigationTest {
             assertTrue("indeterminate checkbox should become checked on first toggle", indeterminateCheckbox.isChecked)
             val precedenceCheckbox = awaitView(activity, "checkbox-checked-precedence") as CheckBox
             assertTrue("checked should take precedence over value", !precedenceCheckbox.isChecked)
+            instrumentation.runOnMainSync { precedenceCheckbox.performClick() }
+            awaitText(activity, "checkbox-precedence-status", "precedence checkbox on")
+            assertTrue("checkbox checked should reconcile its native change", precedenceCheckbox.isChecked)
+            instrumentation.runOnMainSync { precedenceCheckbox.performClick() }
+            awaitText(activity, "checkbox-precedence-status", "precedence checkbox off")
+            assertFalse("checkbox checked should still take precedence after reconciliation", precedenceCheckbox.isChecked)
             val styledIndicator = awaitView(activity, "native-indicator") as ProgressBar
             assertTrue("authored activity-indicator color should be applied", styledIndicator.indeterminateTintList != null)
             click(activity, "toggle-invalid-control-colors")
