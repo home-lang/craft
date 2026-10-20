@@ -988,7 +988,7 @@ class NativeNavigationTest {
             // the app window on the hosted emulator. Exercise the same native
             // scroll range deterministically; the shell's gesture ownership is
             // covered by the source contract and the real device path.
-            carousel.scrollTo(carousel.width, 0)
+            instrumentation.runOnMainSync { carousel.scrollTo(carousel.width, 0) }
             assertTrue("carousel content did not scroll within its native range", carousel.scrollX > 0)
             swipeTab(activity, left = true)
             awaitText(activity, "details-title", "Details for ")
