@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { createAndroidEmulator } from '../../../android/src/emulator'
 import type { AndroidEmulatorOptions } from '../../../android/src/emulator'
 
-function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false, delayedHome = false, bootstrapHome = 'com.android.sdksetup/.DefaultActivity'): { root: string, options: AndroidEmulatorOptions } {
+function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false, delayedHome = false, connection: 'normal' | 'stale' | 'offline' = 'normal', bootstrapHome = 'com.android.sdksetup/.DefaultActivity'): { root: string, options: AndroidEmulatorOptions } {
   const root = mkdtempSync(join(tmpdir(), 'craft emulator fixture '))
   const sdk = join(root, 'managed sdk')
   for (const directory of ['bin', 'platform-tools', 'emulator']) mkdirSync(join(sdk, directory), { recursive: true })
@@ -17,11 +17,23 @@ function fixture(hardware: boolean, delayedSettings = false, delayedEvents = fal
   const sdkmanager = program('bin/sdkmanager', 'printf "sdkmanager %s\\n" "$*" >> "$ANDROID_HOME/calls"')
   const avdmanager = program('bin/avdmanager', `printf "avdmanager %s\\n" "$*" >> "$ANDROID_HOME/calls"
 if [ "$1" = create ]; then printf '%s' "$ANDROID_AVD_HOME" > "$ANDROID_HOME/owned"; else touch "$ANDROID_HOME/deleted"; fi`)
-  program('platform-tools/adb', `if [ "$1" = devices ]; then
+  program('platform-tools/adb', `printf 'adb %s\\n' "$*" >> "$ANDROID_HOME/calls"
+if [ "$1" = devices ]; then
   printf 'List of devices attached\\n'
-  if [ -f "$ANDROID_HOME/started" ]; then printf '%s\\tdevice\\n' "$ANDROID_SERIAL"; fi
+  printf 'foreign-emulator\\toffline\\n'
+  if [ -f "$ANDROID_HOME/started" ]; then
+    if [ '${connection}' = offline ] || { [ '${connection}' = stale ] && [ -f "$ANDROID_HOME/connected-once" ] && [ ! -f "$ANDROID_HOME/reconnected" ]; }; then
+      printf '%s\\toffline\\n' "$ANDROID_SERIAL"
+    else
+      touch "$ANDROID_HOME/connected-once"
+      printf '%s\\tdevice\\n' "$ANDROID_SERIAL"
+    fi
+  fi
 else
   case "$*" in
+    '-s '$ANDROID_SERIAL' reconnect') touch "$ANDROID_HOME/reconnected" ;;
+    *'getprop sys.boot_completed')
+      if [ '${connection}' = stale ] && [ ! -f "$ANDROID_HOME/reconnected" ]; then printf '\\n'; else printf '1\\n'; fi ;;
     *'settings get global animator_duration_scale')
       if [ '${delayedSettings ? 'yes' : 'no'}' = yes ] && [ ! -f "$ANDROID_HOME/settings-ready" ]; then
         touch "$ANDROID_HOME/settings-ready"
@@ -68,6 +80,44 @@ test('hardware emulation refuses unavailable acceleration before creating a devi
   }
   finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+test('a cold boot reconnects only its previously connected stale ADB transport', async () => {
+  const { root, options } = fixture(true, false, false, false, 'stale')
+  options.bootTimeoutMs = 12_000
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator(options)
+    const trace = readFileSync(join(options.artifactsDirectory, 'device-commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    const reconnects = trace.filter(entry => entry.args.includes('reconnect'))
+    expect(reconnects.map(entry => entry.args.slice(1))).toEqual([['-s', session.serial, 'reconnect']])
+    expect(trace.some(entry => entry.args.includes('kill-server') || entry.args.includes('offline'))).toBe(false)
+    const completion = trace.filter(entry => entry.args.includes('sys.boot_completed'))
+    expect(completion.map(entry => entry.stdout.trim())).toEqual(['', '1'])
+    expect(trace.some(entry => entry.args.includes('resolve-activity'))).toBe(true)
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(identity.status).toBe('booted')
+    expect(identity.bootTimeoutMs).toBe(12_000)
+    expect(identity.bootElapsedMs).toBeLessThanOrEqual(identity.bootTimeoutMs)
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 20_000)
+
+test('an offline guest that never connected still fails its deadline and is disposed', async () => {
+  const { root, options } = fixture(true, false, false, false, 'offline')
+  options.bootTimeoutMs = 1000
+  try {
+    await expect(createAndroidEmulator(options)).rejects.toThrow('did not boot within 1000ms')
+    const calls = readFileSync(join(options.sdkRoot, 'calls'), 'utf8')
+    expect(calls).not.toContain('reconnect')
+    expect(calls).not.toContain('kill-server')
+    expect(existsSync(readFileSync(join(options.sdkRoot, 'owned'), 'utf8'))).toBe(false)
+    expect(existsSync(join(options.sdkRoot, 'deleted'))).toBe(true)
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(identity.status).toBe('failed')
+    expect(() => process.kill(identity.emulatorPid, 0)).toThrow()
+  }
+  finally { rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
 
 test('invalid boot budgets fail before starting tools or creating owned device data', async () => {
   const { root, options } = fixture(true)
@@ -136,7 +186,7 @@ test('boot completion waits for the automatic SDK setup activity to release HOME
 }, 10_000)
 
 test.each(['com.android.settings/.FallbackHome', 'android/com.android.internal.app.ResolverActivity'])('boot readiness rejects the temporary HOME destination %s', async (bootstrapHome) => {
-  const { root, options } = fixture(true, false, false, true, bootstrapHome)
+  const { root, options } = fixture(true, false, false, true, 'normal', bootstrapHome)
   let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
   try {
     session = await createAndroidEmulator(options)

@@ -137,12 +137,23 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
     await Bun.write(join(artifacts, 'android-emulator.json'), JSON.stringify(identity, null, 2) + '\n')
     const deadline = bootStartedAt + bootTimeoutMs
     const probeTimeout = (): number => Math.max(1, Math.min(10_000, deadline - Date.now()))
+    let connected = false
+    let lastReconnectAt = 0
     while (Date.now() < deadline && child.exitCode === null) {
       let booted = false
       // Nonzero ADB exits are expected while services initialize. Filesystem,
       // logging and process-launch errors must remain fatal and visible.
       const connection = await run([adb, 'devices'], undefined, probeTimeout(), true)
-      if (connection.code === 0 && connection.stdout.includes(`${serial}\tdevice`)) {
+      const state = connection.stdout.split(/\r?\n/).find(line => line.startsWith(`${serial}\t`))?.split(/\s+/)[1]
+      // A cold boot can restart adbd after its initial connection. Recover the
+      // owned stale transport without restarting the shared server or touching
+      // other devices. A never-connected guest still needs to finish booting.
+      if (connection.code === 0 && state === 'offline' && connected && Date.now() - lastReconnectAt >= 30_000 && Date.now() < deadline) {
+        lastReconnectAt = Date.now()
+        await run([adb, '-s', serial, 'reconnect'], undefined, probeTimeout(), true)
+      }
+      if (connection.code === 0 && state === 'device') {
+        connected = true
         const completion = await run([adb, '-s', serial, 'shell', 'getprop', 'sys.boot_completed'], undefined, probeTimeout(), true)
         if (completion.code === 0 && completion.stdout.trim() === '1') {
           // boot_completed can precede SettingsProvider and System UI readiness.
