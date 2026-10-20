@@ -2567,6 +2567,15 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
             blocker.setBackgroundColor(if (value) Color.TRANSPARENT else Color.argb(82, 0, 0, 0))
         }
 
+    /** Existing Modal nodes block by default; non-modal popups let outside taps through. */
+    var blocksBackground: Boolean = true
+        set(value) {
+            field = value
+            isClickable = value
+            blocker.isClickable = value
+            blocker.isEnabled = value
+        }
+
     init {
         isClickable = true
         blocker.isClickable = true
@@ -2580,6 +2589,7 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     }
 
     fun requestClose(reason: String = "backdrop") {
+        if (!blocksBackground) return
         val handler = onRequestClose ?: return
         isClickable = false
         blocker.isEnabled = false
@@ -2588,8 +2598,8 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
 
     fun setVisible(visible: Boolean, opacity: Float, animationType: String?) {
         if (visible) {
-            isClickable = true
-            blocker.isEnabled = true
+            isClickable = blocksBackground
+            blocker.isEnabled = blocksBackground
         }
         if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE) {
             if (visible && alpha != opacity) alpha = opacity
@@ -2643,8 +2653,14 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
         translationY = 0f
         alpha = 0f
         isClickable = true
+        blocksBackground = true
         blocker.isEnabled = true
         onRequestClose = null
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!blocksBackground) return false
+        return super.onTouchEvent(event)
     }
 }
 
@@ -5365,6 +5381,7 @@ class MainActivity : AppCompatActivity() {
             "Modal" -> (previous as? CraftNativeModalView ?: CraftNativeModalView(this)).apply {
                 val focusBeforeContent = screen.view.findFocus()
                 transparent = craftNativeBoolean(props.opt("transparent"))
+                blocksBackground = !craftNativeBoolean(props.opt("nonModal"))
                 content.configure(style, resources.displayMetrics.density)
                 reconcileChildren(screen, content, children, identity, next, style, previousControls)
                 // Dynamic :visible bindings arrive as a display style mutation;

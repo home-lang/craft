@@ -3795,6 +3795,13 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
         didSet { blocker.backgroundColor = transparent ? .clear : UIColor.black.withAlphaComponent(0.32) }
     }
 
+    /// Existing Modal nodes block by default. A non-modal popup keeps the
+    /// screen-level overlay but lets hit testing fall through outside its
+    /// interactive content.
+    var blocksBackground = true {
+        didSet { blocker.isUserInteractionEnabled = blocksBackground }
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         isUserInteractionEnabled = true
@@ -3876,10 +3883,12 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
         transform = .identity
         alpha = 0
         isUserInteractionEnabled = true
+        blocksBackground = true
         onRequestClose = nil
     }
 
     func requestClose(reason: String = "backdrop") {
+        guard blocksBackground else { return }
         guard let onRequestClose else { return }
         isUserInteractionEnabled = false
         onRequestClose(reason)
@@ -3912,6 +3921,7 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
                 candidate = view.superview
             }
         }
+        if !blocksBackground { return nil }
         return blocker.hitTest(blocker.convert(point, from: self), with: event)
     }
 
@@ -7328,6 +7338,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let modal = result as! CraftNativeModalView
             let focusBeforeContent = firstResponder(in: rootStack) ?? lastFocusedInput
             modal.transparent = props["transparent"] as? Bool == true
+            modal.blocksBackground = props["nonModal"] as? Bool != true
             let visible: Bool
             if let propVisible = props["visible"] as? Bool {
                 // An explicit visible prop owns modal visibility. The
