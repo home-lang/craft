@@ -2372,6 +2372,8 @@ describe('Craft Android builder', () => {
       expect(service).toContain('startExerciseAsync(config)')
       expect(service).toContain('endExerciseAsync()')
       expect(service).toContain('CraftHealthServices.completeEnd')
+      expect(service).toContain('if (state.isEnded) {')
+      expect(service).toContain('CraftHealthServices.clearActive()')
       expect(service).toContain('"workoutId", id')
       expect(service).toContain('DataType.HEART_RATE_BPM')
       expect(service).toContain('DataType.CALORIES_TOTAL')

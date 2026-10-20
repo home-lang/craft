@@ -133,7 +133,10 @@ internal class CraftHealthServicesService : Service() {
         update.activeDurationCheckpoint?.let { detail.put("durationSeconds", it.activeDuration.toMillis() / 1000.0) }
         detail.optDouble("durationSeconds", -1.0).takeIf { it >= 0 }?.let { lastDurationSeconds = it }
         CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftHealthWorkout").put("detail", detail))
-        if (state.isEnded) stopSelf()
+        if (state.isEnded) {
+            CraftHealthServices.clearActive()
+            stopSelf()
+        }
     }
 
     private fun emitError(message: String) {
