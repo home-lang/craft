@@ -103,7 +103,7 @@ defaults:
 # at the workflow level so a compiler qualification changes one line, not four
 # checkout steps plus documentation and a second test constant.
 env:
-  STX_COMPILER_REF: 3daad2db083d21aa4306e44d9eb1acfcb8a9677f
+  STX_COMPILER_REF: c3d3b75a7ddada1583660883dd13c9a865b9929e
 
 jobs:
   media-cache:

@@ -58,6 +58,9 @@ blocks; bindings update native controls through the mutation protocol. Native
 scripts also receive the `globalThis.craft` route, navigation, storage, and
 capability APIs from the host.
 
+Native `View`, `Text`, `Button`, and `Link` props also accept `onClick` as a
+DOM-compatible alias for `onPress`; `@click` lowers to the same native event.
+
 Native screens do not run in a browser context. The host supplies the language
 runtime, `globalThis.craft`, `fetch`, timers, and the enabled capability APIs,
 but it does not provide browser URL or encoding globals. `URL`,
@@ -74,7 +77,7 @@ The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. The workflow-level `STX_COMPILER_REF` is the single source
 of truth for every native checkout; update that one value when qualifying a new
 STX revision. The workflow contract test rejects compiler skew between hosts.
-The current pin targets STX main, which preserves authored reconciliation keys
+The current pin targets STX main at `c3d3b75a7ddada1583660883dd13c9a865b9929e`, which preserves authored reconciliation keys
 and explicit grid row tracks in
 static and reactive native styles, and keeps template indentation out of native
 leaf button labels. Touchable primitives preserve authored accessibility roles
