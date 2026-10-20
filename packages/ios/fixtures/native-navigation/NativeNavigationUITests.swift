@@ -52,8 +52,9 @@ final class NativeNavigationUITests: XCTestCase {
     /// scrolls the root by itself to reach whatever a tap targets, so an
     /// inner scroll view can be anywhere, and a swipe that starts in its
     /// clipped part lands on whatever lies outside it. The drag starts where
-    /// no nested scroll view would take it, travels a bounded distance and
-    /// holds before lifting, so the offset is not left to momentum.
+    /// no nested scroll view or native value control would take it, travels
+    /// a bounded distance and holds before lifting, so the offset is not
+    /// left to momentum or a picker changing its value.
     private func reveal(
         _ element: XCUIElement,
         in scroll: XCUIElement,
@@ -63,27 +64,42 @@ final class NativeNavigationUITests: XCTestCase {
     ) {
         XCTAssertTrue(element.waitForExistence(timeout: 10), "missing control before scrolling", file: file, line: line)
         if let root { reveal(scroll, in: root, file: file, line: line) }
-        for _ in 0..<24 {
+        for attempt in 0..<24 {
             if inside(element, scroll) && element.isHittable { return }
             let viewport = scroll.frame
-            let nested: [CGRect] = scroll.descendants(matching: .scrollView).allElementsBoundByIndex.map { $0.frame }
-            var start: CGFloat = 0.5
-            for step in 0...8 {
+            let competingTypes: [XCUIElement.ElementType] = [.scrollView, .picker, .pickerWheel, .datePicker, .slider, .switch]
+            let competing = competingTypes.flatMap { type in
+                scroll.descendants(matching: type).allElementsBoundByIndex.map { $0.frame.insetBy(dx: -4, dy: -4) }
+            }.filter { !$0.isEmpty && $0.intersects(viewport) }
+            var start: CGVector?
+            for step in 0...9 {
                 let offset = CGFloat(step) * 0.05
-                let free = [0.5 + offset, 0.5 - offset].first { (fraction: CGFloat) -> Bool in
-                    let y = viewport.minY + viewport.height * fraction
-                    return !nested.contains { (frame: CGRect) -> Bool in frame.minY - 4 <= y && y <= frame.maxY + 4 }
+                for y in [0.5 + offset, 0.5 - offset] {
+                    for x: CGFloat in [0.5, 0.25, 0.75, 0.1, 0.9, 0.05, 0.95] {
+                        let point = CGPoint(x: viewport.minX + viewport.width * x, y: viewport.minY + viewport.height * y)
+                        if !competing.contains(where: { $0.contains(point) }) {
+                            start = CGVector(dx: x, dy: y)
+                            break
+                        }
+                    }
+                    if start != nil { break }
                 }
-                if let free { start = free; break }
+                if start != nil { break }
+            }
+            guard let start else {
+                XCTFail("no safe manual scroll origin: target=\(element.frame), viewport=\(viewport), competing=\(competing)", file: file, line: line)
+                return
             }
             // Content moves the opposite way to the finger, which may leave
             // a short scroll view: the drag stays its own until it lifts.
             let distance = max(-240, min(240, element.frame.midY - viewport.midY))
-            let from = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: start))
+            let from = scroll.coordinate(withNormalizedOffset: start)
             let to = from.withOffset(CGVector(dx: 0, dy: -distance))
-            from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
+            XCTContext.runActivity(named: "manual scroll \(attempt + 1): target=\(element.frame), viewport=\(viewport), origin=\(start), distance=\(distance), competing=\(competing)") { _ in
+                from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
+            }
         }
-        XCTAssertTrue(inside(element, scroll) && element.isHittable, "control remained outside the native scroll viewport", file: file, line: line)
+        XCTAssertTrue(inside(element, scroll) && element.isHittable, "control remained outside the native scroll viewport: target=\(element.frame), viewport=\(scroll.frame), hittable=\(element.isHittable)", file: file, line: line)
     }
 
     private func openCapabilities(_ app: XCUIApplication) {
@@ -1119,8 +1135,11 @@ final class NativeNavigationUITests: XCTestCase {
         app.launch()
         let rootScroll = app.scrollViews["native-root-scroll"]
         XCTAssertTrue(rootScroll.waitForExistence(timeout: 15))
+        let pickerValue = app.staticTexts["items-picker-value"]
+        XCTAssertEqual(pickerValue.label, "one")
         let modalToggle = app.buttons["toggle-modal"]
         reveal(modalToggle, in: rootScroll)
+        XCTAssertEqual(pickerValue.label, "one", "manual scrolling changed a native picker value")
         modalToggle.tap()
         XCTAssertTrue(app.otherElements["native-modal"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["modal shown"].waitForExistence(timeout: 5))
