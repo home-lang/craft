@@ -727,7 +727,7 @@ export function renderAndroidPermissions(config: CraftAndroidConfig): string {
     '    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />',
     '    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />',
     '    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />',
-    ...(config.enableGeolocation ? [] : ['    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />']),
+    ...(permissions.has('android.permission.ACCESS_FINE_LOCATION') ? [] : ['    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />']),
   ].join('\n') : ''
   return [bluetooth, ...[...permissions].map(permission => `    <uses-permission android:name="${permission}" />`)].filter(Boolean).join('\n')
 }
