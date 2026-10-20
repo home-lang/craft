@@ -14,6 +14,10 @@ const diagnostic = args.length === 1
 // measured API 35 image took 943520 ms; this explicit software-only profile
 // leaves the public helper default and hardware acceptance at 600000 ms.
 const bootTimeoutMs = 1_200_000
+// Both retained 2 GB-profile failures show low-memory/process-death churn and
+// a SystemUI ANR. Give the unmodified stock image an explicit 4 GB guest;
+// readiness, software acceleration, CPU count and boot deadline stay intact.
+const memoryMb = 4096
 const expectedFingerprint = diagnostic ? process.env.CRAFT_ANDROID_DIAGNOSTIC_FINGERPRINT : undefined
 if (diagnostic && !expectedFingerprint)
   throw new Error('The cold-provisioning diagnostic requires the failed stock image fingerprint')
@@ -35,7 +39,7 @@ let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
 const proof: Record<string, unknown> = {
   purpose: diagnostic ? 'software-cold-provisioning-diagnostic-not-release-acceptance' : 'software-emulator-acceptance',
   platform: process.platform, architecture: process.arch, acceleration: 'software', sdkmanager, avdmanager, javaHome,
-  provisioningProfile: 'stock-play-software-cold', bootTimeoutMs,
+  provisioningProfile: 'stock-play-software-cold', bootTimeoutMs, memoryMb,
   expectedFingerprint, runnerImage: process.env.ImageOS, runnerImageVersion: process.env.ImageVersion,
 }
 
@@ -44,7 +48,7 @@ try {
     sdkRoot: join(owned, 'sdk'), sdkmanager, avdmanager,
     image: 'system-images;android-35;google_apis_playstore;x86_64',
     acceleration: 'software', artifactsDirectory: artifacts,
-    bootTimeoutMs,
+    bootTimeoutMs, memoryMb,
     temporaryDirectory: owned, acceptLicenses: true,
     env: { JAVA_HOME: javaHome },
   })
@@ -63,11 +67,15 @@ try {
   const abi = await adb(['shell', 'getprop', 'ro.product.cpu.abi'])
   const playStore = await adb(['shell', 'pm', 'path', 'com.android.vending'])
   const fingerprint = await adb(['shell', 'getprop', 'ro.build.fingerprint'])
+  const meminfo = await adb(['shell', 'cat', '/proc/meminfo'])
+  const guestMemTotalKb = Number(/^MemTotal:\s+(\d+)\s+kB$/m.exec(meminfo)?.[1])
   if (api !== '35' || abi !== 'x86_64' || !/^package:\/\S+/.test(playStore) || !fingerprint)
     throw new Error('The owned emulator must run the requested stock Play image')
+  if (!Number.isSafeInteger(guestMemTotalKb) || guestMemTotalKb <= 0)
+    throw new Error('The owned emulator must report its actual guest memory')
   if (diagnostic && fingerprint !== expectedFingerprint)
     throw new Error('The stock Play image changed; this diagnostic cannot explain the retained cold-boot failures')
-  Object.assign(proof, { serial: session.serial, api, abi, playStore, fingerprint, verifiedAt: new Date().toISOString() })
+  Object.assign(proof, { serial: session.serial, api, abi, playStore, fingerprint, guestMemTotalKb, verifiedAt: new Date().toISOString() })
 }
 finally {
   try {

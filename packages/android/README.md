@@ -90,6 +90,7 @@ const device = await createAndroidEmulator({
   avdmanager: '/ci/pantry/.bin/avdmanager',
   image: 'system-images;android-35;google_apis_playstore;x86_64',
   acceleration: 'software',
+  memoryMb: 4096,
   artifactsDirectory: '/ci/artifacts/android',
   acceptLicenses: true,
 })
@@ -106,6 +107,11 @@ the Android emulator's explicit `-accel off` mode on x86_64 hosts; it provides
 functional test evidence, with no claim about hardware performance. The public
 helper defaults to a ten-minute boot budget, and hardware mode cannot exceed
 it. Software callers may explicitly set `bootTimeoutMs` up to twenty minutes.
+`memoryMb` selects the requested guest RAM, defaulting to 2048 MB. It accepts
+the emulator's documented [1536–8192 MB range](https://developer.android.com/studio/run/emulator-commandline#startup-options).
+The stock Play software verifier requests 4096 MB after retained cold boots
+showed low-memory/process-death churn and a SystemUI ANR. It keeps the same
+image, two virtual CPUs, readiness checks and twenty-minute deadline.
 The stock Play software CI verifier uses that cold-provisioning profile: the
 API 35 image took 943,520 ms in the retained diagnostic run
 [39113277828](https://github.com/craft-native/craft/actions/runs/39113277828).

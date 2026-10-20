@@ -137,6 +137,19 @@ test('an offline guest that never connected still fails its deadline and is disp
   finally { rmSync(root, { recursive: true, force: true }) }
 }, 10_000)
 
+test('explicit guest memory reaches the emulator process and its retained identity', async () => {
+  const { root, options } = fixture(true)
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator({ ...options, memoryMb: 4096 })
+    expect(readFileSync(join(options.sdkRoot, 'calls'), 'utf8')).toContain('-memory 4096')
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(identity.memoryMb).toBe(4096)
+    expect(identity.virtualCpus).toBe(2)
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
 test('invalid boot budgets fail before starting tools or creating owned device data', async () => {
   const { root, options } = fixture(true)
   try {
@@ -148,6 +161,18 @@ test('invalid boot budgets fail before starting tools or creating owned device d
         expect(existsSync(join(options.sdkRoot, 'calls'))).toBe(false)
         expect(existsSync(options.temporaryDirectory!)).toBe(false)
       }
+    }
+  }
+  finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test('invalid guest memory fails before starting tools or creating owned device data', async () => {
+  const { root, options } = fixture(true)
+  try {
+    for (const memoryMb of [NaN, Infinity, -Infinity, 0, 1535, 8193, 4096.5]) {
+      await expect(createAndroidEmulator({ ...options, memoryMb })).rejects.toThrow('memoryMb')
+      expect(existsSync(join(options.sdkRoot, 'calls'))).toBe(false)
+      expect(existsSync(options.temporaryDirectory!)).toBe(false)
     }
   }
   finally { rmSync(root, { recursive: true, force: true }) }
@@ -266,6 +291,7 @@ test('the SDK process fixture records hardware mode and reaps only its owned pro
     session = await createAndroidEmulator(options)
     const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
     expect(identity.acceleration).toBe('hardware')
+    expect(identity.memoryMb).toBe(2048)
     expect(identity.bootedAt).toBeString()
     expect(identity.bootTimeoutMs).toBe(42_000)
     expect(identity.bootElapsedMs).toBeGreaterThanOrEqual(0)
