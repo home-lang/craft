@@ -2341,6 +2341,28 @@ describe('Craft Android builder', () => {
     }
   })
 
+  it('generates the opt-in Health Services dependency, permissions, and service owner', async () => {
+    const output = createTempDir('craft-android-health-services-')
+    try {
+      await init({
+        name: 'NativeHealthServices',
+        packageName: 'org.native.healthservices',
+        output,
+        config: { renderer: 'native', enableHealthServices: true },
+      })
+      const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
+      const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
+      expect(manifest).toContain('android.permission.BODY_SENSORS')
+      expect(manifest).toContain('android.permission.FOREGROUND_SERVICE_HEALTH')
+      expect(manifest).toContain('CraftHealthServicesService')
+      expect(gradle).toContain('androidx.health:health-services-client:1.1.0')
+      expect(gradle).not.toContain('HEALTH_SERVICES_DEPENDENCIES')
+    }
+    finally {
+      rmSync(output, { recursive: true, force: true })
+    }
+  })
+
   it('invalidates Health Connect replies in enabled and disabled builds', async () => {
     const disabledOutput = createTempDir('craft-android-health-disabled-close-')
     const enabledOutput = createTempDir('craft-android-health-enabled-close-')
