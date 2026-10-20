@@ -76,11 +76,11 @@ This behavior is identical on iOS JavaScriptCore and Android
 JavaScriptSandbox; it is not a capability gate and does not change the web
 renderer.
 
-The maintained Mobile E2E workflow checks out one exact stx compiler commit for
-both simulator hosts. The workflow-level `STX_COMPILER_REF` is the single source
-of truth for every native checkout; update that one value when qualifying a new
-STX revision. The workflow contract test rejects compiler skew between hosts.
-The current pin targets STX main at `9773b46b2465680aa070537914fda183262cdda6`, which preserves authored reconciliation keys
+The maintained Mobile E2E workflow checks out one released STX compiler version
+for both simulator hosts. The workflow-level `STX_COMPILER_VERSION` is the
+single source of truth for every native checkout; update that one value when a
+new STX release is qualified. The workflow contract test rejects compiler skew
+between hosts. The current pin targets `v0.2.608`, which preserves authored reconciliation keys
 and explicit grid row tracks in
 static and reactive native styles, and keeps template indentation out of native
 leaf button labels. Touchable primitives preserve authored accessibility roles
@@ -1250,11 +1250,15 @@ string values and persists them in the iOS Keychain or Android encrypted
 preferences. The `badge` capability is iOS-only and does not request notification
 authorization; `craft.badge.set(count)` and `craft.badge.clear()` update the app
 icon without requiring local notifications.
-On Android, the current Health workout methods expose only a foreground
-lifecycle and save the finished session through Health Connect. They do not
-provide Health Services background execution or live sensor samples; callers
-must treat `craftHealthWorkout` state events as lifecycle notifications until
-the dedicated Health Services adapter and its capability gate are available.
+On Android, `enableHealthConnect` keeps the HealthKit-shaped workout methods on
+the foreground Health Connect lifecycle and writes the finished session back
+through Health Connect. Native apps that need live sensors can additionally set
+`enableHealthServices: true`. Craft retains `ExerciseClient` in a foreground
+service, checks device capabilities before starting, and sends the same typed
+`craftHealthWorkout` events as iOS, including `heartRateBpm`,
+`activeEnergyCalories`, and `distanceMeters` metrics. The adapter supports
+running, walking, hiking, and cycling; unsupported devices and exercise types
+produce an `error` event rather than silently upgrading the fallback.
 A native passkey screen requires both `enablePasskeys: true` and at least one
 `webcredentials:<host>` entry in `associatedDomains`; otherwise the host does
 not advertise `passkeys`. `craft.passkeys.isAvailable()` is a configuration

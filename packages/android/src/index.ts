@@ -162,6 +162,8 @@ export interface CraftAndroidConfig {
    */
   enableHeartRate?: boolean
   enableHealthConnect?: boolean
+  /** Android Health Services live exercise tracking for native screens. */
+  enableHealthServices?: boolean
   /** Google Wallet save-link handoff for native screens. */
   enableWallet?: boolean
   /**
@@ -377,6 +379,7 @@ const DEFAULT_CONFIG: Omit<CraftAndroidConfig, 'appName' | 'packageName'> = {
   enableBluetooth: false,
   enableHeartRate: false,
   enableHealthConnect: false,
+  enableHealthServices: false,
   enableWallet: false,
   enableKeepAwake: false,
   enableDeepLinks: false,
@@ -708,6 +711,17 @@ export function renderAndroidPermissions(config: CraftAndroidConfig): string {
     permissions.add('android.permission.FOREGROUND_SERVICE')
     permissions.add('android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE')
   }
+  if (config.enableHealthServices) {
+    permissions.add('android.permission.BODY_SENSORS')
+    permissions.add('android.permission.BODY_SENSORS_BACKGROUND')
+    permissions.add('android.permission.health.READ_HEART_RATE')
+    permissions.add('android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND')
+    permissions.add('android.permission.ACTIVITY_RECOGNITION')
+    permissions.add('android.permission.ACCESS_FINE_LOCATION')
+    permissions.add('android.permission.ACCESS_COARSE_LOCATION')
+    permissions.add('android.permission.FOREGROUND_SERVICE')
+    permissions.add('android.permission.FOREGROUND_SERVICE_HEALTH')
+  }
   const bluetooth = config.enableBluetooth || config.enableHeartRate ? [
     '    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />',
     '    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />',
@@ -735,6 +749,13 @@ function writeNativeShellSources(output: string, packagePath: string, packageNam
   write('CraftNativeHaptics.kt.template', 'CraftNativeHaptics.kt')
   write('CraftNativeBackground.kt.template', 'CraftNativeBackground.kt')
   write(config.enableHealthConnect ? 'CraftNativeHealth.kt.template' : 'CraftNativeHealthStub.kt.template', 'CraftNativeHealth.kt')
+  write(config.enableHealthServices ? 'CraftHealthServices.kt.template' : 'CraftHealthServicesStub.kt.template', 'CraftHealthServices.kt')
+  if (config.enableHealthServices) {
+    write('CraftHealthServicesService.kt.template', 'CraftHealthServicesService.kt')
+  }
+  else {
+    rmSync(join(javaDir, 'CraftHealthServicesService.kt'), { force: true })
+  }
   write('CraftNativeServices.kt.template', 'CraftNativeServices.kt', source => source
     .replace('{{NATIVE_PUSH_IMPORTS}}', config.enablePushNotifications ? 'import com.google.firebase.messaging.FirebaseMessaging' : '')
     .replace('{{NATIVE_PUSH_REGISTER}}', config.enablePushNotifications
@@ -1141,6 +1162,9 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{HEART_RATE_SERVICE\}\}/g, config.enableHeartRate
       ? '        <service android:name=".CraftHeartRateService" android:exported="false" android:foregroundServiceType="connectedDevice" />'
       : '')
+    .replace(/\{\{HEALTH_SERVICES_SERVICE\}\}/g, config.enableHealthServices
+      ? '        <service android:name=".CraftHealthServicesService" android:exported="false" android:foregroundServiceType="health" android:stopWithTask="false" />'
+      : '')
     .replace(/\{\{NATIVE_NOTIFICATION_RECEIVER\}\}/g, config.renderer === 'native'
       ? renderNativeShellManifest(config)
       : '')
@@ -1192,6 +1216,9 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{HEALTH_CONNECT_DEPENDENCIES\}\}/g, config.enableHealthConnect
       ? `    implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")`
+      : '')
+    .replace(/\{\{HEALTH_SERVICES_DEPENDENCIES\}\}/g, config.enableHealthServices
+      ? '    implementation("androidx.health:health-services-client:1.1.0")'
       : '')
     .replace(/\{\{JAVASCRIPT_ENGINE_DEPENDENCY\}\}/g, config.renderer === 'native'
       ? `    implementation("androidx.javascriptengine:javascriptengine:1.1.0")

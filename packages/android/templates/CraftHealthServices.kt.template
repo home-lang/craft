@@ -1,0 +1,106 @@
+package {{PACKAGE_NAME}}
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import androidx.core.content.ContextCompat
+import androidx.health.services.client.HealthServices
+import androidx.health.services.client.data.DataType
+import androidx.health.services.client.data.ExerciseType
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
+
+/** Native Health Services entry point; the ExerciseClient lives in the retained service. */
+internal class CraftHealthServices(
+    private val context: Context,
+    private val activityProvider: () -> Activity?,
+    private val fallback: ((String, JSONArray, (CraftNativeCapabilityResult) -> Unit) -> Unit)? = null,
+) {
+    private fun failure(code: String, message: String) = CraftNativeCapabilityResult(code = code, message = message)
+
+    fun perform(method: String, args: JSONArray, done: (CraftNativeCapabilityResult) -> Unit) {
+        when (method) {
+            "startWorkout" -> start(args.optJSONObject(0) ?: JSONObject(), done)
+            "pauseWorkout" -> command(CraftHealthServicesService.ACTION_PAUSE, done)
+            "resumeWorkout" -> command(CraftHealthServicesService.ACTION_RESUME, done)
+            "endWorkout" -> command(CraftHealthServicesService.ACTION_END, done)
+            else -> done(failure("UNKNOWN_ACTION", "Unsupported Health Services method"))
+        }
+    }
+
+    private fun start(options: JSONObject, done: (CraftNativeCapabilityResult) -> Unit) {
+        if (activityProvider() == null) return done(failure("NEEDS_ACTIVITY", "Live workouts require a foreground activity"))
+        val type = options.optString("type").takeIf { it.isNotBlank() }
+            ?: return done(failure("INVALID_ARGUMENT", "startWorkout needs a workout type"))
+        if (type !in SUPPORTED_TYPES) return done(failure("INVALID_ARGUMENT", "Unsupported workout type: $type"))
+        if (!activeId.compareAndSet(null, "pending")) return done(failure("BUSY", "A live workout is already running"))
+        val id = "live-${UUID.randomUUID()}"
+        val exerciseType = when (type) {
+            "running" -> ExerciseType.RUNNING
+            "walking" -> ExerciseType.WALKING
+            "hiking" -> ExerciseType.HIKING
+            "cycling" -> ExerciseType.BIKING
+            else -> null
+        } ?: return unsupported(options, done, "Unsupported workout type: $type")
+        val future = HealthServices.getClient(context).exerciseClient.getCapabilitiesAsync()
+        future.addListener({
+            runCatching {
+                val capabilities = future.get()
+                val requested = setOf(DataType.HEART_RATE_BPM, DataType.CALORIES_TOTAL, DataType.DISTANCE_TOTAL)
+                if (exerciseType !in capabilities.supportedExerciseTypes) {
+                    return@runCatching unsupported(options, done, "Health Services does not support this workout on this device")
+                }
+                val typeCapabilities = capabilities.getExerciseTypeCapabilities(exerciseType)
+                if (requested.none { it in typeCapabilities.supportedDataTypes }) {
+                    return@runCatching unsupported(options, done, "Health Services exposes none of the requested workout metrics")
+                }
+                startService(id, type, done)
+            }.onFailure { unsupported(options, done, it.message ?: "Health Services is unavailable") }
+        }, ContextCompat.getMainExecutor(context))
+    }
+
+    private fun startService(id: String, type: String, done: (CraftNativeCapabilityResult) -> Unit) {
+        activeId.set(id)
+        val intent = Intent(context, CraftHealthServicesService::class.java)
+            .setAction(CraftHealthServicesService.ACTION_START)
+            .putExtra(CraftHealthServicesService.EXTRA_ID, id)
+            .putExtra(CraftHealthServicesService.EXTRA_TYPE, type)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
+            done(CraftNativeCapabilityResult(data = JSONObject().put("id", id).put("type", type).put("startDate", System.currentTimeMillis())))
+        } catch (error: Exception) {
+            activeId.compareAndSet(id, null)
+            done(failure("UNAVAILABLE", error.message ?: "Health Services could not start"))
+        }
+    }
+
+    private fun unsupported(options: JSONObject, done: (CraftNativeCapabilityResult) -> Unit, message: String) {
+        activeId.set(null)
+        fallback?.invoke("startWorkout", JSONArray().put(options), done)
+            ?: done(failure("UNAVAILABLE", message))
+    }
+
+    private fun command(action: String, done: (CraftNativeCapabilityResult) -> Unit) {
+        val id = activeId.get()?.takeIf { it != "pending" }
+            ?: return done(failure("NO_WORKOUT", "No live workout is running"))
+        try {
+            context.startService(Intent(context, CraftHealthServicesService::class.java).setAction(action).putExtra(CraftHealthServicesService.EXTRA_ID, id))
+            if (action == CraftHealthServicesService.ACTION_END) activeId.compareAndSet(id, null)
+            done(CraftNativeCapabilityResult(data = true))
+        } catch (error: Exception) {
+            done(failure("UNAVAILABLE", error.message ?: "Health Services command failed"))
+        }
+    }
+
+    companion object {
+        private val activeId = AtomicReference<String?>(null)
+        private val SUPPORTED_TYPES = setOf("running", "walking", "hiking", "cycling")
+
+        internal fun clearActive() {
+            activeId.set(null)
+        }
+    }
+}

@@ -1,0 +1,142 @@
+package {{PACKAGE_NAME}}
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import androidx.health.services.client.ExerciseClient
+import androidx.health.services.client.ExerciseUpdateCallback
+import androidx.health.services.client.HealthServices
+import androidx.health.services.client.data.Availability
+import androidx.health.services.client.data.DataType
+import androidx.health.services.client.data.ExerciseConfig
+import androidx.health.services.client.data.ExerciseLapSummary
+import androidx.health.services.client.data.ExerciseState
+import androidx.health.services.client.data.ExerciseType
+import androidx.health.services.client.data.ExerciseUpdate
+import org.json.JSONObject
+import java.util.concurrent.Executor
+
+/** Retained foreground owner for one Android Health Services exercise. */
+internal class CraftHealthServicesService : Service() {
+    private lateinit var exerciseClient: ExerciseClient
+    private lateinit var callback: ExerciseUpdateCallback
+    private val executor: Executor by lazy { mainExecutor }
+    private var workoutId = ""
+    private var workoutType = ""
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        exerciseClient = HealthServices.getClient(this).exerciseClient
+        callback = object : ExerciseUpdateCallback {
+            override fun onExerciseUpdateReceived(update: ExerciseUpdate) = emit(update)
+            override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) {
+                emitError("${dataType.name} is unavailable ($availability)")
+            }
+            override fun onLapSummaryReceived(lapSummary: ExerciseLapSummary) = Unit
+        }
+        exerciseClient.setUpdateCallback(executor, callback)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_START -> start(intent)
+            ACTION_PAUSE -> exerciseClient.pauseExerciseAsync()
+            ACTION_RESUME -> exerciseClient.resumeExerciseAsync()
+            ACTION_END -> exerciseClient.endExerciseAsync()
+        }
+        return START_STICKY
+    }
+
+    private fun start(intent: Intent) {
+        workoutId = intent.getStringExtra(EXTRA_ID).orEmpty()
+        workoutType = intent.getStringExtra(EXTRA_TYPE).orEmpty()
+        startForeground(NOTIFICATION_ID, notification())
+        val type = exerciseType(workoutType) ?: return emitError("Unsupported Health Services workout type: $workoutType")
+        val capabilitiesFuture = exerciseClient.getCapabilitiesAsync()
+        capabilitiesFuture.addListener({
+            runCatching {
+                val capabilities = capabilitiesFuture.get()
+                if (type !in capabilities.supportedExerciseTypes) return@runCatching emitError("Health Services does not support $workoutType on this device")
+                val typeCapabilities = capabilities.getExerciseTypeCapabilities(type)
+                val requested = setOf(DataType.HEART_RATE_BPM, DataType.CALORIES_TOTAL, DataType.DISTANCE_TOTAL)
+                    .filter { it in typeCapabilities.supportedDataTypes }.toSet()
+                if (requested.isEmpty()) return@runCatching emitError("Health Services exposes none of the requested workout metrics")
+                val config = ExerciseConfig.builder(type).setDataTypes(requested).setIsGpsEnabled(DataType.DISTANCE_TOTAL in requested).build()
+                exerciseClient.startExerciseAsync(config)
+            }.onFailure { emitError(it.message ?: "Health Services could not start") }
+        }, executor)
+    }
+
+    private fun emit(update: ExerciseUpdate) {
+        val state = update.exerciseStateInfo.state
+        val detail = JSONObject().put("id", workoutId).put("event", if (state.isEnded) "state" else "metrics")
+            .put("state", stateName(state)).put("date", System.currentTimeMillis())
+        update.latestMetrics.getData(DataType.HEART_RATE_BPM).lastOrNull()?.value?.let { detail.put("heartRateBpm", it) }
+        update.latestMetrics.getData(DataType.CALORIES_TOTAL)?.total?.let { detail.put("activeEnergyCalories", it) }
+        update.latestMetrics.getData(DataType.DISTANCE_TOTAL)?.total?.let { detail.put("distanceMeters", it) }
+        update.activeDurationCheckpoint?.let { detail.put("durationSeconds", it.activeDuration.toMillis() / 1000.0) }
+        CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftHealthWorkout").put("detail", detail))
+        if (state.isEnded) stopSelf()
+    }
+
+    private fun emitError(message: String) {
+        CraftHealthServices.clearActive()
+        CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftHealthWorkout").put("detail", JSONObject()
+            .put("id", workoutId).put("event", "error").put("message", message)))
+        stopSelf()
+    }
+
+    private fun exerciseType(value: String): ExerciseType? = when (value) {
+        "running" -> ExerciseType.RUNNING
+        "walking" -> ExerciseType.WALKING
+        "hiking" -> ExerciseType.HIKING
+        "cycling" -> ExerciseType.BIKING
+        else -> null
+    }
+
+    private fun stateName(state: ExerciseState): String = when {
+        state == ExerciseState.ACTIVE -> "running"
+        state.isPaused -> "paused"
+        state.isEnded -> "ended"
+        else -> "unknown"
+    }
+
+    private fun notification(): Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        .setSmallIcon(android.R.drawable.ic_media_play)
+        .setContentTitle("Workout in progress")
+        .setContentText("Craft is tracking your workout")
+        .setOngoing(true)
+        .build()
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getSystemService(NotificationManager::class.java).createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "Workouts", NotificationManager.IMPORTANCE_LOW),
+            )
+        }
+    }
+
+    override fun onDestroy() {
+        runCatching { exerciseClient.clearUpdateCallbackAsync(callback) }
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_START = "com.craft.health.START"
+        const val ACTION_PAUSE = "com.craft.health.PAUSE"
+        const val ACTION_RESUME = "com.craft.health.RESUME"
+        const val ACTION_END = "com.craft.health.END"
+        const val EXTRA_ID = "craft.health.id"
+        const val EXTRA_TYPE = "craft.health.type"
+        private const val CHANNEL_ID = "craft-health-workout"
+        private const val NOTIFICATION_ID = 8412
+    }
+}

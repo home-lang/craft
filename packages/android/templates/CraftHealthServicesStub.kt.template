@@ -1,0 +1,16 @@
+package {{PACKAGE_NAME}}
+
+import android.content.Context
+import android.app.Activity
+import org.json.JSONArray
+
+/** Compile-time placeholder when Android Health Services is not enabled. */
+internal class CraftHealthServices(
+    private val context: Context,
+    private val activityProvider: () -> Activity?,
+    private val fallback: ((String, JSONArray, (CraftNativeCapabilityResult) -> Unit) -> Unit)? = null,
+) {
+    fun perform(method: String, args: JSONArray, done: (CraftNativeCapabilityResult) -> Unit) {
+        done(CraftNativeCapabilityResult(code = "CAPABILITY_DISABLED", message = "Health Services is not enabled for this app"))
+    }
+}

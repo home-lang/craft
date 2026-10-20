@@ -215,6 +215,7 @@ describe('the native app shell in a generated project', () => {
         config: {
           renderer: 'native',
           enableHealthConnect: true,
+          enableHealthServices: true,
           enablePushNotifications: true,
           googleServicesFile: services,
           healthConnect: { read: ['steps', 'mindful'], write: ['mindful'] },
@@ -226,9 +227,10 @@ describe('the native app shell in a generated project', () => {
         },
       })
       const java = join(output, 'app/src/main/java/dev/craft/shell')
-      for (const file of ['CraftNativeShell.kt', 'CraftNativeServices.kt', 'CraftNativeBackground.kt', 'CraftNativeHealth.kt', 'CraftNativeMessagingService.kt'])
+      for (const file of ['CraftNativeShell.kt', 'CraftNativeServices.kt', 'CraftNativeBackground.kt', 'CraftNativeHealth.kt', 'CraftNativeMessagingService.kt', 'CraftHealthServices.kt', 'CraftHealthServicesService.kt'])
         expect(existsSync(join(java, file))).toBe(true)
       expect(readFileSync(join(java, 'CraftNativeHealth.kt'), 'utf8')).toContain('HealthConnectClient')
+      expect(readFileSync(join(java, 'CraftHealthServicesService.kt'), 'utf8')).toContain('HealthServices.getClient(this).exerciseClient')
       expect(readFileSync(join(java, 'CraftNativeServices.kt'), 'utf8')).toContain('FirebaseMessaging.getInstance().token')
       const shell = readFileSync(join(java, 'CraftNativeShell.kt'), 'utf8')
       expect(shell).toContain('override fun onInterceptTouchEvent(event: MotionEvent)')
@@ -268,6 +270,7 @@ describe('the native app shell in a generated project', () => {
       await init({ name: 'Plain', packageName: 'dev.craft.plain', output: plain, runtimeDir: null, config: { renderer: 'native' } })
       const plainJava = join(plain, 'app/src/main/java/dev/craft/plain')
       expect(readFileSync(join(plainJava, 'CraftNativeHealth.kt'), 'utf8')).toContain('CAPABILITY_DISABLED')
+      expect(readFileSync(join(plainJava, 'CraftHealthServices.kt'), 'utf8')).toContain('CAPABILITY_DISABLED')
       expect(existsSync(join(plainJava, 'CraftNativeMessagingService.kt'))).toBe(false)
       expect(readFileSync(join(plainJava, 'CraftNativeServices.kt'), 'utf8')).toContain('Push notifications are disabled')
     }
