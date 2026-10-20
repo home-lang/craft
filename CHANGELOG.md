@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.250...v0.0.251)
+
+## 🐛 Bug Fixes
+
+- **testing**: scroll to an element by held drags, not flicks ([47e57a5](https://github.com/craft-native/craft/commit/47e57a5)) _(by Chris Breuer)_
+- **build**: resolve the native Pantry Zig installation on Windows ([4bb3fe5](https://github.com/craft-native/craft/commit/4bb3fe5)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.249...v0.0.250)
 
 ## 🐛 Bug Fixes
