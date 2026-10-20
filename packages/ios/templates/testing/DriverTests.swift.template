@@ -139,6 +139,33 @@ final class DriverTests: XCTestCase {
         return nil
     }
 
+    /// Whether `target`, or a field inside it, holds the keyboard.
+    func hasKeyboardFocus(_ target: XCUIElement) -> Bool {
+        if (target.value(forKey: "hasKeyboardFocus") as? Bool) == true { return true }
+        return target.descendants(matching: .any).matching(NSPredicate(format: "hasKeyboardFocus == 1")).firstMatch.exists
+    }
+
+    /// Taps `target` until it holds the keyboard, for up to `seconds`.
+    ///
+    /// A tap is not focus. The first keyboard a freshly created simulator
+    /// shows takes its keyboard process many seconds to start - one CI run
+    /// spent 20s delivering the tap - and the field had not become first
+    /// responder when the text was typed, which failed with "Neither element
+    /// nor any descendant has keyboard focus". A later tap lands once the app
+    /// is idle again.
+    func focus(_ target: XCUIElement, seconds: Double = 15) -> Bool {
+        let end = Date().addingTimeInterval(seconds)
+        repeat {
+            target.tap()
+            let settle = Date().addingTimeInterval(3)
+            repeat {
+                if hasKeyboardFocus(target) { return true }
+                Thread.sleep(forTimeInterval: 0.25)
+            } while Date() < settle
+        } while Date() < end
+        return hasKeyboardFocus(target)
+    }
+
     func waitFor(_ text: String, _ seconds: Double) -> XCUIElement? {
         poll(seconds) { element(containing: text) }
     }
@@ -375,8 +402,10 @@ final class DriverTests: XCTestCase {
             let idParts = arg.split(separator: " ", maxSplits: 1).map(String.init)
             let target = identified(idParts[0])
             if target.waitForExistence(timeout: 10) {
-                target.tap()
-                Thread.sleep(forTimeInterval: 0.8)
+                guard focus(target) else {
+                    check(false, "typeid \(idParts[0]) takes keyboard focus")
+                    return
+                }
                 app.typeText(idParts.count > 1 ? idParts[1] : "")
                 note("typeid \(idParts[0]): ok")
             } else { XCTFail("Element not found"); note("FAIL typeid \(idParts[0]): NOT FOUND") }
@@ -402,8 +431,10 @@ final class DriverTests: XCTestCase {
             let index = Int(fieldParts[0]) ?? 0
             let fields = app.textFields.allElementsBoundByIndex + app.secureTextFields.allElementsBoundByIndex
             if index >= 0 && index < fields.count {
-                fields[index].tap()
-                Thread.sleep(forTimeInterval: 0.6)
+                guard focus(fields[index]) else {
+                    check(false, "field \(index) takes keyboard focus")
+                    return
+                }
                 app.typeText(fieldParts.count > 1 ? fieldParts[1] : "")
                 note("field \(index): ok")
             } else { XCTFail("Element not found"); note("FAIL field \(index): NOT FOUND (\(fields.count) fields)") }

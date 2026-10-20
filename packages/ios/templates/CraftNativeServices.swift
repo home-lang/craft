@@ -690,8 +690,15 @@ enum CraftNativePush {
 
 // MARK: - Share sheet
 
-/// A URL stays a URL in Messages, AirDrop and Copy. Its title belongs in the
+/// A URL stays a URL in Messages and AirDrop. Its title belongs in the
 /// system preview and mail subject, rather than becoming a second text item.
+///
+/// Copy is the exception: it writes the address as text. A URL-only
+/// pasteboard item has no textual representation, so `UIPasteboard.string`
+/// is nil, a web page's `navigator.clipboard.readText()` gets nothing, and
+/// so does the simulator's `pbpaste` - the shared link copied as nothing
+/// anywhere text is read. Text that is an address is still detected as a
+/// link wherever it is pasted.
 final class CraftShareLink: NSObject, UIActivityItemSource {
     let url: URL
     let title: String
@@ -703,7 +710,9 @@ final class CraftShareLink: NSObject, UIActivityItemSource {
 
     func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any { url }
 
-    func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? { url }
+    func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
+        activityType == .copyToPasteboard ? url.absoluteString : url
+    }
 
     func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String { title }
 

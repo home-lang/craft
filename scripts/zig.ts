@@ -11,11 +11,18 @@ export function pinnedZigVersion(root: string): string {
 
 export function pinnedPantryZigPath(root: string, expected: string, env: NodeJS.ProcessEnv, hostPlatform: string): string | null {
   if (hostPlatform !== 'win32' || env.CRAFT_ZIG) return null
-  const packageDir = join(root, 'pantry', 'ziglang-org', expected.replace('+', '_'))
-  // The official Windows ZIP has zig.exe at its root; the Pantry registry
-  // mirror can package it under bin/. Both keep Zig's lib directory nearby.
-  for (const installed of [join(packageDir, 'zig.exe'), join(packageDir, 'bin', 'zig.exe')]) {
-    if (existsSync(installed)) return installed
+  const version = expected.replace('+', '_')
+  const packageDirs = [
+    join(root, 'pantry', 'ziglang.org', `v${version}`),
+    join(root, 'pantry', 'ziglang-org', version),
+  ]
+  // The native installer uses domain/v<version>; the SDK uses the slug.
+  // The official ZIP has zig.exe at its root; registry mirrors can use bin/.
+  // Invoke the package binary with its adjacent standard library in either layout.
+  for (const packageDir of packageDirs) {
+    for (const installed of [join(packageDir, 'zig.exe'), join(packageDir, 'bin', 'zig.exe')]) {
+      if (existsSync(installed)) return installed
+    }
   }
   return null
 }

@@ -6,6 +6,7 @@
   let name = ''
   let notes = ''
   let switchResult = 'Switch off'
+  let scrollPresses = 0
   let nextMessage = 0
   let revision = 0
 
@@ -54,6 +55,22 @@
                 events: { onValueChange: 'changeSwitch' },
               }],
             },
+            {
+              // Rows of buttons in a short scroll view: a drag that starts on
+              // a button has to scroll it, the way a page of buttons does.
+              type: 'ScrollView',
+              props: { key: 'button-scroll', testID: 'button-scroll' },
+              style: { height: 132 },
+              children: Array.from({ length: 10 }, (_, index) => ({
+                id: `scroll-button-${index}`,
+                type: 'Button',
+                props: { key: `scroll-button-${index}`, testID: `scroll-button-${index}` },
+                style: { height: 44 },
+                events: { onPress: 'pressScrollButton' },
+                children: [`Row ${index}`],
+              })),
+            },
+            { id: 'scroll-presses', type: 'Text', props: { key: 'scroll-presses' }, children: [`Scroll presses: ${scrollPresses}`] },
             { id: 'count', type: 'Text', props: { key: 'count' }, children: [`Count: ${count}`] },
             { id: 'increment', type: 'Button', props: { key: 'increment' }, events: { onPress: 'increment' }, children: ['Increment'] },
             { id: 'name-input', type: 'TextInput', props: { key: 'name-input', placeholder: 'Type your name' }, events: { onChange: 'changeName' } },
@@ -74,6 +91,10 @@
     if (message.payload.handlerName === 'increment') {
       count += 1
       mutate([{ op: 'updateNode', id: 'count', patch: { children: [`Count: ${count}`] } }])
+    }
+    if (message.payload.handlerName === 'pressScrollButton') {
+      scrollPresses += 1
+      mutate([{ op: 'updateNode', id: 'scroll-presses', patch: { children: [`Scroll presses: ${scrollPresses}`] } }])
     }
     if (message.payload.handlerName === 'changeNotes') {
       notes = message.payload.nativeEvent.text

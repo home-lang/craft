@@ -61,6 +61,14 @@ final class NativeNavigationUITests: XCTestCase {
         return !frame.isEmpty && frame.minY >= viewport.minY - 0.5 && frame.maxY <= viewport.maxY + 0.5
     }
 
+    private func manualScrollBlockers(
+        controls: [CGRect],
+        applicationScrollViews: [(identifier: String, frame: CGRect)],
+        excluding identifiers: Set<String>
+    ) -> [CGRect] {
+        controls + applicationScrollViews.filter { !identifiers.contains($0.identifier) }.map { $0.frame }
+    }
+
     private func manualScrollOrigin(in viewport: CGRect, avoiding frames: [CGRect]) -> CGVector? {
         let bounds = viewport.insetBy(dx: 4, dy: 4)
         guard !bounds.isEmpty else { return nil }
@@ -150,6 +158,40 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertNil(manualScrollOrigin(in: .zero, avoiding: []))
     }
 
+    func testManualScrollOriginAvoidsSiblingKeyboardScrollSurface() throws {
+        let viewport = CGRect(x: 16, y: 132, width: 370, height: 692)
+        // Recorded picker/control bounds and key-area bounds from the failed
+        // native run. Its drag at (201, 575) hit the prediction strip above
+        // the key area, which belongs to a sibling scroll view.
+        let recordedBlockers = [
+            CGRect(x: 12, y: 56.6667, width: 378, height: 224),
+            CGRect(x: 12, y: 292.6667, width: 378, height: 224),
+            CGRect(x: 12, y: 639, width: 378, height: 224),
+            CGRect(x: 21, y: 19.1667, width: 360, height: 299),
+            CGRect(x: 21, y: 255.1667, width: 360, height: 299),
+            CGRect(x: 115, y: 601.5, width: 88, height: 299),
+            CGRect(x: 200, y: 601.5, width: 88, height: 299),
+            CGRect(x: 12, y: 528.6667, width: 378, height: 42.3333),
+            CGRect(x: 12, y: 583, width: 378, height: 44),
+            CGRect(x: -4, y: 579, width: 410, height: 241),
+        ]
+        let predictionStrip = CGRect(x: 0, y: 539, width: 402, height: 44)
+        let blockers = manualScrollBlockers(
+            controls: recordedBlockers.map { $0.insetBy(dx: 4, dy: 4) },
+            applicationScrollViews: [
+                (identifier: "native-root-scroll", frame: viewport),
+                (identifier: "outer-scroll", frame: CGRect(x: 0, y: 0, width: 402, height: 874)),
+                (identifier: "", frame: predictionStrip),
+            ],
+            excluding: ["native-root-scroll", "outer-scroll"]
+        ).map { $0.insetBy(dx: -4, dy: -4) }
+        let origin = try XCTUnwrap(manualScrollOrigin(in: viewport, avoiding: blockers))
+        let point = CGPoint(x: viewport.minX + origin.dx * viewport.width, y: viewport.minY + origin.dy * viewport.height)
+        XCTAssertTrue(viewport.contains(point))
+        XCTAssertFalse(predictionStrip.contains(point), "the key-area frame omits the keyboard prediction strip")
+        XCTAssertFalse(recordedBlockers.contains(where: { $0.contains(point) }))
+    }
+
     /// Scrolls `scroll` until `element` sits wholly inside it. A nested
     /// scroll view is first brought wholly into the root scroll: XCUITest
     /// scrolls the root by itself to reach whatever a tap targets, so an
@@ -170,25 +212,32 @@ final class NativeNavigationUITests: XCTestCase {
             return
         }
         if let root { reveal(scroll, in: root, file: file, line: line) }
-        // The fixture grows as renderer coverage grows. Budget for the actual
-        // distance, including UIKit's initial pan threshold, while keeping a
-        // hard bound and requiring the same fully visible, hittable target.
+        let application = XCUIApplication()
+        var activeScrollViews: Set<String> = [scroll.identifier]
+        if let root { activeScrollViews.insert(root.identifier) }
+        // Budget for actual distance while requiring the same fully visible,
+        // hittable target and retaining a hard bound on manual drags.
         let distanceToTarget = abs(element.frame.midY - visibleViewport(scroll).midY)
         let attempts = min(128, max(24, Int(ceil(distanceToTarget / 200)) + 8))
         for attempt in 0..<attempts {
             if inside(element, scroll) && element.isHittable { return }
             let scrollFrame = scroll.frame
             let viewport = visibleViewport(scroll)
-            // Value controls and text selection own their drag just as a nested
-            // scroll view does. Search the visible gaps for the list's surface.
+            // Native value controls, selection and nested scrolling retain
+            // their gesture ownership; search the remaining visible gaps.
             let trackingTypes: [XCUIElement.ElementType] = [.scrollView, .picker, .pickerWheel, .datePicker, .slider, .switch, .stepper, .textField, .secureTextField, .textView, .segmentedControl]
             let controls = scroll.descendants(matching: .any)
                 .matching(NSPredicate(format: "elementType IN %@", trackingTypes.map { NSNumber(value: $0.rawValue) }))
                 .allElementsBoundByIndex.map { $0.frame }
-            // Also avoid partial-width keyboards, which cannot crop the whole
-            // viewport but still own any gesture that begins inside them.
-            let keyboards = XCUIApplication().keyboards.allElementsBoundByIndex.map { $0.frame }
-            let competing = (controls + keyboards).map { $0.insetBy(dx: -4, dy: -4) }
+            let keyboards = application.keyboards.allElementsBoundByIndex.map { $0.frame }
+            // Prediction strips can be sibling scroll surfaces outside the
+            // app's subtree. Exclude only the active scroll and its root.
+            let scrolling = application.scrollViews.allElementsBoundByIndex.map { (identifier: $0.identifier, frame: $0.frame) }
+            let competing = manualScrollBlockers(
+                controls: controls + keyboards,
+                applicationScrollViews: scrolling,
+                excluding: activeScrollViews
+            ).map { $0.insetBy(dx: -4, dy: -4) }
                 .filter { !$0.isEmpty && $0.intersects(viewport) }
             guard let origin = manualScrollOrigin(in: viewport, avoiding: competing) else {
                 XCTFail("no safe manual scroll origin: target=\(element.frame), viewport=\(viewport), competing=\(competing)", file: file, line: line)
