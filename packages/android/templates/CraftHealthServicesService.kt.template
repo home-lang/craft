@@ -32,6 +32,8 @@ internal class CraftHealthServicesService : Service() {
     private var pausedAt = 0L
     private var pausedMillis = 0L
     private var lastDurationSeconds = 0.0
+    private var lastEnergyCalories: Double? = null
+    private var lastDistanceMeters: Double? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -73,6 +75,8 @@ internal class CraftHealthServicesService : Service() {
         pausedAt = 0L
         pausedMillis = 0L
         lastDurationSeconds = 0.0
+        lastEnergyCalories = null
+        lastDistanceMeters = null
         startForeground(NOTIFICATION_ID, notification())
         val type = exerciseType(workoutType) ?: return emitError("Unsupported Health Services workout type: $workoutType")
         val capabilitiesFuture = exerciseClient.getCapabilitiesAsync()
@@ -103,11 +107,16 @@ internal class CraftHealthServicesService : Service() {
                     future.get()
                     val duration = if (lastDurationSeconds > 0) lastDurationSeconds
                     else ((System.currentTimeMillis() - workoutStartedAt - pausedMillis).coerceAtLeast(0) / 1000.0)
-                    CraftHealthServices.completeEnd(id, CraftNativeCapabilityResult(data = JSONObject()
+                    val result = JSONObject()
                         .put("id", id)
+                        .put("type", workoutType)
+                        .put("startDate", workoutStartedAt)
                         .put("workoutId", id)
                         .put("endDate", System.currentTimeMillis())
-                        .put("durationSeconds", duration)))
+                        .put("durationSeconds", duration)
+                    lastEnergyCalories?.let { result.put("activeEnergyCalories", it) }
+                    lastDistanceMeters?.let { result.put("distanceMeters", it) }
+                    CraftHealthServices.completeEnd(id, CraftNativeCapabilityResult(data = result))
                     CraftHealthServices.clearActive()
                     stopSelf()
                 }.onFailure {
@@ -128,8 +137,14 @@ internal class CraftHealthServicesService : Service() {
         val detail = JSONObject().put("id", workoutId).put("event", if (state.isEnded) "state" else "metrics")
             .put("state", stateName(state)).put("date", System.currentTimeMillis())
         update.latestMetrics.getData(DataType.HEART_RATE_BPM).lastOrNull()?.value?.let { detail.put("heartRateBpm", it) }
-        update.latestMetrics.getData(DataType.CALORIES_TOTAL)?.total?.let { detail.put("activeEnergyCalories", it) }
-        update.latestMetrics.getData(DataType.DISTANCE_TOTAL)?.total?.let { detail.put("distanceMeters", it) }
+        update.latestMetrics.getData(DataType.CALORIES_TOTAL)?.total?.let {
+            lastEnergyCalories = it
+            detail.put("activeEnergyCalories", it)
+        }
+        update.latestMetrics.getData(DataType.DISTANCE_TOTAL)?.total?.let {
+            lastDistanceMeters = it
+            detail.put("distanceMeters", it)
+        }
         update.activeDurationCheckpoint?.let { detail.put("durationSeconds", it.activeDuration.toMillis() / 1000.0) }
         detail.optDouble("durationSeconds", -1.0).takeIf { it >= 0 }?.let { lastDurationSeconds = it }
         CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftHealthWorkout").put("detail", detail))

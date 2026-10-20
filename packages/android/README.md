@@ -366,8 +366,12 @@ session back through Health Connect. Native apps can additionally set
 `enableHealthServices: true` to retain `ExerciseClient` in a foreground
 service, check device capabilities, and emit the shared `craftHealthWorkout`
 event with live heart-rate, active-energy and distance metrics. The adapter
-supports running, walking, hiking and cycling; unsupported devices or types
-emit a typed `error` event and leave the Health Connect fallback untouched.
+supports running, walking, hiking and cycling. When `enableHealthConnect` is
+also enabled, ending the live session writes its `ExerciseSessionRecord`,
+distance, and active-energy totals through the existing Health Connect writer;
+without that flag the session still ends natively and returns its typed result.
+Unsupported devices or types emit a typed `error` event and leave the Health
+Connect fallback untouched.
 `bun scripts/test-native-health.ts` runs the Health Connect contract against
 an Android 14+ emulator.
 

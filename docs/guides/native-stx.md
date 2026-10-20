@@ -1257,8 +1257,11 @@ through Health Connect. Native apps that need live sensors can additionally set
 service, checks device capabilities before starting, and sends the same typed
 `craftHealthWorkout` events as iOS, including `heartRateBpm`,
 `activeEnergyCalories`, and `distanceMeters` metrics. The adapter supports
-running, walking, hiking, and cycling; unsupported devices and exercise types
-produce an `error` event rather than silently upgrading the fallback.
+running, walking, hiking, and cycling. Pair it with `enableHealthConnect` when
+the finished session should be written as an `ExerciseSessionRecord` with its
+distance and active-energy totals; without Health Connect the native session
+still ends and returns the typed result. Unsupported devices and exercise
+types produce an `error` event rather than silently upgrading the fallback.
 A native passkey screen requires both `enablePasskeys: true` and at least one
 `webcredentials:<host>` entry in `associatedDomains`; otherwise the host does
 not advertise `passkeys`. `craft.passkeys.isAvailable()` is a configuration

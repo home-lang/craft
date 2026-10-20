@@ -89,11 +89,26 @@ internal class CraftHealthServices(
             ?: return done(failure("NO_WORKOUT", "No live workout is running"))
         try {
             context.startService(Intent(context, CraftHealthServicesService::class.java).setAction(action).putExtra(CraftHealthServicesService.EXTRA_ID, id))
-            if (action == CraftHealthServicesService.ACTION_END) endCompletions[id] = done
+            if (action == CraftHealthServicesService.ACTION_END) endCompletions[id] = { result -> finishEnd(result, done) }
             else done(CraftNativeCapabilityResult(data = true))
         } catch (error: Exception) {
             if (action == CraftHealthServicesService.ACTION_END) endCompletions.remove(id)
             done(failure("UNAVAILABLE", error.message ?: "Health Services command failed"))
+        }
+    }
+
+    private fun finishEnd(result: CraftNativeCapabilityResult, done: (CraftNativeCapabilityResult) -> Unit) {
+        val payload = result.data as? JSONObject
+        if (result.code != null || payload == null || fallback == null) return done(result)
+        fallback.invoke("saveWorkout", JSONArray().put(payload)) { saved ->
+            if (saved.code != null) return@invoke done(saved)
+            val workoutId = (saved.data as? JSONObject)?.optString("id")?.takeIf { it.isNotBlank() }
+                ?: payload.optString("id")
+            done(CraftNativeCapabilityResult(data = JSONObject()
+                .put("id", payload.optString("id"))
+                .put("workoutId", workoutId)
+                .put("endDate", payload.optLong("endDate"))
+                .put("durationSeconds", payload.optDouble("durationSeconds"))))
         }
     }
 
