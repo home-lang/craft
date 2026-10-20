@@ -159,6 +159,9 @@ try {
       // Retain live XCTest activity as well as the structured result bundle.
       ...xcodeArgs.filter(arg => arg !== '-quiet'),
       '-resultBundlePath', resultBundle,
+      // Keep XCTest results, screenshots and live logs without waiting for
+      // an unrelated OS diagnostic archive after a test has already finished.
+      '-collect-test-diagnostics', 'never',
       ...selection,
       'test-without-building',
     ], output, resultBundle, groupCases?.length)

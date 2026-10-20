@@ -592,12 +592,13 @@ test('every workflow names its bun test files as paths, not filters', () => {
   }
 })
 
-test('every run script in every workflow is valid bash', () => {
+test('every run script in every workflow is valid bash', async () => {
   // 5d65a10 dropped the `done` closing the notarization loop in release.yml.
   // Nothing parses a run script until a runner executes it, and the step only
   // runs on a macOS release after signing and the launch check - so the first
   // sign was v0.0.95's macOS build failing with "syntax error: unexpected end
   // of file" after everything before it had passed.
+  const checks: Array<{ script: string, label: string }> = []
   for (const file of ['ci.yml', 'release.yml', 'sbom.yml', 'mobile-e2e.yml']) {
     const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/', file), 'utf8')) as { jobs: Record<string, Job & { defaults?: { run?: { shell?: string } } }> }
     for (const [name, job] of Object.entries(workflow.jobs)) {
@@ -606,9 +607,22 @@ test('every run script in every workflow is valid bash', () => {
           continue
         // Actions substitutes `${{ ... }}` before bash sees the script.
         const script = step.run.replace(/\$\{\{[\s\S]*?\}\}/g, 'X')
-        const check = Bun.spawnSync(['bash', '-n'], { stdin: new TextEncoder().encode(script), stderr: 'pipe' })
-        expect(check.stderr.toString(), `${file} job ${name} step "${step.name ?? step.run.slice(0, 40)}"`).toBe('')
+        checks.push({ script, label: `${file} job ${name} step "${step.name ?? step.run.slice(0, 40)}"` })
       }
+    }
+  }
+  // Parse each snippet independently. Bounded parallel processes avoid a
+  // growing serial spawn cost without letting scripts balance each other's
+  // syntax, changing the timeout, or leaving children running after a failure.
+  for (let index = 0; index < checks.length; index += 4) {
+    const results = await Promise.all(checks.slice(index, index + 4).map(async ({ script, label }) => {
+      const check = Bun.spawn(['bash', '-n'], { stdin: new TextEncoder().encode(script), stdout: 'ignore', stderr: 'pipe' })
+      const stderr = await new Response(check.stderr).text()
+      return { label, stderr, code: await check.exited }
+    }))
+    for (const { label, stderr, code } of results) {
+      expect(stderr, label).toBe('')
+      expect(code, label).toBe(0)
     }
   }
 })
