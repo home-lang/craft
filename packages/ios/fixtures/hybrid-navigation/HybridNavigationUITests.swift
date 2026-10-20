@@ -28,7 +28,10 @@ final class HybridNavigationUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         let open = app.buttons["Open second"]
-        XCTAssertTrue(open.waitForExistence(timeout: 15))
+        // Cold WebKit accessibility initialization on a hosted simulator can
+        // lag the painted page. Match the unit fixture's initial readiness
+        // budget; the transition and destination deadlines below stay strict.
+        XCTAssertTrue(open.waitForExistence(timeout: 120))
         XCTAssertEqual(visiblePage(XCUIScreen.main.screenshot()), .home)
 
         open.tap()
