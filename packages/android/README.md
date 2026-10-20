@@ -211,8 +211,10 @@ native node.
 controls expose an Android accessibility state description of `mixed` and
 become checked on their first user toggle.
 `FlatList` uses
-`RecyclerView`, stable IDs, and `DiffUtil` for keyed recycling, grids,
-horizontal and inverted layouts, list chrome, and end-reached pagination.
+`RecyclerView`, stable IDs, and `DiffUtil` for keyed `:for` child-row
+recycling, grids, horizontal and inverted layouts, list chrome, and end-reached
+pagination; the maintained native protocol does not serialize `data`/`renderItem`
+callbacks.
 Flex items support `flex`, `flexGrow`, `flexShrink`, and numeric or percentage
 `flexBasis` for main-axis space distribution while preserving gaps and margins.
 Shared transforms, z-order, view shadows, text shadows, per-edge border

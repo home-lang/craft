@@ -373,6 +373,13 @@ describe('native renderer component contract', () => {
     expect(flatListProps).not.toContain('windowSize?:')
     expect(flatListProps).not.toContain('getItemLayout?:')
     expect(guide).toContain('listRole="header"')
+    expect(guide).toContain('keyed child rows')
+    expect(guide).toContain('`data`/`renderItem` callback pair')
+    expect(guide).not.toContain('keyExtractor={item.id}')
+    expect(iosReadme).toContain('keyed `:for` child rows')
+    expect(iosReadme).toContain('does not serialize `data`/`renderItem` callbacks')
+    expect(androidReadme).toContain('keyed `:for` child-row')
+    expect(androidReadme).toContain('does not serialize `data`/`renderItem`')
   })
 
   it('verifies Android inverted FlatList order through mounted identities', () => {
