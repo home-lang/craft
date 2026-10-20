@@ -1,0 +1,21 @@
+name: Windows source provenance reproduction
+
+on:
+  push:
+    branches: [codex/windows-zig-cache-diagnostics]
+    paths:
+      - '.github/workflows/windows-source-provenance.yml'
+      - '.github/workflows/ci.yml'
+      - 'scripts/inspect-windows-source.ps1'
+      - 'scripts/verify-zig-core-project.ts'
+      - 'scripts/zig-source-cache-probe.zig'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Diagnostic only: use the original complete CI workflow through the same
+# reusable-call boundary as release acceptance. This branch cannot publish.
+jobs:
+  source:
+    uses: ./.github/workflows/ci.yml
