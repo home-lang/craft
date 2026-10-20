@@ -578,6 +578,41 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun firstInterceptedMoveAdvancesTabBeforeAnotherTouchArrives() {
+        instrumentation.runOnMainSync {
+            val chrome = CraftNativeChrome(instrumentation.targetContext, listOf(
+                CraftNativeTab("/", "Home", "house"),
+                CraftNativeTab("/details", "Details", "doc.text"),
+            ))
+            chrome.content.addView(Button(instrumentation.targetContext), ViewGroup.LayoutParams(-1, -1))
+            chrome.measure(
+                View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY),
+            )
+            chrome.layout(0, 0, 1000, 2000)
+            val moved = mutableListOf<Float>()
+            var starts = 0
+            var cancelled = false
+            chrome.onTabSwipeStart = { _, _, _ -> starts++; true }
+            chrome.onTabSwipeMove = { moved += it }
+            chrome.onTabSwipeEnd = { _, wasCancelled -> cancelled = wasCancelled }
+            val downTime = SystemClock.uptimeMillis()
+            fun touch(action: Int, x: Float, offset: Long) {
+                val event = MotionEvent.obtain(downTime, downTime + offset, action, x, 500f, 0)
+                try { chrome.dispatchTouchEvent(event) } finally { event.recycle() }
+            }
+            touch(MotionEvent.ACTION_DOWN, 800f, 0)
+            touch(MotionEvent.ACTION_MOVE, 400f, 16)
+            assertEquals("one move should acquire the native tab gesture", 1, starts)
+            assertEquals("interception must apply the distance already travelled", listOf(-400f), moved)
+            touch(MotionEvent.ACTION_MOVE, 300f, 32)
+            assertEquals(listOf(-400f, -500f), moved)
+            touch(MotionEvent.ACTION_CANCEL, 300f, 48)
+            assertTrue("cancel must still finish the acquired gesture", cancelled)
+        }
+    }
+
+    @Test
     fun selectedTabIconPolicyFollowsNativeSelectionAndSurvivesLiveReadingCleanup() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(

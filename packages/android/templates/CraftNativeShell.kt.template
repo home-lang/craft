@@ -907,6 +907,11 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
                 if (kotlin.math.abs(dx) > swipeSlop && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
                     swipeTracking = false
                     swipeIntercepted = onTabSwipeStart?.invoke(dx, event.x, event.y) == true
+                    // Android cancels the child's touch target for this move;
+                    // it does not replay the move through our onTouchEvent.
+                    // Apply it now so a paused or coalesced drag still previews
+                    // the incoming tab before another input event arrives.
+                    if (swipeIntercepted) onTabSwipeMove?.invoke(dx)
                     return swipeIntercepted
                 }
             }
