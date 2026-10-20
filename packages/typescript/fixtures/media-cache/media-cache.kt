@@ -139,7 +139,10 @@ class DownloadProbe : android.app.Instrumentation() {
                     }
                     check(settledInfo.state == androidx.work.WorkInfo.State.RUNNING && settledInfo.progress.getBoolean("craft.media.attemptSettled", false), "the settled attempt still has WorkManager's running identity")
                     check(keep(settled), "an explicit keep replaces a settled running attempt immediately")
-                    check(work.getWorkInfoById(settledRequest.id).get()!!.state == androidx.work.WorkInfo.State.CANCELLED, "the settled work identity was replaced, not joined")
+                    // REPLACE can prune the old WorkSpec. Inspect the current
+                    // unique chain rather than requiring the removed row.
+                    val replacement = work.getWorkInfosForUniqueWork(settledName).get()
+                    check(replacement.size == 1 && replacement.single().id != settledRequest.id && replacement.single().state != androidx.work.WorkInfo.State.CANCELLED, "the settled work identity was replaced, not joined")
 
                     val queued = "$base/queued.mp4"
                     val queuedName = "craft-media:${CraftNativeMedia.digest(queued)}:any"
