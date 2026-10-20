@@ -1136,6 +1136,14 @@ describe('native renderer component contract', () => {
     expect(androidReadme).toContain('Native mode maps STX `View`, `SafeAreaView`, `KeyboardAvoidingView`, `StatusBar`,')
   })
 
+  it('documents the non-modal popup dismissal contract on both native hosts', () => {
+    for (const readme of [iosReadme, androidReadme]) {
+      expect(readme).toContain('`nonModal`')
+      expect(readme).toContain('`dismissOnOutsideTap`')
+      expect(readme).toContain('pass-through')
+    }
+  })
+
   it('documents the DOM-free SVG primitives on both native hosts', () => {
     for (const readme of [iosReadme, androidReadme]) {
       expect(readme).toContain('`Svg`')
