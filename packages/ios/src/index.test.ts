@@ -384,7 +384,7 @@ describe('Craft iOS builder', () => {
     expect(actionsSwift).toContain('ASAuthorizationPlatformPublicKeyCredentialProvider')
     expect(actionsSwift).toContain('import Security')
     // fetch: a URLSession task per request token, cancelled with the request.
-    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]')
+    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation"]')
     expect(actionsSwift).toContain('case ("Network", "fetch"):')
     expect(actionsSwift).toContain('let craftNativeFetchTimeoutSeconds: TimeInterval = 30')
     expect(actionsSwift).toContain('fetchTasks[requestToken] = task')
@@ -1655,6 +1655,17 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('private(set) var navigationBarHidden: Bool?')
   })
 
+  it('lets a native popup consume Back before the route pops', () => {
+    const hybrid = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftHybrid.swift'), 'utf8')
+    expect(hybrid).toContain('final class CraftNativeNavigationController: UINavigationController')
+    expect(hybrid).toContain('if let screen = topViewController as? CraftNativeScreenController')
+    expect(hybrid).toContain('screen.handleBackForModal()')
+    expect(hybrid).toContain('let nav = CraftNativeNavigationController(rootViewController: root)')
+    const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    expect(swift).toContain('func handleBackForModal() -> Bool')
+    expect(swift).toContain('modal.requestClose(reason: "back")')
+  })
+
   it('keeps the outgoing hybrid web page visible while a web push animates', () => {
     const hybrid = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftHybrid.swift'), 'utf8')
     const slot = hybrid.slice(hybrid.indexOf('final class CraftHybridWebSlot'))
@@ -1829,7 +1840,7 @@ describe('Craft iOS builder', () => {
     const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
 
-    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]')
+    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation"]')
     expect(actions).toContain('if config.enablePushNotifications { values.append("push") }')
     expect(actions).toContain('if config.enableShare { values.append("share") }')
     for (const call of ['case ("Speech", "speak"):', 'case ("Push", _):', 'case ("Linking", "openURL"), ("Linking", "canOpenURL"):', 'case ("Share", "share"):'])
@@ -2394,7 +2405,7 @@ describe('Craft iOS builder', () => {
     await init({ name: 'NativeBadge', bundleId: 'org.example.nativebadge', output, config: { renderer: 'native' } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const badge = actions.slice(actions.indexOf('private static func setBadgeCount('))
-    expect(actions).toContain('"linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]')
+    expect(actions).toContain('"linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation"]')
     expect(actions).toContain('case ("Badge", "set"):')
     expect(actions).toContain('case ("Badge", "clear"):')
     expect(badge).toContain('UNUserNotificationCenter.current().setBadgeCount(count)')

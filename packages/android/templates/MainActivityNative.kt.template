@@ -759,6 +759,42 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var safeAreaPadding = intArrayOf(0, 0, 0, 0)
     private var applyingPadding = false
     private var safeAreaEdges = setOf("top", "right", "bottom", "left")
+    private var shieldedModalTouch = false
+    private var dismissibleModalTouch: CraftNativeModalView? = null
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val x = event.x.roundToInt()
+            val y = event.y.roundToInt()
+            dismissibleModalTouch = (childCount - 1 downTo 0).asSequence()
+                .map { getChildAt(it) }
+                .filterIsInstance<CraftNativeModalView>()
+                .firstOrNull { child ->
+                    child.dismissOnOutsideTap && child.visibility == View.VISIBLE && child.alpha > 0.01f
+                        && (x < child.left || x >= child.right || y < child.top || y >= child.bottom)
+                }
+            shieldedModalTouch = (childCount - 1 downTo 0).any { index ->
+                val child = getChildAt(index)
+                child is CraftNativeModalView && !child.blocksBackground && child.visibility == View.VISIBLE
+                    && (x < child.left || x >= child.right || y < child.top || y >= child.bottom)
+                    && child.hasBlockingModalBelow()
+            }
+        }
+        dismissibleModalTouch?.let { modal ->
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                modal.requestClose(reason = "backdrop")
+                dismissibleModalTouch = null
+            } else if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                dismissibleModalTouch = null
+            }
+            return true
+        }
+        if (shieldedModalTouch) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) shieldedModalTouch = false
+            return true
+        }
+        return super.dispatchTouchEvent(event)
+    }
 
     override fun setPadding(left: Int, top: Int, right: Int, bottom: Int) {
         if (!applyingPadding) authoredPadding = intArrayOf(left, top, right, bottom)
@@ -1010,13 +1046,22 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val horizontalMargins = (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
             val verticalMargins = (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
             if (child is CraftNativeModalView) {
-                val modalWidth = max(0, width - paddingLeft - paddingRight)
-                val modalHeight = max(0, height - paddingTop - paddingBottom)
-                child.measure(
-                    View.MeasureSpec.makeMeasureSpec(modalWidth, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(modalHeight, View.MeasureSpec.EXACTLY),
-                )
-                absolute += Entry(child, style, modalWidth, modalHeight)
+                if (child.blocksBackground) {
+                    val modalWidth = max(0, width - paddingLeft - paddingRight)
+                    val modalHeight = max(0, height - paddingTop - paddingBottom)
+                    child.measure(
+                        View.MeasureSpec.makeMeasureSpec(modalWidth, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(modalHeight, View.MeasureSpec.EXACTLY),
+                    )
+                    absolute += Entry(child, style, modalWidth, modalHeight)
+                } else {
+                    // A non-modal popup is still promoted to the screen root,
+                    // but its authored absolute style controls its viewport
+                    // frame instead of turning it into a full-screen child.
+                    val childWidth = measureChildWidth(child, style, width - paddingLeft - paddingRight, horizontalMargins)
+                    val childHeight = measureChildHeight(child, style, height - paddingTop - paddingBottom, verticalMargins)
+                    absolute += Entry(child, style, childWidth, childHeight)
+                }
                 continue
             }
             val childWidth = measureChildWidth(child, style, width - paddingLeft - paddingRight, horizontalMargins)
@@ -1109,13 +1154,19 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val horizontalMargins = (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
             val verticalMargins = (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
             if (child is CraftNativeModalView) {
-                val modalWidth = max(0, width - paddingLeft - paddingRight)
-                val modalHeight = max(0, height - paddingTop - paddingBottom)
-                child.measure(
-                    View.MeasureSpec.makeMeasureSpec(modalWidth, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(modalHeight, View.MeasureSpec.EXACTLY),
-                )
-                absolute += Entry(child, style, modalWidth, modalHeight)
+                if (child.blocksBackground) {
+                    val modalWidth = max(0, width - paddingLeft - paddingRight)
+                    val modalHeight = max(0, height - paddingTop - paddingBottom)
+                    child.measure(
+                        View.MeasureSpec.makeMeasureSpec(modalWidth, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(modalHeight, View.MeasureSpec.EXACTLY),
+                    )
+                    absolute += Entry(child, style, modalWidth, modalHeight)
+                } else {
+                    val childWidth = measureChildWidth(child, style, width - paddingLeft - paddingRight, horizontalMargins)
+                    val childHeight = measureChildHeight(child, style, height - paddingTop - paddingBottom, verticalMargins)
+                    absolute += Entry(child, style, childWidth, childHeight)
+                }
                 continue
             }
             val childWidth = measureChildWidth(child, style, cellWidth.roundToInt(), horizontalMargins)
@@ -2567,6 +2618,18 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
             blocker.setBackgroundColor(if (value) Color.TRANSPARENT else Color.argb(82, 0, 0, 0))
         }
 
+    /** Existing Modal nodes block by default; non-modal popups let outside taps through. */
+    var blocksBackground: Boolean = true
+        set(value) {
+            field = value
+            isClickable = value
+            blocker.isClickable = value
+            blocker.isEnabled = value
+        }
+
+    /** A non-modal popup may opt into consuming an outside tap for dismissal. */
+    var dismissOnOutsideTap: Boolean = false
+
     init {
         isClickable = true
         blocker.isClickable = true
@@ -2580,6 +2643,7 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     }
 
     fun requestClose(reason: String = "backdrop") {
+        if (!blocksBackground && !dismissOnOutsideTap) return
         val handler = onRequestClose ?: return
         isClickable = false
         blocker.isEnabled = false
@@ -2588,8 +2652,8 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
 
     fun setVisible(visible: Boolean, opacity: Float, animationType: String?) {
         if (visible) {
-            isClickable = true
-            blocker.isEnabled = true
+            isClickable = blocksBackground
+            blocker.isEnabled = blocksBackground
         }
         if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE) {
             if (visible && alpha != opacity) alpha = opacity
@@ -2643,8 +2707,32 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
         translationY = 0f
         alpha = 0f
         isClickable = true
+        blocksBackground = true
+        dismissOnOutsideTap = false
         blocker.isEnabled = true
         onRequestClose = null
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!blocksBackground) {
+            if (dismissOnOutsideTap && event.action == MotionEvent.ACTION_UP) {
+                requestClose(reason = "backdrop")
+                return true
+            }
+            // Do not let an outside popup tap fall through to a blocking modal
+            // below it; a normal non-modal popup remains pass-through.
+            return hasBlockingModalBelow()
+        }
+        return super.onTouchEvent(event)
+    }
+
+    fun hasBlockingModalBelow(): Boolean {
+        val group = parent as? ViewGroup ?: return false
+        val index = group.indexOfChild(this)
+        return index > 0 && (0 until index).any { siblingIndex ->
+            val sibling = group.getChildAt(siblingIndex)
+            sibling is CraftNativeModalView && sibling.blocksBackground && sibling.visibility == View.VISIBLE && sibling.alpha > 0.01f
+        }
     }
 }
 
@@ -4619,6 +4707,7 @@ class MainActivity : AppCompatActivity() {
         put("viewMeasure")
         put("viewScroll")
         put("viewReparent")
+        put("viewNonModalPresentation")
     }
 
     private fun appVersion(): Pair<String, String> = runCatching {
@@ -4995,12 +5084,24 @@ class MainActivity : AppCompatActivity() {
         screen.controls.putAll(next)
         screen.handlers.keys.retainAll(retainedViews(screen))
         screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)
+        promoteModalOverlays(screen, next.values)
         updateSafeAreaViews()
         // A full render can change a view's custom layout style without
         // changing the root bounds. Ensure native @layout observers still see
         // the settled child frame after the next traversal.
         scheduleLayoutEvents(screen)
         if (visibleScreen === screen) applyStatusBar(screen)
+    }
+
+    /** Keep Modal nodes in the screen viewport even when declared in a clipped subtree. */
+    private fun promoteModalOverlays(screen: Screen, controls: Collection<View>) {
+        controls.filterIsInstance<CraftNativeModalView>().forEach { modal ->
+            if (modal.parent !== screen.view) {
+                (modal.parent as? ViewGroup)?.removeView(modal)
+                screen.view.addView(modal)
+            }
+            modal.bringToFront()
+        }
     }
 
     private fun applyStatusBar(screen: Screen) {
@@ -5365,6 +5466,13 @@ class MainActivity : AppCompatActivity() {
             "Modal" -> (previous as? CraftNativeModalView ?: CraftNativeModalView(this)).apply {
                 val focusBeforeContent = screen.view.findFocus()
                 transparent = craftNativeBoolean(props.opt("transparent"))
+                blocksBackground = !craftNativeBoolean(props.opt("nonModal"))
+                dismissOnOutsideTap = craftNativeBoolean(props.opt("dismissOnOutsideTap"))
+                // Modal nodes are promoted from their declaration parent to
+                // the screen root. Keep the authored layout style with that
+                // promoted child so non-modal absolute coordinates remain in
+                // the screen viewport rather than the old clipped parent.
+                screen.view.setChildStyle(this, style, resources.displayMetrics.density)
                 content.configure(style, resources.displayMetrics.density)
                 reconcileChildren(screen, content, children, identity, next, style, previousControls)
                 // Dynamic :visible bindings arrive as a display style mutation;
@@ -7467,6 +7575,12 @@ class MainActivity : AppCompatActivity() {
         // released/recycled rows so a later identity cannot inherit a closure
         // that still captures the previous row's screen state.
         released.forEach {
+            // Modals are promoted out of their logical layout into the
+            // screen overlay. Removing the logical node therefore does not
+            // remove the native view through ordinary child reconciliation;
+            // detach every released view so an open popup cannot survive as
+            // an orphan after its owner unmounts.
+            (it.parent as? ViewGroup)?.removeView(it)
             // AdapterView (including Spinner, our native Picker) rejects
             // setOnClickListener altogether. Its selection callback is
             // detached below; ordinary Views still need their click target

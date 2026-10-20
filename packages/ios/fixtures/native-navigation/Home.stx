@@ -30,9 +30,14 @@ const invalidControlColors = state(false)
 const invalidControlStyleStatus = state('')
 const dateEventStatus = state('date event pending')
 const modalVisible = state(false)
+const modalMounted = state(true)
 const modalStatus = state('')
 const modalRequestStatus = state('')
 const modalOpacity = state(1)
+const popupVisible = state(false)
+const popupRequestStatus = state('')
+const nestedPopupVisible = state(false)
+const nestedPopupRequestStatus = state('')
 const sliderValue = state(0.5)
 const indicatorSize = state('small')
 const indicatorHidesWhenStopped = state(false)
@@ -448,6 +453,11 @@ function toggleModal() {
   modalVisible.update(value => !value)
 }
 
+function removeModal() {
+  modalMounted.set(false)
+  modalVisible.set(false)
+}
+
 function modalShown() {
   modalRequestStatus.set('')
   modalStatus.set('modal shown')
@@ -464,6 +474,24 @@ function modalRequested(event) {
 
 function toggleModalOpacity() {
   modalOpacity.update(value => value === 1 ? 0.45 : 1)
+}
+
+function togglePopup() {
+  popupVisible.update(value => !value)
+}
+
+function popupRequested(event) {
+  popupRequestStatus.set(`popup requested ${event.reason || 'unknown'}`)
+  popupVisible.set(false)
+}
+
+function toggleNestedPopup() {
+  nestedPopupVisible.update(value => !value)
+}
+
+function nestedPopupRequested(event) {
+  nestedPopupRequestStatus.set(`nested popup requested ${event.reason || 'unknown'}`)
+  nestedPopupVisible.set(false)
 }
 
 function moveSlider(event) {
@@ -841,14 +869,25 @@ function openDetailsThenUpdateBackground() {
     <Text testID="invalid-control-style-status" :text="invalidControlStyleStatus" />
     <Text testID="date-event-status" :text="dateEventStatus" />
     <Button testID="toggle-modal" @click="toggleModal()">Toggle modal</Button>
-    <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} @show="modalShown()" @dismiss="modalDismissed()" @request-close="modalRequested($event)">
+    <Modal :if="modalMounted()" testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} @show="modalShown()" @dismiss="modalDismissed()" @request-close="modalRequested($event)">
       <Text testID="modal-content">Modal content</Text>
       <Button testID="toggle-modal-opacity" @click="toggleModalOpacity()">Toggle modal opacity</Button>
+      <Button testID="remove-modal" @click="removeModal()">Remove modal</Button>
       <Text testID="modal-opacity" :text="modalOpacity" />
+      <Button testID="toggle-nested-popup" @click="toggleNestedPopup()">Toggle nested popup</Button>
+      <Modal testID="nested-popup" visible={nestedPopupVisible} nonModal dismissOnOutsideTap animationType="none" style={{"position":"absolute","left":48,"top":72,"width":160,"height":64,"backgroundColor":"#1e293b"}} @request-close="nestedPopupRequested($event)">
+        <Text testID="nested-popup-content">Nested popup</Text>
+      </Modal>
       <Button testID="close-modal" @click="toggleModal()">Close modal</Button>
     </Modal>
     <Text testID="modal-status" :text="modalStatus" />
     <Text testID="modal-request-status" :text="modalRequestStatus" />
+    <Text testID="nested-popup-request-status" :text="nestedPopupRequestStatus" />
+    <Button testID="toggle-popup" @click="togglePopup()">Toggle popup</Button>
+    <Modal testID="native-popup" visible={popupVisible} nonModal dismissOnOutsideTap animationType="none" style={{"position":"absolute","left":24,"top":36,"width":180,"height":72,"backgroundColor":"#334155"}} @request-close="popupRequested($event)">
+      <Text testID="popup-content">Popup content</Text>
+    </Modal>
+    <Text testID="popup-request-status" :text="popupRequestStatus" />
     <Slider testID="native-slider" minimumValue={0} maximumValue={1} step={0.1} value={sliderValue} minimumTrackTintColor={invalidSliderColors ? "not-a-color" : "#22c55e"} maximumTrackTintColor={invalidSliderColors ? "not-a-color" : "#64748b"} thumbTintColor={invalidSliderColors ? "not-a-color" : "#16a34a"} @value-change="moveSlider($event)" @sliding-complete="finishSlider()" />
     <Slider testID="boolean-slider" minimumValue={true} maximumValue={2} value={1} />
     <Text testID="slider-value" :text="sliderValue" />

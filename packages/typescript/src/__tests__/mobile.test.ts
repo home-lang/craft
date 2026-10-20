@@ -562,6 +562,7 @@ describe('health reads', () => {
       expect(await health.resumeWorkout()).toBe(true)
       expect(await health.endWorkout()).toEqual(ended)
       events.dispatchEvent(Object.assign(new Event('craftHealthWorkout'), { detail: { id: 'live-1', event: 'state', state: 'paused' } }))
+      events.dispatchEvent(Object.assign(new Event('craftHealthWorkout'), { detail: { id: 'live-1', event: 'metrics', heartRateBpm: 148, activeEnergyCalories: 12.5 } }))
       events.dispatchEvent(Object.assign(new Event('craftHealthWorkout'), { detail: { id: 'live-1', event: 'error', message: 'sensor failed' } }))
       events.dispatchEvent(Object.assign(new Event('craftHealthWorkout'), { detail: { id: 'live-1', event: 'unknown' } }))
       stop()
@@ -569,7 +570,7 @@ describe('health reads', () => {
         ['start', { type: 'running', location: 'outdoor' }],
         ['pause'], ['resume'], ['end'],
       ])
-      expect(seen).toEqual(['state:paused', 'error:sensor failed'])
+      expect(seen).toEqual(['state:paused', 'metrics:undefined', 'error:sensor failed'])
     })
   })
 

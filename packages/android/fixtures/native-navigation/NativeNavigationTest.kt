@@ -1607,6 +1607,64 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync { activity.onBackPressed() }
             awaitText(activity, "modal-request-status", "modal requested back")
             awaitText(activity, "modal-status", "modal dismissed")
+            click(activity, "toggle-modal")
+            awaitText(activity, "modal-status", "modal shown")
+            click(activity, "toggle-nested-popup")
+            val nestedPopup = awaitView(activity, "nested-popup")
+            awaitText(activity, "nested-popup-content", "Nested popup")
+            val root = awaitView(activity, "root")
+            instrumentation.runOnMainSync {
+                val downTime = SystemClock.uptimeMillis()
+                val x = (root.width - 20).toFloat()
+                val y = (root.height - 20).toFloat()
+                val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
+                root.dispatchTouchEvent(down)
+                down.recycle()
+                val up = MotionEvent.obtain(downTime, downTime + 32, MotionEvent.ACTION_UP, x, y, 0)
+                root.dispatchTouchEvent(up)
+                up.recycle()
+            }
+            awaitText(activity, "nested-popup-request-status", "nested popup requested backdrop")
+            var nestedPopupRemoved = false
+            repeat(25) {
+                instrumentation.runOnMainSync { nestedPopupRemoved = find(activity.window.decorView, "nested-popup") == null }
+                if (nestedPopupRemoved) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertTrue("dismissed nested popup should be removed", nestedPopupRemoved || nestedPopup.visibility != View.VISIBLE)
+            assertEquals("dismissing a nested popup should retain its parent modal", View.VISIBLE, modal.visibility)
+            click(activity, "toggle-popup")
+            val popup = awaitView(activity, "native-popup")
+            awaitText(activity, "popup-content", "Popup content")
+            instrumentation.runOnMainSync {
+                val downTime = SystemClock.uptimeMillis()
+                val x = (root.width - 20).toFloat()
+                val y = (root.height - 20).toFloat()
+                val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
+                root.dispatchTouchEvent(down)
+                down.recycle()
+                val up = MotionEvent.obtain(downTime, downTime + 32, MotionEvent.ACTION_UP, x, y, 0)
+                root.dispatchTouchEvent(up)
+                up.recycle()
+            }
+            awaitText(activity, "popup-request-status", "popup requested backdrop")
+            var popupRemoved = false
+            repeat(25) {
+                instrumentation.runOnMainSync { popupRemoved = find(activity.window.decorView, "native-popup") == null }
+                if (popupRemoved) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertTrue("dismissed non-modal popup should be removed", popupRemoved || popup.visibility != View.VISIBLE)
+            click(activity, "toggle-modal")
+            awaitText(activity, "modal-status", "modal shown")
+            click(activity, "remove-modal")
+            var removed = false
+            repeat(25) {
+                instrumentation.runOnMainSync { removed = find(activity.window.decorView, "native-modal") == null }
+                if (removed) return@repeat
+                SystemClock.sleep(100)
+            }
+            assertTrue("unmounted modal should be removed from the screen overlay", removed)
             val justifiedText = awaitView(activity, "justified-text") as TextView
             assertEquals("justified text should use the Android inter-word mode", Layout.JUSTIFICATION_MODE_INTER_WORD, justifiedText.justificationMode)
             instrumentation.runOnMainSync { nativeSwitch.performClick() }
@@ -2062,6 +2120,28 @@ class NativeNavigationTest {
             click(activity, "details-back")
             awaitView(activity, "home-title")
             awaitView(activity, "Open capabilities") { !it.isShown }
+        } finally {
+            activity.finishAndRemoveTask()
+        }
+    }
+
+    @Test
+    fun systemBackDismissesPushedDetailsModalBeforeRoutePop() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        ) as MainActivity
+        try {
+            click(activity, "navigation-open-details")
+            val details = awaitText(activity, "details-title", "Details for Ada")
+            click(activity, "toggle-details-modal")
+            awaitView(activity, "details-modal") { it.isShown }
+
+            instrumentation.runOnMainSync { activity.onBackPressedDispatcher.onBackPressed() }
+            awaitText(activity, "details-modal-request-status", "details modal requested back")
+            assertFalse("system Back finished the native activity", activity.isFinishing)
+            assertSame("system Back popped the route instead of dismissing its modal", details, awaitText(activity, "details-title", "Details for Ada"))
         } finally {
             activity.finishAndRemoveTask()
         }

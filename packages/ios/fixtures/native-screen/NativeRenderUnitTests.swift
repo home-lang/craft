@@ -2342,6 +2342,69 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(controller.view.hitTest(center, with: nil) === close)
     }
 
+    func testANonModalOverlayLetsOutsideTouchesReachTheScreen() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["type": "Button", "props": ["key": "underlay"], "style": ["width": 390, "height": 844]],
+            ["type": "Modal", "props": ["key": "popup", "visible": true, "nonModal": true, "animationType": "none"],
+             "children": [["type": "Button", "props": ["key": "popup-action"], "style": ["width": 120, "height": 44], "children": ["Popup"]]]],
+        ]))
+        controller.view.layoutIfNeeded()
+        let underlay = try XCTUnwrap(find(UIButton.self, key: "underlay", below: controller.view))
+        let popup = try XCTUnwrap(find(UIView.self, key: "popup", below: controller.view))
+        let popupAction = try XCTUnwrap(find(UIButton.self, key: "popup-action", below: popup))
+        let popupPoint = popupAction.convert(CGPoint(x: popupAction.bounds.midX, y: popupAction.bounds.midY), to: controller.view)
+        XCTAssertTrue(controller.view.hitTest(popupPoint, with: nil) === popupAction)
+        let outside = CGPoint(x: min(underlay.bounds.maxX - 10, 300), y: min(underlay.bounds.maxY - 10, 700))
+        XCTAssertTrue(controller.view.hitTest(outside, with: nil) === underlay)
+    }
+
+    func testANonModalOverlayUsesItsViewportFrame() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["type": "View", "props": ["key": "page"], "style": ["flex": 1]],
+            ["type": "Modal", "props": ["key": "popup", "visible": true, "nonModal": true, "animationType": "none"],
+             "style": ["position": "absolute", "left": 24, "top": 36, "width": 180, "height": 72],
+             "children": [["type": "Text", "props": ["key": "label"], "children": ["Popup"]]]],
+        ]))
+        controller.view.layoutIfNeeded()
+        let popup = try XCTUnwrap(find(UIView.self, key: "popup", below: controller.view))
+        XCTAssertEqual(popup.frame.origin.x, 24, accuracy: 0.5)
+        XCTAssertEqual(popup.frame.origin.y, 36, accuracy: 0.5)
+        XCTAssertEqual(popup.frame.size.width, 180, accuracy: 0.5)
+        XCTAssertEqual(popup.frame.size.height, 72, accuracy: 0.5)
+        XCTAssertNotEqual(popup.frame, controller.view.bounds)
+    }
+
+    func testANonModalOverlayDoesNotDismissABlockingModalBelowIt() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.evaluateScript("globalThis.__dismissed = 0; globalThis.__stxNativeCallback = function(json) { const message = JSON.parse(json); if (message.type === 'EVENT' && message.payload.handlerName === 'underlyingDismissed') __dismissed++; };")
+        controller.render(document([
+            ["type": "Modal", "props": ["key": "underlying", "visible": true, "animationType": "none"],
+             "events": ["onRequestClose": "underlyingDismissed"]],
+            ["type": "Modal", "props": ["key": "popup", "visible": true, "nonModal": true, "animationType": "none"],
+             "style": ["position": "absolute", "left": 24, "top": 36, "width": 160, "height": 72],
+             "children": [["type": "Text", "props": ["key": "label"], "children": ["Popup"]]]],
+        ]))
+        controller.view.layoutIfNeeded()
+        let popup = try XCTUnwrap(find(UIView.self, key: "popup", below: controller.view))
+        let outside = CGPoint(x: controller.view.bounds.maxX - 20, y: controller.view.bounds.maxY - 20)
+        XCTAssertTrue(controller.view.hitTest(outside, with: nil) === popup)
+        XCTAssertEqual(controller.evaluateScript("__dismissed")?.toInt32(), 0)
+    }
+
     func testASliderReportsTheDecimalItShows() {
         // UISlider keeps a Float; the script hears the number, not its
         // binary neighbour.

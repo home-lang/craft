@@ -178,8 +178,10 @@ slot-based contract. `ScrollView` also supports `stickyHeaderIndices` and
 with `onValueChange` or `onChange`. `DatePicker` uses the platform `DatePicker`
 and `TimePicker` controls for date, time, datetime, and countdown modes and
 emits local `value`, ISO, and millisecond `timestamp` fields. `Modal` is parent-scoped and supports
-`visible`, `transparent`, `animationType`, `onShow`, `onDismiss`, and
-`onRequestClose` for Android back handling. `Switch` supports state-aware `trackColor`
+`visible`, `transparent`, `nonModal`, `dismissOnOutsideTap`, `animationType`, `onShow`,
+`onDismiss`, and `onRequestClose` for Android back handling. Non-modal popups remain
+pass-through unless outside-tap dismissal is explicitly enabled. System Back dismisses
+the top modal before it pops the native route. `Switch` supports state-aware `trackColor`
 and `thumbColor`, while `Slider` supports track/thumb tint props and `step`
 snapping without collapsing stepped ranges to a fixed pixel-like precision.
 `ActivityIndicator` keeps a visible stopped indicator genuinely

@@ -1567,9 +1567,12 @@ export interface CraftHealthLiveWorkoutResult {
 }
 export interface CraftHealthLiveWorkoutEvent {
   id: string;
-  event: 'state' | 'error';
+  event: 'state' | 'metrics' | 'error';
   state?: 'notStarted' | 'prepared' | 'running' | 'paused' | 'stopped' | 'ended' | 'unknown';
   date?: number;
+  heartRateBpm?: number;
+  activeEnergyCalories?: number;
+  distanceMeters?: number;
   message?: string;
 }
 

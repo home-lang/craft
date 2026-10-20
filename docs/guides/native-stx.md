@@ -291,13 +291,16 @@ Countdown values are durations: numeric values are seconds and text values use
 `HH:mm` or `HH:mm:ss`; their event value is always `HH:mm:ss`, `iso` is an
 ISO-8601 duration such as `PT5400S`, and `timestamp` is the duration in
 milliseconds. Native countdown controls clamp values to `23:59:59`.
-`Modal` is parent-scoped: `visible` controls a native blocking layer around its
+`Modal` is parent-scoped: `visible` controls a native layer around its
 children, `transparent` removes the dimming scrim, and hidden modals do not
 participate in layout or touch handling. `animationType` accepts `none`,
 `fade`, or `slide`; `slide` enters from and exits toward the bottom edge on
 both hosts. `onShow` and `onDismiss` fire on visibility transitions,
 and `onRequestClose` fires when Android back or the modal blocker requests a
-close. The default WebView renderer remains unchanged.
+close. Set `nonModal` for a popup that leaves the screen interactive; it is
+pass-through by default. Add `dismissOnOutsideTap` when the popup should
+consume an outside tap and call `onRequestClose` on both hosts. The default
+WebView renderer remains unchanged.
 `Text` supports positive `numberOfLines` values and `ellipsizeMode` (`head`,
 `middle`, `tail`, or `clip`) on both hosts; omitting the line count keeps the
 label intrinsically multiline.
@@ -1192,7 +1195,11 @@ with `VIEW_NOT_MOUNTED`; unsupported focus targets reject with
 code and rejects non-finite coordinates with `INVALID_ARGUMENT`. The
 `viewFocus`, `viewMeasure`, and `viewScroll` capability flags are advertised
 independently so shared components can gate these operations on older Craft
-hosts.
+hosts. Hosts that support the viewport-owned, non-blocking popup contract also
+advertise `viewNonModalPresentation`. Gate `Modal` usage with
+`nonModal: true` and `dismissOnOutsideTap: true` on that capability; an older
+host may only understand the blocking modal behavior. The flag covers viewport
+promotion, outside-tap dismissal, and nested overlay teardown together.
 
 // Native iOS passkeys (capability `passkeys`). The server still creates and
 // verifies the WebAuthn challenge; Craft presents Apple's credential sheet and

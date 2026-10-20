@@ -240,7 +240,19 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('style?: StyleValue<ImageStyle>')
     expect(navigationHome).toContain('<Icon testID="native-icon"')
     expect(navigationHome).toContain('<Video testID="native-video"')
-    expect(navigationHome).toContain('<Modal testID="native-modal"')
+    expect(navigationHome).toContain('testID="native-modal"')
+    expect(navigationHome).toContain('testID="native-popup" visible={popupVisible} nonModal dismissOnOutsideTap')
+    expect(navigationHome).toContain('testID="toggle-nested-popup"')
+    expect(navigationHome).toContain('testID="nested-popup" visible={nestedPopupVisible} nonModal dismissOnOutsideTap')
+    expect(iosNavigationTest).toContain('testNonModalPopupDismissesOnOutsideTap')
+    expect(iosNavigationTest).toContain('testNestedNonModalPopupDismissesAboveModal')
+    expect(navigationDetails).toContain('testID="toggle-details-modal"')
+    expect(navigationDetails).toContain('testID="details-modal" visible={detailsModalVisible}')
+    expect(iosNavigationTest).toContain('testNavigationBackDismissesDetailsModalBeforePoppingRoute')
+    expect(androidNavigationTest).toContain('systemBackDismissesPushedDetailsModalBeforeRoutePop')
+    expect(androidReadme).toContain('System Back dismisses')
+    expect(androidNavigationTest).toContain('dismissed non-modal popup should be removed')
+    expect(androidNavigationTest).toContain('dismissed nested popup should be removed')
     expect(navigationHome).toContain('<ActivityIndicator testID="scaled-indicator"')
   })
 
@@ -416,6 +428,11 @@ describe('native renderer component contract', () => {
     expect(craftTypes).toContain('export interface CraftHealthWorkoutEvent extends CustomEvent')
     expect(craftTypes).toContain('detail: CraftHealthLiveWorkoutEvent;')
     expect(craftTypes).toContain('craftHealthWorkout: CraftHealthWorkoutEvent;')
+    expect(iosHealth).toContain('private final class CraftHealthWorkoutBuilderDelegate: NSObject, HKLiveWorkoutBuilderDelegate')
+    expect(iosHealth).toContain('detail["heartRateBpm"] = value')
+    expect(iosHealth).toContain('detail["activeEnergyCalories"] = value')
+    expect(iosHealth).toContain('detail["distanceMeters"] = value')
+    expect(iosHealth).toContain('onMain { [weak self] in self?.sendWorkout(detail) }')
   })
 
   it('lets every container both hosts draw take children in a mutation', () => {
@@ -1136,6 +1153,14 @@ describe('native renderer component contract', () => {
     expect(androidReadme).toContain('Native mode maps STX `View`, `SafeAreaView`, `KeyboardAvoidingView`, `StatusBar`,')
   })
 
+  it('documents the non-modal popup dismissal contract on both native hosts', () => {
+    for (const readme of [iosReadme, androidReadme]) {
+      expect(readme).toContain('`nonModal`')
+      expect(readme).toContain('`dismissOnOutsideTap`')
+      expect(readme).toContain('pass-through')
+    }
+  })
+
   it('documents the DOM-free SVG primitives on both native hosts', () => {
     for (const readme of [iosReadme, androidReadme]) {
       expect(readme).toContain('`Svg`')
@@ -1513,6 +1538,11 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('if let propVisible = props["visible"] as? Bool')
     expect(ios).toContain('visible = display != nil && display != "none"')
     expect(ios).toContain('modal.transparent = props["transparent"] as? Bool == true')
+    expect(ios).toContain('modal.blocksBackground = props["nonModal"] as? Bool != true')
+    expect(ios).toContain('modal.dismissOnOutsideTap = props["dismissOnOutsideTap"] as? Bool == true')
+    expect(ios).toContain('if dismissOnOutsideTap { return self }')
+    expect(ios).toContain('guard blocksBackground || dismissOnOutsideTap else { return }')
+    expect(ios).toContain('if !blocksBackground {')
     expect(ios).toContain('self.transform = CGAffineTransform(translationX: 0, y: distance)')
     expect(ios).toContain('UIView.animate(withDuration: 0.24) { self.transform = .identity }')
     expect(ios).toContain('events["onShow"]')
@@ -1527,6 +1557,13 @@ describe('native renderer component contract', () => {
     // A modal covers the screen it is declared on, not its parent's box.
     expect(ios).toContain('view.bringSubviewToFront(modal)')
     expect(ios).toContain('if modal.frame != view.bounds { modal.frame = view.bounds }')
+    expect(ios).toContain('let viewport = view.bounds.inset(by: insets)')
+    expect(ios).toContain('guard !modal.blocksBackground else')
+    expect(ios).toContain('modal.contentInsets = .zero')
+    expect(ios).toContain('hasBlockingModalBelow')
+    expect(ios).toContain('return craftScreenController?.hasBlockingModalBelow(self) == true ? self : nil')
+    expect(ios).toContain('private final class CraftNativeScreenRootView: UIView')
+    expect(ios).toContain('if !modal.bounds.contains(local) && (modal.dismissOnOutsideTap || controller.hasBlockingModalBelow(modal)) { return modal }')
     expect(ios).toContain('!($0 is CraftNativeModalView)')
     expect(android).toContain('private class CraftNativeModalView(context: Context) : FrameLayout(context)')
     expect(android).toContain('if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE)')
@@ -1547,6 +1584,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('JSONObject().put("reason", reason)')
     expect(android).not.toContain('dismissSuppressedByRequest')
     expect(android).toContain('blocker.isEnabled = false')
+    expect(android).toContain('blocksBackground = !craftNativeBoolean(props.opt("nonModal"))')
+    expect(android).toContain('dismissOnOutsideTap = craftNativeBoolean(props.opt("dismissOnOutsideTap"))')
+    expect(android).toContain('private var dismissibleModalTouch: CraftNativeModalView? = null')
+    expect(android).toContain('modal.requestClose(reason = "backdrop")')
+    expect(android).toContain('if (!blocksBackground && !dismissOnOutsideTap) return')
+    expect(android).toContain('isClickable = blocksBackground')
+    expect(android).toContain('if (!blocksBackground) {')
     expect(android).toContain('val handler = onRequestClose ?: return')
     expect(android).toContain('if (!lifecycleHandler.isNullOrBlank()) {')
     expect(android).toContain('(modal.key as? CraftNativeModalView)?.requestClose(reason = "back")')
@@ -1554,6 +1598,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('onRequestClose = if (requestClose.isNotBlank())')
     expect(android).toContain('craftNativeOptionalString(events.opt("onShow"))')
     expect(android).toContain('if (child is CraftNativeModalView)')
+    expect(android).toContain('if (child.blocksBackground)')
+    expect(android).toContain('screen.view.setChildStyle(this, style, resources.displayMetrics.density)')
+    expect(android).toContain('private fun promoteModalOverlays(screen: Screen, controls: Collection<View>)')
+    expect(android).toContain('promoteModalOverlays(screen, next.values)')
+    expect(android).toContain('fun hasBlockingModalBelow(): Boolean')
+    expect(android).toContain('override fun dispatchTouchEvent(event: MotionEvent): Boolean')
+    expect(android).toContain('private var shieldedModalTouch = false')
     expect(android).toContain('entry.view.bringToFront()')
   })
 
@@ -1763,8 +1814,10 @@ describe('native renderer component contract', () => {
       expect(host).toContain('screenViewport')
     }
     expect(iosActions).toContain('"viewFocus", "viewMeasure"')
+    expect(iosActions).toContain('"viewNonModalPresentation"')
     expect(android).toContain('viewFocus')
     expect(android).toContain('viewMeasure')
+    expect(android).toContain('put("viewNonModalPresentation")')
     expect(ios).toContain('UIAccessibility.post(notification: .layoutChanged, argument: node.view)')
     expect(ios).toContain('"unit": "points"')
     expect(android).toContain('TYPE_VIEW_FOCUSED')
@@ -2021,7 +2074,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('parent.setChildStyle(view, style, resources.displayMetrics.density)')
     expect(android).toContain('parent.requestLayout()')
     expect(android).toContain('(parent as? View)?.let')
-    expect(android).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)\n        updateSafeAreaViews()')
+    expect(android).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)')
     expect(android).toContain('A reused View may still carry a')
     expect(android).toContain('val requestedChecked = props.opt("checked")')
     expect(android).toContain('else if (requestedChecked is Boolean)')
@@ -2237,7 +2290,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps native iOS badges permission-free and capability-advertised', () => {
-    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent"]')
+    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation"]')
     expect(iosActions).toContain('case ("Badge", "set"):')
     expect(iosActions).toContain('case ("Badge", "clear"):')
     expect(iosActions).toContain('without requesting notification authorization')
@@ -3431,7 +3484,8 @@ describe('native renderer component contract', () => {
   })
 
   it('detaches Android listeners before recycled rows can change identity', () => {
-    expect(android).toContain('released.forEach {\n            // AdapterView (including Spinner, our native Picker) rejects')
+    expect(android).toContain('released.forEach {')
+    expect(android).toContain('// AdapterView (including Spinner, our native Picker) rejects')
     expect(android).toContain('if (it !is android.widget.AdapterView<*>) it.setOnClickListener(null)')
     expect(android).toContain('it.setOnTouchListener(null)')
     expect(android).toContain('it.setOnLongClickListener(null)')

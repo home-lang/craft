@@ -43,6 +43,19 @@ private final class CraftHealthWorkoutDelegate: NSObject, HKWorkoutSessionDelega
     }
 }
 
+@available(iOS 26.0, *)
+private final class CraftHealthWorkoutBuilderDelegate: NSObject, HKLiveWorkoutBuilderDelegate {
+    weak var owner: CraftHealth?
+
+    init(owner: CraftHealth) { self.owner = owner }
+
+    func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
+        owner?.emitLiveWorkoutMetrics(workoutBuilder)
+    }
+
+    func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
+}
+
 /// Apple Health for the whole app: the web page's bridge (`craft.health` in
 /// the hybrid's web view, CraftApp.swift) and native screens alike
 /// (`Health` through CraftNativeActions), so a screen drawn natively reads
@@ -837,12 +850,15 @@ final class CraftHealth {
             let session = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
             let builder = session.associatedWorkoutBuilder()
             let delegate = CraftHealthWorkoutDelegate(id: { [weak self] in self?.liveWorkoutID ?? "" }) { [weak self] detail in self?.sendWorkout(detail) }
+            let metricsDelegate = CraftHealthWorkoutBuilderDelegate(owner: self)
             session.delegate = delegate
+            builder.delegate = metricsDelegate
             builder.shouldCollectWorkoutEvents = true
             builder.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
             liveWorkoutSession = session
             liveWorkoutBuilder = builder
             liveWorkoutDelegate = delegate
+            liveWorkoutBuilderDelegate = metricsDelegate
             liveWorkoutID = UUID().uuidString.lowercased()
             liveWorkoutType = type
             liveWorkoutStart = Date()
@@ -923,9 +939,30 @@ final class CraftHealth {
         liveWorkoutSession = nil
         liveWorkoutBuilder = nil
         liveWorkoutDelegate = nil
+        liveWorkoutBuilderDelegate = nil
         liveWorkoutID = nil
         liveWorkoutType = nil
         liveWorkoutStart = nil
+    }
+
+    @available(iOS 26.0, *)
+    fileprivate func emitLiveWorkoutMetrics(_ builder: HKLiveWorkoutBuilder) {
+        guard let id = liveWorkoutID else { return }
+        var detail: [String: Any] = ["id": id, "event": "metrics", "date": Date().timeIntervalSince1970 * 1000]
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        if let type = HKQuantityType.quantityType(forIdentifier: .heartRate),
+           let value = builder.statistics(for: type)?.mostRecentQuantity()?.doubleValue(for: bpm), value.isFinite {
+            detail["heartRateBpm"] = value
+        }
+        if let type = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned),
+           let value = builder.statistics(for: type)?.sumQuantity()?.doubleValue(for: .kilocalorie()), value.isFinite {
+            detail["activeEnergyCalories"] = value
+        }
+        if let type = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning),
+           let value = builder.statistics(for: type)?.sumQuantity()?.doubleValue(for: .meter()), value.isFinite {
+            detail["distanceMeters"] = value
+        }
+        onMain { [weak self] in self?.sendWorkout(detail) }
     }
 
     private static func workoutActivity(_ type: String) -> HKWorkoutActivityType? {
@@ -965,6 +1002,7 @@ final class CraftHealth {
     private var liveWorkoutSession: AnyObject?
     private var liveWorkoutBuilder: AnyObject?
     private var liveWorkoutDelegate: AnyObject?
+    private var liveWorkoutBuilderDelegate: AnyObject?
     private var liveWorkoutID: String?
     private var liveWorkoutType: String?
     private var liveWorkoutStart: Date?

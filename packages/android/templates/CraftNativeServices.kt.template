@@ -61,7 +61,9 @@ internal class CraftNativeServices(
     private val main = Handler(Looper.getMainLooper())
     private val heartRateEnabled = config.optBoolean("enableHeartRate")
     private val health: CraftNativeHealth? = if (config.optBoolean("enableHealthConnect")) {
-        CraftNativeHealth(context, activity, config.optBoolean("enableHealthConnectBackground"), config.optBoolean("enableHealthConnectHistory"))
+        CraftNativeHealth(context, activity, config.optBoolean("enableHealthConnectBackground"), config.optBoolean("enableHealthConnectHistory")) { detail ->
+            CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftHealthWorkout").put("detail", detail))
+        }
     } else null
     private var pendingPushPermission: ((CraftNativeCapabilityResult) -> Unit)? = null
     private var pendingBrowser: Pair<String?, (CraftNativeCapabilityResult) -> Unit>? = null

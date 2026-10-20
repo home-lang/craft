@@ -517,7 +517,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('current = screen.mutations.parentId(current)')
       expect(nativeActivity).toContain('val path = screen.nodePaths[target] ?: return false')
       expect(nativeActivity).toContain('makeView(screen, document, path, screen.controls)')
-      expect(nativeActivity).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)\n        updateSafeAreaViews()')
+      expect(nativeActivity).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)')
       expect(nativeActivity).toContain('if (type == "SafeAreaView") setSafeAreaEdges(props.optJSONArray("edges"))\n                else setWindowSafeInsets(0, 0, 0, 0)')
       expect(nativeActivity).toContain('private fun applyViewStyle(view: View, style: JSONObject)')
       expect(nativeActivity).toContain('private fun gridIntrinsicSize(height: Int): Pair<Int, Int>')
@@ -2311,6 +2311,34 @@ describe('Craft Android builder', () => {
     const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
     expect(config.compileSdk).toBe(36)
     expect(config.minSdk).toBe(26)
+  })
+
+  it('wires the native Health Connect live-workout lifecycle and event sink', async () => {
+    const output = createTempDir('craft-android-native-health-workout-')
+    try {
+      await init({
+        name: 'NativeHealth',
+        packageName: 'org.native.health',
+        output,
+        config: { renderer: 'native', enableHealthConnect: true },
+      })
+      const java = join(output, 'app/src/main/java/org/native/health')
+      const health = readFileSync(join(java, 'CraftNativeHealth.kt'), 'utf8')
+      const services = readFileSync(join(java, 'CraftNativeServices.kt'), 'utf8')
+      expect(health).toContain('"startWorkout" -> answer(completion) { startWorkout(options(0)) }')
+      expect(health).toContain('"pauseWorkout" -> answer(completion) { pauseWorkout() }')
+      expect(health).toContain('"resumeWorkout" -> answer(completion) { resumeWorkout() }')
+      expect(health).toContain('"endWorkout" -> answer(completion) { endWorkout() }')
+      expect(health).toContain('A live workout is already running')
+      expect(health).toContain('saveWorkout(body) as JSONObject')
+      expect(health).toContain('put("durationSeconds", duration)')
+      expect(health).toContain('workoutSink?.invoke(JSONObject().put("id", workout.id)')
+      expect(services).toContain('put("event", "craftHealthWorkout")')
+      expect(services).toContain('CraftNativeHealth(context, activity, config.optBoolean("enableHealthConnectBackground"), config.optBoolean("enableHealthConnectHistory"))')
+    }
+    finally {
+      rmSync(output, { recursive: true, force: true })
+    }
   })
 
   it('invalidates Health Connect replies in enabled and disabled builds', async () => {

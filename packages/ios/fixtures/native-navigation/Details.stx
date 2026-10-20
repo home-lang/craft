@@ -5,6 +5,8 @@ const people = state(Array.from({ length: 40 }, (_, index) => ({ id: `person-${i
 const listEvents = state(0)
 const rowLayouts = state(0)
 const peopleRefreshing = state(false)
+const detailsModalVisible = state(false)
+const detailsModalStatus = state('')
 
 // The guarded tab exercises a real mount/appearance redirect when prewarmed.
 function guardFocusedRoute() {
@@ -50,6 +52,15 @@ function refreshPeople() {
 
 function goBack() {
   globalThis.craft.navigation.back()
+}
+
+function toggleDetailsModal() {
+  detailsModalVisible.update(value => !value)
+}
+
+function detailsModalRequested(event) {
+  detailsModalStatus.set('details modal requested ' + event.reason)
+  detailsModalVisible.set(false)
 }
 
 function replaceWithSummary() {
@@ -103,5 +114,10 @@ globalThis.craft.navigation.setOptions({
     <Button testID="clear-people" @click="clearPeople()">Clear people</Button>
     <Button testID="details-back" @click="goBack()">Back in app</Button>
     <Button testID="open-summary" @click="replaceWithSummary()">Show summary</Button>
+    <Button testID="toggle-details-modal" @click="toggleDetailsModal()">Show details modal</Button>
+    <Text testID="details-modal-request-status" :text="detailsModalStatus" />
+    <Modal testID="details-modal" visible={detailsModalVisible} animationType="none" @request-close="detailsModalRequested($event)">
+      <Text testID="details-modal-content">Details modal</Text>
+    </Modal>
   </SafeAreaView>
 </template>

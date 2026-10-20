@@ -1014,6 +1014,10 @@ export interface ModalProps extends BaseProps {
   style?: StyleValue<ViewStyle>
   visible?: boolean
   transparent?: boolean
+  /** Keep the popup interactive without blocking the screen behind it. */
+  nonModal?: boolean
+  /** When non-modal, consume an outside tap and call onRequestClose. */
+  dismissOnOutsideTap?: boolean
   animationType?: 'none' | 'fade' | 'slide'
   onShow?: () => void
   onDismiss?: () => void

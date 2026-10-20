@@ -77,9 +77,10 @@ decoration. Resuming does not replay it. Available on both native renderers.
 The iOS support is built into the main `craft` CLI:
 
 `Pressable`, `TouchableOpacity`, and `TouchableHighlight` render as native
-pressable flow containers. `Modal` renders a parent-scoped blocking layer in native mode, with `visible`,
-`transparent`, `animationType`, `onShow`, `onDismiss`, and `onRequestClose`
-support. `FlatList` item roots receive the same `onLayout` callback as ordinary native
+pressable flow containers. `Modal` renders a parent-scoped native layer in native mode, with `visible`,
+`transparent`, `nonModal`, `dismissOnOutsideTap`, `animationType`, `onShow`,
+`onDismiss`, and `onRequestClose` support. Non-modal popups remain pass-through
+unless outside-tap dismissal is explicitly enabled. `FlatList` item roots receive the same `onLayout` callback as ordinary native
 views when rows are materialized or recycled.
 
 ```bash

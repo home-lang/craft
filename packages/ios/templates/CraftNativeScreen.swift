@@ -3795,6 +3795,17 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
         didSet { blocker.backgroundColor = transparent ? .clear : UIColor.black.withAlphaComponent(0.32) }
     }
 
+    /// Existing Modal nodes block by default. A non-modal popup keeps the
+    /// screen-level overlay but lets hit testing fall through outside its
+    /// interactive content.
+    var blocksBackground = true {
+        didSet { blocker.isUserInteractionEnabled = blocksBackground }
+    }
+    /// An opt-in non-modal dismissal policy. The default popup remains
+    /// pass-through; when enabled, an outside tap is consumed and routed to
+    /// onRequestClose instead of reaching the view below.
+    var dismissOnOutsideTap = false
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         isUserInteractionEnabled = true
@@ -3876,10 +3887,13 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
         transform = .identity
         alpha = 0
         isUserInteractionEnabled = true
+        blocksBackground = true
+        dismissOnOutsideTap = false
         onRequestClose = nil
     }
 
     func requestClose(reason: String = "backdrop") {
+        guard blocksBackground || dismissOnOutsideTap else { return }
         guard let onRequestClose else { return }
         isUserInteractionEnabled = false
         onRequestClose(reason)
@@ -3911,6 +3925,14 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
                 if view is UIControl || !(view.gestureRecognizers?.isEmpty ?? true) { return hit }
                 candidate = view.superview
             }
+        }
+        if !blocksBackground {
+            // A dismissible popup consumes its outside hit so the close event
+            // cannot also activate the screen below. Otherwise it owns the
+            // hit only when a blocking modal is underneath it; with no modal
+            // below, the screen remains pass-through.
+            if dismissOnOutsideTap { return self }
+            return craftScreenController?.hasBlockingModalBelow(self) == true ? self : nil
         }
         return blocker.hitTest(blocker.convert(point, from: self), with: event)
     }
@@ -4900,6 +4922,25 @@ enum CraftNativeBundle {
     }
 }
 
+private final class CraftNativeScreenRootView: UIView {
+    weak var controller: CraftNativeScreenController?
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        // A popup's host frame is only its authored card, so UIKit would not
+        // ask it about an outside point. Shield that point at the screen root
+        // only when a blocking modal is underneath; ordinary non-modal
+        // overlays remain pass-through.
+        if let controller {
+            for modal in controller.view.subviews.compactMap({ $0 as? CraftNativeModalView }).reversed()
+                where !modal.blocksBackground && !modal.isHidden && modal.alpha > 0.01 {
+                let local = modal.convert(point, from: self)
+                if !modal.bounds.contains(local) && (modal.dismissOnOutsideTap || controller.hasBlockingModalBelow(modal)) { return modal }
+            }
+        }
+        return super.hitTest(point, with: event)
+    }
+}
+
 final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate, UITextFieldDelegate, UITextViewDelegate, UIPickerViewDataSource, UIPickerViewDelegate {
     private final class RenderedNode {
         /// A recycled list row's root takes the identity of the row it shows next.
@@ -5054,6 +5095,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    override func loadView() {
+        let root = CraftNativeScreenRootView()
+        root.controller = self
+        view = root
     }
 
     deinit {
@@ -5312,9 +5359,58 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if bar.intersects(view.bounds) { insets.top = max(insets.top, bar.maxY) }
         }
         for modal in modals {
-            if modal.frame != view.bounds { modal.frame = view.bounds }
-            modal.contentInsets = insets
+            guard !modal.blocksBackground else {
+                if modal.frame != view.bounds { modal.frame = view.bounds }
+                modal.contentInsets = insets
+                continue
+            }
+
+            // Non-modal overlays are viewport children, not full-screen
+            // scrims. Their absolute style is resolved against the safe-area
+            // content viewport so a popup cannot hide below a navigation bar
+            // or behind the home indicator. The Android host uses the same
+            // screen-content coordinate space in its root layout.
+            let viewport = view.bounds.inset(by: insets)
+            let style = modal.craftLayoutStyle
+            let width = style.left != nil && style.right != nil
+                ? max(0, viewport.width - (style.left ?? 0) - (style.right ?? 0))
+                : style.width?.resolve(viewport.width)
+                    ?? min(viewport.width, modal.contentStack.sizeThatFits(viewport.size).width)
+            let height = style.top != nil && style.bottom != nil
+                ? max(0, viewport.height - (style.top ?? 0) - (style.bottom ?? 0))
+                : style.height?.resolve(viewport.height)
+                    ?? min(viewport.height, modal.contentStack.sizeThatFits(viewport.size).height)
+            let x = viewport.minX + (style.left ?? (style.right.map { viewport.width - $0 - width } ?? 0))
+            let y = viewport.minY + (style.top ?? (style.bottom.map { viewport.height - $0 - height } ?? 0))
+            let frame = CGRect(x: x, y: y, width: width, height: height)
+            if modal.frame != frame { modal.frame = frame }
+            // The frame already excludes the safe area; inset the content no
+            // further or authored top/left coordinates would be shifted twice.
+            modal.contentInsets = .zero
         }
+    }
+
+    /// A non-modal popup above a blocking modal must not leak its outside tap
+    /// to the modal's scrim and dismiss the wrong layer.
+    fileprivate func hasBlockingModalBelow(_ modal: CraftNativeModalView) -> Bool {
+        guard let index = view.subviews.firstIndex(where: { $0 === modal }) else { return false }
+        return view.subviews[..<index].contains { candidate in
+            guard let other = candidate as? CraftNativeModalView else { return false }
+            return other.blocksBackground && !other.isHidden && other.alpha > 0.01
+        }
+    }
+
+    /// The native route's Back button dismisses the top presented modal before
+    /// it pops the route, matching Android's activity back callback.
+    @discardableResult
+    func handleBackForModal() -> Bool {
+        let modal = view.subviews.reversed().compactMap { $0 as? CraftNativeModalView }.first {
+            !$0.isHidden && $0.alpha > 0.01 && ($0.blocksBackground || $0.dismissOnOutsideTap)
+        }
+        guard let modal else { return false }
+        let hasHandler = modal.onRequestClose != nil
+        modal.requestClose(reason: "back")
+        return hasHandler
     }
 
     private static func safeJavaScriptString(_ value: JSValue?) -> String? {
@@ -7328,6 +7424,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let modal = result as! CraftNativeModalView
             let focusBeforeContent = firstResponder(in: rootStack) ?? lastFocusedInput
             modal.transparent = props["transparent"] as? Bool == true
+            modal.blocksBackground = props["nonModal"] as? Bool != true
+            modal.dismissOnOutsideTap = props["dismissOnOutsideTap"] as? Bool == true
             let visible: Bool
             if let propVisible = props["visible"] as? Bool {
                 // An explicit visible prop owns modal visibility. The
