@@ -98,6 +98,8 @@ describe('Component System', () => {
     expect(scroll.scrollTarget).toMatchObject({ id: 'today', animated: false })
     expect(scroll.refreshControl?.tintColor).toBe('#2563eb')
     const list: FlatListProps<string> = { children: ['today'], inverted: true }
+    const listRow: ViewProps = { listRole: 'item' }
+    expect(listRow.listRole).toBe('item')
     expect(list.inverted).toBe(true)
     // The maintained list protocol is keyed children, not data/renderItem.
     // @ts-expect-error data is intentionally unsupported until the versioned list-data protocol exists.
