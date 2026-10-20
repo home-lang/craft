@@ -1616,7 +1616,8 @@ class NativeNavigationTest {
             // native touch through their shared screen viewport, which owns
             // outside-tap dismissal, rather than bypassing it through content.
             val popupRoot = nestedPopup.parent as ViewGroup
-            assertSame("nested popup must share the screen viewport", awaitView(activity, "root").parent, popupRoot)
+            assertSame("nested popup must share its modal's screen viewport", modal.parent, popupRoot)
+            assertSame("popup viewport must retain the authored content", awaitView(activity, "root"), find(popupRoot, "root"))
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()
                 val x = (popupRoot.width - 20).toFloat()
