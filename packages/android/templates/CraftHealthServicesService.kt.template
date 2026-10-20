@@ -40,6 +40,10 @@ internal class CraftHealthServicesService : Service() {
         createNotificationChannel()
         exerciseClient = HealthServices.getClient(this).exerciseClient
         callback = object : ExerciseUpdateCallback {
+            override fun onRegistered() = Unit
+            override fun onRegistrationFailed(throwable: Throwable) {
+                emitError(throwable.message ?: "Health Services callback registration failed")
+            }
             override fun onExerciseUpdateReceived(update: ExerciseUpdate) = emit(update)
             override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) {
                 emitError("${dataType.name} is unavailable ($availability)")

@@ -127,6 +127,7 @@ const KOTLIN_KEYWORDS = new Set([
 
 /** Oldest Android API level supported by the generated Kotlin runtime. */
 export const ANDROID_MIN_SDK = 26
+const ANDROID_HEALTH_SERVICES_MIN_SDK = 30
 
 export interface CraftAndroidConfig {
   /** Bundled font files keyed by their PostScript font name, used as native fontFamily. */
@@ -162,7 +163,7 @@ export interface CraftAndroidConfig {
    */
   enableHeartRate?: boolean
   enableHealthConnect?: boolean
-  /** Android Health Services live exercise tracking for native screens. */
+  /** Android Health Services live exercise tracking for native screens. Requires minSdk 30. */
   enableHealthServices?: boolean
   /** Google Wallet save-link handoff for native screens. */
   enableWallet?: boolean
@@ -211,7 +212,7 @@ export interface CraftAndroidConfig {
   mapsApiKey?: string
   devServerURL?: string
   hasBundledFallback?: boolean
-  /** Android API level, at least ANDROID_MIN_SDK (26). */
+  /** Android API level, at least ANDROID_MIN_SDK (26), or 30 with Health Services. */
   minSdk?: number
   compileSdk?: number
   targetSdk?: number
@@ -549,6 +550,9 @@ function validateAndroidConfig(config: CraftAndroidConfig): void {
 
   if (Number(config.minSdk) < ANDROID_MIN_SDK) {
     throw new Error(`Android minSdk must be at least ${ANDROID_MIN_SDK} (Android 8.0) for the Craft runtime`)
+  }
+  if (config.enableHealthServices && Number(config.minSdk) < ANDROID_HEALTH_SERVICES_MIN_SDK) {
+    throw new Error(`Android Health Services requires minSdk at least ${ANDROID_HEALTH_SERVICES_MIN_SDK} (Android 11)`)
   }
   if (Number(config.minSdk) > Number(config.targetSdk)) {
     throw new Error('Android minSdk must not exceed targetSdk')
@@ -959,6 +963,7 @@ export async function init(options: InitOptions): Promise<void> {
     appName: name,
     packageName: finalPackageName,
   }
+  if (config.enableHealthServices && given.minSdk === undefined) config.minSdk = ANDROID_HEALTH_SERVICES_MIN_SDK
   if (config.enableBackgroundLocation) config.enableGeolocation = true
   if (config.enableHealthConnect) {
     config.compileSdk = Math.max(config.compileSdk ?? 36, 36)

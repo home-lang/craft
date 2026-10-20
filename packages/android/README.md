@@ -448,6 +448,9 @@ The generated runtime supports Android 8.0 / API 26 and newer, exported as
 `ANDROID_MIN_SDK`. `minSdk` defaults to that floor; lower values are rejected
 before project files are written, including when Health Connect is enabled.
 Health Connect normalizes `compileSdk` to at least 36.
+Opting into Health Services selects `minSdk: 30` (Android 11) when omitted,
+matching its AndroidX library requirement. Explicit minimums below 30 are
+rejected before writing the project; higher supported minimums are retained.
 The same effective `minSdk` is written to Gradle and both configuration files.
 A custom `appIconPath` must be a regular PNG, WebP, JPG, or GIF file; its supported
 extension is preserved in the generated drawable resource.

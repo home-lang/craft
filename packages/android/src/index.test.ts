@@ -863,6 +863,36 @@ describe('Craft Android builder', () => {
     finally { rmSync(root, { recursive: true, force: true }) }
   })
 
+  it('selects Health Services API 30 by default and retains higher explicit minimums', async () => {
+    const root = createTempDir('craft-android-health-services-sdk-')
+    try {
+      for (const renderer of ['native', 'web'] as const) {
+        for (const minSdk of [undefined, 30, 33]) {
+          const output = join(root, renderer, String(minSdk))
+          await init({ name: 'HealthServicesDevice', output, runtimeDir: null, config: { renderer, enableHealthServices: true, minSdk } })
+          const expected = minSdk ?? 30
+          expect(JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8')).minSdk).toBe(expected)
+          expect(JSON.parse(readFileSync(join(output, 'app/src/main/assets/craft.config.json'), 'utf8')).minSdk).toBe(expected)
+          expect(readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')).toContain(`minSdk = ${expected}`)
+        }
+      }
+    }
+    finally { rmSync(root, { recursive: true, force: true }) }
+  })
+
+  it('rejects explicitly incompatible Health Services minimums before writing a project', async () => {
+    const root = createTempDir('craft-android-health-services-sdk-rejected-')
+    try {
+      for (const minSdk of [26, 29]) {
+        const output = join(root, String(minSdk))
+        await expect(init({ name: 'UnsupportedHealthServicesDevice', output, runtimeDir: null, config: { enableHealthServices: true, minSdk } }))
+          .rejects.toThrow('Android Health Services requires minSdk at least 30')
+        expect(existsSync(output)).toBe(false)
+      }
+    }
+    finally { rmSync(root, { recursive: true, force: true }) }
+  })
+
   it('routes every Kotlin template through the project generator', () => {
     const templates = readdirSync(join(import.meta.dir, '../templates'))
       .filter(name => name.endsWith('.kt.template'))
