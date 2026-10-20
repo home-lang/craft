@@ -845,8 +845,9 @@ function openDetailsThenUpdateBackground() {
     <Switch testID="native-switch" value={switchValue} accessibilityState={switchAccessibilityState()} trackColor={switchTrackColor()} thumbColor={switchThumbColor()} ios_backgroundColor="#475569" @value-change="toggleSwitch($event)" />
     <Switch testID="uncontrolled-switch" />
     <Button testID="toggle-invalid-switch-colors" @click="toggleInvalidSwitchColors()">Toggle invalid switch colors</Button>
-    <Switch testID="nullable-switch" :value="null" :checked="true" />
-    <Switch testID="switch-value-precedence" :value="false" :checked="true" />
+    {{-- value-change selects the legacy native API when checked is also supplied. --}}
+    <Switch testID="nullable-switch" :value="null" :checked="true" @value-change="toggleSwitch($event)" />
+    <Switch testID="switch-value-precedence" :value="false" :checked="true" @value-change="toggleSwitch($event)" />
     <select testID="native-picker" :value="pickerValue" @change="choosePicker($event)">
       <option value="one">One</option>
       <option value="two">Two</option>
@@ -864,7 +865,7 @@ function openDetailsThenUpdateBackground() {
     <Checkbox testID="native-checkbox" label="Accept terms" :value="checkboxValue" :color="invalidControlColors ? 'not-a-color' : '#22c55e'" @value-change="chooseCheckbox($event)" />
     <Text testID="checkbox-status" :text="checkboxStatus" />
     <Checkbox testID="native-checkbox-indeterminate" label="Mixed terms" indeterminate />
-    <Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" />
+    <Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" @value-change="chooseCheckbox($event)" />
     <Button testID="toggle-invalid-control-colors" @click="toggleInvalidControlColors()">Toggle invalid control colors</Button>
     <Text testID="invalid-control-style-status" :text="invalidControlStyleStatus" />
     <Text testID="date-event-status" :text="dateEventStatus" />
