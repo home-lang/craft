@@ -187,6 +187,9 @@ jobs:
       - name: First-party Zig dependencies
         uses: ./.github/actions/first-party-zig-deps
 
+      - name: Verify pinned compiler core project selection
+        run: bun scripts/verify-zig-core-project.ts
+
       - name: Build Windows CLI
         # scripts/zig.ts resolves the actual managed binary from pantry.lock,
         # including its adjacent standard library on Windows.
