@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.252...v0.0.253)
+
+## 🐛 Bug Fixes
+
+- **testing**: ask the runner for the journey again on a slow first answer ([2bf4502](https://github.com/craft-native/craft/commit/2bf4502)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.251...v0.0.252)
 
 ## 🐛 Bug Fixes
