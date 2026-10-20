@@ -20,7 +20,6 @@ type Job = {
 }
 const release = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/release.yml'), 'utf8')) as { jobs: Record<string, Job> }
 const artifactDownload = 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093'
-const stxCompilerCommit = '6cb964cd3f054b0bd5ebf0f06ef4598ba9db0a02'
 const needs = (job: Job) => typeof job.needs === 'string' ? [job.needs] : job.needs ?? []
 const steps = (job: Job) => job.steps?.map(step => step.run ?? '').join('\n') ?? ''
 
@@ -100,14 +99,15 @@ test.each(['ci.yml', 'mobile-e2e.yml'])('%s lets Main acceptance finish while su
 })
 
 test('mobile device jobs use the same pinned stx compiler', () => {
-  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { env: Record<string, string>, jobs: Record<string, Job> }
+  expect(workflow.env.STX_COMPILER_REF).toMatch(/^[0-9a-f]{40}$/)
   const compilerCheckouts = Object.values(workflow.jobs).flatMap(job => job.steps ?? []).filter((step) => {
     const options = step.with as Record<string, string> | undefined
     return options?.repository === 'stacksjs/stx'
   })
   expect(compilerCheckouts).toHaveLength(4)
   for (const step of compilerCheckouts)
-    expect((step.with as Record<string, string>).ref).toBe(stxCompilerCommit)
+    expect((step.with as Record<string, string>).ref).toBe('${{ env.STX_COMPILER_REF }}')
   const compilerInstalls = Object.values(workflow.jobs).flatMap(job => job.steps ?? [])
     .filter(step => step['working-directory'] === '.stx-compiler')
   expect(compilerInstalls).toHaveLength(4)

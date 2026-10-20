@@ -1243,7 +1243,9 @@ describe('native renderer component contract', () => {
   })
 
   it('pins one @stacksjs/stx compiler revision across mobile E2E hosts', () => {
-    const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: ([0-9a-f]{40})/g)].map(match => match[1])
+    const pin = mobileE2EWorkflow.match(/STX_COMPILER_REF:\s*([0-9a-f]{40})/)
+    const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: (\$\{\{ env\.STX_COMPILER_REF \}\})/g)].map(match => match[1])
+    expect(pin).not.toBeNull()
     expect(refs).toHaveLength(4)
     expect(new Set(refs).size).toBe(1)
     expect(mobileE2EWorkflow).toContain('stx native compile')
@@ -1251,9 +1253,8 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps the native STX guide aligned with the mobile compiler pin', () => {
-    const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: ([0-9a-f]{40})/g)].map(match => match[1])
-    expect(refs).not.toHaveLength(0)
-    expect(guide).toContain(`The current pair is pinned to \`${refs[0]}\``)
+    expect(mobileE2EWorkflow).toContain('STX_COMPILER_REF:')
+    expect(guide).toContain('The workflow-level `STX_COMPILER_REF` is the single source')
     expect(guide.split('\n').filter(line => line.startsWith('| \`View\`, \`SafeAreaView\` |'))).toHaveLength(1)
   })
 
