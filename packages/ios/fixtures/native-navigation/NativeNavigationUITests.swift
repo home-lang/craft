@@ -47,6 +47,95 @@ final class NativeNavigationUITests: XCTestCase {
         return !frame.isEmpty && frame.minY >= viewport.minY - 0.5 && frame.maxY <= viewport.maxY + 0.5
     }
 
+    private func manualScrollOrigin(in viewport: CGRect, avoiding frames: [CGRect]) -> CGVector? {
+        let bounds = viewport.insetBy(dx: 4, dy: 4)
+        guard !bounds.isEmpty else { return nil }
+        let blockers = frames.map { $0.intersection(bounds) }.filter { !$0.isNull && !$0.isEmpty }
+        let xEdges = Array(Set([bounds.minX, bounds.maxX] + blockers.flatMap { [$0.minX, $0.maxX] })).sorted()
+        let yEdges = Array(Set([bounds.minY, bounds.maxY] + blockers.flatMap { [$0.minY, $0.maxY] })).sorted()
+        let xs = [bounds.midX] + zip(xEdges, xEdges.dropFirst()).map { ($0 + $1) / 2 }
+        let ys = [bounds.midY] + zip(yEdges, yEdges.dropFirst()).map { ($0 + $1) / 2 }
+        var nearest: CGPoint?
+        var nearestDistance = CGFloat.infinity
+        for y in ys {
+            for x in xs {
+                let point = CGPoint(x: x, y: y)
+                guard !blockers.contains(where: { $0.contains(point) }) else { continue }
+                let dx = (x - viewport.midX) / viewport.width
+                let dy = (y - viewport.midY) / viewport.height
+                let distance = dx * dx + dy * dy
+                if distance < nearestDistance {
+                    nearest = point
+                    nearestDistance = distance
+                }
+            }
+        }
+        guard let nearest else { return nil }
+        return CGVector(dx: (nearest.x - viewport.minX) / viewport.width, dy: (nearest.y - viewport.minY) / viewport.height)
+    }
+
+    func testManualScrollOriginFindsNarrowVerticalGap() throws {
+        let viewport = CGRect(x: 16, y: 132, width: 370, height: 692)
+        let blockers = [
+            CGRect(x: 12, y: 116.6667, width: 378, height: 224),
+            CGRect(x: 12, y: 352.6667, width: 378, height: 224),
+            CGRect(x: 12, y: 699, width: 378, height: 224),
+            CGRect(x: 21, y: 79.1667, width: 360, height: 299),
+            CGRect(x: 21, y: 315.1667, width: 360, height: 299),
+            CGRect(x: 115, y: 661.5, width: 88, height: 299),
+            CGRect(x: 200, y: 661.5, width: 88, height: 299),
+            CGRect(x: 12, y: 588.6667, width: 378, height: 42.3333),
+            CGRect(x: 12, y: 643, width: 378, height: 44),
+        ]
+        let origin = try XCTUnwrap(manualScrollOrigin(in: viewport, avoiding: blockers))
+        let point = CGPoint(x: viewport.minX + origin.dx * viewport.width, y: viewport.minY + origin.dy * viewport.height)
+        XCTAssertEqual(point.x, 201, accuracy: 0.001)
+        XCTAssertEqual(point.y, 637, accuracy: 0.001)
+        XCTAssertTrue(viewport.contains(point))
+        XCTAssertFalse(blockers.contains(where: { $0.contains(point) }))
+    }
+
+    func testManualScrollOriginFindsNarrowHorizontalGap() throws {
+        let viewport = CGRect(x: 16, y: 132, width: 370, height: 692)
+        let blockers = [
+            CGRect(x: 16, y: 132, width: 202, height: 692),
+            CGRect(x: 230, y: 132, width: 156, height: 692),
+        ]
+        let origin = try XCTUnwrap(manualScrollOrigin(in: viewport, avoiding: blockers))
+        XCTAssertEqual(viewport.minX + origin.dx * viewport.width, 224, accuracy: 0.001)
+        XCTAssertEqual(viewport.minY + origin.dy * viewport.height, 478, accuracy: 0.001)
+    }
+
+    func testManualScrollOriginAvoidsKeyboardOverlappingViewport() throws {
+        let viewport = CGRect(x: 16, y: 132, width: 370, height: 692)
+        let keyboard = CGRect(x: -4, y: 536, width: 410, height: 342)
+        let blockers = [
+            CGRect(x: 12, y: 210, width: 378, height: 224),
+            CGRect(x: 12, y: 446, width: 378, height: 224),
+            CGRect(x: 12, y: 792.3333, width: 378, height: 224),
+            CGRect(x: 21, y: 172.5, width: 360, height: 299),
+            CGRect(x: 21, y: 408.5, width: 360, height: 299),
+            CGRect(x: 115, y: 754.8333, width: 88, height: 299),
+            CGRect(x: 200, y: 754.8333, width: 88, height: 299),
+            CGRect(x: 12, y: 682, width: 378, height: 42.3333),
+            CGRect(x: 12, y: 736.3333, width: 378, height: 44),
+            CGRect(x: 12, y: 154, width: 71, height: 36),
+            CGRect(x: 12, y: 182, width: 71, height: 36),
+            keyboard,
+        ]
+        let origin = try XCTUnwrap(manualScrollOrigin(in: viewport, avoiding: blockers))
+        let point = CGPoint(x: viewport.minX + origin.dx * viewport.width, y: viewport.minY + origin.dy * viewport.height)
+        XCTAssertTrue(viewport.contains(point))
+        XCTAssertFalse(keyboard.contains(point))
+        XCTAssertFalse(blockers.contains(where: { $0.contains(point) }))
+    }
+
+    func testManualScrollOriginRejectsFullyCoveredViewport() {
+        let viewport = CGRect(x: 16, y: 132, width: 370, height: 692)
+        XCTAssertNil(manualScrollOrigin(in: viewport, avoiding: [viewport]))
+        XCTAssertNil(manualScrollOrigin(in: .zero, avoiding: []))
+    }
+
     /// Scrolls `scroll` until `element` sits wholly inside it. A nested
     /// scroll view is first brought wholly into the root scroll: XCUITest
     /// scrolls the root by itself to reach whatever a tap targets, so an
@@ -68,24 +157,15 @@ final class NativeNavigationUITests: XCTestCase {
             if inside(element, scroll) && element.isHittable { return }
             let viewport = scroll.frame
             let competingTypes: [XCUIElement.ElementType] = [.scrollView, .picker, .pickerWheel, .datePicker, .slider, .switch]
-            let competing = competingTypes.flatMap { type in
-                scroll.descendants(matching: type).allElementsBoundByIndex.map { $0.frame.insetBy(dx: -4, dy: -4) }
-            }.filter { !$0.isEmpty && $0.intersects(viewport) }
-            var start: CGVector?
-            for step in 0...9 {
-                let offset = CGFloat(step) * 0.05
-                for y in [0.5 + offset, 0.5 - offset] {
-                    for x: CGFloat in [0.5, 0.25, 0.75, 0.1, 0.9, 0.05, 0.95] {
-                        let point = CGPoint(x: viewport.minX + viewport.width * x, y: viewport.minY + viewport.height * y)
-                        if !competing.contains(where: { $0.contains(point) }) {
-                            start = CGVector(dx: x, dy: y)
-                            break
-                        }
-                    }
-                    if start != nil { break }
-                }
-                if start != nil { break }
+            let controls = competingTypes.flatMap { type in
+                scroll.descendants(matching: type).allElementsBoundByIndex.map { $0.frame }
             }
+            // Keyboard avoidance insets content without changing the scroll
+            // frame. A drag in that covered area would type instead of scroll.
+            let keyboards = XCUIApplication().keyboards.allElementsBoundByIndex.map { $0.frame }
+            let competing = (controls + keyboards).map { $0.insetBy(dx: -4, dy: -4) }
+                .filter { !$0.isEmpty && $0.intersects(viewport) }
+            let start = manualScrollOrigin(in: viewport, avoiding: competing)
             guard let start else {
                 XCTFail("no safe manual scroll origin: target=\(element.frame), viewport=\(viewport), competing=\(competing)", file: file, line: line)
                 return
