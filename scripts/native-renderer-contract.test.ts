@@ -1549,7 +1549,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('hasBlockingModalBelow')
     expect(ios).toContain('return craftScreenController?.hasBlockingModalBelow(self) == true ? self : nil')
     expect(ios).toContain('private final class CraftNativeScreenRootView: UIView')
-    expect(ios).toContain('if !modal.bounds.contains(local) && controller.hasBlockingModalBelow(modal) { return modal }')
+    expect(ios).toContain('if !modal.bounds.contains(local) && (modal.dismissOnOutsideTap || controller.hasBlockingModalBelow(modal)) { return modal }')
     expect(ios).toContain('!($0 is CraftNativeModalView)')
     expect(android).toContain('private class CraftNativeModalView(context: Context) : FrameLayout(context)')
     expect(android).toContain('if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE)')

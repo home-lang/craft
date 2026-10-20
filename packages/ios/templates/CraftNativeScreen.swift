@@ -4934,7 +4934,7 @@ private final class CraftNativeScreenRootView: UIView {
             for modal in controller.view.subviews.compactMap({ $0 as? CraftNativeModalView }).reversed()
                 where !modal.blocksBackground && !modal.isHidden && modal.alpha > 0.01 {
                 let local = modal.convert(point, from: self)
-                if !modal.bounds.contains(local) && controller.hasBlockingModalBelow(modal) { return modal }
+                if !modal.bounds.contains(local) && (modal.dismissOnOutsideTap || controller.hasBlockingModalBelow(modal)) { return modal }
             }
         }
         return super.hitTest(point, with: event)
