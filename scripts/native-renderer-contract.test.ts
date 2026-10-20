@@ -1266,6 +1266,8 @@ describe('native renderer component contract', () => {
     expect(mobileE2EWorkflow).toContain('STX_COMPILER_REF:')
     expect(guide).toContain('The workflow-level `STX_COMPILER_REF` is the single source')
     expect(guide).toContain('Native `View`, `Text`, `Button`, and `Link` props also accept `onClick`')
+    expect(guide).toContain('Maps accept `standard`, `satellite`, or `hybrid` styles')
+    expect(guide).toContain('and `markers` arrays on both maintained hosts')
     expect(guide.split('\n').filter(line => line.startsWith('| \`View\`, \`SafeAreaView\` |'))).toHaveLength(1)
   })
 
