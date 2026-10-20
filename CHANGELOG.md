@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.260...v0.0.261)
+
+## 🐛 Bug Fixes
+
+- **ios**: handle the first movement of a tab swipe ([5be3e87](https://github.com/craft-native/craft/commit/5be3e87)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- avoid blocking on unrelated native diagnostics ([97decf2](https://github.com/craft-native/craft/commit/97decf2)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.259...v0.0.260)
 
 ## 🐛 Bug Fixes
