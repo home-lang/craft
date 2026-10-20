@@ -713,6 +713,9 @@ export function renderAndroidPermissions(config: CraftAndroidConfig): string {
   }
   if (config.enableHealthServices) {
     permissions.add('android.permission.BODY_SENSORS')
+    permissions.add('android.permission.BODY_SENSORS_BACKGROUND')
+    permissions.add('android.permission.health.READ_HEART_RATE')
+    permissions.add('android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND')
     permissions.add('android.permission.ACTIVITY_RECOGNITION')
     permissions.add('android.permission.ACCESS_FINE_LOCATION')
     permissions.add('android.permission.ACCESS_COARSE_LOCATION')

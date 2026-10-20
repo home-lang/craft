@@ -893,7 +893,7 @@ The generator adds manifest permissions from enabled capabilities:
 | `enablePushNotifications` | `POST_NOTIFICATIONS` |
 | `enableKeepAwake` | `WAKE_LOCK` |
 | `enableHealthConnect` | the configured Health Connect read/write permissions |
-| `enableHealthServices` | `BODY_SENSORS`, `ACTIVITY_RECOGNITION`, location, `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_HEALTH`; adds `androidx.health:health-services-client` |
+| `enableHealthServices` | foreground/background body-sensor and health permissions, `ACTIVITY_RECOGNITION`, location, `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_HEALTH`; adds `androidx.health:health-services-client` |
 | `enableHeartRate` | `BLUETOOTH_SCAN` (`neverForLocation`), `BLUETOOTH_CONNECT`; `BLUETOOTH`, `BLUETOOTH_ADMIN` and `ACCESS_FINE_LOCATION` up to Android 11; `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_CONNECTED_DEVICE` for the recording's service |
 
 Use `permissions.check('location')` and `permissions.request('location')` from
