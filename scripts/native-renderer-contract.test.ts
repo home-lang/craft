@@ -3628,11 +3628,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('screen.lastLayoutBounds.remove(updated)')
   })
 
-  it('releases replaced iOS row roots when a keyed identity changes type', () => {
+  it('releases replaced iOS row roots only from their owning cell', () => {
     expect(ios).toContain('if let previous, previous.view !== next.view, !adopting {')
     expect(ios).toContain('self.forgetHandlers(previous)')
-    expect(iosFlatList).toContain('guard hostedView !== view else { return }')
-    expect(iosFlatList).toContain('hostedView?.removeFromSuperview()\n            hostedView = view')
+    expect(iosFlatList).toContain('guard hostedView !== view || view.superview !== contentView else { return }')
+    expect(iosFlatList).toContain('if let shown = hostedView, shown !== view, shown.superview === contentView { shown.removeFromSuperview() }')
+    expect(iosFlatList).toContain('if let shown = hostedView, shown.superview === contentView { shown.removeFromSuperview() }')
+    expect(iosNativeUnitTests).toContain('func testFlatListRowsOnScreenTakeTheirViewsBackFromASecondCell()')
     expect(iosFlatList).toContain('contentView.addSubview(view)')
     expect(ios).toContain('self.forgetHandlers(row, preservingInputDrafts: true)')
     expect(ios).toContain('for child in rootStack.arrangedSubviews where child !== next.view')
