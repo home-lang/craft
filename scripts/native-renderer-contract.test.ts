@@ -249,6 +249,8 @@ describe('native renderer component contract', () => {
     expect(navigationDetails).toContain('testID="toggle-details-modal"')
     expect(navigationDetails).toContain('testID="details-modal" visible={detailsModalVisible}')
     expect(iosNavigationTest).toContain('testNavigationBackDismissesDetailsModalBeforePoppingRoute')
+    expect(androidNavigationTest).toContain('systemBackDismissesPushedDetailsModalBeforeRoutePop')
+    expect(androidReadme).toContain('System Back dismisses')
     expect(androidNavigationTest).toContain('dismissed non-modal popup should be removed')
     expect(androidNavigationTest).toContain('dismissed nested popup should be removed')
     expect(navigationHome).toContain('<ActivityIndicator testID="scaled-indicator"')

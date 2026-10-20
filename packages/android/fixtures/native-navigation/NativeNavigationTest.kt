@@ -2126,6 +2126,28 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun systemBackDismissesPushedDetailsModalBeforeRoutePop() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        ) as MainActivity
+        try {
+            click(activity, "navigation-open-details")
+            val details = awaitText(activity, "details-title", "Details for Ada")
+            click(activity, "toggle-details-modal")
+            awaitView(activity, "details-modal") { it.isShown }
+
+            instrumentation.runOnMainSync { activity.onBackPressedDispatcher.onBackPressed() }
+            awaitText(activity, "details-modal-request-status", "details modal requested back")
+            assertFalse("system Back finished the native activity", activity.isFinishing)
+            assertSame("system Back popped the route instead of dismissing its modal", details, awaitText(activity, "details-title", "Details for Ada"))
+        } finally {
+            activity.finishAndRemoveTask()
+        }
+    }
+
+    @Test
     fun nativeAppearanceReconcilesTraitDefaults() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(
