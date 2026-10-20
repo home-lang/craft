@@ -7,7 +7,7 @@ import { cpus } from 'node:os'
 const source = resolve(import.meta.dir, '..')
 const zig = resolveZig(source)
 const trackedBuild = join(source, 'packages/zig/build.zig')
-console.log('Tracked core project:', JSON.stringify({ file: trackedBuild, exists: existsSync(trackedBuild), sha256: createHash('sha256').update(readFileSync(trackedBuild)).digest('hex'), bun: Bun.version, executable: process.execPath, cpu: cpus()[0]?.model, platform: process.platform }))
+console.log('Tracked core project:', JSON.stringify({ file: trackedBuild, exists: existsSync(trackedBuild), sha256: existsSync(trackedBuild) ? createHash('sha256').update(readFileSync(trackedBuild)).digest('hex') : null, bun: Bun.version, executable: process.execPath, cpu: cpus()[0]?.model, platform: process.platform }))
 const zigLibrary = join(dirname(realpathSync(zig.path)), 'lib/std/zig.zig')
 console.log('Pinned compiler bytes:', JSON.stringify({ executable: zig.path, sha256: createHash('sha256').update(readFileSync(zig.path)).digest('hex'), library: zigLibrary, librarySha256: existsSync(zigLibrary) ? createHash('sha256').update(readFileSync(zigLibrary)).digest('hex') : null }))
 // Keep the fixture on the checkout's volume. Hosted Windows keeps the
