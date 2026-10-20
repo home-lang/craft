@@ -126,6 +126,26 @@ describe('package-owned iOS shells', () => {
     expect(handoff).not.toContain('target.launch()')
   })
 
+  it('types once a field holds the keyboard, and scrolls by held drags', () => {
+    const output = folder()
+    initSimulatorDriver({ output, bundleId: 'org.example.app' })
+    const source = readFileSync(join(output, 'UITests/DriverTests.swift'), 'utf8')
+    const command = (name: string, next: string) => source.slice(source.indexOf(`case "${name}":`), source.indexOf(`case "${next}":`))
+    // A tap is not focus: a cold simulator keyboard took 20s to take one.
+    for (const typing of [command('typeid', 'sliderid'), command('field', 'expect')]) {
+      expect(typing).toContain('guard focus(')
+      expect(typing).not.toContain('Thread.sleep')
+    }
+    expect(source).toContain('func focus(_ target: XCUIElement, seconds: Double = 15) -> Bool')
+    expect(source).toContain('"hasKeyboardFocus == 1"')
+    // A flick's distance depends on how its touches arrive; a held drag's does not.
+    const scrolling = command('scrollto', 'swipe')
+    expect(scrolling).toContain('scrollPage(towardTop: towardTop)')
+    expect(scrolling).not.toContain('app.swipeUp()')
+    expect(source).toContain('thenHoldForDuration: 0.2')
+    expect(source).toContain('keyboard.frame.minY - 24')
+  })
+
   it('checks actual native field values after a real edit-menu gesture', () => {
     expect(serializeSimulatorSteps([
       { command: 'longpressid', text: 'route-name' },

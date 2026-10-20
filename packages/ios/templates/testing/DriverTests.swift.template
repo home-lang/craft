@@ -139,6 +139,30 @@ final class DriverTests: XCTestCase {
         return nil
     }
 
+    /// About a third of a screen of scrolling, as a held drag.
+    ///
+    /// `app.swipeUp()` is a flick, and how far a flick throws a scroll view
+    /// depends on how its touches arrive: on a loaded machine, with a map
+    /// keeping the app busy, eight of them moved a trail page less than one
+    /// screen. A drag that stops before it lifts moves the content by its
+    /// own length every time. It runs between the middle of the screen and
+    /// the upper part, where a flick began too, so it stays off the keys when
+    /// a keyboard is up - an iOS 27 simulator reports its keyboard's frame
+    /// below the screen while drawing it over the lower half - and it stops
+    /// short of a keyboard whose frame is known.
+    func scrollPage(towardTop: Bool) {
+        let frame = app.frame
+        var lower = frame.minY + frame.height * 0.55
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.exists, !keyboard.frame.isEmpty, keyboard.frame.minY < frame.maxY {
+            lower = min(lower, keyboard.frame.minY - 24)
+        }
+        let upper = max(frame.minY + frame.height * 0.15, lower - frame.height * 0.4)
+        let point = { (y: CGFloat) in self.app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: y)) }
+        let (from, to) = towardTop ? (point(upper), point(lower)) : (point(lower), point(upper))
+        from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .default, thenHoldForDuration: 0.2)
+    }
+
     /// Whether `target`, or a field inside it, holds the keyboard.
     func hasKeyboardFocus(_ target: XCUIElement) -> Bool {
         if (target.value(forKey: "hasKeyboardFocus") as? Bool) == true { return true }
@@ -478,14 +502,11 @@ final class DriverTests: XCTestCase {
             else { XCTFail("Element not found"); note("FAIL tab \(arg): NOT FOUND") }
         case "scrollto":
             var found = element(containing: arg)
-            var swipes = 0
-            while (found == nil || !(found!.isHittable)) && swipes < 8 {
-                if let target = found, !target.frame.isEmpty, target.frame.midY < app.frame.midY {
-                    app.swipeDown()
-                } else {
-                    app.swipeUp()
-                }
-                swipes += 1
+            var drags = 0
+            while (found == nil || !(found!.isHittable)) && drags < 12 {
+                let towardTop = found.map { !$0.frame.isEmpty && $0.frame.midY < app.frame.midY } ?? false
+                scrollPage(towardTop: towardTop)
+                drags += 1
                 found = element(containing: arg)
             }
             check(found != nil && found!.isHittable, "scrollto \(arg)")
