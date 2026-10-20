@@ -2415,6 +2415,53 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(retained.offset(from: retained.beginningOfDocument, to: selection.start), 3)
     }
 
+    func testPopupReparentingAcrossOpenCloseCyclesRetainsInputIdentity() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        let pageWithoutPopup: [String: Any] = [
+            "id": "page", "type": "ScrollView", "props": ["key": "page"],
+            "style": ["height": 120], "children": [["id": "spacer", "type": "View", "props": ["key": "spacer"], "style": ["height": 800]]],
+        ]
+        let popup: [String: Any] = [
+            "id": "popup", "type": "Modal", "props": ["key": "popup", "visible": true, "nonModal": true, "animationType": "none"],
+            "children": [["id": "popup-field", "type": "TextInput", "props": ["key": "popup-field"]]],
+        ]
+        let pageWithPopup: [String: Any] = [
+            "id": "page", "type": "ScrollView", "props": ["key": "page"],
+            "style": ["height": 120], "children": [
+                ["id": "spacer", "type": "View", "props": ["key": "spacer"], "style": ["height": 800]], popup,
+            ],
+        ]
+        func insideDocument() -> [String: Any] {
+            ["id": "root", "type": "View", "children": [pageWithPopup]]
+        }
+        func openDocument() -> [String: Any] {
+            ["id": "root", "type": "View", "children": [pageWithoutPopup, popup]]
+        }
+
+        controller.render(insideDocument())
+        let original = try XCTUnwrap(find(UITextField.self, key: "popup-field", below: controller.view))
+        original.text = "draft"
+        let caret = try XCTUnwrap(original.position(from: original.beginningOfDocument, offset: 3))
+        original.selectedTextRange = original.textRange(from: caret, to: caret)
+
+        for _ in 0..<3 {
+            controller.render(openDocument())
+            let opened = try XCTUnwrap(find(UITextField.self, key: "popup-field", below: controller.view))
+            XCTAssertTrue(opened === original)
+            XCTAssertEqual(opened.text, "draft")
+            let openedSelection = try XCTUnwrap(opened.selectedTextRange)
+            XCTAssertEqual(opened.offset(from: opened.beginningOfDocument, to: openedSelection.start), 3)
+
+            controller.render(insideDocument())
+            let closed = try XCTUnwrap(find(UITextField.self, key: "popup-field", below: controller.view))
+            XCTAssertTrue(closed === original)
+        }
+
+        controller.render(["id": "root", "type": "View", "children": [pageWithoutPopup]])
+        XCTAssertNil(find(UITextField.self, key: "popup-field", below: controller.view))
+    }
+
     func testANonModalOverlayDoesNotDismissABlockingModalBelowIt() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
