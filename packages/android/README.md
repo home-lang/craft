@@ -358,8 +358,13 @@ Health is Health Connect with the HealthKit contract (`getWorkouts`,
 `saveWorkout`, `saveMindfulSession`...), plus `availability`, `grantedTypes`
 and `openSettings` (`healthAvailability`). `healthConnect: { read, write,
 background, history }` lists the types the manifest declares; Play reviews
-each one. `bun scripts/test-native-health.ts` runs it against an Android 14+
-emulator's Health Connect.
+each one. `startWorkout`, `pauseWorkout`, `resumeWorkout`, and `endWorkout`
+currently provide a foreground lifecycle contract and write the completed
+session back through Health Connect; they do not claim Health Services
+background execution or live sensor samples. The future Health Services
+adapter must add its own foreground-service and device-capability gate rather
+than silently upgrading this fallback. `bun scripts/test-native-health.ts`
+runs the Health Connect contract against an Android 14+ emulator.
 
 ### 3. Open in Android Studio
 

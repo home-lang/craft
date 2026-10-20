@@ -1246,6 +1246,11 @@ string values and persists them in the iOS Keychain or Android encrypted
 preferences. The `badge` capability is iOS-only and does not request notification
 authorization; `craft.badge.set(count)` and `craft.badge.clear()` update the app
 icon without requiring local notifications.
+On Android, the current Health workout methods expose only a foreground
+lifecycle and save the finished session through Health Connect. They do not
+provide Health Services background execution or live sensor samples; callers
+must treat `craftHealthWorkout` state events as lifecycle notifications until
+the dedicated Health Services adapter and its capability gate are available.
 A native passkey screen requires both `enablePasskeys: true` and at least one
 `webcredentials:<host>` entry in `associatedDomains`; otherwise the host does
 not advertise `passkeys`. `craft.passkeys.isAvailable()` is a configuration

@@ -1836,6 +1836,8 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('each ancestor `onScroll` event as placement invalidations')
     expect(iosReadme).toContain('host-neutral invalidation signals for')
     expect(androidReadme).toContain('host-neutral invalidation signals for')
+    expect(androidReadme).toContain('do not claim Health Services')
+    expect(guide).toContain('provide Health Services background execution or live sensor samples')
   })
 
   it('exposes screen-owned scrolling for mounted native scroll views', () => {
