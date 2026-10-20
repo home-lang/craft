@@ -2046,6 +2046,8 @@ private struct CraftNativeLayoutStyle {
     let bottom: CGFloat?
     let left: CGFloat?
     let alignSelf: String?
+    /// CSS/Yoga order; equal values retain source order.
+    let order: Int
     let flexGrow: CGFloat
     /// Nil when the style does not say: the parent picks the default for the
     /// kind of view (text shrinks along a row, a box does not).
@@ -2083,6 +2085,7 @@ private struct CraftNativeLayoutStyle {
         left = number(raw["left"])
         let align = raw["alignSelf"] as? String
         alignSelf = align == "auto" ? nil : align
+        order = number(raw["order"]).map { Int($0.rounded(.towardZero)) } ?? 0
         // `flex: n` is the web's and React Native's shorthand: a positive
         // number grows by n, shrinks, and starts from nothing, so `flex-1`
         // siblings share a row equally whatever their content.
@@ -2910,7 +2913,15 @@ private class CraftNativeFlowView: UIStackView {
 
     /// Children that take part in the flow: shown, not a modal overlay.
     private var visibleChildren: [UIView] {
-        flowChildren.filter { $0.superview === self && !$0.isHidden && !($0 is CraftNativeModalView) }
+        flowChildren.enumerated()
+            .filter { $0.element.superview === self && !$0.element.isHidden && !($0.element is CraftNativeModalView) }
+            .sorted {
+                if $0.element.craftLayoutStyle.order != $1.element.craftLayoutStyle.order {
+                    return $0.element.craftLayoutStyle.order < $1.element.craftLayoutStyle.order
+                }
+                return $0.offset < $1.offset
+            }
+            .map(\.element)
     }
 
     /// Builds the eligible portion of this container for the host-neutral

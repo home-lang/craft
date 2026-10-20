@@ -226,6 +226,8 @@ private data class CraftNativeLayoutStyle(
     val bottom: Int? = null,
     val left: Int? = null,
     val alignSelf: String? = null,
+    /** CSS/Yoga order; Kotlin's stable sort preserves source order for ties. */
+    val order: Int = 0,
     val flexGrow: Double = 0.0,
     val flexShrink: Double? = null,
     val flexBasis: CraftNativeLength? = null,
@@ -252,6 +254,7 @@ private data class CraftNativeLayoutStyle(
                 position = craftNativeOptionalString(raw.opt("position")) ?: "relative",
                 top = number("top"), right = number("right"), bottom = number("bottom"), left = number("left"),
                 alignSelf = craftNativeOptionalString(raw.opt("alignSelf"))?.takeUnless { it == "auto" },
+                order = decimal("order")?.toInt() ?: 0,
                 flexGrow = decimal("flexGrow") ?: flex?.coerceAtLeast(0.0) ?: 0.0,
                 flexShrink = decimal("flexShrink") ?: flex?.let { if (it != 0.0) 1.0 else 0.0 },
                 flexBasis = length("flexBasis")
@@ -1027,6 +1030,11 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         invalidateMeasurementAncestors(parent)
     }
 
+    /** Flex/grid order with Kotlin's stable sort retaining source order for ties. */
+    private fun orderedChildIndices(): List<Int> = (0 until childCount).sortedWith(
+        compareBy<Int> { styles[getChildAt(it)]?.order ?: 0 }.thenBy { it },
+    )
+
     private data class Entry(val view: View, val style: CraftNativeLayoutStyle, val width: Int, val height: Int)
     private data class Line(val entries: MutableList<Entry> = mutableListOf(), var main: Float = 0f, var cross: Float = 0f)
     private data class GridLayout(val rows: List<List<Entry>>, val absolute: List<Entry>, val cellWidth: Float, val rowHeights: List<Float>)
@@ -1038,7 +1046,7 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val lines = mutableListOf<Line>()
         val absolute = mutableListOf<Entry>()
         val pending = mutableListOf<Entry>()
-        for (index in 0 until childCount) {
+        for (index in orderedChildIndices()) {
             val child = getChildAt(index)
             if (child.visibility == GONE) continue
             val style = styles[child] ?: CraftNativeLayoutStyle()
@@ -1149,7 +1157,7 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val cellWidth = max(0f, (availableWidth.toFloat() - max(0, gridColumns - 1) * gap) / max(1, gridColumns).toFloat())
         val rows = mutableListOf<MutableList<Entry>>()
         val absolute = mutableListOf<Entry>()
-        for (index in 0 until childCount) {
+        for (index in orderedChildIndices()) {
             val child = getChildAt(index)
             if (child.visibility == GONE) continue
             val style = styles[child] ?: CraftNativeLayoutStyle()
@@ -1203,7 +1211,7 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val columnWidths = IntArray(columns)
         val rowHeights = mutableListOf<Int>()
         var flowIndex = 0
-        for (index in 0 until childCount) {
+        for (index in orderedChildIndices()) {
             val child = getChildAt(index)
             if (child.visibility == GONE) continue
             val style = styles[child] ?: CraftNativeLayoutStyle()
@@ -6136,6 +6144,7 @@ class MainActivity : AppCompatActivity() {
             if (layout.getChildAt(index) is CraftNativeFlexSpacer) layout.removeViewAt(index)
         }
         val desired = mutableListOf<View>()
+        val desiredOrder = mutableMapOf<View, Int>()
         for (index in 0 until children.length()) {
             val child = children.opt(index)
             val childView = when (child) {
@@ -6148,9 +6157,12 @@ class MainActivity : AppCompatActivity() {
             }
             if (childView != null) desired.add(childView)
             if (childView != null && child is JSONObject) {
-                layout.setChildStyle(childView, child.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)
+                val childStyle = child.optJSONObject("style") ?: JSONObject()
+                layout.setChildStyle(childView, childStyle, resources.displayMetrics.density)
+                desiredOrder[childView] = craftNativeFiniteNumber(childStyle, "order", 0.0).toInt()
             }
         }
+        desired.sortWith(compareBy { desiredOrder[it] ?: 0 })
         if (craftNativeOptionalString(style.opt("flexDirection"))?.endsWith("-reverse") == true) desired.reverse()
         val desiredSet = desired.toSet()
         for (index in layout.childCount - 1 downTo 0) {

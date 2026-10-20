@@ -139,6 +139,8 @@ export interface FlexStyle {
   flexDirection?: 'row' | 'column' | 'row-reverse' | 'column-reverse'
   /** Flex wrap */
   flexWrap?: 'nowrap' | 'wrap' | 'wrap-reverse'
+  /** Flex/grid sibling order; equal values retain source order */
+  order?: number
   /** Justify content (main axis) */
   justifyContent?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly'
   /** Align items (cross axis); baseline aligns text-bearing children by their first baseline */
