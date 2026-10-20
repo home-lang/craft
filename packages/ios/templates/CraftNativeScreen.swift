@@ -5028,6 +5028,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var scrollMomentumEndHandlers: [ObjectIdentifier: String] = [:]
     private var sliderCompleteHandlers: [ObjectIdentifier: String] = [:]
     private var sliderSteps: [ObjectIdentifier: Float] = [:]
+    /// A controlled switch can be reconciled while UIKit is still animating
+    /// the user's tap. Remember that native value briefly so the echo does not
+    /// interrupt the animation and leave the thumb painted at its old edge.
+    private var switchUserValues: [ObjectIdentifier: Bool] = [:]
     private var pickerOptions: [ObjectIdentifier: [(value: String, label: String)]] = [:]
     private var modalVisibility: [ObjectIdentifier: Bool] = [:]
     private var modalFocusRestore: [ObjectIdentifier: UIView] = [:]
@@ -7518,7 +7522,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 // UIKit has already changed the value before emitting the
                 // event. Echoing it through the script must not restart its
                 // native animation.
-                if toggle.isOn != value { toggle.isOn = value }
+                let id = ObjectIdentifier(toggle)
+                if switchUserValues[id] != value, toggle.isOn != value {
+                    // Programmatic changes should settle immediately. A
+                    // native tap is handled above without touching UIKit
+                    // while its own thumb animation is in flight.
+                    toggle.setOn(value, animated: false)
+                }
             }
             toggle.isEnabled = props["disabled"] as? Bool != true
             if let track = props["trackColor"] as? [String: Any] {
@@ -8238,6 +8248,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         imageLoadEndHandlers.removeValue(forKey: id)
         imageErrorHandlers.removeValue(forKey: id)
         checkboxIndeterminate.removeValue(forKey: id)
+        switchUserValues.removeValue(forKey: id)
         if let video = node.view as? CraftNativeVideoView { video.stop() }
         if let map = node.view as? CraftNativeMapView { map.destroy() }
         for child in node.children { forgetHandlers(child, preservingInputDrafts: preservingInputDrafts) }
@@ -9416,7 +9427,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     @objc private func switchChanged(_ sender: UISwitch) {
-        guard let handler = handlers[ObjectIdentifier(sender)] else { return }
+        let id = ObjectIdentifier(sender)
+        switchUserValues[id] = sender.isOn
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self, weak sender] in
+            guard let self, let sender, self.switchUserValues[id] == sender.isOn else { return }
+            self.switchUserValues.removeValue(forKey: id)
+        }
+        guard let handler = handlers[id] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": sender.isOn]])
     }
 

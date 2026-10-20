@@ -1513,6 +1513,7 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('XCTAssertEqual(picker.accessibilityTraits, referencePicker.accessibilityTraits)')
     expect(iosNativeUnitTests).toContain('testSwitchReceivesNativeTouchesWhenMountedInAFlowView')
     expect(iosNativeUnitTests).toContain('testUncontrolledSwitchKeepsItsNativeValueAcrossReconciliation')
+    expect(iosNativeUnitTests).toContain('testControlledSwitchDoesNotInterruptTheNativeTapAnimation')
     expect(iosNativeUnitTests).toContain('testSwitchAccessibilityMatchesUIKitAcrossValueAndEnabledChanges')
     expect(iosNativeUnitTests).toContain('testNativeControlAccessibilityKeepsInteractionTraitsWithoutAuthoredRoles')
     expect(iosNativeScreenUITests).toContain('testSwitchTapChangesUIKitStateAndDeliversValueChange')
@@ -3714,7 +3715,8 @@ describe('native renderer component contract', () => {
 
   it('keeps malformed Switch state deterministic across native hosts', () => {
     expect(ios).toContain('if let value = props["value"] as? Bool ?? props["checked"] as? Bool')
-    expect(ios).toContain('if toggle.isOn != value { toggle.isOn = value }')
+    expect(ios).toContain('toggle.setOn(value, animated: false)')
+    expect(ios).toContain('switchUserValues[id] != value')
     expect(android).toContain('requestedValue as? Boolean ?: false')
     expect(android).toContain('else if (requestedChecked is Boolean)')
     expect(android).not.toContain('requestedChecked.isBlank()')
