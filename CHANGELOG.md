@@ -1,5 +1,27 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.253...v0.0.254)
+
+## 🐛 Bug Fixes
+
+- **build**: select the core Zig project explicitly ([ed95d55](https://github.com/craft-native/craft/commit/ed95d55)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **build**: qualify the Windows build before the regression fixture ([eaddd66](https://github.com/craft-native/craft/commit/eaddd66)) _(by Chris Breuer)_
+- **build**: reproduce the native checkout volume ([053882a](https://github.com/craft-native/craft/commit/053882a)) _(by Chris Breuer)_
+- **build**: record native checkout project availability ([05facfd](https://github.com/craft-native/craft/commit/05facfd)) _(by Chris Breuer)_
+- **build**: exercise core selection with the pinned Windows compiler ([171dd39](https://github.com/craft-native/craft/commit/171dd39)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge pull request #383 from craft-native/codex/zig-core-build-root ([775311e](https://github.com/craft-native/craft/commit/775311e)) _(by Chris)_ ([#383](https://github.com/craft-native/craft/issues/383))
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.252...v0.0.253)
 
 ## 🐛 Bug Fixes
