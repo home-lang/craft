@@ -2709,16 +2709,26 @@ final class NativeRenderUnitTests: XCTestCase {
 
     func testSwitchReceivesNativeTouchesWhenMountedInAFlowView() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
         controller.loadViewIfNeeded()
         controller.render(document([[
             "type": "View",
             "props": ["key": "root"],
             "children": [["type": "Switch", "props": ["testID": "native-switch"]]],
         ]]))
+        // Hit testing needs the same mounted, laid-out hierarchy as a real
+        // screen. An unattached controller can still have a zero-sized root.
+        controller.view.layoutIfNeeded()
         let toggle = try XCTUnwrap(find(UISwitch.self, key: "native-switch", below: controller.view))
         XCTAssertTrue(toggle.isUserInteractionEnabled)
         XCTAssertTrue(toggle.isEnabled)
+        XCTAssertGreaterThan(toggle.bounds.width, 0)
+        XCTAssertGreaterThan(toggle.bounds.height, 0)
         let point = toggle.convert(CGPoint(x: toggle.bounds.midX, y: toggle.bounds.midY), to: controller.view)
+        XCTAssertTrue(controller.view.bounds.contains(point))
         let hit = controller.view.hitTest(point, with: nil)
         XCTAssertTrue(hit === toggle || hit?.isDescendant(of: toggle) == true)
     }
