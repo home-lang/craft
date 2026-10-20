@@ -1379,6 +1379,30 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["modal shown"].exists)
     }
 
+    func testNavigationBackDismissesDetailsModalBeforePoppingRoute() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let rootScroll = app.scrollViews["native-root-scroll"]
+        XCTAssertTrue(rootScroll.waitForExistence(timeout: 15))
+        let openDetails = app.buttons["navigation-open-details"]
+        reveal(openDetails, in: rootScroll)
+        openDetails.tap()
+        XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
+
+        let toggle = app.buttons["toggle-details-modal"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        toggle.tap()
+        XCTAssertTrue(app.otherElements["details-modal"].waitForExistence(timeout: 5))
+
+        let back = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "native details route did not expose a Back button")
+        back.tap()
+
+        XCTAssertTrue(waitForAbsence(app.otherElements["details-modal"]), "Back should dismiss the top modal first")
+        XCTAssertTrue(app.staticTexts["details-title"].exists, "Back popped the route instead of dismissing its modal")
+        XCTAssertTrue(waitForLabel(app.staticTexts["details-modal-request-status"], "details modal requested back"))
+    }
+
     func testNonModalPopupDismissesOnOutsideTap() throws {
         let app = XCUIApplication()
         app.launch()
