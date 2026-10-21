@@ -1,6 +1,8 @@
 import XCTest
 
 final class NativeNavigationUITests: XCTestCase {
+    private let trackingTypes: Set<XCUIElement.ElementType> = [.scrollView, .picker, .pickerWheel, .datePicker, .slider, .switch, .stepper, .textField, .secureTextField, .textView, .segmentedControl]
+
     private func layoutCount(_ element: XCUIElement) -> Int {
         Int(String(element.label.split(separator: ":").last ?? "0").trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
     }
@@ -76,6 +78,47 @@ final class NativeNavigationUITests: XCTestCase {
         excluding identifiers: Set<String>
     ) -> [CGRect] {
         controls + applicationScrollViews.filter { !identifiers.contains($0.identifier) }.map { $0.frame }
+    }
+
+    private func descendants(of snapshot: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+        snapshot.children.flatMap { [$0] + descendants(of: $0) }
+    }
+
+    /// Capture fresh geometry per drag. Reading each index-bound element's
+    /// frame re-resolves the remote query for every control on every attempt.
+    private func manualScrollBlockers(in scroll: XCUIElement, application: XCUIApplication, excluding identifiers: Set<String>) throws -> [CGRect] {
+        let controls = descendants(of: try scroll.snapshot())
+            .filter { trackingTypes.contains($0.elementType) }.map { $0.frame }
+        let applicationElements = descendants(of: try application.snapshot())
+        let keyboards = applicationElements.filter { $0.elementType == .keyboard }.map { $0.frame }
+        let scrolling = applicationElements.filter { $0.elementType == .scrollView }
+            .map { (identifier: $0.identifier, frame: $0.frame) }
+        return manualScrollBlockers(controls: controls + keyboards, applicationScrollViews: scrolling, excluding: identifiers)
+    }
+
+    func testManualScrollSnapshotsPreserveControlAndKeyboardBlockers() throws {
+        let application = XCUIApplication()
+        application.launch()
+        let scroll = application.scrollViews["native-root-scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 15))
+        let input = application.textViews["notes-input"]
+        reveal(input, in: scroll)
+        input.tap()
+        XCTAssertTrue(application.keyboards.firstMatch.waitForExistence(timeout: 5))
+        let identifiers: Set<String> = [scroll.identifier]
+        let captured = try manualScrollBlockers(in: scroll, application: application, excluding: identifiers)
+        let controls = scroll.descendants(matching: .any)
+            .matching(NSPredicate(format: "elementType IN %@", trackingTypes.map { NSNumber(value: $0.rawValue) }))
+            .allElementsBoundByIndex.map { $0.frame }
+        let keyboards = application.keyboards.allElementsBoundByIndex.map { $0.frame }
+        let scrolling = application.scrollViews.allElementsBoundByIndex.map { (identifier: $0.identifier, frame: $0.frame) }
+        let queried = manualScrollBlockers(controls: controls + keyboards, applicationScrollViews: scrolling, excluding: identifiers)
+        // Absent surfaces can have a zero snapshot frame or a null query
+        // frame. Neither occupies geometry or blocks a manual drag.
+        let capturedFrames = Set(captured.filter { !$0.isEmpty }.map { String(describing: $0) })
+        let queriedFrames = Set(queried.filter { !$0.isEmpty }.map { String(describing: $0) })
+        XCTAssertFalse(capturedFrames.isEmpty)
+        XCTAssertEqual(capturedFrames, queriedFrames)
     }
 
     private func manualScrollOrigin(in viewport: CGRect, avoiding frames: [CGRect]) -> CGVector? {
@@ -234,19 +277,16 @@ final class NativeNavigationUITests: XCTestCase {
             let viewport = visibleViewport(scroll)
             // Native value controls, selection and nested scrolling retain
             // their gesture ownership; search the remaining visible gaps.
-            let trackingTypes: [XCUIElement.ElementType] = [.scrollView, .picker, .pickerWheel, .datePicker, .slider, .switch, .stepper, .textField, .secureTextField, .textView, .segmentedControl]
-            let controls = scroll.descendants(matching: .any)
-                .matching(NSPredicate(format: "elementType IN %@", trackingTypes.map { NSNumber(value: $0.rawValue) }))
-                .allElementsBoundByIndex.map { $0.frame }
-            let keyboards = application.keyboards.allElementsBoundByIndex.map { $0.frame }
             // Prediction strips can be sibling scroll surfaces outside the
             // app's subtree. Exclude only the active scroll and its root.
-            let scrolling = application.scrollViews.allElementsBoundByIndex.map { (identifier: $0.identifier, frame: $0.frame) }
-            let competing = manualScrollBlockers(
-                controls: controls + keyboards,
-                applicationScrollViews: scrolling,
-                excluding: activeScrollViews
-            ).map { $0.insetBy(dx: -4, dy: -4) }
+            let blockers: [CGRect]
+            do {
+                blockers = try manualScrollBlockers(in: scroll, application: application, excluding: activeScrollViews)
+            } catch {
+                XCTFail("unable to capture manual scroll geometry: \(error)", file: file, line: line)
+                return
+            }
+            let competing = blockers.filter { !$0.isEmpty }.map { $0.insetBy(dx: -4, dy: -4) }
                 .filter { !$0.isEmpty && $0.intersects(viewport) }
             guard let origin = manualScrollOrigin(in: viewport, avoiding: competing) else {
                 XCTFail("no safe manual scroll origin: target=\(element.frame), viewport=\(viewport), competing=\(competing)", file: file, line: line)
