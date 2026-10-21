@@ -117,7 +117,7 @@ test('mobile device jobs use the same released stx compiler version', () => {
 
 test('native compiler jobs use a supported Bun and preserve its frozen lockfile', () => {
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
-  for (const name of ['ios-native', 'ios-simulator', 'android-emulator', 'android-navigation']) {
+  for (const name of ['ios-native', 'ios-hybrid', 'android-emulator', 'android-navigation']) {
     const job = workflow.jobs[name]
     const jobSteps = job.steps ?? []
     const tool = jobSteps.findIndex(step => step.uses === 'oven-sh/setup-bun@v2' && step.with?.['bun-version'] === '1.4.3')
@@ -133,19 +133,26 @@ test('native iOS suites and protocol checks have independent required jobs', () 
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
   const native = workflow.jobs['ios-native']
   const protocol = workflow.jobs['ios-simulator']
+  const hybrid = workflow.jobs['ios-hybrid']
   expect(needs(native)).toEqual([])
   expect(needs(protocol)).toEqual([])
   expect(steps(native)).toContain('test-native-render.ts')
   expect(steps(native)).toContain('test-native-navigation.ts')
-  expect(steps(protocol)).toContain('test-hybrid-navigation.ts')
+  expect(needs(hybrid)).toEqual([])
+  expect(steps(hybrid)).toContain('test-hybrid-navigation.ts')
+  expect(steps(hybrid)).not.toContain('zig build')
+  expect(steps(protocol)).not.toContain('test-hybrid-navigation.ts')
+  expect(steps(protocol)).not.toContain('.stx-compiler')
   expect(steps(protocol)).toContain('scripts/mobile-e2e.ts --platform ios')
   expect(steps(protocol)).not.toContain('test-native-render.ts')
   expect(steps(protocol)).not.toContain('test-native-navigation.ts')
   const summary = workflow.jobs['mobile-summary']
   expect(needs(summary)).toContain('ios-native')
   expect(needs(summary)).toContain('ios-simulator')
+  expect(needs(summary)).toContain('ios-hybrid')
+  expect(summary.steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-hybrid.result')
   expect(summary.steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-native.result')
-  for (const name of ['ios-native', 'ios-simulator', 'ios-zig-slice'])
+  for (const name of ['ios-native', 'ios-hybrid', 'ios-simulator', 'ios-zig-slice'])
     expect(workflow.jobs[name].env?.DEVELOPER_DIR).toBe('/Applications/Xcode_26.2.app/Contents/Developer')
 })
 
