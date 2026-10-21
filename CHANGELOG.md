@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.266...v0.0.267)
+
+## 🐛 Bug Fixes
+
+- **ios**: scroll a FlatList target to the real end of tall rows ([a1807d7](https://github.com/craft-native/craft/commit/a1807d7)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.265...v0.0.266)
 
 ## ⚡ Performance Improvements
