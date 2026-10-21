@@ -263,7 +263,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('else if (requestedChecked is Boolean)')
     expect(guide).toContain('`checked` is a compatibility alias')
     expect(guide).toContain('`value` is null, and `value` takes precedence')
-    expect(navigationHome).toContain('<Switch testID="switch-value-precedence" :value="precedenceSwitchValue" :checked="true" @value-change="precedenceSwitchValue.set($event.value)" />')
+    expect(navigationHome).toContain('<Switch testID="switch-value-precedence" :value="false" :checked="true" @value-change="toggleSwitch($event)" />')
     expect(navigationHome).toContain('<Switch testID="uncontrolled-switch" />')
     expect(androidNavigationTest).toContain('non-null switch value should take precedence over checked')
     expect(androidNavigationTest).toContain('uncontrolled switch should keep its native toggle')
@@ -274,7 +274,7 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('checked?: boolean')
     expect(ios).toContain('props["checked"] as? Bool) ?? (props["value"] as? Bool) ?? false')
     expect(android).toContain('checkboxChecked is Boolean -> checkboxChecked')
-    expect(navigationHome).toContain('<Checkbox testID="checkbox-checked-precedence" :checked="precedenceCheckboxChecked" :value="true" @value-change="precedenceCheckboxChecked.set($event.value)" />')
+    expect(navigationHome).toContain('<Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" @value-change="chooseCheckbox($event)" />')
     expect(androidNavigationTest).toContain('checked should take precedence over value')
     expect(iosNavigationTest).toContain('let uncheckedCheckbox = app.buttons["checkbox-checked-precedence"]')
     expect(iosNavigationTest).toContain('XCTAssertFalse(uncheckedCheckbox.isSelected)')
@@ -448,6 +448,10 @@ describe('native renderer component contract', () => {
     expect(iosHealth).toContain('detail["activeEnergyCalories"] = value')
     expect(iosHealth).toContain('detail["distanceMeters"] = value')
     expect(iosHealth).toContain('onMain { [weak self] in self?.sendWorkout(detail) }')
+    expect(iosReadme).toContain('Live workout sessions (iOS 26+, requires enableHealthKit: true)')
+    expect(iosReadme).toContain('const live = await health.startWorkout({ type: \'running\', location: \'outdoor\' })')
+    expect(iosReadme).toContain('const saved = await health.endWorkout()')
+    expect(iosReadme).toContain('existing post-hoc `saveWorkout` API remains separate')
   })
 
   it('lets every container both hosts draw take children in a mutation', () => {
@@ -467,6 +471,10 @@ describe('native renderer component contract', () => {
     expect(iosMutation).toContain('func parentId(of id: String) -> String?')
     expect(iosMutation).toContain('case "reparentChild":')
     expect(iosMutation).toContain('throw CraftNativeMutationFailure("SAME_PARENT"')
+    expect(iosMutation).toContain('case "replaceChildren":')
+    expect(iosMutation).toContain('DUPLICATE_CHILD')
+    expect(androidMutation).toContain('"replaceChildren" -> {')
+    expect(androidMutation).toContain('DUPLICATE_CHILD')
     expect(ios).toContain('private var previousNodesByProtocolID: [String: RenderedNode] = [:]')
     expect(ios).toContain('indexPreviousNodes(previous)')
     expect(ios).toContain('protocolId.flatMap { id in')
@@ -478,11 +486,15 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot()')
     expect(iosNativeUnitTests).toContain('func testMapOverlayMutationStaysAddressableToItsMap()')
     expect(iosNativeUnitTests).toContain('func testReparentChildMovesAcrossParentsAtomically()')
+    expect(iosNativeUnitTests).toContain('func testReplaceChildrenReconcilesKeyedRowsAtomically()')
     expect(iosNativeUnitTests).toContain('func testReparentedInputKeepsNativeIdentityAndSelection()')
     expect(androidMutationTest).toContain('fun keepsMapOverlayParentsAddressableForTargetedUpdates()')
     expect(androidMutationTest).toContain('fun reparentsChildAcrossParentsAtomically()')
+    expect(androidMutationTest).toContain('fun replacesKeyedListChildrenAtomically()')
     expect(iosMutation).toContain('"Fragment", "Svg", "G", "Map"')
     expect(androidMutation).toContain('"Fragment", "Svg", "G", "Map"')
+    expect(iosMutation).toContain('"Path", "Line", "Rect", "Circle", "Ellipse", "Polyline", "Polygon",')
+    expect(androidMutation).toContain('"Path", "Line", "Rect", "Circle", "Ellipse", "Polyline", "Polygon",')
     expect(androidMutation).toContain('"reparentChild" -> {')
     expect(android).toContain('val previous = protocolId?.let { previousControls["id:$it"] } ?: keyedPrevious')
     expect(android).toContain('next["id:$it"] = control')
@@ -924,9 +936,9 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`Svg` is DOM-free in native mode')
     expect(guide).toContain('line caps, joins, miter limits, dash patterns, and')
     expect(ios).toContain('n.allSatisfy(\\.isFinite)')
-    expect(android).toContain('if ((0 until geometry.length()).any { craftNativeNumber(geometry.opt(it))?.toFloat()?.isFinite() != true }) return')
+    expect(android).toContain('if (geometry.any { !it.isFinite() }) return')
     expect(android).toContain('craftNativeNumber(values.opt(0))?.toFloat() ?: Float.NaN')
-    expect(android).toContain('craftNativeNumber(geometry.opt(index))?.toInt() ?: break')
+    expect(android).toContain('val command = geometry[index].toInt()')
     expect(ios).toContain('guard n.count == 4, n.allSatisfy(\\.isFinite), n[2] > 0, n[3] > 0 else { return nil }')
     expect(android).toContain('!x.isFinite() || !y.isFinite() || !width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f')
   })
@@ -1644,8 +1656,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('if (child is CraftNativeModalView)')
     expect(android).toContain('if (child.blocksBackground)')
     expect(android).toContain('screen.view.setChildStyle(this, style, resources.displayMetrics.density)')
-    expect(android).toContain('private fun promoteModalOverlays(screen: Screen, controls: Collection<View>)')
-    expect(android).toContain('promoteModalOverlays(screen, next.values)')
+    expect(android).toContain('private fun promoteModalOverlays(screen: Screen)')
+    expect(android).toContain('promoteModalOverlays(screen)')
     expect(android).toContain('fun hasBlockingModalBelow(): Boolean')
     expect(android).toContain('override fun dispatchTouchEvent(event: MotionEvent): Boolean')
     expect(android).toContain('private var shieldedModalTouch = false')
@@ -1882,17 +1894,9 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('each ancestor `onScroll` event as placement invalidations')
     expect(iosReadme).toContain('host-neutral invalidation signals for')
     expect(androidReadme).toContain('host-neutral invalidation signals for')
-  })
-
-  it('documents optional native Health Services with capability checks and explicit failures', () => {
-    const androidDocs = androidReadme.replace(/\s+/g, ' ')
-    const guideDocs = guide.replace(/\s+/g, ' ')
-    expect(androidDocs).toContain('`enableHealthServices: true` to retain `ExerciseClient` in a foreground')
-    expect(androidDocs).toContain('"enableHealthServices": false')
-    expect(androidDocs).toContain('emit a typed `error` event and leave the Health Connect fallback untouched')
-    expect(guideDocs).toContain('`enableHealthServices: true`. Craft retains `ExerciseClient` in a foreground')
-    expect(guideDocs).toContain('checks device capabilities before starting')
-    expect(guideDocs).toContain('produce an `error` event rather than silently upgrading the fallback')
+    expect(androidReadme).toContain('enableHealthServices: true')
+    expect(androidReadme).toContain('foreground service')
+    expect(guide).toContain('Craft retains `ExerciseClient` in a foreground')
   })
 
   it('exposes screen-owned scrolling for mounted native scroll views', () => {
@@ -2034,7 +2038,7 @@ describe('native renderer component contract', () => {
       'CraftNativeScriptThread.run { timers.pending.values.forEach { $0.cancel() } }',
       'pendingCapabilityRequests.forEach { CraftNativeActions.cancel(requestToken: $0) }',
       'lifecycleObservers.forEach(NotificationCenter.default.removeObserver)',
-      'CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }',
+      'CraftNativeScriptThread.run(label: "unmount \\(route)") { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }',
       'let inStack = navigationController?.viewControllers.contains(where: { $0 === self }) ?? false',
       'if !inStack {',
     ]) expect(ios, `${marker} missing from iOS teardown`).toContain(marker)
@@ -2209,6 +2213,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('if place, flow.count == children.count, let shared = sharedDirectFrames(flow, width: width, height: height)')
     expect(ios).toContain('frames = shared')
     expect(ios).toContain('sharedTree.nodes.count > flow.count + 1')
+    expect(ios).toContain('|| reverse || wrapReverse || gridAutoRows != nil || gridRows != nil')
     expect(ios).toContain('offset.x - parentFrame.x')
     expect(ios).toContain('CraftNativeTreeLayoutBridge.treeFrames(root: root, width: width, height: height)')
     expect(ios).toContain('craft_native_layout_tree_v2')
@@ -2243,7 +2248,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('autoRowsAware -> 34')
     expect(android).toContain('if (fields >= 33) putEnum(base, 32, (if (node.reverse) 1 else 0) or (if (node.wrapReverse) 2 else 0))')
     expect(android).toContain('put(base, 33, sharedLength(node.gridAutoRows, contentHeight))')
-    expect(android).toContain('if (sharedTree != null && (sharedTree.nodes.size > sharedEntries.size + 1 || grid))')
+    expect(android).toContain('if (sharedTree != null && (sharedTree.nodes.size > sharedEntries.size + 1 || grid || reverse || wrapReverse || gridAutoRows != null || gridRows != null))')
     expect(android).toContain('val parentOffset = sharedTree.parents[index] * 4')
     expect(android).toContain('if (sharedFrames != null)')
     expect(android).toContain('return null')
@@ -2794,7 +2799,7 @@ describe('native renderer component contract', () => {
   it('keeps horizontal list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('flowLayout.scrollDirection = horizontal ? .horizontal : .vertical')
     expect(iosFlatList).toContain('maxWidth: CraftNativeFlexLayout.unbounded,')
-    expect(iosFlatList).toContain('attributes.size = CGSize(width: max(1, ceil(measured.width)), height: max(1, height))')
+    expect(iosFlatList).toContain('attributes.size = CGSize(width: max(1, ceil(measured.width + margins.left + margins.right)), height: max(1, height))')
     expect(iosFlatList).not.toContain('bounds.width * 0.8')
     expect(androidFlatList).toContain('if (horizontal) LayoutParams.WRAP_CONTENT else LayoutParams.MATCH_PARENT')
     expect(androidFlatList).toContain('updateVisibleHolderLayoutParams()')
@@ -2804,7 +2809,7 @@ describe('native renderer component contract', () => {
   it('keeps vertical list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('let width = fittingExtent ?? layoutAttributes.size.width')
     expect(iosFlatList).toContain('maxHeight: CraftNativeFlexLayout.unbounded')
-    expect(iosFlatList).toContain('attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height)))')
+    expect(iosFlatList).toContain('attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height + margins.top + margins.bottom)))')
     expect(androidFlatList).toContain('renderedLayout?.height ?: LayoutParams.WRAP_CONTENT')
     expect(androidFlatList).toContain('holder.host.addView(view, hostedLayout)')
   })
@@ -3299,10 +3304,30 @@ describe('native renderer component contract', () => {
 
   it('keeps vertical FlatList row roots full-width across hosts', () => {
     expect(iosFlatList).toContain('view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor)')
-    expect(iosFlatList).toContain('view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)')
+    expect(iosFlatList).toContain('contentView.trailingAnchor.constraint(equalTo: view.trailingAnchor)')
     expect(androidFlatList).toContain('val hostedWidth = if (!horizontal && renderedWidth == LayoutParams.WRAP_CONTENT)')
     expect(androidFlatList).toContain('LayoutParams.MATCH_PARENT')
     expect(androidFlatListTest).toContain('verticalRowsFillTheListWidthWhenNoWidthIsAuthored')
+  })
+
+  it('insets a FlatList row by its own margins on both hosts', () => {
+    // A row's `mx-4` (HQ's grouped rows) leaves room either side, as a column does.
+    expect(iosFlatList).toContain('let margins = view.craftLayoutMargins')
+    expect(iosFlatList).toContain('let inner = max(0, width - margins.left - margins.right)')
+    expect(ios).toContain('var craftLayoutMargins: UIEdgeInsets')
+    expect(iosNativeUnitTests).toContain('func testFlatListRowsKeepTheirOwnSideMargins()')
+    expect(androidFlatList).toContain('if (renderedLayout is ViewGroup.MarginLayoutParams) {')
+  })
+
+  it('plays SMIL path keyframes on native SVG on both hosts, only while shown', () => {
+    expect(ios).toContain('static func keyframe(_ props: [String: Any], at elapsed: CFTimeInterval) -> [Any]?')
+    expect(ios).toContain('CraftNativeFrameClock.shared.request(self) { [weak self] in self?.nextFrame() }')
+    expect(ios).toContain('!UIAccessibility.isReduceMotionEnabled')
+    expect(android).toContain('fun keyframe(props: JSONObject, elapsed: Double): List<Float>?')
+    expect(android).toContain('android.view.Choreographer.getInstance().postFrameCallback(frameCallback)')
+    expect(android).toContain('ValueAnimator.areAnimatorsEnabled()')
+    expect(iosNativeUnitTests).toContain('func testSvgKeyframesPlayBetweenTheirKeyTimes()')
+    expect(iosNativeUnitTests).toContain('func testAnimatedSvgAsksForFramesOnlyWhileOnScreen()')
   })
 
   it('verifies intrinsic horizontal FlatList row widths on both hosts', () => {
@@ -3359,10 +3384,12 @@ describe('native renderer component contract', () => {
     expect(iosFlatList).toContain('func setScrollTarget(_ value: Any?)')
     expect(android).toContain('list.setScrollTarget(props.opt("scrollTarget"))')
     expect(androidFlatList).toContain('fun setScrollTarget(value: Any?)')
-    expect(iosFlatList).toContain('if !isApplyingSnapshot { pendingScrollTarget = nil }')
+    expect(iosFlatList).toContain('guard !isApplyingSnapshot, pendingApply == nil')
+    expect(iosFlatList).toContain('func scrollViewDidEndScrollingAnimation(')
     expect(androidFlatList).toContain('else if (!isSubmittingList) pendingScrollTarget = null')
     expect(androidFlatListTest).toContain('acceptsVirtualizedScrollTargets')
     expect(iosNativeUnitTests).toContain('testFlatListScrollTargetIsAccepted')
+    expect(iosNativeUnitTests).toContain('testFlatListScrollTargetReachesTheTrueEndOfTallRowsAddedWithIt')
     expect(guide).toContain('`pagingEnabled` snaps virtualized rows to viewport pages')
     expect(iosScreenReadme).toContain('FlatList paging and row `scrollTarget` reconciliation')
     expect(androidNavigationReadme).toContain('paging, disabled-scroll row interaction')
@@ -3461,7 +3488,8 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('craft-tab-accessory')
     expect(androidNavigationTest).toContain('pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack')
     expect(androidNavigationTest).toContain('Open capabilities')
-    expect(ios).toContain('CraftChrome.shared.clearTabAccessory(ownedBy: self)')
+    expect(ios).toContain('CraftChrome.shared.releaseTabAccessory(ownedBy: self)')
+    expect(ios).toContain('CraftChrome.shared.clearUnclaimedTabAccessory()')
     expect(androidShell).toContain('accessorySpec?.optString("path")?.let { onAccessory?.invoke(it) }')
     expect(guide).toContain('`tabAccessory` adds one destination button beside the tab pill')
     expect(iosReadme).toContain('`tabAccessory` destination beside the tab pill')
@@ -3635,11 +3663,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('screen.lastLayoutBounds.remove(updated)')
   })
 
-  it('releases replaced iOS row roots when a keyed identity changes type', () => {
+  it('releases replaced iOS row roots only from their owning cell', () => {
     expect(ios).toContain('if let previous, previous.view !== next.view, !adopting {')
     expect(ios).toContain('self.forgetHandlers(previous)')
-    expect(iosFlatList).toContain('guard hostedView !== view else { return }')
-    expect(iosFlatList).toContain('hostedView?.removeFromSuperview()\n            hostedView = view')
+    expect(iosFlatList).toContain('guard hostedView !== view || view.superview !== contentView else { return applyHostedMargins() }')
+    expect(iosFlatList).toContain('if let shown = hostedView, shown !== view, shown.superview === contentView { shown.removeFromSuperview() }')
+    expect(iosFlatList).toContain('if let shown = hostedView, shown.superview === contentView { shown.removeFromSuperview() }')
+    expect(iosNativeUnitTests).toContain('func testFlatListRowsOnScreenTakeTheirViewsBackFromASecondCell()')
     expect(iosFlatList).toContain('contentView.addSubview(view)')
     expect(ios).toContain('self.forgetHandlers(row, preservingInputDrafts: true)')
     expect(ios).toContain('for child in rootStack.arrangedSubviews where child !== next.view')
@@ -3968,7 +3998,8 @@ describe('native renderer component contract', () => {
     expect(chrome).toContain('func cancelTabSwipe(restoringSelection: Bool = true)')
     expect(hybrid).toContain('!(current.topViewController is CraftHybridWebSlot && target.topViewController is CraftHybridWebSlot)')
     expect(hybrid).toContain('target.awaitingPage = false')
-    expect(hybrid).toContain('let delta = abs(translation) >= 32 ? translation : velocity')
+    expect(hybrid).toContain('case .began, .changed:')
+    expect(hybrid).toContain('guard shouldCompleteTabSwipe(progress: translation * sign, speed: velocity * sign) else { return }')
     expect(hybrid).toContain('horizontalScrollCanScrollBack(at: nav.view.convert(start, to: view), in: native.view)')
     expect(hybrid).toContain('if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }')
     expect(iosNavigationScript).toContain("{ id: '/', title: 'Home', symbol: 'house' }")

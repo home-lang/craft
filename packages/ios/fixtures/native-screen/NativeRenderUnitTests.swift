@@ -137,6 +137,35 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(chrome.selected, "/today")
     }
 
+    func testTabSelectionCornerRadiusIsOptionalAndValidated() {
+        let chrome = CraftChrome.shared
+        let tabs = chrome.tabs
+        let selected = chrome.selected
+        defer {
+            chrome.handle(["type": "tabBar", "tabs": []])
+            chrome.tabs = tabs
+            chrome.selected = selected
+        }
+
+        let payload: [String: Any] = [
+            "type": "tabBar",
+            "tabs": [["id": "/today", "title": "Today", "symbol": "house"]],
+            "selection": ["cornerRadius": 6.0],
+        ]
+        chrome.handle(payload)
+        XCTAssertEqual(chrome.tabSelectionCornerRadius, 6)
+
+        chrome.handle(["type": "tabBar", "tabs": payload["tabs"] as Any])
+        XCTAssertNil(chrome.tabSelectionCornerRadius, "omitting selection keeps the default capsule")
+
+        chrome.handle([
+            "type": "tabBar",
+            "tabs": payload["tabs"] as Any,
+            "selection": ["cornerRadius": -1.0],
+        ])
+        XCTAssertNil(chrome.tabSelectionCornerRadius, "negative radii are ignored")
+    }
+
     func testLiveTabReadingPublishesOnceAndEqualReadingsDoNotRedrawChrome() {
         let chrome = CraftChrome.shared
         let previous = chrome.tabs
@@ -959,6 +988,36 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(child["id"] as? String, "popup")
     }
 
+    func testReplaceChildrenReconcilesKeyedRowsAtomically() throws {
+        let document = CraftNativeMutationDocument()
+        _ = try document.apply(batch(1, [
+            ["op": "createNode", "id": "root", "root": true, "node": ["type": "View"]],
+            ["op": "createNode", "id": "list", "node": ["type": "FlatList"]],
+            ["op": "createNode", "id": "first", "node": ["type": "Text", "key": "first", "children": ["First"]]],
+            ["op": "createNode", "id": "second", "node": ["type": "Text", "key": "second", "children": ["Second"]]],
+            ["op": "createNode", "id": "third", "node": ["type": "Text", "key": "third", "children": ["Third"]]],
+            ["op": "insertChild", "parentId": "root", "childId": "list", "index": 0],
+            ["op": "replaceChildren", "parentId": "list", "children": ["first", "second", "third"]],
+        ]))
+
+        let result = try document.apply(batch(2, [
+            ["op": "replaceChildren", "parentId": "list", "children": ["third", "first"]],
+        ]))
+        XCTAssertEqual(result.affectedNodeIds, ["list"])
+        XCTAssertFalse(result.requiresFullRender)
+        let rows = try XCTUnwrap((document.node("list")?["children"] as? [[String: Any]])?.compactMap { $0["id"] as? String })
+        XCTAssertEqual(rows, ["third", "first"])
+        XCTAssertNil(document.node("second"))
+
+        XCTAssertThrowsError(try document.apply(batch(3, [
+            ["op": "replaceChildren", "parentId": "list", "children": ["first", "first"]],
+        ]))) { error in
+            XCTAssertEqual((error as? CraftNativeMutationFailure)?.code, "DUPLICATE_CHILD")
+            XCTAssertEqual(document.revision, 2)
+            XCTAssertEqual(document.parentId(of: "third"), "list")
+        }
+    }
+
     func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot() throws {
         for type in CraftNativeMutationDocument.containerTypes.sorted() + ["svg", "pressable"] {
             let document = CraftNativeMutationDocument()
@@ -1036,6 +1095,63 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertLessThanOrEqual(image.size.width, 24, "Direction signs must leave the route visible in compact maps")
         XCTAssertEqual(marker.accessibilityIdentifier, "direction")
         XCTAssertEqual(marker.transform.b, 1, accuracy: 0.02)
+    }
+
+    /// A pin's press handler arrives after the pin itself (stx sends the
+    /// handler id in a later `updateNode`, as it does for a pin in a `:for`).
+    /// Tapping the pin must still reach the screen: Explore's trail card
+    /// never opened because it did not.
+    func testAPinsPressHandlerPatchedInLaterStillReachesTheScreen() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        controller.render([
+            "id": "map-node", "type": "Map", "props": ["key": "pins", "region": ["center": ["latitude": 37.7, "longitude": -119.5], "span": ["latitudeDelta": 0.05, "longitudeDelta": 0.05]]],
+            "style": ["width": 320, "height": 320],
+            "children": [["id": "pin-node", "type": "MapMarker", "props": ["id": "trail-21", "geometry": [37.7, -119.5], "title": "Craggy Gardens"]]],
+        ])
+        controller.view.layoutIfNeeded()
+        _ = try controller.applyMutation(batch(1, [
+            ["op": "updateNode", "id": "pin-node", "patch": ["events": ["onPress": "h31"]]],
+        ]))
+        controller.view.layoutIfNeeded()
+        controller.evaluateScript("globalThis.__pinPress = ''; globalThis.__stxNativeCallback = function(json) { const message = JSON.parse(json); if (message.type === 'EVENT') globalThis.__pinPress = message.payload.handlerName + ':' + message.payload.nativeEvent.id; };")
+        let map = try XCTUnwrap(find(MKMapView.self, key: "pins", below: controller.view))
+        // A map with no handler of its own still pans, zooms and takes taps
+        // on its pins: it was switched off, as a container without one is.
+        XCTAssertTrue(map.isUserInteractionEnabled, "a map owns its touches")
+        let annotation = try XCTUnwrap(map.annotations.first)
+        let pin = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+        XCTAssertEqual(pin.zPriority, .max, "a trail's pin sits above the user's own location dot")
+        XCTAssertTrue(pin.accessibilityTraits.contains(.button))
+        // Activated, as VoiceOver does, it presses like a tap.
+        XCTAssertTrue(pin.accessibilityActivate())
+        let activated = Date().addingTimeInterval(2)
+        while controller.evaluateScript("globalThis.__pinPress")?.toString() != "h31:trail-21", Date() < activated {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertEqual(controller.evaluateScript("globalThis.__pinPress")?.toString(), "h31:trail-21")
+        controller.evaluateScript("globalThis.__pinPress = ''")
+        map.delegate?.mapView?(map, didSelect: annotation)
+        let deadline = Date().addingTimeInterval(2)
+        while controller.evaluateScript("globalThis.__pinPress")?.toString() != "h31:trail-21", Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertEqual(controller.evaluateScript("globalThis.__pinPress")?.toString(), "h31:trail-21")
+    }
+
+    /// A wheel picker is not a UIControl either, and was switched off the
+    /// same way: it could not be spun.
+    func testAWheelPickerTakesTouchesWithoutAPressHandler() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(["type": "Picker", "props": ["key": "wheel", "items": [["label": "One", "value": 1], ["label": "Two", "value": 2]], "selectedValue": 1], "style": ["width": 320, "height": 200]])
+        controller.view.layoutIfNeeded()
+        let picker = try XCTUnwrap(find(UIPickerView.self, key: "wheel", below: controller.view))
+        XCTAssertTrue(picker.isUserInteractionEnabled)
     }
 
     func testMapDirectionSignsKeepALightBackdropAndTheAuthoredColor() throws {
@@ -1490,6 +1606,117 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertLessThan(rendered.count, 100)
     }
 
+    /// A screen keeps one view per row, so a second cell UIKit prepares for a
+    /// row on screen (a prefetch, an update) takes that view from the cell
+    /// showing it. That cell stayed on screen at the row's height with nothing
+    /// in it (HQ's Discover: a blank card where the search and chips were, a
+    /// gap between two people).
+    func testFlatListRowsOnScreenTakeTheirViewsBackFromASecondCell() throws {
+        let list = CraftNativeFlatList()
+        list.frame = CGRect(x: 0, y: 0, width: 320, height: 480)
+        let rows: [[String: Any]] = (0..<6).map { ["id": "row-\($0)", "type": "Text", "children": ["Row \($0)"]] }
+        var views: [String: UIView] = [:]
+        let render: CraftNativeFlatList.RenderItem = { node, identity, _ in
+            if let view = views[identity] { return view }
+            let label = UILabel()
+            label.text = (node["children"] as? [String])?.first
+            views[identity] = label
+            return label
+        }
+        list.apply(nodes: rows, horizontal: false, columns: 1, inverted: false, endReachedThreshold: 0.1, renderItem: render, recycleItem: { _ in }, removeItem: { _ in }, endReached: nil)
+        list.layoutIfNeeded()
+        XCTAssertTrue(list.visibleRowsShowTheirViews)
+        let shown = try XCTUnwrap(list.cellForItem(at: IndexPath(item: 0, section: 0)))
+        XCTAssertTrue(try XCTUnwrap(views["row-0"]).isDescendant(of: shown))
+
+        let second = try XCTUnwrap(list.dataSource?.collectionView(list, cellForItemAt: IndexPath(item: 0, section: 0)))
+        XCTAssertFalse(second === shown)
+        XCTAssertTrue(try XCTUnwrap(views["row-0"]).isDescendant(of: second), "the row's one view went to the second cell")
+        XCTAssertFalse(list.visibleRowsShowTheirViews, "the cell on screen lost it")
+
+        list.setNeedsLayout()
+        list.layoutIfNeeded()
+        XCTAssertTrue(list.visibleRowsShowTheirViews)
+        XCTAssertTrue(try XCTUnwrap(views["row-0"]).isDescendant(of: shown), "the cell on screen has its row back")
+    }
+
+    /// The accessory beside the tab pill (HQ's Messages button) stays drawn
+    /// while one screen hands over to the next: taken off when a screen went
+    /// away, the pill stretched across the bar and back while the next screen
+    /// (Messages opened from it, Me opened for the first time) started up.
+    func testTheTabAccessoryStaysWhileTheNextScreenStartsAndGoesWhenItIsNotWanted() throws {
+        let chrome = CraftChrome.shared
+        let accessory = #"{"path":"/m/messages","title":"Messages","symbol":"bubble.left"}"#
+        func settle(until done: () -> Bool = { false }) {
+            let deadline = Date().addingTimeInterval(1)
+            while !done(), Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        }
+        // The fixture's script draws its screen as it loads; that lands before
+        // each step, so a step never races a draw (the order once depended on
+        // how warm the shared virtual machine was).
+        func screen() -> CraftNativeScreenController {
+            let controller = CraftNativeScreenController(config: CraftConfig())
+            controller.loadViewIfNeeded()
+            settle()
+            return controller
+        }
+        func declare(_ controller: CraftNativeScreenController, _ json: String, until done: @escaping () -> Bool) {
+            controller.evaluateScript("craftNativePostMessage(JSON.stringify({ type: 'NAVIGATION_SET_OPTIONS', payload: { tabAccessory: \(json) } }))")
+            settle(until: done)
+        }
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let stack = UINavigationController()
+        window.rootViewController = stack
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; chrome.updateTabAccessory(nil) }
+
+        // Handing over: a screen going away gives its accessory up without
+        // taking it off; only one nobody claims comes off.
+        let owner = NSObject()
+        chrome.updateTabAccessory(["path": "/m/messages", "title": "Messages"], owner: owner)
+        chrome.clearUnclaimedTabAccessory()
+        XCTAssertEqual(chrome.tabAccessory?.id, "/m/messages", "a claimed accessory stays")
+        chrome.releaseTabAccessory(ownedBy: NSObject())
+        chrome.clearUnclaimedTabAccessory()
+        XCTAssertEqual(chrome.tabAccessory?.id, "/m/messages", "only its owner gives it up")
+        chrome.releaseTabAccessory(ownedBy: owner)
+        XCTAssertEqual(chrome.tabAccessory?.id, "/m/messages", "kept while the next screen starts")
+        chrome.clearUnclaimedTabAccessory()
+        XCTAssertNil(chrome.tabAccessory)
+
+        let today = screen()
+        stack.setViewControllers([today], animated: false)
+        stack.view.layoutIfNeeded()
+        declare(today, accessory) { chrome.tabAccessory != nil }
+        XCTAssertEqual(chrome.tabAccessory?.id, "/m/messages")
+
+        // The next screen asked for the same as its script started: one
+        // accessory all along, through the push.
+        let messages = screen()
+        declare(messages, accessory) { true }
+        XCTAssertEqual(chrome.tabAccessory?.id, "/m/messages", "a screen not on top changes nothing yet")
+        stack.pushViewController(messages, animated: false)
+        stack.view.layoutIfNeeded()
+        settle()
+        XCTAssertEqual(chrome.tabAccessory?.id, "/m/messages")
+
+        // A screen that drew without one takes it off.
+        let bare = screen()
+        stack.pushViewController(bare, animated: false)
+        stack.view.layoutIfNeeded()
+        settle { chrome.tabAccessory == nil }
+        XCTAssertNil(chrome.tabAccessory, "a screen that drew without one wants none")
+
+        // An explicit no takes it off at once.
+        let again = screen()
+        stack.setViewControllers([again], animated: false)
+        stack.view.layoutIfNeeded()
+        declare(again, accessory) { chrome.tabAccessory != nil }
+        XCTAssertNotNil(chrome.tabAccessory)
+        declare(again, "null") { chrome.tabAccessory == nil }
+        XCTAssertNil(chrome.tabAccessory)
+    }
+
     func testFlatListForwardsScrollAndMomentumCallbacks() {
         let list = CraftNativeFlatList()
         list.frame = CGRect(x: 0, y: 0, width: 320, height: 160)
@@ -1529,6 +1756,124 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(endDragCount, 1)
         XCTAssertEqual(momentumBeginCount, 1)
         XCTAssertEqual(momentumEndCount, 1)
+    }
+
+    /// A row's own side margins inset it in the list, as a column's child is
+    /// inset (HQ's Discover results ran to the screen's edges).
+    func testFlatListRowsKeepTheirOwnSideMargins() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        let row: (String, [String: Any]) -> [String: Any] = { key, style in
+            ["id": key, "type": "View", "props": ["key": key], "style": style, "children": [["type": "Text", "children": ["Row"]]]]
+        }
+        controller.render(document([[
+            "type": "FlatList",
+            "props": ["key": "list"],
+            "style": ["flex": 1],
+            "children": [
+                row("card", ["marginTop": 12, "marginHorizontal": 16, "padding": 16, "backgroundColor": "#ffffff"]),
+                row("first", ["overflow": "hidden", "marginHorizontal": 16, "backgroundColor": "#ffffff", "borderTopLeftRadius": 10, "borderTopRightRadius": 10]),
+                row("next", ["overflow": "hidden", "marginHorizontal": 16, "backgroundColor": "#ffffff"]),
+            ],
+        ]]))
+        controller.view.layoutIfNeeded()
+        let list = try XCTUnwrap(find(CraftNativeFlatList.self, key: "list", below: controller.view))
+        list.layoutIfNeeded()
+        for key in ["card", "first", "next"] {
+            let view = try XCTUnwrap(find(UIView.self, key: key, below: list), key)
+            let frame = view.convert(view.bounds, to: list)
+            XCTAssertEqual(frame.minX, 16, accuracy: 0.5, "\(key) left inset")
+            XCTAssertEqual(frame.maxX, list.bounds.width - 16, accuracy: 0.5, "\(key) right inset")
+        }
+        let card = try XCTUnwrap(find(UIView.self, key: "card", below: list))
+        XCTAssertEqual(card.convert(card.bounds, to: list).minY, 12, accuracy: 0.5, "the card's top margin")
+
+        // A style update moves the same row in place.
+        controller.render(document([[
+            "type": "FlatList",
+            "props": ["key": "list"],
+            "style": ["flex": 1],
+            "children": [row("next", ["overflow": "hidden", "marginHorizontal": 24, "backgroundColor": "#ffffff"])],
+        ]]))
+        // A snapshot applied while the last one finishes lands a turn later.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        controller.view.layoutIfNeeded()
+        list.layoutIfNeeded()
+        let next = try XCTUnwrap(find(UIView.self, key: "next", below: list))
+        XCTAssertEqual(next.convert(next.bounds, to: list).minX, 24, accuracy: 0.5)
+        XCTAssertEqual(next.convert(next.bounds, to: list).maxX, list.bounds.width - 24, accuracy: 0.5)
+    }
+
+    /// SMIL path keyframes (stx `Animate`: HQ's moving exercise figures)
+    /// play between the frames either side of now, at their key times.
+    func testSvgKeyframesPlayBetweenTheirKeyTimes() throws {
+        let props: [String: Any] = [
+            "attributeName": "d", "duration": 2, "repeatCount": "indefinite",
+            "frames": [[0, 0, 0, 1, 10, 0], [0, 0, 0, 1, 20, 10], [0, 0, 0, 1, 10, 0]],
+            "frameTimes": [0, 0.25, 1],
+        ]
+        func outline(_ at: CFTimeInterval, _ props: [String: Any] = props) -> [CGFloat]? {
+            CraftNativeSvgView.keyframe(props, at: at)?.compactMap { ($0 as? CGFloat) ?? ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+        }
+        XCTAssertEqual(outline(0), [0, 0, 0, 1, 10, 0])
+        // Half way to the second key time (0.25 of 2 s).
+        XCTAssertEqual(outline(0.25), [0, 0, 0, 1, 15, 5])
+        XCTAssertEqual(outline(0.5), [0, 0, 0, 1, 20, 10])
+        // A repetition later, the same.
+        XCTAssertEqual(outline(2.25), [0, 0, 0, 1, 15, 5])
+        var once = props
+        once["repeatCount"] = 1
+        XCTAssertNil(outline(2.25, once), "a finished animation draws the shape's own outline")
+        var other = props
+        other["attributeName"] = "cx"
+        XCTAssertNil(outline(0.25, other))
+        // Different commands cannot be blended: the earlier frame holds.
+        XCTAssertEqual(CraftNativeSvgView.interpolate([0, 0, 0, 1, 1, 1], [0, 0, 0, 2, 1, 1, 2, 2, 3, 3], 0.5), [0, 0, 0, 1, 1, 1])
+        XCTAssertEqual(CraftNativeSvgView.interpolate([0, 0, 0, 3, 2, 2, 4, 4], [0, 2, 2, 3, 4, 4, 6, 6], 0.5), [0, 1, 1, 3, 3, 3, 5, 5])
+    }
+
+    /// A shape takes its `Animate` as a child through the mutation protocol,
+    /// so an exercise row's keyframes arrive without drawing the screen again.
+    func testAShapeTakesItsAnimationAsAChild() throws {
+        let document = CraftNativeMutationDocument()
+        let result = try document.apply(batch(1, [
+            ["op": "createNode", "id": "root", "root": true, "node": ["type": "View"]],
+            ["op": "createNode", "id": "art", "node": ["type": "Svg"]],
+            ["op": "createNode", "id": "limb", "node": ["type": "Path", "props": ["geometry": [0, 0, 0, 1, 1, 1]]]],
+            ["op": "createNode", "id": "move", "node": ["type": "Animate", "props": ["attributeName": "d", "duration": 1, "frames": [[0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 2, 2]]]]],
+            ["op": "insertChild", "parentId": "root", "childId": "art", "index": 0],
+            ["op": "insertChild", "parentId": "art", "childId": "limb", "index": 0],
+            ["op": "insertChild", "parentId": "limb", "childId": "move", "index": 0],
+        ]))
+        XCTAssertNotNil(result.document)
+        XCTAssertEqual(document.parentId(of: "move"), "limb")
+    }
+
+    func testAnimatedSvgAsksForFramesOnlyWhileOnScreen() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = controller
+        window.isHidden = false
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        let figure: (String, Bool) -> [String: Any] = { key, moving in
+            let animate: [String: Any] = ["id": "\(key)-move", "type": "Animate", "props": ["attributeName": "d", "duration": 2.4, "frames": [[0, 0, 0, 1, 10, 0], [0, 0, 0, 1, 20, 10]], "frameTimes": [0, 1]]]
+            let limb: [String: Any] = ["id": "\(key)-limb", "type": "Path", "props": ["geometry": [0, 0, 0, 1, 10, 0]], "children": moving ? [animate] : []]
+            return ["id": key, "type": "Svg", "props": ["key": key, "viewBox": [0, 0, 128, 128]], "style": ["width": 48, "height": 48], "children": [limb]]
+        }
+        controller.render(document([figure("moving", true), figure("still", false)]))
+        controller.view.layoutIfNeeded()
+        let moving = try XCTUnwrap(find(CraftNativeSvgView.self, key: "moving", below: controller.view))
+        let still = try XCTUnwrap(find(CraftNativeSvgView.self, key: "still", below: controller.view))
+        XCTAssertEqual(moving.isAnimating, !UIAccessibility.isReduceMotionEnabled)
+        XCTAssertFalse(still.isAnimating, "a drawing without keyframes asks for no frames")
+        if !UIAccessibility.isReduceMotionEnabled { XCTAssertTrue(CraftNativeFrameClock.shared.isRunning) }
+        moving.isHidden = true
+        XCTAssertFalse(moving.isAnimating)
+        moving.isHidden = false
+        moving.removeFromSuperview()
+        XCTAssertFalse(moving.isAnimating, "out of the window, no frames")
     }
 
     func testFlatListScrollIndicatorsAndBounceAxesFollowProps() throws {
@@ -1595,6 +1940,141 @@ final class NativeRenderUnitTests: XCTestCase {
         list.layoutIfNeeded()
         XCTAssertTrue(list.contentOffset.x.isFinite)
         XCTAssertTrue(list.contentOffset.y.isFinite)
+    }
+
+    /// A row as tall as a multi-paragraph reply or a card: far past the 44pt
+    /// estimate rows start from.
+    private final class TallRow: UIView {
+        let height: CGFloat
+        init(height: CGFloat) {
+            self.height = height
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { nil }
+        override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: height) }
+        override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: height) }
+    }
+
+    private func tallRowList(height: CGFloat = 480) -> (CraftNativeFlatList, UIWindow, ([[String: Any]]) -> Void) {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: height))
+        let list = CraftNativeFlatList()
+        list.frame = window.bounds
+        list.contentInsetAdjustmentBehavior = .never
+        list.setContentContainerStyle(["paddingBottom": 16])
+        window.addSubview(list)
+        window.isHidden = false
+        var views: [String: UIView] = [:]
+        let render: CraftNativeFlatList.RenderItem = { node, identity, _ in
+            if let view = views[identity] { return view }
+            let props = node["props"] as? [String: Any] ?? [:]
+            let view = TallRow(height: CGFloat((props["height"] as? NSNumber)?.doubleValue ?? 44))
+            views[identity] = view
+            return view
+        }
+        let apply: ([[String: Any]]) -> Void = { rows in
+            list.apply(nodes: rows, horizontal: false, columns: 1, inverted: false, endReachedThreshold: 0.1, renderItem: render, recycleItem: { _ in }, removeItem: { _ in }, endReached: nil)
+        }
+        return (list, window, apply)
+    }
+
+    private func tallRows(_ count: Int, height: Double = 320) -> [[String: Any]] {
+        (0..<count).map { ["id": "row-\($0)", "type": "View", "props": ["testID": "row-\($0)", "height": height]] }
+    }
+
+    private func settle(_ list: CraftNativeFlatList, seconds: TimeInterval = 0.3) {
+        let deadline = Date().addingTimeInterval(seconds)
+        while Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        list.layoutIfNeeded()
+    }
+
+    private func assertAtTrueEnd(_ list: CraftNativeFlatList, lastRow: Int, rowHeight: CGFloat, file: StaticString = #filePath, line: UInt = #line) throws {
+        let bottom = max(-list.adjustedContentInset.top, list.contentSize.height + list.adjustedContentInset.bottom - list.bounds.height)
+        XCTAssertEqual(list.contentOffset.y, bottom, accuracy: 0.5, "the list stopped short of its end", file: file, line: line)
+        let last = try XCTUnwrap(list.layoutAttributesForItem(at: IndexPath(item: lastRow, section: 0)), file: file, line: line)
+        XCTAssertEqual(last.frame.height, rowHeight, accuracy: 0.5, "the last row measured itself", file: file, line: line)
+        // The last row's bottom sits just above the bottom padding, on screen.
+        XCTAssertEqual(last.frame.maxY + list.adjustedContentInset.bottom, list.contentOffset.y + list.bounds.height, accuracy: 0.5, file: file, line: line)
+    }
+
+    /// HQ's chat: one render appends tall replies and moves the target to the
+    /// new last row. Aimed before the snapshot landed, the list went to the
+    /// old end; aimed from 44pt estimates, it stopped short of the real one.
+    func testFlatListScrollTargetReachesTheTrueEndOfTallRowsAddedWithIt() throws {
+        let (list, window, apply) = tallRowList()
+        defer { window.isHidden = true }
+        apply(tallRows(3))
+        list.setScrollTarget(["id": "row-2", "animated": false])
+        settle(list)
+        try assertAtTrueEnd(list, lastRow: 2, rowHeight: 320)
+
+        apply(tallRows(24))
+        list.setScrollTarget(["id": "row-23", "animated": false])
+        settle(list)
+        XCTAssertEqual(list.numberOfItems(inSection: 0), 24)
+        try assertAtTrueEnd(list, lastRow: 23, rowHeight: 320)
+    }
+
+    /// A target set while a second update waits behind the one landing aims
+    /// at the rows of that second update.
+    func testFlatListScrollTargetWaitsForAQueuedUpdate() throws {
+        let (list, window, apply) = tallRowList()
+        defer { window.isHidden = true }
+        apply(tallRows(2))
+        apply(tallRows(18))
+        list.setScrollTarget(["id": "row-17", "animated": false])
+        settle(list)
+        XCTAssertEqual(list.numberOfItems(inSection: 0), 18)
+        try assertAtTrueEnd(list, lastRow: 17, rowHeight: 320)
+    }
+
+    /// An animated scroll to the last row lands on the true end too.
+    func testFlatListAnimatedScrollTargetLandsOnTheTrueEnd() throws {
+        let (list, window, apply) = tallRowList()
+        defer { window.isHidden = true }
+        apply(tallRows(2))
+        settle(list)
+        apply(tallRows(16, height: 260))
+        list.setScrollTarget(["id": "row-15", "animated": true])
+        settle(list, seconds: 1.2)
+        try assertAtTrueEnd(list, lastRow: 15, rowHeight: 260)
+    }
+
+    /// A row near the end cannot come to the top; the list stops at its true
+    /// end. A row that can still comes to the top, as before.
+    func testFlatListScrollTargetNearTheEndStopsAtTheTrueEnd() throws {
+        // Taller than the last two rows: the second to last cannot reach the top.
+        let (list, window, apply) = tallRowList(height: 800)
+        defer { window.isHidden = true }
+        apply(tallRows(2))
+        settle(list)
+        apply(tallRows(20))
+        list.setScrollTarget(["id": "row-4", "animated": false])
+        settle(list)
+        let fourth = try XCTUnwrap(list.layoutAttributesForItem(at: IndexPath(item: 4, section: 0)))
+        XCTAssertEqual(list.contentOffset.y, fourth.frame.minY - list.adjustedContentInset.top, accuracy: 0.5)
+
+        list.setScrollTarget(["id": "row-18", "animated": false])
+        settle(list)
+        try assertAtTrueEnd(list, lastRow: 19, rowHeight: 320)
+    }
+
+    /// The end is held only until the finger takes the list.
+    func testFlatListStopsHoldingTheEndOnceTheUserDrags() throws {
+        let (list, window, apply) = tallRowList()
+        defer { window.isHidden = true }
+        apply(tallRows(2))
+        settle(list)
+        apply(tallRows(12))
+        list.setScrollTarget(["id": "row-11", "animated": false])
+        // Once the target lands, before the passes that check the end again.
+        let deadline = Date().addingTimeInterval(1)
+        while list.contentOffset.y < 1, Date() < deadline { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01)) }
+        XCTAssertGreaterThan(list.contentOffset.y, 1000)
+        list.scrollViewWillBeginDragging(list)
+        list.contentOffset = CGPoint(x: 0, y: 100)
+        settle(list)
+        XCTAssertEqual(list.contentOffset.y, 100, accuracy: 0.5, "a correction fought the finger")
     }
 
     func testFlatListRefreshControlForwardsAndTracksControlledState() {
@@ -1878,6 +2358,53 @@ final class NativeRenderUnitTests: XCTestCase {
         apply(moved)
 
         XCTAssertTrue(list.visibleItemIdentities.contains(retainedAnchor))
+    }
+
+    /// requestAnimationFrame rides the display (CraftNativeFrameClock): a run
+    /// of frames in order, a cancelled callback skipped, a throwing one not
+    /// stopping the rest, a hidden screen waiting until it is shown, and the
+    /// display link stopping once nobody waits.
+    func testAnimationFramesComeFromTheDisplayAndWaitWhileHidden() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        func number(_ script: String) -> Double { controller.evaluateScript(script)?.toDouble() ?? .nan }
+        func wait(_ what: String, _ check: () -> Bool) {
+            let deadline = Date().addingTimeInterval(10)
+            while !check() {
+                if Date() > deadline { XCTFail("Timed out waiting for \(what)"); return }
+                RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+            }
+        }
+
+        controller.evaluateScript("""
+            globalThis.__frames = [];
+            (function tick(time) { __frames.push(time); if (__frames.length < 20) requestAnimationFrame(tick); })(0);
+        """)
+        wait("twenty frames") { number("__frames.length") == 20 }
+        XCTAssertEqual(controller.evaluateScript("__frames.every(function(t, i) { return i === 0 || t > __frames[i - 1]; })")?.toBool(), true)
+        wait("the display link to stop") { !CraftNativeFrameClock.shared.isRunning }
+        XCTAssertEqual(CraftNativeFrameClock.shared.waitingCount, 0)
+
+        controller.evaluateScript("""
+            globalThis.__hits = 0;
+            var gone = requestAnimationFrame(function() { __hits += 100; });
+            requestAnimationFrame(function() { throw new Error('one callback failing'); });
+            requestAnimationFrame(function() { __hits += 1; });
+            cancelAnimationFrame(gone);
+        """)
+        wait("the frame") { number("__hits") == 1 }
+
+        controller.screenVisibilityChanged(false)
+        controller.evaluateScript("globalThis.__shown = 0; requestAnimationFrame(function() { __shown = 1; });")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.25))
+        XCTAssertEqual(number("__shown"), 0, "a hidden screen's frame waits")
+        XCTAssertEqual(CraftNativeFrameClock.shared.waitingCount, 0)
+        controller.screenVisibilityChanged(true)
+        wait("the frame once shown") { number("__shown") == 1 }
     }
 
     /// A window in the test host's scene: one made with only a frame is in
@@ -2633,23 +3160,26 @@ final class NativeRenderUnitTests: XCTestCase {
 
     func testSwitchReceivesNativeTouchesWhenMountedInAFlowView() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let window = try hostWindow()
         window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
         controller.loadViewIfNeeded()
         controller.render(document([[
             "type": "View",
             "props": ["key": "root"],
             "children": [["type": "Switch", "props": ["testID": "native-switch"]]],
         ]]))
-        window.isHidden = false
-        defer { window.isHidden = true }
+        // Hit testing needs the same mounted, laid-out hierarchy as a real
+        // screen. An unattached controller can still have a zero-sized root.
         controller.view.layoutIfNeeded()
         let toggle = try XCTUnwrap(find(UISwitch.self, key: "native-switch", below: controller.view))
-        XCTAssertGreaterThan(toggle.bounds.width, 0)
-        XCTAssertGreaterThan(toggle.bounds.height, 0)
         XCTAssertTrue(toggle.isUserInteractionEnabled)
         XCTAssertTrue(toggle.isEnabled)
+        XCTAssertGreaterThan(toggle.bounds.width, 0)
+        XCTAssertGreaterThan(toggle.bounds.height, 0)
         let point = toggle.convert(CGPoint(x: toggle.bounds.midX, y: toggle.bounds.midY), to: controller.view)
+        XCTAssertTrue(controller.view.bounds.contains(point))
         let hit = controller.view.hitTest(point, with: nil)
         XCTAssertTrue(hit === toggle || hit?.isDescendant(of: toggle) == true)
     }

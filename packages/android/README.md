@@ -254,10 +254,11 @@ Reverse flex directions preserve wrapped line order on the cross axis while
 reversing each line's main-axis children, matching the iOS host.
 Shared wrapped-line IDs are accepted only when they are complete and monotonic;
 invalid bridge data falls back to the host layout implementation.
-Eligible definite-size, non-grid, non-wrapped flex containers also serialize
-their measured direct children through the host-neutral `craft_native_layout_tree`
-ABI. Missing runtimes, unsupported styles, or malformed frame results retain
-the local Kotlin layout, so older SDK-only projects keep the same behavior.
+Eligible definite-size flex containers, including reverse and wrap-reverse direct
+flows, also serialize their measured children through the host-neutral
+`craft_native_layout_tree` ABI. Missing runtimes, unsupported styles, or malformed
+frame results retain the local Kotlin layout, so older SDK-only projects keep the
+same behavior.
 Push, replace, and back preserve the
 previous screen's views and JavaScript state; Android's system back button pops
 the route. Native mode accepts neither `--html-path` nor `--dev-server`. Its
@@ -382,6 +383,16 @@ Connect fallback untouched.
 `bun scripts/test-native-health.ts` runs the Health Connect contract against
 an Android 14+ emulator.
 
+### Google Wallet
+
+Set `enableWallet: true` to expose `craft.wallet` to native screens. Android
+accepts an HTTPS Google Wallet save link, or a signed pass JWT through
+`craft.wallet.add({ jwt })`; the latter uses Google's `PayClient` SDK and
+returns the result of the native save sheet. `craft.wallet.isAvailable()` asks
+the SDK whether the JWT save API is available on this device. `has()` remains
+unsupported on Android because Google Wallet does not expose local pass lookup
+through this API. Pass signing and updates stay server-side.
+
 ### 3. Open in Android Studio
 
 ```bash
@@ -421,6 +432,7 @@ Edit `craft.config.json` in your Android project:
   "enableHealthConnect": false,
   "enableHealthServices": false,
   "enableHeartRate": false,
+  "enableWallet": false,
   "enableKeepAwake": true,
   "enableDeepLinks": true,
   "urlSchemes": ["myapp"],

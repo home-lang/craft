@@ -219,11 +219,13 @@ enum CraftNativeActions {
             }
             // A write that moves the sign-in token is the account's change:
             // every screen hears it (CraftSession). Reads skip the check.
-            if ["set", "remove", "delete", "clear"].contains(method) {
-                sync = CraftSession.observe(key: method == "clear" ? nil : args.first as? String, config: config, write)
-            } else {
-                sync = write()
+            // Off the main thread, in order (CraftKeychain.queue).
+            let isWrite = ["set", "remove", "delete", "clear"].contains(method)
+            CraftKeychain.queue.async {
+                let result = isWrite ? CraftSession.observe(key: method == "clear" ? nil : args.first as? String, config: config, write) : write()
+                complete(requestToken, result, completion)
             }
+            return
         case ("Biometrics", "isAvailable"):
             sync = config.enableBiometric ? .success(biometricContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)) : failure("CAPABILITY_DISABLED", "Biometric authentication is disabled")
         case ("Biometrics", "getBiometricType"):
@@ -249,6 +251,12 @@ enum CraftNativeActions {
             let options = args.first as? [String: Any] ?? [:]
             DispatchQueue.main.async {
                 CraftNativeFiles.pickVideo(options) { complete(requestToken, $0, completion) }
+            }
+            return
+        case ("Files", "pickFile"):
+            let options = args.first as? [String: Any] ?? [:]
+            DispatchQueue.main.async {
+                CraftNativeFiles.pickFile(options) { complete(requestToken, $0, completion) }
             }
             return
         case ("Files", "download"):
@@ -957,6 +965,7 @@ enum CraftNativeActions {
         if method == "clear" {
             let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service]
             let status = SecItemDelete(query as CFDictionary)
+            CraftKeychain.forget(account: nil)
             guard status == errSecSuccess || status == errSecItemNotFound else {
                 return failure("SECURE_STORAGE_ERROR", "Secure storage could not be cleared")
             }
@@ -977,24 +986,38 @@ enum CraftNativeActions {
             query[kSecValueData as String] = Data(value.utf8)
             query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
             let removed = SecItemDelete(base as CFDictionary)
+            CraftKeychain.forget(account: key)
             guard removed == errSecSuccess || removed == errSecItemNotFound else {
                 return failure("SECURE_STORAGE_ERROR", "Secure storage could not be replaced (\(removed))")
             }
             let status = SecItemAdd(query as CFDictionary, nil)
+            CraftKeychain.forget(account: key)
             return status == errSecSuccess ? .success(true) : failure("SECURE_STORAGE_ERROR", "Secure storage could not be written (\(status))")
         case "get":
-            var query = base
-            query[kSecReturnData as String] = true
-            query[kSecMatchLimit as String] = kSecMatchLimitOne
-            var result: AnyObject?
-            let status = SecItemCopyMatching(query as CFDictionary, &result)
-            if status == errSecItemNotFound { return .success(NSNull()) }
-            guard status == errSecSuccess, let data = result as? Data else {
+            // A failed read is not remembered: it is answered as a failure,
+            // and the next read asks the Keychain again.
+            var failed = false
+            let value = CraftKeychain.value(account: key, service: service) { () -> String? in
+                var query = base
+                query[kSecReturnData as String] = true
+                query[kSecMatchLimit as String] = kSecMatchLimitOne
+                var result: AnyObject?
+                let status = SecItemCopyMatching(query as CFDictionary, &result)
+                if status == errSecItemNotFound { return nil }
+                guard status == errSecSuccess, let data = result as? Data else {
+                    failed = true
+                    return nil
+                }
+                return String(decoding: data, as: UTF8.self)
+            }
+            if failed {
+                CraftKeychain.forget(account: key)
                 return failure("SECURE_STORAGE_ERROR", "Secure storage could not be read")
             }
-            return .success(String(decoding: data, as: UTF8.self))
+            return .success(value.map { $0 as Any } ?? NSNull())
         case "remove":
             let status = SecItemDelete(base as CFDictionary)
+            CraftKeychain.forget(account: key)
             return status == errSecSuccess || status == errSecItemNotFound ? .success(true) : failure("SECURE_STORAGE_ERROR", "Secure storage could not be removed")
         default:
             return failure("UNKNOWN_ACTION", "Unsupported SecureStorage method")
@@ -1500,15 +1523,85 @@ extension CraftNativeActions {
     /// `secureStore` writes it. Nil when there is none.
     static func webSecureValue(forKey key: String) -> String? {
         guard let key = validKey(key) else { return nil }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        return CraftKeychain.value(account: key, service: nil) {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key,
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne,
+            ]
+            var result: AnyObject?
+            guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
+            return String(data: data, encoding: .utf8)
+        }
+    }
+}
+
+/// The app's own Keychain items, read once and then remembered.
+///
+/// A Keychain read is `SecItemCopyMatching`, which took 100-900ms a read on a
+/// simulator and is not free on a phone, and every screen reads the sign-in
+/// token and the account beside it when it opens. They ran on the main
+/// thread, one after another, so a sign-in that made each open screen check
+/// the account again held the interface for seconds.
+///
+/// This process is the only writer of these items, through `secureStorage`,
+/// `CraftHybridKeychain` and the web bridge's secure storage, and each of
+/// them forgets what it changed. An item another process could write (a
+/// shared access group, an extension) is not remembered, and coming back to
+/// the foreground forgets everything, so a value written while the app was
+/// away is read fresh.
+enum CraftKeychain {
+    /// Where native screens' secure storage runs: off the main thread, one
+    /// call at a time, so a write is always seen by the read after it.
+    static let queue = DispatchQueue(label: "craft.keychain", qos: .userInitiated)
+    private static let lock = NSLock()
+    private static var values: [String: String?] = [:]
+    /// Moves on every forget, so a read that raced a write is not kept.
+    private static var generation = 0
+    private static var observing: NSObjectProtocol?
+
+    private static func cacheKey(_ account: String, _ service: String?) -> String {
+        "\(service ?? "*")\u{1F}\(account)"
+    }
+
+    /// `account`'s value under `service` (nil: whichever service holds it),
+    /// from memory when it was read before, else from `read`.
+    static func value(account: String, service: String?, read: () -> String?) -> String? {
+        let key = cacheKey(account, service)
+        lock.lock()
+        if observing == nil { observeForeground() }
+        if let known = values[key] {
+            lock.unlock()
+            return known
+        }
+        let started = generation
+        lock.unlock()
+        let value = read()
+        lock.lock()
+        if generation == started { values[key] = .some(value) }
+        lock.unlock()
+        return value
+    }
+
+    /// Drop what is remembered for `account`, under every service; nil drops all.
+    static func forget(account: String?) {
+        lock.lock()
+        generation += 1
+        if let account {
+            let suffix = "\u{1F}\(account)"
+            values = values.filter { !$0.key.hasSuffix(suffix) }
+        } else {
+            values.removeAll()
+        }
+        lock.unlock()
+    }
+
+    /// Called with `lock` held.
+    private static func observeForeground() {
+        observing = NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: nil) { _ in
+            forget(account: nil)
+        }
     }
 }
 

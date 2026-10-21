@@ -1,0 +1,42 @@
+name: Windows source provenance reproduction
+
+on:
+  push:
+    branches: [codex/windows-zig-cache-diagnostics]
+    paths:
+      - '.github/workflows/windows-source-provenance.yml'
+      - '.github/workflows/ci.yml'
+      - 'scripts/inspect-windows-source.ps1'
+      - 'scripts/verify-zig-core-project.ts'
+      - 'scripts/zig-source-cache-probe.zig'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Diagnostic only: repeat the published workspace installer on an ephemeral
+# checkout. Never restore the source or hide the installer's exit status.
+jobs:
+  workspace-source:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup the published Pantry runtime
+        uses: pantry-pm/pantry/packages/action@d160044a6fe4ad7e8463828f80dfbc55bcdc07d9 # v0.11.109
+        with:
+          version: '0.11.109'
+      - name: Verify workspace installation preserves tracked sources
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:GITHUB_WORKSPACE 'packages/zig/build.zig'
+          $expected = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+          Get-ChildItem -LiteralPath 'pantry' -Force | Where-Object { $_.LinkType } | Select-Object FullName, LinkType, Target | Format-List
+          pantry install --no-save
+          $installExit = $LASTEXITCODE
+          $present = Test-Path -LiteralPath $source
+          Write-Output "Tracked core source present after workspace reinstall: $present"
+          git status --short -- packages/zig/build.zig
+          if (-not $present) { throw 'Workspace reinstall removed the tracked core build file' }
+          if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $expected) { throw 'Workspace reinstall changed the tracked core build file' }
+          if ($installExit -ne 0) { exit $installExit }

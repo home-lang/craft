@@ -164,7 +164,7 @@ describe('Craft iOS builder', () => {
     expect(guide).toContain('`ScrollView` and `FlatList` emit the scroll callbacks described above, accept')
     expect(nativeSwift).toContain('platform: "ios"')
     expect(nativeSwift).toContain('mutationProtocolVersion: 1')
-    expect(nativeSwift).toContain('CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }')
+    expect(nativeSwift).toContain('CraftNativeScriptThread.run(label: "unmount \\(route)") { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }')
     expect(nativeSwift).toContain('capabilityProtocolVersion: \\(craftNativeCapabilityProtocolVersion)')
     expect(nativeSwift).toContain('capabilityTimeoutMs: \\(craftNativeCapabilityTimeoutMilliseconds)')
     expect(nativeSwift).toContain('"code": "TIMEOUT"')
@@ -236,7 +236,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('case "Picker":')
     // Vector drawing (stx svg.ts): an Svg draws its shapes' geometry
     // commands, and a change to a shape redraws its Svg.
-    expect(nativeSwift).toContain('private final class CraftNativeSvgView: UIView')
+    expect(nativeSwift).toContain('final class CraftNativeSvgView: UIView')
     expect(nativeSwift).toContain('private var overlayCoordinatesByID: [String: [CLLocationCoordinate2D]] = [:]')
     expect(nativeSwift).toContain('let staleOverlays = overlaysByID.keys.filter { nextPolylines[$0] == nil }')
     expect(nativeSwift).toContain('Self.coordinatesEqual(coordinates, value.coordinates)')
@@ -351,8 +351,8 @@ describe('Craft iOS builder', () => {
     expect(flatListSwift).toContain('UICollectionViewDiffableDataSource<Int, String>')
     expect(flatListSwift).toContain('reconfigureItems(changedLive)')
     expect(flatListSwift).toContain('preferredLayoutAttributesFitting')
-    expect(flatListSwift).toContain('attributes.size = CGSize(width: max(1, ceil(measured.width)), height: max(1, height))')
-    expect(flatListSwift).toContain('attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height)))')
+    expect(flatListSwift).toContain('attributes.size = CGSize(width: max(1, ceil(measured.width + margins.left + margins.right)), height: max(1, height))')
+    expect(flatListSwift).toContain('attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height + margins.top + margins.bottom)))')
     expect(flatListSwift).toContain('let fittingExtent = list?.itemExtent(isChrome: isChrome)')
     expect(flatListSwift).toContain('func fittingHeight(width: CGFloat) -> CGFloat')
     expect(flatListSwift).toContain('pendingApply')
@@ -1236,6 +1236,10 @@ describe('Craft iOS builder', () => {
     expect(tap).not.toContain('FeedbackGenerator')
     expect(swift).toContain('private(set) var tabSwipeEnabled = true')
     expect(swift).toContain('if let swipeEnabled = body["swipeEnabled"] as? Bool { tabSwipeEnabled = swipeEnabled }')
+    expect(swift).toContain('tabSelectionCornerRadius = Self.selectionCornerRadius(body["selection"])')
+    expect(swift).toContain('private struct CraftTabSelectionShape: Shape')
+    expect(swift).toContain('contentShape(CraftTabSelectionShape(cornerRadius: chrome.tabSelectionCornerRadius))')
+    expect(swift).toContain('cornerRadius: chrome.tabSelectionCornerRadius')
     expect(hybrid).toContain('guard CraftChrome.shared.tabSwipeEnabled else { return false }')
   })
 
@@ -1788,9 +1792,11 @@ describe('Craft iOS builder', () => {
     expect(actions).toContain('enum CraftSession {')
     expect(actions).toContain('static let changed = Notification.Name("craftSessionChanged")')
     expect(actions).toContain('static let defaultKey = "auth.token"')
-    expect(actions).toContain('if ["set", "remove", "delete", "clear"].contains(method) {')
-    expect(actions).toContain('sync = CraftSession.observe(key: method == "clear" ? nil : args.first as? String, config: config, write)')
-    expect(actions.indexOf('CraftHybrid.shared.nativeWroteShared(nativeKey: key')).toBeLessThan(actions.indexOf('sync = CraftSession.observe('))
+    expect(actions).toContain('let isWrite = ["set", "remove", "delete", "clear"].contains(method)')
+    // Off the main thread, in order: a Keychain call took up to 900ms on a simulator.
+    expect(actions).toContain('CraftKeychain.queue.async {')
+    expect(actions).toContain('let result = isWrite ? CraftSession.observe(key: method == "clear" ? nil : args.first as? String, config: config, write) : write()')
+    expect(actions.indexOf('CraftHybrid.shared.nativeWroteShared(nativeKey: key')).toBeLessThan(actions.indexOf('CraftSession.observe(key: method == "clear"'))
     expect(actions).toContain('let info: [String: Any] = ["key": key, "token": token ?? NSNull(), "previous": previous ?? NSNull()]')
     // The page's own sign-in moves it too, and the page script learns its key.
     expect(hybrid).toContain('CraftSession.observe(key: nativeKey, config: config) { CraftHybridKeychain.set(nativeKey, value: value) }')
@@ -1800,7 +1806,7 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('sessionTokenKey: \\(sessionTokenKey),')
     expect(screen).toContain('forName: CraftSession.changed,')
     expect(screen).toContain('self.send(type: "SESSION_CHANGED", payload: ["key": key, "token": token ?? NSNull(), "previous": previous ?? NSNull()])')
-    expect(screen).toContain('CraftNativeScriptThread.run { context.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()]) }')
+    expect(screen).toContain('CraftNativeScriptThread.run(label: "session \\(self.routeName ?? "screen")") { context.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()]) }')
     expect(screen).toContain("keep('session', {")
   })
 
@@ -1861,7 +1867,9 @@ describe('Craft iOS builder', () => {
     // A screen can ask the tab bar away while it shows; the next one says again.
     expect(screen).toContain('if let hidden = options["tabBarHidden"] as? Bool {')
     expect(screen).toContain('CraftChrome.shared.setHiddenByScreen(tabBarHidden)')
-    expect(screen).toContain('CraftChrome.shared.clearTabAccessory(ownedBy: self)')
+    // Going away hands the accessory on; the next screen keeps it until it says.
+    expect(screen).toContain('CraftChrome.shared.releaseTabAccessory(ownedBy: self)')
+    expect(screen).toContain('if tabAccessoryDeclared { CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self) }')
     expect(screen).toContain('if let contentSwipeBack = options["contentSwipeBack"] as? Bool {')
     expect(screen).toContain('private(set) var contentSwipeBack = true')
     expect(screen).toContain('if let tabSwipeEnabled = options["tabSwipeEnabled"] as? Bool {')
@@ -1937,7 +1945,8 @@ describe('Craft iOS builder', () => {
     expect(hybrid).toContain('!native.tabSwipeEnabled || !native.contentSwipeBack')
     expect(hybrid).toContain('private var tabSwipeRecognizers: [UIGestureRecognizer] = []')
     expect(hybrid).toContain('@objc private func tabSwipeRecognized(_ recognizer: UIPanGestureRecognizer)')
-    expect(hybrid).toContain('let delta = abs(translation) >= 32 ? translation : velocity')
+    expect(hybrid).toContain('case .began, .changed:')
+    expect(hybrid).toContain('guard shouldCompleteTabSwipe(progress: translation * sign, speed: velocity * sign) else { return }')
     expect(hybrid).toContain('guard abs(velocity.x) > abs(velocity.y) else { return false }')
     expect(hybrid).toContain('return !horizontalScrollAt(gestureRecognizer.location(in: view), in: top.view)')
     expect(hybrid).toContain('hit.isDescendant(of: webView) || webView.isDescendant(of: hit)')
@@ -2186,9 +2195,10 @@ describe('Craft iOS builder', () => {
     // Always there: the library picker asks no permission; the camera is the app's choice.
     expect(actions).toContain('values.append("files")')
     expect(actions).toContain('if config.enableCamera { values.append("camera") }')
-    for (const call of ['case ("Files", "pickImage"):', 'case ("Files", "download"):', 'case ("Files", "write"):', 'case ("Files", "remove"):'])
+    for (const call of ['case ("Files", "pickImage"):', 'case ("Files", "pickFile"):', 'case ("Files", "download"):', 'case ("Files", "write"):', 'case ("Files", "remove"):'])
       expect(actions).toContain(call)
     expect(actions).toContain('CraftNativeFiles.pickImage(options, cameraEnabled: config.enableCamera)')
+    expect(actions).toContain('CraftNativeFiles.pickFile(options)')
     // The library picker, decoded once at the size wanted, upright, as JPEG.
     expect(files).toContain('let picker = PHPickerViewController(configuration: configuration)')
     expect(files).toContain('configuration.filter = .images')
@@ -2197,6 +2207,11 @@ describe('Craft iOS builder', () => {
     expect(files).toContain('CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil)')
     expect(files).toContain('picker.sourceType = .camera')
     expect(files).toContain('done(.success(NSNull()))')
+    // General documents use the same owned-file contract without the video allowlist.
+    expect(files).toContain('UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)')
+    expect(files).toContain('static func copyFile(_ source: URL, limit: Int)')
+    expect(files).toContain('UTType(filenameExtension: source.pathExtension)?.preferredMIMEType')
+    expect(files).toContain('picker.allowsMultipleSelection = selectionLimit > 1')
     // A form's files are read natively, and only files made here.
     expect(actions).toContain('if let form = options["form"] as? [Any] {')
     expect(actions).toContain('request.setValue("multipart/form-data; boundary=\\(boundary)", forHTTPHeaderField: "Content-Type")')
@@ -2493,7 +2508,7 @@ describe('Craft iOS builder', () => {
       name: 'WildLoop',
       bundleId: 'org.wildloop.app',
       output,
-      config: { deviceFamilies: ['iphone'], enableWatchApp: true, watchosVersion: '9.0' },
+      config: { deviceFamilies: ['iphone'], enableWatchApp: true, enableHealthKit: true, watchosVersion: '9.0' },
     })
     await init({
       runtimeDir: null,
@@ -2508,6 +2523,7 @@ describe('Craft iOS builder', () => {
     const watch = readFileSync(join(output, 'WatchExtension', 'WildLoopWatchApp.swift'), 'utf8')
     const watchInfo = readFileSync(join(output, 'WatchApp', 'Info.plist'), 'utf8')
     const watchExtensionInfo = readFileSync(join(output, 'WatchExtension', 'Info.plist'), 'utf8')
+    const watchEntitlements = readFileSync(join(output, 'WatchExtension', 'Watch.entitlements'), 'utf8')
     expect(project).toContain('WildLoopWatch:')
     expect(project).toContain('type: application.watchapp2')
     expect(project).toContain('WildLoopWatchExtension:')
@@ -2520,6 +2536,16 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('setupWatchConnectivity()')
     expect(swift).toBe(readFileSync(join(iosOutput, 'Sources', 'WildLoopApp.swift'), 'utf8'))
     expect(watch).toContain('recording-control')
+    expect(watch).toContain('protocolVersion')
+    expect(watch).toContain('requestId')
+    expect(watch).toContain('stateVersion')
+    expect(watch).toContain('planned-session')
+    expect(watch).toContain('craft.watch.state.v1')
+    expect(watch).toContain('updateApplicationContext(state)')
+    expect(watch).toContain('restoreState()')
+    expect(watch).toContain('private static let healthKitEnabled = true')
+    expect(watch).toContain('HKLiveWorkoutBuilder')
+    expect(watch).toContain('heartRateZone')
     expect(watch).toContain('WCSessionDelegate')
     expect(watch).toContain('sessionDidBecomeInactive')
     expect(watch).toContain('sessionDidDeactivate')
@@ -2533,6 +2559,9 @@ describe('Craft iOS builder', () => {
     expect(watchInfo).toContain('<true/>')
     expect(watchExtensionInfo).toContain('<string>com.apple.watchkit</string>')
     expect(watchExtensionInfo).toContain('<string>org.wildloop.app.watchkitapp</string>')
+    expect(watchExtensionInfo).toContain('NSHealthShareUsageDescription')
+    expect(watchExtensionInfo).toContain('NSHealthUpdateUsageDescription')
+    expect(watchEntitlements).toContain('com.apple.developer.healthkit')
     expect(existsSync(join(output, 'WatchApp', 'Info.plist'))).toBe(true)
     expect(existsSync(join(output, 'WatchApp', 'Watch.entitlements'))).toBe(true)
     expect(existsSync(join(output, 'WatchApp', 'WildLoopWatchApp.swift'))).toBe(false)

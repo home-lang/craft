@@ -1345,6 +1345,64 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
     deinit { stop() }
 }
 
+/// A map pin that answers being activated as it answers a tap.
+final class CraftMarkerAnnotationView: MKAnnotationView {
+    var onActivate: (() -> Void)?
+
+    override func accessibilityActivate() -> Bool {
+        guard let onActivate else { return super.accessibilityActivate() }
+        onActivate()
+        return true
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        onActivate = nil
+    }
+}
+
+/// A tile overlay whose tiles are kept on disk.
+///
+/// MKTileOverlay asked the network for every tile on every pan back over the
+/// same ground, and drew nothing where a tile had not come yet. These go
+/// through one session with a cache of its own (Caches/craft-map-tiles), so
+/// ground seen before draws at once and offline, and a phone on a trail
+/// does not fetch the same hillside twice.
+final class CraftCachedTileOverlay: MKTileOverlay {
+    static let session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("craft-map-tiles", isDirectory: true)
+        configuration.urlCache = URLCache(memoryCapacity: 48 << 20, diskCapacity: 512 << 20, directory: directory)
+        // Topography and imagery change on the scale of months: a tile held
+        // is used without asking again.
+        configuration.requestCachePolicy = .returnCacheDataElseLoad
+        configuration.httpMaximumConnectionsPerHost = 8
+        return URLSession(configuration: configuration)
+    }()
+
+    override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, Error?) -> Void) {
+        let request = URLRequest(url: url(forTilePath: path), cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 20)
+        Self.session.dataTask(with: request) { data, response, error in
+            if let status = (response as? HTTPURLResponse)?.statusCode, !(200..<300).contains(status) {
+                result(nil, error ?? URLError(.badServerResponse))
+                return
+            }
+            result(data, error)
+        }.resume()
+    }
+}
+
+/// The basemaps a `Map` names with `basemap`, drawn the best way each
+/// platform can: Apple's vector map (with real terrain from iOS 16) for
+/// standard, imagery and hybrid, and topography with contours over a muted
+/// Apple map for outdoors.
+enum CraftBasemap: String {
+    case standard, outdoors, satellite, hybrid
+
+    static let outdoorTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
+    static let outdoorCredit = "Topography: Esri, USGS, NOAA, OpenStreetMap contributors"
+}
+
 private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var annotationsByID: [String: MKPointAnnotation] = [:]
     private var overlaysByID: [String: MKPolyline] = [:]
@@ -1371,6 +1429,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var markerPinColors: [String: UIColor] = [:]
     private var tileOverlay: MKTileOverlay?
     private var tileTemplate: String?
+    private var tileReplacesMap = true
+    private var appliedBasemap: CraftBasemap?
     private var tileAttributionBottom: NSLayoutConstraint?
     private lazy var tileAttribution: UILabel = {
         let label = UILabel()
@@ -1395,6 +1455,10 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         isRotateEnabled = false
         let tap = UITapGestureRecognizer(target: self, action: #selector(pressedMap(_:)))
         tap.cancelsTouchesInView = false
+        // Alongside MapKit's own recognizers, not instead of them: on its own
+        // this tap won the touch, MapKit never selected the pin under it, and
+        // a pin's onPress (Explore's trail card) never fired on a phone.
+        tap.delegate = CraftMapTapDelegate.shared
         addGestureRecognizer(tap)
     }
 
@@ -1429,8 +1493,13 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         isZoomEnabled = props["zoomEnabled"] as? Bool ?? true
         isRotateEnabled = props["rotateEnabled"] as? Bool ?? false
         isPitchEnabled = props["pitchEnabled"] as? Bool ?? true
-        mapType = Self.mapType(props["mapType"] as? String)
-        configureTiles(props["tileOverlay"] as? [String: Any])
+        if let basemap = (props["basemap"] as? String).flatMap({ CraftBasemap(rawValue: $0.lowercased()) }) {
+            applyBasemap(basemap)
+        } else {
+            appliedBasemap = nil
+            mapType = Self.mapType(props["mapType"] as? String)
+            configureTiles(props["tileOverlay"] as? [String: Any])
+        }
         showsCompass = props["showsCompass"] as? Bool ?? false
         showsScale = props["showsScale"] as? Bool ?? false
         authoredPitch = Self.numeric(props["cameraPitch"])
@@ -1562,7 +1631,9 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             overlayCoordinatesByID[id] = value.coordinates
             overlayColors[ObjectIdentifier(overlay)] = value.color
             overlayWidths[ObjectIdentifier(overlay)] = value.width
-            addOverlay(overlay)
+            // Above labels, as a basemap's topography is: at a lower level
+            // the outdoors layer covered every route drawn on it.
+            addOverlay(overlay, level: .aboveLabels)
         }
         let stalePolygons = polygonsByID.keys.filter { nextPolygons[$0] == nil }
         for id in stalePolygons {
@@ -1595,7 +1666,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             polygonFills[ObjectIdentifier(polygon)] = value.fill
             polygonStrokes[ObjectIdentifier(polygon)] = value.stroke
             polygonWidths[ObjectIdentifier(polygon)] = value.width
-            addOverlay(polygon)
+            addOverlay(polygon, level: .aboveLabels)
         }
         // Keep authored casing/foreground order when an earlier line changes
         // or retained children move. Exchanging native overlays preserves the
@@ -1684,20 +1755,48 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         tileAttribution.isHidden = true
     }
 
-    private func configureTiles(_ options: [String: Any]?) {
+    /// A named basemap. Applied once per change: setting a map configuration
+    /// again redraws the whole map.
+    private func applyBasemap(_ basemap: CraftBasemap) {
+        if appliedBasemap != basemap {
+            appliedBasemap = basemap
+            if #available(iOS 16.0, *) {
+                switch basemap {
+                case .satellite: preferredConfiguration = MKImageryMapConfiguration(elevationStyle: .realistic)
+                case .hybrid: preferredConfiguration = MKHybridMapConfiguration(elevationStyle: .realistic)
+                // Flat under the topography, so the overlay's contours sit
+                // on the ground they describe.
+                case .outdoors: preferredConfiguration = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
+                case .standard: preferredConfiguration = MKStandardMapConfiguration(elevationStyle: .realistic)
+                }
+            }
+            else {
+                mapType = basemap == .satellite ? .satellite : basemap == .hybrid ? .hybrid : basemap == .outdoors ? .mutedStandard : .standard
+            }
+        }
+        configureTiles(basemap == .outdoors ? ["urlTemplate": CraftBasemap.outdoorTiles, "attribution": CraftBasemap.outdoorCredit] : nil, replacesMap: false)
+    }
+
+    /// `replacesMap`: an authored `tileOverlay` replaces Apple's map, as it
+    /// always has. A basemap's topography draws over it instead, above its
+    /// labels, so ground whose tiles have not come yet shows the map rather
+    /// than an empty grid.
+    private func configureTiles(_ options: [String: Any]?, replacesMap: Bool = true) {
         let template = options?["urlTemplate"] as? String
         let credit = options?["attribution"] as? String ?? ""
         let valid = template.map { value in value.hasPrefix("https://") && ["{z}", "{x}", "{y}"].allSatisfy { value.contains($0) } } ?? false
         let next = valid && !credit.isEmpty ? template : nil
-        if tileTemplate != next {
+        if tileTemplate != next || tileReplacesMap != replacesMap {
             if let overlay = tileOverlay { removeOverlay(overlay) }
             tileOverlay = nil
             tileTemplate = next
+            tileReplacesMap = replacesMap
             if let next {
-                let overlay = MKTileOverlay(urlTemplate: next)
-                overlay.canReplaceMapContent = true
+                let overlay = CraftCachedTileOverlay(urlTemplate: next)
+                overlay.canReplaceMapContent = replacesMap
+                overlay.maximumZ = 19
                 tileOverlay = overlay
-                insertOverlay(overlay, at: 0, level: .aboveRoads)
+                insertOverlay(overlay, at: 0, level: replacesMap ? .aboveRoads : .aboveLabels)
             }
         }
         tileAttribution.text = next == nil ? nil : credit
@@ -1756,11 +1855,27 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             view.tintColor = color
             view.image = Self.markerImage(color: color, direction: true)
             view.transform = CGAffineTransform(rotationAngle: CGFloat((bearing - camera.heading) * .pi / 180))
+            // Direction marks thin themselves: MapKit hides the ones that
+            // would overlap at this zoom and brings them back closer in, so
+            // a trail reads as a line with chevrons along it, not a column of
+            // badges over the route.
+            view.displayPriority = .defaultLow
+            view.collisionMode = .circle
+            // Decoration along the route: not a stop for VoiceOver.
+            view.isAccessibilityElement = false
         } else {
             let color = (markerPinColors[id] ?? .systemRed).resolvedColor(with: traitCollection)
             view.tintColor = color
             view.image = Self.markerImage(color: color, direction: false)
             view.transform = .identity
+            view.displayPriority = .required
+            view.collisionMode = .rectangle
+            // Above the user's own location: at a trailhead - where the map
+            // is most often opened - the dot sat on the trail's pin and took
+            // every tap meant for it.
+            if #available(iOS 14.0, *) { view.zPriority = .max }
+            view.isAccessibilityElement = true
+            view.accessibilityTraits = .button
         }
     }
 
@@ -1771,9 +1886,10 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     }()
 
     private static func markerImage(color: UIColor, direction: Bool) -> UIImage {
-        let key = "\(direction ? "direction" : "pin"):\(color.description)" as NSString
+        let key = "\(direction ? "chevron" : "pin"):\(color.description)" as NSString
         if let cached = markerImages.object(forKey: key) { return cached }
-        let size = direction ? CGSize(width: 20, height: 24) : CGSize(width: 28, height: 28)
+        if direction { return directionImage(color: color, key: key) }
+        let size = CGSize(width: 28, height: 28)
         // Explicit native drawing preserves the light backing independently
         // of MapKit's tint and SF Symbols' multicolor rendering preferences.
         let image = UIGraphicsImageRenderer(size: size).image { _ in
@@ -1787,7 +1903,32 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             let symbol = UIImage(systemName: direction ? "arrow.up" : "mappin",
                 withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold))?
                 .withTintColor(color, renderingMode: .alwaysOriginal)
-            symbol?.draw(in: direction ? CGRect(x: 5, y: 6, width: 10, height: 12) : CGRect(x: 7, y: 5, width: 14, height: 18))
+            symbol?.draw(in: CGRect(x: 7, y: 5, width: 14, height: 18))
+        }.withRenderingMode(.alwaysOriginal)
+        markerImages.setObject(image, forKey: key)
+        return image
+    }
+
+    /// A route's direction: a 16-point chevron in the route's colour with a
+    /// white edge, so it sits on the line it describes and stays legible
+    /// over topography and imagery alike.
+    private static func directionImage(color: UIColor, key: NSString) -> UIImage {
+        let size = CGSize(width: 16, height: 16)
+        let image = UIGraphicsImageRenderer(size: size).image { context in
+            let chevron = UIBezierPath()
+            chevron.move(to: CGPoint(x: 8, y: 2.5))
+            chevron.addLine(to: CGPoint(x: 13.5, y: 12))
+            chevron.addLine(to: CGPoint(x: 8, y: 9.25))
+            chevron.addLine(to: CGPoint(x: 2.5, y: 12))
+            chevron.close()
+            chevron.lineJoinStyle = .round
+            context.cgContext.setShadow(offset: .zero, blur: 1.5, color: UIColor.black.withAlphaComponent(0.25).cgColor)
+            UIColor.white.setStroke()
+            chevron.lineWidth = 3
+            chevron.stroke()
+            context.cgContext.setShadow(offset: .zero, blur: 0, color: nil)
+            color.setFill()
+            chevron.fill()
         }.withRenderingMode(.alwaysOriginal)
         markerImages.setObject(image, forKey: key)
         return image
@@ -1844,9 +1985,12 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
         guard let id = annotationsByID.first(where: { $0.value === annotation })?.key else { return nil }
-        let view = dequeueReusableAnnotationView(withIdentifier: "craft-native-marker")
-            ?? MKAnnotationView(annotation: annotation, reuseIdentifier: "craft-native-marker")
+        let view = (dequeueReusableAnnotationView(withIdentifier: "craft-native-marker") as? CraftMarkerAnnotationView)
+            ?? CraftMarkerAnnotationView(annotation: annotation, reuseIdentifier: "craft-native-marker")
         view.annotation = annotation
+        // Activated (VoiceOver, Switch Control, a UI test) as a tap would:
+        // the plain annotation view did nothing when activated.
+        view.onActivate = { [weak self] in self?.onMarkerTap?(id) }
         configureMarkerView(view, id: id)
         view.accessibilityIdentifier = id
         return view
@@ -2162,6 +2306,13 @@ extension UIView {
     fileprivate var craftLayoutStyle: CraftNativeLayoutStyle {
         get { (objc_getAssociatedObject(self, &craftNativeLayoutStyleKey) as? CraftNativeLayoutStyleBox)?.style ?? .empty }
         set { objc_setAssociatedObject(self, &craftNativeLayoutStyleKey, CraftNativeLayoutStyleBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+
+    /// The margins this view's style asks for, for a container that places
+    /// it without a flex parent (a FlatList cell).
+    var craftLayoutMargins: UIEdgeInsets {
+        let style = craftLayoutStyle
+        return UIEdgeInsets(top: max(0, style.marginTop), left: max(0, style.marginLeft), bottom: max(0, style.marginBottom), right: max(0, style.marginRight))
     }
 
     /// The corner radius the style asked for. The layer gets at most half the
@@ -2543,6 +2694,7 @@ final class CraftNativeCelebration {
             group.duration = 2.2 + Double(spread) * 0.45
             group.beginTime = now + Double(index % 7) * 0.018
             group.fillMode = .backwards
+            group.atDisplayRate()
             piece.add(group, forKey: "craft.celebration.particle")
         }
 
@@ -2556,6 +2708,7 @@ final class CraftNativeCelebration {
         entrance.stiffness = 160
         entrance.mass = 1
         entrance.duration = 0.95
+        entrance.atDisplayRate()
         view.layer.add(entrance, forKey: "craft.celebration.entrance")
 
         let sheen = CAGradientLayer()
@@ -2581,6 +2734,7 @@ final class CraftNativeCelebration {
         shine.animations = [sweep, light]
         shine.duration = 1.15
         shine.beginTime = now + 0.55
+        shine.atDisplayRate()
         sheen.add(shine, forKey: "craft.celebration.sweep")
         let cleanup = DispatchWorkItem { [weak self] in self?.stop() }
         self.cleanup = cleanup
@@ -3123,7 +3277,8 @@ private class CraftNativeFlowView: UIStackView {
                 frames: &frames
             )
         }
-        if place, flow.count == children.count, let sharedTree = sharedTreeFrames(flow, width: width, height: height), (sharedTree.nodes.count > flow.count + 1 || grid) {
+        if place, flow.count == children.count, let sharedTree = sharedTreeFrames(flow, width: width, height: height),
+           (sharedTree.nodes.count > flow.count + 1 || grid || reverse || wrapReverse || gridAutoRows != nil || gridRows != nil) {
             frames = []
             for index in 1..<sharedTree.nodes.count {
                 guard let view = sharedTree.nodes[index].view else { continue }
@@ -3987,6 +4142,16 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     }
 }
 
+/// The delegate of a map's own tap (`Map`'s onPress): it watches beside
+/// MapKit's recognizers, so a tap on a pin still selects it.
+final class CraftMapTapDelegate: NSObject, UIGestureRecognizerDelegate {
+    static let shared = CraftMapTapDelegate()
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
+    }
+}
+
 /// The delegate of a Pressable's press-in/out feedback. That recognizer is
 /// a long press of no duration, so it begins the moment a finger lands; on its
 /// own it would claim the touch, and the tap that is the Pressable's onPress
@@ -4324,9 +4489,13 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
 /// 3 quadratic, 4 close, in viewBox units - and scaled to the view. Paint is
 /// inherited down the tree as SVG does; `dark:` classes arrive already
 /// resolved for the appearance, so a redraw is all a theme change needs.
-private final class CraftNativeSvgView: UIView {
+final class CraftNativeSvgView: UIView {
     var drawing: [String: Any] = [:] {
-        didSet { setNeedsDisplay() }
+        didSet {
+            animates = Self.hasAnimation(drawing["children"] as? [Any] ?? [])
+            setNeedsDisplay()
+            updateFrames()
+        }
     }
 
     override init(frame: CGRect) {
@@ -4334,9 +4503,122 @@ private final class CraftNativeSvgView: UIView {
         isOpaque = false
         backgroundColor = .clear
         contentMode = .redraw
+        NotificationCenter.default.addObserver(self, selector: #selector(reduceMotionChanged), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    deinit { CraftNativeFrameClock.shared.cancel(self) }
+
+    // MARK: Animation
+
+    /// Whether a shape carries keyframes (SMIL `<animate attributeName="d">`,
+    /// stx's `Animate`: an exercise's moving figure).
+    private var animates = false
+    /// When this drawing's repetition began: each one starts from its first
+    /// pose when it comes on screen, as a page's SMIL starts when it loads.
+    private var animationStart: CFTimeInterval?
+
+    /// Moving now: on display, and the person has not asked for less motion,
+    /// when each shape keeps its own outline (the still pose).
+    var isAnimating: Bool { animates && window != nil && !isHidden && !UIAccessibility.isReduceMotionEnabled }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        updateFrames()
+    }
+
+    override var isHidden: Bool {
+        didSet { if isHidden != oldValue { updateFrames() } }
+    }
+
+    @objc private func reduceMotionChanged() {
+        updateFrames()
+        setNeedsDisplay()
+    }
+
+    /// Frames from the screens' display link (CraftNativeFrameClock, up to
+    /// 120Hz) while moving; none at all while still or out of sight.
+    private func updateFrames() {
+        if isAnimating {
+            if animationStart == nil { animationStart = CACurrentMediaTime() }
+            CraftNativeFrameClock.shared.request(self) { [weak self] in self?.nextFrame() }
+        } else {
+            animationStart = nil
+            CraftNativeFrameClock.shared.cancel(self)
+        }
+    }
+
+    private func nextFrame() {
+        guard isAnimating else { return updateFrames() }
+        // Drawn only while some of it is on screen; a row scrolled away keeps
+        // its time and is right when it comes back.
+        if let window, window.bounds.intersects(convert(bounds, to: window)) { setNeedsDisplay() }
+        CraftNativeFrameClock.shared.request(self) { [weak self] in self?.nextFrame() }
+    }
+
+    private static func hasAnimation(_ children: [Any]) -> Bool {
+        children.contains { child in
+            guard let node = child as? [String: Any] else { return false }
+            if node["type"] as? String == "Animate" { return (node["props"] as? [String: Any])?["frames"] != nil }
+            return hasAnimation(node["children"] as? [Any] ?? [])
+        }
+    }
+
+    /// A shape's outline now: between the keyframes either side of `elapsed`
+    /// seconds into its animation (SMIL's linear `calcMode`), or its own
+    /// outline when it has none, the animation has ended, or motion is reduced.
+    private func outline(of shape: [String: Any]) -> Any? {
+        let geometry = (shape["props"] as? [String: Any])?["geometry"]
+        guard isAnimating, let start = animationStart,
+              let animate = (shape["children"] as? [Any])?.lazy.compactMap({ $0 as? [String: Any] }).first(where: { $0["type"] as? String == "Animate" }),
+              let current = Self.keyframe(animate["props"] as? [String: Any] ?? [:], at: CACurrentMediaTime() - start) else { return geometry }
+        return current
+    }
+
+    /// The outline `elapsed` seconds into an `Animate`'s repetitions; nil
+    /// when it does not animate path data or its repetitions are over.
+    static func keyframe(_ props: [String: Any], at elapsed: CFTimeInterval) -> [Any]? {
+        guard props["attributeName"] as? String == "d",
+              let duration = number(props["duration"]), duration > 0, duration.isFinite,
+              let frames = (props["frames"] as? [Any])?.compactMap({ ($0 as? [Any])?.compactMap(number) }),
+              frames.count >= 2, elapsed >= 0 else { return nil }
+        if let count = number(props["repeatCount"]), elapsed >= Double(count * duration) { return nil }
+        let given = (props["frameTimes"] as? [Any])?.compactMap(number) ?? []
+        let times = given.count == frames.count ? given : frames.indices.map { CGFloat($0) / CGFloat(frames.count - 1) }
+        let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: Double(duration))) / duration
+        var index = 0
+        while index < frames.count - 2, times[index + 1] <= phase { index += 1 }
+        let from = frames[index]
+        let to = frames[index + 1]
+        let span = times[index + 1] - times[index]
+        let share = span > 0 ? min(1, max(0, (phase - times[index]) / span)) : 0
+        return interpolate(from, to, share).map { NSNumber(value: Double($0)) }
+    }
+
+    /// Two outlines with the same commands, a share of the way from one to
+    /// the other; the first as it is when their commands differ.
+    static func interpolate(_ from: [CGFloat], _ to: [CGFloat], _ share: CGFloat) -> [CGFloat] {
+        guard from.count == to.count, share > 0 else { return from }
+        var out = from
+        var i = 0
+        while i < from.count {
+            let command = Int(from[i])
+            guard to[i] == from[i] else { return from }
+            let count: Int
+            switch command {
+            case 0, 1: count = 2
+            case 2: count = 6
+            case 3: count = 4
+            case 4: count = 0
+            default: return from
+            }
+            guard i + count < from.count else { return from }
+            if count > 0 { for k in 1...count { out[i + k] = from[i + k] + (to[i + k] - from[i + k]) * share } }
+            i += count + 1
+        }
+        return out
+    }
 
     var viewBox: CGRect? {
         let props = drawing["props"] as? [String: Any] ?? [:]
@@ -4457,8 +4739,10 @@ private final class CraftNativeSvgView: UIView {
                 draw(children: shape["children"] as? [Any] ?? [], paint: own, in: context)
             case "SvgText":
                 drawText(shape, paint: own)
+            case "Animate":
+                continue
             default:
-                guard let path = CraftNativeSvgView.path((shape["props"] as? [String: Any])?["geometry"]) else { continue }
+                guard let path = CraftNativeSvgView.path(outline(of: shape)) else { continue }
                 context.saveGState()
                 path.usesEvenOddFillRule = own.fillRule == "evenodd"
                 if let fill = own.resolve(own.fill) {
@@ -4855,9 +5139,24 @@ enum CraftNativeScriptThread {
     static let queue = DispatchQueue(label: "craft.native.script", qos: .userInteractive)
 
     /// `work` where the screens' JavaScript runs: now on the main thread, or
-    /// queued in order on the script thread.
-    static func run(_ work: @escaping () -> Void) {
-        if isBackground { queue.async(execute: work) } else { work() }
+    /// queued in order on the script thread. With frame pacing on
+    /// (`CRAFT_FRAME_PACING=1`), work that waited or ran for 4ms or more is
+    /// logged under `label`, so a slow screen can be told from a queued one.
+    static func run(label: @autoclosure @escaping () -> String = "script", _ work: @escaping () -> Void) {
+        let pacing = CraftFramePacing.shared
+        guard pacing.enabled else {
+            if isBackground { queue.async(execute: work) } else { work() }
+            return
+        }
+        let queued = CACurrentMediaTime()
+        let timed = {
+            let started = CACurrentMediaTime()
+            work()
+            let ran = CACurrentMediaTime() - started
+            let waited = started - queued
+            if waited + ran >= 0.004 { pacing.scriptWork(label(), waited: waited, ran: ran) }
+        }
+        if isBackground { queue.async(execute: timed) } else { timed() }
     }
 
     /// From the script thread, `work` on the main thread, not waited for.
@@ -4881,6 +5180,62 @@ enum CraftNativeScriptThread {
     }
 }
 
+extension CAAnimation {
+    /// Asks for the display's full rate, up to 120Hz on ProMotion. Core
+    /// Animation otherwise picks a rate for the motion and often stays at 60;
+    /// a transition or a spring the eye follows reads smoother at 120.
+    func atDisplayRate() {
+        if #available(iOS 15.0, *) { preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120) }
+    }
+}
+
+/// `requestAnimationFrame` for native screens: one display link, at the
+/// display's own rate (up to 120Hz on a ProMotion iPhone, which the app
+/// allows with `CADisableMinimumFrameDurationOnPhone`), running only while a
+/// screen on display is waiting for a frame. Each frame hands every waiting
+/// screen one `__craftNativeFireFrame`, where its script runs; a screen asks
+/// again for the frame after, as a browser's page does. A screen out of sight
+/// waits until it is shown, as a browser pauses a hidden tab's frames, and as
+/// Craft's Android host does (Choreographer). Main thread only.
+final class CraftNativeFrameClock: NSObject {
+    static let shared = CraftNativeFrameClock()
+
+    private var waiting: [ObjectIdentifier: () -> Void] = [:]
+    private var link: CADisplayLink?
+
+    /// How many screens wait for the next frame.
+    var waitingCount: Int { waiting.count }
+    /// Whether the display link is counting frames now.
+    var isRunning: Bool { link.map { !$0.isPaused } ?? false }
+
+    /// `deliver` on the next frame, once. Asking again before it comes keeps one.
+    func request(_ owner: AnyObject, _ deliver: @escaping () -> Void) {
+        waiting[ObjectIdentifier(owner)] = deliver
+        if link == nil {
+            let link = CADisplayLink(target: self, selector: #selector(frame(_:)))
+            if #available(iOS 15.0, *) {
+                link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 120)
+            }
+            link.add(to: .main, forMode: .common)
+            self.link = link
+        }
+        link?.isPaused = false
+    }
+
+    /// `owner` no longer waits: it went out of sight or away.
+    func cancel(_ owner: AnyObject) {
+        waiting.removeValue(forKey: ObjectIdentifier(owner))
+        if waiting.isEmpty { link?.isPaused = true }
+    }
+
+    @objc private func frame(_ link: CADisplayLink) {
+        let due = waiting
+        waiting.removeAll()
+        if waiting.isEmpty { link.isPaused = true }
+        due.values.forEach { $0() }
+    }
+}
+
 /// The native screens' JavaScript. A screen is a JavaScriptCore context of
 /// its own and evaluates the whole file it is given, so each route has a file
 /// of its own when stx wrote one (`dist/native-screens/<route>.js`, stx's
@@ -4893,6 +5248,17 @@ enum CraftNativeBundle {
     /// code cache: a screen opened again (a second workout, a tab rebuilt)
     /// is not parsed again. Each screen keeps a global object of its own.
     static let virtualMachine = JSVirtualMachine()!
+
+    /// JavaScriptCore's first machine and context, made on the script thread
+    /// at launch instead of on the main thread by the first screen: that one-
+    /// time setup was a quarter of a second of the first tab's mount, all of
+    /// it in front of the first frame. Nothing is evaluated, so the main
+    /// thread never waits on the machine for it.
+    static func prewarm() {
+        CraftNativeScriptThread.queue.async {
+            _ = JSContext(virtualMachine: virtualMachine)
+        }
+    }
 
     private static let sources: NSCache<NSString, NSString> = {
         let cache = NSCache<NSString, NSString>()
@@ -5106,6 +5472,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         var pending: [Int: DispatchWorkItem] = [:]
     }
     private let timers = Timers()
+    /// The script asked for an animation frame it has not had yet
+    /// (`requestAnimationFrame`, CraftNativeFrameClock). Main thread only.
+    private var frameWanted = false
     private var lifecycleObservers: [NSObjectProtocol] = []
     private var deepLinkListener: UUID?
     private var keyboardSafeAreaInset: CGFloat = 0
@@ -5178,7 +5547,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let pacing = CraftFramePacing.shared
         let inputs = scriptInputs()
         let name = routeName ?? "screen"
-        CraftNativeScriptThread.run { [self] in
+        CraftNativeScriptThread.run(label: "mount \(name)") { [self] in
             pacing.measure("mount \(name) setup") { setupJavaScript(inputs) }
             pacing.measure("mount \(name) bundle") { loadBundle() }
         }
@@ -5239,8 +5608,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         screenVisibilityChanged(false)
         stopCelebrations(in: view)
         // Release only this screen's accessory. A retained or prepared screen
-        // can disappear after the destination has already published its own.
-        CraftChrome.shared.clearTabAccessory(ownedBy: self)
+        // can disappear after the destination has already published its own;
+        // released, it stays drawn until the destination says what it wants.
+        CraftChrome.shared.releaseTabAccessory(ownedBy: self)
         // Popped (or its stack dismissed) while the bar was away: it comes
         // back for whatever shows next, a web page included.
         if tabBarHidden, isMovingFromParent || isBeingDismissed || navigationController?.isBeingDismissed == true {
@@ -5285,7 +5655,29 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func restoreShellChrome() {
         guard !isAppScript else { return }
         CraftChrome.shared.setHiddenByScreen(tabBarHidden)
-        CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self)
+        // A screen not yet asked about the accessory (one shown for the first
+        // time, before its script has run) leaves the bar as it is; one that
+        // has drawn without asking for it takes off what nobody claims.
+        if tabAccessoryDeclared { CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self) }
+        else if hybridRendered { CraftChrome.shared.clearUnclaimedTabAccessory() }
+    }
+
+    /// `requestAnimationFrame`: the next display frame, for a screen on display
+    /// (or the app script, which is never shown). One out of sight keeps the
+    /// request until it is shown again (screenVisibilityChanged).
+    private func requestFrame() {
+        guard !runtimeDisposed, !frameWanted else { return }
+        frameWanted = true
+        guard isAppScript || reportedVisible != false else { return }
+        CraftNativeFrameClock.shared.request(self) { [weak self] in self?.fireFrame() }
+    }
+
+    private func fireFrame() {
+        guard frameWanted, !runtimeDisposed else { return }
+        frameWanted = false
+        let context = jsContext
+        let route = routeName ?? "screen"
+        CraftNativeScriptThread.run(label: "frame \(route)") { context.objectForKeyedSubscript("__craftNativeFireFrame")?.call(withArguments: []) }
     }
 
     /// The screen came on screen or went off it: a screen pushed over it was
@@ -5302,6 +5694,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // preview also restores a screen that never lost focus, so restore its
         // chrome even when no new SCREEN_FOCUS event is needed.
         if visible { restoreShellChrome() }
+        if visible, frameWanted { CraftNativeFrameClock.shared.request(self) { [weak self] in self?.fireFrame() } }
+        if !visible { CraftNativeFrameClock.shared.cancel(self) }
         guard visible != reportedVisible else { return }
         let first = reportedVisible == nil
         reportedVisible = visible
@@ -5318,7 +5712,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         routeProps = props
         guard isViewLoaded, !runtimeDisposed else { return }
         let context = jsContext
-        CraftNativeScriptThread.run {
+        let route = routeName ?? "screen"
+        CraftNativeScriptThread.run(label: "params \(route)") {
             context.setObject(params as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString)
             context.setObject(props as NSDictionary, forKeyedSubscript: "__stxNativeProps" as NSString)
         }
@@ -5328,9 +5723,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func disposeRuntime() {
         guard !runtimeDisposed else { return }
         runtimeDisposed = true
+        frameWanted = false
+        CraftNativeFrameClock.shared.cancel(self)
         disposeRenderedTree()
         let context = jsContext
-        CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }
+        let route = routeName ?? "screen"
+        CraftNativeScriptThread.run(label: "unmount \(route)") { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }
         audio.close()
         sounds.close()
         streams.close()
@@ -5550,6 +5948,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         jsContext.setObject(scheduleTimer, forKeyedSubscript: "craftNativeScheduleTimer" as NSString)
         jsContext.setObject(cancelTimer, forKeyedSubscript: "craftNativeCancelTimer" as NSString)
+        // The next display frame, from the script's thread; the frame itself
+        // comes back there as `__craftNativeFireFrame`.
+        let requestFrame: @convention(block) () -> Void = { [weak self] in
+            CraftNativeScriptThread.toMain { self?.requestFrame() }
+        }
+        jsContext.setObject(requestFrame, forKeyedSubscript: "craftNativeRequestFrame" as NSString)
         let capabilityJSON = inputs.capabilityJSON
         // The app's site and build, as JSON strings: the site an all-native
         // app's paths and links belong to (`devServerURL`), and the version a
@@ -5585,6 +5989,41 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         jsContext.evaluateScript(Self.nativeWebAPICompatibilityPrelude)
         installHostAPIs()
         jsContext.evaluateScript("""
+            // requestAnimationFrame on the display's frames (CraftNativeFrameClock),
+            // at its own rate, 120 a second on ProMotion: a timer guessing at 60
+            // would cap every animation a screen draws itself. One request covers
+            // every callback for the frame; a callback that throws does not stop
+            // the others, and is reported after them.
+            if (typeof globalThis.requestAnimationFrame !== 'function') {
+                (function() {
+                    var frames = [];
+                    var cancelled = new Set();
+                    var nextFrame = 0;
+                    globalThis.requestAnimationFrame = function(callback) {
+                        if (typeof callback !== 'function') return 0;
+                        var id = ++nextFrame;
+                        frames.push({ id: id, callback: callback });
+                        if (frames.length === 1) craftNativeRequestFrame();
+                        return id;
+                    };
+                    globalThis.cancelAnimationFrame = function(id) {
+                        if (frames.some(function(frame) { return frame.id === id; })) cancelled.add(id);
+                    };
+                    globalThis.__craftNativeFireFrame = function() {
+                        var due = frames;
+                        var skip = cancelled;
+                        frames = [];
+                        cancelled = new Set();
+                        var now = globalThis.performance && typeof globalThis.performance.now === 'function' ? globalThis.performance.now() : Date.now();
+                        var failures = [];
+                        for (var i = 0; i < due.length; i++) {
+                            if (skip.has(due[i].id)) continue;
+                            try { due[i].callback(now); } catch (error) { failures.push(error); }
+                        }
+                        failures.forEach(function(error) { globalThis.setTimeout(function() { throw error; }, 0); });
+                    };
+                })();
+            }
             if (typeof globalThis.setTimeout !== 'function') {
                 (function() {
                     var timers = new Map();
@@ -6090,6 +6529,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// The app's tab bar away while this screen shows (`tabBarHidden`).
     private var tabBarHidden = false
     private var tabAccessory: [String: Any]?
+    /// Whether the screen has said anything about the accessory yet
+    /// (`tabAccessory`, null included): until it has, the bar keeps showing
+    /// the one it had (CraftChrome.releaseTabAccessory).
+    private var tabAccessoryDeclared = false
     /// Whether a back-swipe may leave this screen at all, the edge's
     /// included (`swipeBack: false`): a screen that steps through its own
     /// pages with a Back of its own (a first-run tour's questions) would
@@ -6138,6 +6581,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard !isAppScript else { return }
         if options.keys.contains("tabAccessory") {
             tabAccessory = options["tabAccessory"] as? [String: Any]
+            tabAccessoryDeclared = true
             if navigationController?.topViewController === self, view.window != nil {
                 CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self)
             }
@@ -6527,7 +6971,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 let previous = info["previous"] as? String
                 self.send(type: "SESSION_CHANGED", payload: ["key": key, "token": token ?? NSNull(), "previous": previous ?? NSNull()])
                 let context = self.jsContext
-                CraftNativeScriptThread.run { context.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()]) }
+                CraftNativeScriptThread.run(label: "session \(self.routeName ?? "screen")") { context.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()]) }
             })
         }
         if config.enablePushNotifications {
@@ -6812,8 +7256,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
             let module = payload["module"] as? String ?? ""
             let method = payload["method"] as? String ?? ""
+            // With frame pacing on: how long the capability took to answer,
+            // which a screen's script waits on (a request, the keychain).
+            let pacing = CraftFramePacing.shared
+            let asked = pacing.enabled ? CACurrentMediaTime() : 0
+            let route = routeName ?? "screen"
+            let what = module == "Network" ? "\(module).\(method) \(((args.first as? [String: Any])?["url"] as? String).flatMap { URL(string: $0)?.path } ?? "")" : "\(module).\(method)"
             let reply: (Result<Any, CraftNativeActionError>) -> Void = { [weak self] answer in
                 guard let self = self, self.pendingCapabilityRequests.remove(requestToken) != nil else { return }
+                if pacing.enabled { pacing.capability("\(what) \(route)", took: CACurrentMediaTime() - asked) }
                 self.pendingCapabilityDeadlines.removeValue(forKey: requestToken)?.cancel()
                 self.screenRequestCancellers.removeValue(forKey: requestToken)
                 switch answer {
@@ -7042,6 +7493,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             hybridRendered = true
             // The app script's drawing is never on screen: not a first frame.
             if !isAppScript { hybridEvents?.nativeScreenDidRender(self) }
+            // Drawn without a word about the accessory: it wants none.
+            if !isAppScript, !tabAccessoryDeclared, isShownOnScreen { CraftChrome.shared.clearUnclaimedTabAccessory() }
             let waiting = renderWaiters
             renderWaiters.removeAll()
             waiting.forEach { $0() }
@@ -8361,8 +8814,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// Views that take their own touches whatever handlers the screen gives
     /// them: native controls, a scroll view, a modal, and a video's controls (with
     /// interaction off, its play, scrubber and full screen never answered).
+    /// A map and a wheel picker too: neither is a UIControl, so a map with no
+    /// long-press handler - every map - was made non-interactive, and could
+    /// not be panned, zoomed, or have a pin tapped; a picker could not be spun.
     private func ownsTouches(_ view: UIView) -> Bool {
         view is UIControl || view is UIScrollView || view is CraftNativeModalView || view is CraftNativeVideoView
+            || view is MKMapView || view is UIPickerView
     }
 
     private func updatePressHandler(_ handler: String?, for view: UIView) {
@@ -9707,7 +10164,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard let data = try? JSONSerialization.data(withJSONObject: message),
               let json = String(data: data, encoding: .utf8) else { return }
         let context = jsContext
-        CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeCallback")?.call(withArguments: [json]) }
+        let route = routeName ?? "screen"
+        CraftNativeScriptThread.run(label: "\(type) \(route)") { context.objectForKeyedSubscript("__stxNativeCallback")?.call(withArguments: [json]) }
     }
 
     private func number(_ value: Any?) -> CGFloat? {
@@ -10114,6 +10572,7 @@ extension CraftNativeScreenController {
             }
             animation.fromValue = from
             let key = "\(CraftNativeRunningAnimation.key).\(keyPath)"
+            animation.atDisplayRate()
             layer.add(animation, forKey: key)
             running.layers.append((layer, key))
         }

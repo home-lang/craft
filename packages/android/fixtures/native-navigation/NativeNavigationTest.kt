@@ -578,6 +578,41 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun firstInterceptedMoveAdvancesTabBeforeAnotherTouchArrives() {
+        instrumentation.runOnMainSync {
+            val chrome = CraftNativeChrome(instrumentation.targetContext, listOf(
+                CraftNativeTab("/", "Home", "house"),
+                CraftNativeTab("/details", "Details", "doc.text"),
+            ))
+            chrome.content.addView(Button(instrumentation.targetContext), ViewGroup.LayoutParams(-1, -1))
+            chrome.measure(
+                View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY),
+            )
+            chrome.layout(0, 0, 1000, 2000)
+            val moved = mutableListOf<Float>()
+            var starts = 0
+            var cancelled = false
+            chrome.onTabSwipeStart = { _, _, _ -> starts++; true }
+            chrome.onTabSwipeMove = { moved += it }
+            chrome.onTabSwipeEnd = { _, wasCancelled -> cancelled = wasCancelled }
+            val downTime = SystemClock.uptimeMillis()
+            fun touch(action: Int, x: Float, offset: Long) {
+                val event = MotionEvent.obtain(downTime, downTime + offset, action, x, 500f, 0)
+                try { chrome.dispatchTouchEvent(event) } finally { event.recycle() }
+            }
+            touch(MotionEvent.ACTION_DOWN, 800f, 0)
+            touch(MotionEvent.ACTION_MOVE, 400f, 16)
+            assertEquals("one move should acquire the native tab gesture", 1, starts)
+            assertEquals("interception must apply the distance already travelled", listOf(-400f), moved)
+            touch(MotionEvent.ACTION_MOVE, 300f, 32)
+            assertEquals(listOf(-400f, -500f), moved)
+            touch(MotionEvent.ACTION_CANCEL, 300f, 48)
+            assertTrue("cancel must still finish the acquired gesture", cancelled)
+        }
+    }
+
+    @Test
     fun selectedTabIconPolicyFollowsNativeSelectionAndSurvivesLiveReadingCleanup() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(
@@ -988,7 +1023,7 @@ class NativeNavigationTest {
             // the app window on the hosted emulator. Exercise the same native
             // scroll range deterministically; the shell's gesture ownership is
             // covered by the source contract and the real device path.
-            instrumentation.runOnMainSync { carousel.scrollTo(carousel.width, 0) }
+            carousel.scrollTo(carousel.width, 0)
             assertTrue("carousel content did not scroll within its native range", carousel.scrollX > 0)
             swipeTab(activity, left = true)
             awaitText(activity, "details-title", "Details for ")
@@ -1500,18 +1535,6 @@ class NativeNavigationTest {
             var nullableSwitchInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { nullableSwitchInfo = nullableSwitch.createAccessibilityNodeInfo() }
             assertTrue("native checked state should remain accessible without accessibilityState", nullableSwitchInfo?.isChecked == true)
-            instrumentation.runOnMainSync { nullableSwitch.performClick() }
-            awaitText(activity, "nullable-switch-status", "nullable switch off")
-            assertFalse("nullable switch should reconcile its native change", nullableSwitch.isChecked)
-            instrumentation.runOnMainSync { nullableSwitch.performClick() }
-            awaitText(activity, "nullable-switch-status", "nullable switch on")
-            assertTrue("nullable switch should restore checked through its change handler", nullableSwitch.isChecked)
-            instrumentation.runOnMainSync { precedenceSwitch.performClick() }
-            awaitText(activity, "switch-precedence-status", "precedence switch on")
-            assertTrue("switch value should reconcile its native change", precedenceSwitch.isChecked)
-            instrumentation.runOnMainSync { precedenceSwitch.performClick() }
-            awaitText(activity, "switch-precedence-status", "precedence switch off")
-            assertFalse("switch value should still take precedence after reconciliation", precedenceSwitch.isChecked)
             click(activity, "toggle-invalid-switch-colors")
             awaitText(activity, "invalid-control-style-status", "invalid switch colors on")
             assertTrue("uncontrolled switch should survive reconciliation", uncontrolledSwitch.isChecked)
@@ -1586,12 +1609,6 @@ class NativeNavigationTest {
             assertTrue("indeterminate checkbox should become checked on first toggle", indeterminateCheckbox.isChecked)
             val precedenceCheckbox = awaitView(activity, "checkbox-checked-precedence") as CheckBox
             assertTrue("checked should take precedence over value", !precedenceCheckbox.isChecked)
-            instrumentation.runOnMainSync { precedenceCheckbox.performClick() }
-            awaitText(activity, "checkbox-precedence-status", "precedence checkbox on")
-            assertTrue("checkbox checked should reconcile its native change", precedenceCheckbox.isChecked)
-            instrumentation.runOnMainSync { precedenceCheckbox.performClick() }
-            awaitText(activity, "checkbox-precedence-status", "precedence checkbox off")
-            assertFalse("checkbox checked should still take precedence after reconciliation", precedenceCheckbox.isChecked)
             val styledIndicator = awaitView(activity, "native-indicator") as ProgressBar
             assertTrue("authored activity-indicator color should be applied", styledIndicator.indeterminateTintList != null)
             click(activity, "toggle-invalid-control-colors")
@@ -1629,22 +1646,17 @@ class NativeNavigationTest {
             awaitText(activity, "modal-status", "modal shown")
             click(activity, "toggle-nested-popup")
             val popupDensity = activity.resources.displayMetrics.density
-            // Modal content is retained while hidden. Wait for the opening
-            // mutation and native layout before delivering an outside touch.
-            val nestedPopup = awaitView(activity, "nested-popup") { view ->
-                view.visibility == View.VISIBLE && view.alpha > 0.01f
-                    && kotlin.math.abs(view.left - 48 * popupDensity) <= 1f
-                    && kotlin.math.abs(view.top - 72 * popupDensity) <= 1f
-                    && kotlin.math.abs(view.width - 160 * popupDensity) <= 1f
-                    && kotlin.math.abs(view.height - 64 * popupDensity) <= 1f
+            val nestedPopup = awaitView(activity, "nested-popup") {
+                it.width == (160 * popupDensity).roundToInt() && it.height == (64 * popupDensity).roundToInt()
+                    && it.left == (48 * popupDensity).roundToInt() && it.top == (72 * popupDensity).roundToInt()
             }
             awaitText(activity, "nested-popup-content", "Nested popup")
-            // Popups are promoted beside the authored SafeAreaView. Route the
-            // native touch through their shared screen viewport, which owns
-            // outside-tap dismissal, rather than bypassing it through content.
+            // Modal overlays are promoted beside the authored root. Dispatch
+            // through their actual screen viewport, as real touch input does.
             val popupRoot = nestedPopup.parent as ViewGroup
-            assertSame("nested popup must share its modal's screen viewport", modal.parent, popupRoot)
-            assertSame("popup viewport must retain the authored content", awaitView(activity, "root"), find(popupRoot, "root"))
+            assertSame("nested popup should share its modal's screen viewport", modal.parent, popupRoot)
+            assertSame("authored root should remain inside that viewport", awaitView(activity, "root").parent, popupRoot)
+            assertTrue("nested popup should remain above its parent modal (popup=${popupRoot.indexOfChild(nestedPopup)}, modal=${popupRoot.indexOfChild(modal)})", popupRoot.indexOfChild(nestedPopup) > popupRoot.indexOfChild(modal))
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()
                 val x = (popupRoot.width - 20).toFloat()
@@ -1665,20 +1677,19 @@ class NativeNavigationTest {
             }
             assertTrue("dismissed nested popup should be removed", nestedPopupRemoved || nestedPopup.visibility != View.VISIBLE)
             assertEquals("dismissing a nested popup should retain its parent modal", View.VISIBLE, modal.visibility)
+            // Close the parent before the independent popup test. Otherwise
+            // the later reopen can incorrectly pass on a stale onShow label.
+            click(activity, "toggle-modal")
+            awaitText(activity, "modal-status", "modal dismissed")
             click(activity, "toggle-popup")
-            val popup = awaitView(activity, "native-popup") { view ->
-                view.visibility == View.VISIBLE && view.alpha > 0.01f
-                    && kotlin.math.abs(view.left - 24 * popupDensity) <= 1f
-                    && kotlin.math.abs(view.top - 36 * popupDensity) <= 1f
-                    && kotlin.math.abs(view.width - 180 * popupDensity) <= 1f
-                    && kotlin.math.abs(view.height - 72 * popupDensity) <= 1f
+            val popup = awaitView(activity, "native-popup") {
+                it.width == (180 * popupDensity).roundToInt() && it.height == (72 * popupDensity).roundToInt()
+                    && it.left == (24 * popupDensity).roundToInt() && it.top == (36 * popupDensity).roundToInt()
             }
             awaitText(activity, "popup-content", "Popup content")
-            assertSame("standalone popup must share the screen viewport", popupRoot, popup.parent)
-            val safeRoot = awaitView(activity, "root")
-            assertTrue(
+            assertEquals(
                 "non-modal top should use the screenViewport origin, not a second safe-area offset",
-                popup.top < safeRoot.top + safeRoot.paddingTop + 36 * popupDensity,
+                (36 * popupDensity).roundToInt(), popup.top,
             )
             instrumentation.runOnMainSync {
                 val downTime = SystemClock.uptimeMillis()

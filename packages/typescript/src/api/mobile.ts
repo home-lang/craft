@@ -558,6 +558,77 @@ export interface PhotoResult {
   mimeType: string
 }
 
+/** A file copied into the app-owned native file area. */
+export interface FileInfo {
+  /** App-owned path suitable for `fetch` FormData and sharing. */
+  path: string
+  /** Original (sanitized) file name. */
+  name: string
+  /** Preferred MIME type, or `application/octet-stream` when unknown. */
+  type: string
+  /** Number of bytes in the copied file. */
+  size: number
+}
+
+/** General document picker options. */
+export interface PickFileOptions {
+  /** MIME types, UTIs, or filename extensions (for example `pdf` or `public.data`). */
+  contentTypes?: string[]
+  /** Maximum number of documents; native hosts clamp this to 1–20. */
+  maxSelections?: number
+  /** Maximum size of each document in bytes; native hosts default to 512 MiB. */
+  maxBytes?: number
+}
+
+/** General document picker API. */
+export const files = {
+  async pickFile(options: PickFileOptions = {}): Promise<FileInfo[]> {
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.files) {
+      return craft.files.pickFile(options)
+    }
+    if (typeof document === 'undefined') {
+      throw new Error('File picker not available. Must run in Craft or a browser.')
+    }
+    return new Promise((resolve, reject) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      if (options.contentTypes?.length) input.accept = options.contentTypes.join(',')
+      const requested = Number(options.maxSelections)
+      const maxSelections = Number.isFinite(requested) && requested > 0 ? Math.min(20, Math.floor(requested)) : 1
+      input.multiple = maxSelections > 1
+      input.style.display = 'none'
+      let settled = false
+      const finish = (result: () => void): void => {
+        if (settled) return
+        settled = true
+        input.remove()
+        result()
+      }
+      input.addEventListener('cancel', () => finish(() => resolve([])), { once: true })
+      input.onchange = () => {
+        const chosen = Array.from(input.files ?? []).slice(0, maxSelections)
+        const limit = Number(options.maxBytes)
+        if (Number.isFinite(limit) && limit > 0) {
+          const oversized = chosen.find(file => file.size > limit)
+          if (oversized) {
+            finish(() => reject(Object.assign(new Error('The selected file is too large'), { code: 'FILE_TOO_LARGE' })))
+            return
+          }
+        }
+        finish(() => resolve(chosen.map(file => ({
+          path: URL.createObjectURL(file),
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          size: file.size,
+        }))))
+      }
+      document.body.append(input)
+      input.click()
+    })
+  },
+}
+
 /**
  * Camera and image picker API.
  *
@@ -2663,6 +2734,11 @@ export interface NativeTabBarOptions {
   tintDark?: string
   /** Whether Craft's horizontal tab-switch gesture may begin over the page. Defaults to true. */
   swipeEnabled?: boolean
+  /** The selected tab highlight. Omit to keep the default capsule. */
+  selection?: {
+    /** Continuous corner radius in points. The highlight height is the upper bound. */
+    cornerRadius?: number
+  }
 }
 
 interface ChromeHandler { postMessage: (message: unknown) => void }
@@ -3762,6 +3838,9 @@ interface CraftMobileBridge {
     pickMultiple(options: { maxCount?: number }): Promise<PhotoResult[]>
     isAvailable(): Promise<boolean>
   }
+  files?: {
+    pickFile(options?: PickFileOptions): Promise<FileInfo[]>
+  }
   biometrics?: {
     isAvailable(): Promise<boolean>
     getBiometricType(): Promise<BiometricType | null>
@@ -3854,6 +3933,7 @@ const mobile: {
   haptics: typeof haptics
   permissions: typeof permissions
   camera: typeof camera
+  files: typeof files
   biometrics: typeof biometrics
   secureStorage: typeof secureStorage
   location: typeof location
@@ -3895,6 +3975,7 @@ const mobile: {
   haptics: haptics,
   permissions: permissions,
   camera: camera,
+  files: files,
   biometrics: biometrics,
   secureStorage: secureStorage,
   location: location,

@@ -198,13 +198,18 @@ test('mobile device jobs preserve runner diagnostics when the harness fails', ()
 })
 
 test('workflow setup uses a known Pantry CLI instead of resolving latest', () => {
-  for (const file of ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml', 'native-lifecycle.yml']) {
+  for (const file of ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml', 'native-lifecycle.yml', 'windows-source-provenance.yml']) {
     const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/', file), 'utf8')) as { jobs: Record<string, Job> }
     for (const [name, job] of Object.entries(workflow.jobs)) {
       for (const step of job.steps ?? []) {
         if (step.uses?.startsWith('pantry-pm/pantry/packages/action@')) {
-          expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe('0.11.106')
-          expect(step.uses, `${file} ${name} must pin the matching action source`).toBe('pantry-pm/pantry/packages/action@e62755c21d946ed0f8dc8e4af39f6ea5f084537a')
+          // Windows needs the published fix that removes workspace links
+          // without following them into the tracked source checkout.
+          const preservesWindowsSources = file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
+          const version = preservesWindowsSources ? '0.11.109' : '0.11.101'
+          const source = preservesWindowsSources ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9' : 'ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf'
+          expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe(version)
+          expect(step.uses, `${file} ${name} must pin the matching action source`).toBe(`pantry-pm/pantry/packages/action@${source}`)
         }
       }
     }
@@ -242,7 +247,7 @@ test('every publishing path depends on release identity validation', () => {
   for (const name of ['pantry', 'prepare-npm', 'npm', 'release-sbom', 'verify-release', 'verify-macos-downloads', 'verify-desktop-downloads', 'publish-release', 'publish-pantry'])
     expect(needs(release.jobs[name])).toContain('validate-release')
   for (const name of ['verify-release', 'verify-macos-downloads'])
-    expect(release.jobs[name].if).toBe("${{ !cancelled() && needs.validate-release.result == 'success' }}")
+    expect(release.jobs[name].if).toBe("${{ !cancelled() && needs.validate-release.result == 'success' && needs.pantry.result == 'success' }}")
   expect(needs(release.jobs['prepare-npm'])).toEqual(['validate-release', 'release-sbom'])
   expect(release.jobs['prepare-npm'].if).toBe("${{ !cancelled() && needs.validate-release.result == 'success' && needs.release-sbom.result == 'success' }}")
   expect(needs(release.jobs.npm)).toEqual(['validate-release', 'release-sbom', 'prepare-npm', 'publish-release'])
@@ -309,7 +314,7 @@ test('registry indexing waits for the public release and all of its verification
   // because its acceptance was reused may be.
   for (const dependency of needs(release.jobs['publish-release']).filter(job => !job.endsWith('-suite')))
     expect(release.jobs['publish-release'].if).toContain(`needs.${dependency}.result == 'success'`)
-  expect(notify.if).toBeUndefined() // Default success gating: never bypass failed prerequisites.
+  expect(notify.if).toBe("${{ !cancelled() && needs.publish-release.result == 'success' && needs.publish-pantry.result == 'success' }}")
   expect(steps(notify)).toContain('https://registry.pantry.dev/api/rebuild')
   expect(steps(notify)).toContain('All platform archives and release SBOMs verified.')
   expect(notify.steps!.find(step => step.name === 'Announce only the complete public release')?.env?.DISCORD_WEBHOOK_URL).toBe('${{ secrets.DISCORD_WEBHOOK_URL }}')
@@ -414,7 +419,7 @@ test('a failed native leg cannot publish a partial GitHub, Zig, or npm release',
   expect(finalizer.steps![verify]?.run).toContain('scripts/verify-sbom.ts')
   expect(finalizer.steps![publish]?.run).toContain('--draft=false')
   const registry = release.jobs['publish-pantry']
-  expect(registry.if).toBeUndefined()
+  expect(registry.if).toBe("${{ !cancelled() && needs.validate-release.result == 'success' && needs.publish-release.result == 'success' }}")
   expect(needs(registry)).toEqual(['validate-release', 'publish-release'])
   // A native or downloaded-archive failure must not publish npm packages
   // while the GitHub release remains a draft. The explicit npm `if` must
@@ -423,7 +428,7 @@ test('a failed native leg cannot publish a partial GitHub, Zig, or npm release',
   expect(release.jobs.npm.if).toContain("needs.prepare-npm.result == 'success'")
   expect(release.jobs.npm.if).toContain("needs.publish-release.result == 'success'")
   const zigPublish = registry.steps!.find(step => step.name === 'Publish Zig package')
-  expect(zigPublish?.with).toMatchObject({ version: '0.11.106', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
+  expect(zigPublish?.with).toMatchObject({ version: '0.11.101', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
   expect(zigPublish?.with?.release).toBeUndefined()
   expect(Object.entries(release.jobs).flatMap(([name, job]) =>
     (job.steps ?? []).filter(step => step.with?.publish === 'zig').map(() => name))).toEqual(['publish-pantry'])
@@ -587,12 +592,13 @@ test('every workflow names its bun test files as paths, not filters', () => {
   }
 })
 
-test('every run script in every workflow is valid bash', () => {
+test('every run script in every workflow is valid bash', async () => {
   // 5d65a10 dropped the `done` closing the notarization loop in release.yml.
   // Nothing parses a run script until a runner executes it, and the step only
   // runs on a macOS release after signing and the launch check - so the first
   // sign was v0.0.95's macOS build failing with "syntax error: unexpected end
   // of file" after everything before it had passed.
+  const checks: Array<{ script: string, label: string }> = []
   for (const file of ['ci.yml', 'release.yml', 'sbom.yml', 'mobile-e2e.yml']) {
     const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/', file), 'utf8')) as { jobs: Record<string, Job & { defaults?: { run?: { shell?: string } } }> }
     for (const [name, job] of Object.entries(workflow.jobs)) {
@@ -601,9 +607,22 @@ test('every run script in every workflow is valid bash', () => {
           continue
         // Actions substitutes `${{ ... }}` before bash sees the script.
         const script = step.run.replace(/\$\{\{[\s\S]*?\}\}/g, 'X')
-        const check = Bun.spawnSync(['bash', '-n'], { stdin: new TextEncoder().encode(script), stderr: 'pipe' })
-        expect(check.stderr.toString(), `${file} job ${name} step "${step.name ?? step.run.slice(0, 40)}"`).toBe('')
+        checks.push({ script, label: `${file} job ${name} step "${step.name ?? step.run.slice(0, 40)}"` })
       }
+    }
+  }
+  // Parse each snippet independently. Bounded parallel processes avoid a
+  // growing serial spawn cost without letting scripts balance each other's
+  // syntax, changing the timeout, or leaving children running after a failure.
+  for (let index = 0; index < checks.length; index += 4) {
+    const results = await Promise.all(checks.slice(index, index + 4).map(async ({ script, label }) => {
+      const check = Bun.spawn(['bash', '-n'], { stdin: new TextEncoder().encode(script), stdout: 'ignore', stderr: 'pipe' })
+      const stderr = await new Response(check.stderr).text()
+      return { label, stderr, code: await check.exited }
+    }))
+    for (const { label, stderr, code } of results) {
+      expect(stderr, label).toBe('')
+      expect(code, label).toBe(0)
     }
   }
 })
@@ -615,4 +634,17 @@ test('Linux and Windows release binaries target a baseline CPU, not the build ru
   expect(builds.length).toBeGreaterThan(0)
   for (const line of builds)
     expect(line, line.trim()).toContain('-Dcpu=baseline')
+})
+
+// A skipped reused suite also affects descendants of a successful direct need.
+test('every descendant of a reused suite has explicit, fail-closed status gating', () => {
+  function dependsOnSuite(name: string): boolean {
+    return needs(release.jobs[name]).some(parent => parent.endsWith('-suite') || dependsOnSuite(parent))
+  }
+  for (const [name, job] of Object.entries(release.jobs)) {
+    if (!dependsOnSuite(name)) continue
+    expect(job.if, name).toContain('!cancelled()')
+    for (const parent of needs(job).filter(parent => !parent.endsWith('-suite')))
+      expect(job.if, `${name} must reject a failed ${parent}`).toContain(`needs.${parent}.result == 'success'`)
+  }
 })

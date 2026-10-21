@@ -231,9 +231,9 @@ Follow it with `selected` and content checks, then a full `swipe` to verify the
 next gesture still works. Synchronized XCTest gestures do not replace separate
 direct-input rapid-tap checks.
 
-The iOS host uses the shared tree-layout ABI for eligible definite-size,
-non-grid, non-wrapped containers and retains a local fallback for older
-runtimes or unsupported styles. Both paths implement wrapped-line and grid
+The iOS host uses the shared tree-layout ABI for eligible definite-size
+containers, including reverse and wrap-reverse direct flows, and retains a
+local fallback for older runtimes or unsupported styles. Both paths implement wrapped-line and grid
 `alignContent`, including `space-evenly`, so a missing optional shared symbol
 does not change placement semantics.
 Reverse flex directions also retain wrapped line order on the cross axis while
@@ -594,6 +594,28 @@ stopListening()
 // sends a made-up watch reading every 5 s instead: someone settling into slow
 // breathing, from about 72 toward 60 bpm.
 
+// Live workout sessions (iOS 26+, requires enableHealthKit: true). The OS
+// keeps the session alive while the app is backgrounded; samples arrive as
+// typed craftHealthWorkout events. Ask for the workout/heart-rate grants before
+// starting a session.
+await health.requestAuthorization(['workouts', 'heartRate', 'activeEnergy', 'distance'], { write: true })
+const stopWorkout = health.onWorkout(event => {
+  if (event.event === 'metrics') showMetrics(event.heartRateBpm, event.activeEnergyCalories, event.distanceMeters)
+  if (event.event === 'state') showWorkoutState(event.state)
+  if (event.event === 'error') showWorkoutError(event.message)
+})
+const live = await health.startWorkout({ type: 'running', location: 'outdoor' })
+await health.pauseWorkout()
+await health.resumeWorkout()
+const saved = await health.endWorkout() // { id, workoutId, endDate, durationSeconds }
+stopWorkout()
+
+`startWorkout`, `pauseWorkout`, `resumeWorkout`, and `endWorkout` reject with
+`Live workouts are unavailable` when the build does not include HealthKit or
+when the OS is older than iOS 26. `onWorkout` receives lifecycle events plus
+live `heartRateBpm`, `activeEnergyCalories`, and `distanceMeters` metrics; the
+existing post-hoc `saveWorkout` API remains separate.
+
 // Screen Capture
 const screenshotBase64 = await window.craft.takeScreenshot();
 
@@ -841,6 +863,14 @@ if (await window.craft.scheduledWorkouts.isSupported()) {
 // FormData through fetch, or hand its path to the share sheet.
 const photo = await craft.files.pickImage({ maxPixels: 2048, quality: 0.85 });
 // { path, name: 'IMG_1234.jpg', type: 'image/jpeg', size, width, height }
+// General documents use the same owned-file path and can be selected more
+// than one at a time. Filters are MIME types, UTIs, or filename extensions.
+const attachments = await craft.files.pickFile({
+  contentTypes: ['application/pdf', 'csv', 'gpx', 'fit'],
+  maxSelections: 4,
+  maxBytes: 20 * 1024 * 1024,
+});
+// [{ path, name, type, size }], or [] when the picker is dismissed.
 const form = new FormData();
 form.append('photo', photo);                      // multipart, built natively
 await fetch('https://example.com/upload', { method: 'POST', body: form });
@@ -1003,6 +1033,26 @@ await window.craft.watch.updateContext({
   lastUpdate: Date.now(),
   status: 'active'
 });
+
+// A planned workout is delivered through application context, so the latest
+// plan replaces an older one while the watch is offline and is replayed when
+// the companion launches. The watch persists its current plan and metrics in
+// its own UserDefaults store, then publishes a `watch-state` context back.
+await window.craft.watch.updateContext({
+  type: 'planned-session',
+  plan: {
+    id: 'morning-run',
+    activity: 'running',
+    startDate: Date.now() + 60 * 60 * 1000,
+    targetDistanceMeters: 5000,
+  },
+});
+
+// Watch controls include a protocol version and requestId. Use requestId for
+// idempotency when a queued command arrives after a reconnect. The watch's
+// `watch-state` context includes a monotonically increasing stateVersion; use
+// the highest version when a queued command and a reconnect snapshot cross.
+await window.craft.watch.send({ type: 'recording-control', action: 'start' });
 
 // Listen for messages from watch
 window.craft.watch.onMessage((message) => {

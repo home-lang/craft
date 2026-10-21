@@ -240,8 +240,10 @@ enum CraftHybridKeychain {
     static let nativeService = "dev.craft.native.secure"
 
     static func set(_ key: String, value: String?) {
+        defer { CraftKeychain.forget(account: key) }
         // Every item for the account, whatever its service.
         SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrAccount as String: key] as CFDictionary)
+        CraftKeychain.forget(account: key)
         guard let value else { return }
         for service in [nil, nativeService] {
             var add: [String: Any] = [
@@ -355,6 +357,7 @@ final class CraftHybrid: NSObject {
         isConfigured = true
         self.config = config
         CraftNativeScriptThread.isBackground = config.nativeScriptThread == "background"
+        if CraftNativeScriptThread.isBackground { CraftNativeBundle.prewarm() }
         hasWeb = config.renderer != "native"
         siteURL = config.devServerURL.flatMap(URL.init(string:)).flatMap { url in
             ["http", "https"].contains((url.scheme ?? "").lowercased()) ? url : nil
@@ -1187,6 +1190,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         tabSwipeRecognizers.append(recognizer)
     }
 
+    private func shouldCompleteTabSwipe(progress: CGFloat, speed: CGFloat) -> Bool {
+        speed > -700 && (progress >= max(32, view.bounds.width * 0.28) || speed > 700)
+    }
+
     @objc private func tabSwipeRecognized(_ recognizer: UIPanGestureRecognizer) {
         // A finger that lands while the last swipe settles takes the screens
         // from where they are, as a paging scroll view does. This swipe used
@@ -1198,7 +1205,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         let translation = recognizer.translation(in: view).x
         let velocity = recognizer.velocity(in: view).x
         switch recognizer.state {
-        case .changed:
+        case .began, .changed:
+            // Catching a settle can begin at zero translation. Keep its
+            // committed selection until the new finger actually moves.
+            if recognizer.state == .began, caughtSettle != nil, abs(translation) <= 1 { return }
             if activeTabSwipeTarget == nil {
                 let direction = abs(translation) > 1 ? translation : velocity
                 guard abs(direction) > 1 else { return }
@@ -1213,9 +1223,14 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
                 // the caught screens finish where they were going.
                 if caughtSettle != nil { settleCaughtScreens(); return }
                 guard recognizer.state == .ended else { return }
-                let delta = abs(translation) >= 32 ? translation : velocity
-                guard abs(delta) >= 32 else { return }
-                let next = delta < 0 ? index + 1 : index - 1
+                // UIKit can coalesce a short gesture without a changed
+                // callback. Keep the same completion rule as the animated
+                // path instead of treating any 32-point drag as a full page.
+                let direction = abs(translation) > 1 ? translation : velocity
+                guard abs(direction) > 1 else { return }
+                let sign: CGFloat = direction < 0 ? -1 : 1
+                guard shouldCompleteTabSwipe(progress: translation * sign, speed: velocity * sign) else { return }
+                let next = direction < 0 ? index + 1 : index - 1
                 guard tabs.indices.contains(next) else { return }
                 CraftChrome.shared.swipe(to: tabs[next])
                 return
@@ -1228,8 +1243,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             let direction: CGFloat = tabSwipeFrom > 0 ? -1 : 1
             let progress = (translation + tabSwipeBase) * direction
             let speed = velocity * direction
-            let complete = recognizer.state == .ended && speed > -700
-                && (progress >= max(32, view.bounds.width * 0.28) || speed > 700)
+            let complete = recognizer.state == .ended && shouldCompleteTabSwipe(progress: progress, speed: speed)
             finishInteractiveTabSwipe(completed: complete, velocity: velocity) { [weak self] in
                 CraftFramePacing.shared.end("tab swipe")
                 self?.activeTabSwipeTarget = nil
@@ -2023,6 +2037,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool) {
         lastNavigation = CACurrentMediaTime()
         CraftFramePacing.shared.end("navigation")
+        // A page shows no native accessory; one a screen gave up is taken off.
+        if viewController is CraftHybridWebSlot { CraftChrome.shared.clearUnclaimedTabAccessory() }
         let key = ObjectIdentifier(navigationController)
         let before = shownStacks[key] ?? []
         let now = navigationController.viewControllers
@@ -2280,14 +2296,32 @@ final class CraftFramePacing: NSObject {
         }
     }
 
-    /// One main-thread block, timed: a screen mount, a bundle evaluation.
+    /// One block, timed: a screen mount, a bundle evaluation. Labelled by the
+    /// thread it ran on, since a screen's script now runs off the main thread
+    /// and a bundle's time there costs no frames.
     @discardableResult
     func measure<T>(_ name: String, _ work: () -> T) -> T {
         guard enabled else { return work() }
         let started = CACurrentMediaTime()
         let result = work()
-        write(String(format: "%@ main=%.1fms", name, (CACurrentMediaTime() - started) * 1000))
+        write(String(format: "%@ %@=%.1fms", name, Thread.isMainThread ? "main" : "script", (CACurrentMediaTime() - started) * 1000))
         return result
+    }
+
+    /// One piece of the screens' JavaScript (CraftNativeScriptThread): how
+    /// long it waited behind other screens' work, and how long it ran. The
+    /// screens share one serial script thread, so a screen in front can sit
+    /// behind hidden tabs reloading; `waited` is where that shows.
+    func scriptWork(_ name: String, waited: CFTimeInterval, ran: CFTimeInterval) {
+        guard enabled else { return }
+        write(String(format: "script %@ waited=%.1fms ran=%.1fms", name, waited * 1000, ran * 1000))
+    }
+
+    /// A capability a screen asked for (a request, the keychain), from the
+    /// ask to the answer. Logged from 4ms, as script work is.
+    func capability(_ name: String, took: CFTimeInterval) {
+        guard enabled, took >= 0.004 else { return }
+        write(String(format: "capability %@ took=%.1fms", name, took * 1000))
     }
 
     /// Each line to the log and to `Library/Caches/craft-frame-pacing.log`

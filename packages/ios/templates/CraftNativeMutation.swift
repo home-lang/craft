@@ -115,6 +115,9 @@ final class CraftNativeMutationDocument {
                     // A child crossing parents needs the committed tree to be
                     // reconciled so the host can move its existing native view.
                     requiresFullRender = true
+                case "replaceChildren":
+                    let parentId = try replaceChildren(operation, nodes: &candidateNodes)
+                    appendUnique(parentId, to: &affectedNodeIds)
                 case "removeNode":
                     if let id = operation["id"] as? String, let parent = candidateNodes[id]?.parent {
                         appendUnique(parent, to: &affectedNodeIds)
@@ -287,6 +290,54 @@ final class CraftNativeMutationDocument {
         return previousParentId
     }
 
+    /// Replaces a container's ordered child snapshot in one atomic mutation.
+    ///
+    /// The list protocol uses this operation when a keyed `:for` expansion
+    /// produces a new row set. Existing nodes may stay attached to the same
+    /// parent; removed children become detached and can be reused or removed
+    /// by later operations in the same batch.
+    private func replaceChildren(_ operation: [String: Any], nodes: inout [String: Node]) throws -> String {
+        let parentId = try requiredId(operation, field: "parentId", name: "replaceChildren")
+        guard var parent = nodes[parentId] else {
+            throw CraftNativeMutationFailure("UNKNOWN_PARENT", "node \(parentId) does not exist")
+        }
+        guard acceptsChildren(parent.type) else {
+            throw CraftNativeMutationFailure("INVALID_PARENT", "node \(parentId) cannot contain child nodes")
+        }
+        guard let values = operation["children"] as? [Any] else {
+            throw CraftNativeMutationFailure("INVALID_CHILDREN", "replaceChildren.children must be an array")
+        }
+        var childIds: [String] = []
+        for value in values {
+            guard let childId = value as? String, !childId.isEmpty else {
+                throw CraftNativeMutationFailure("INVALID_CHILDREN", "replaceChildren.children must contain non-empty ids")
+            }
+            guard !childIds.contains(childId) else {
+                throw CraftNativeMutationFailure("DUPLICATE_CHILD", "child \(childId) appears more than once")
+            }
+            guard let child = nodes[childId] else {
+                throw CraftNativeMutationFailure("UNKNOWN_NODE", "node \(childId) does not exist")
+            }
+            guard childId != parentId, !descendants(of: childId, nodes: nodes).contains(parentId) else {
+                throw CraftNativeMutationFailure("CYCLE", "attaching node \(childId) would create a cycle")
+            }
+            guard child.parent == nil || child.parent == parentId else {
+                throw CraftNativeMutationFailure("NODE_ATTACHED", "node \(childId) already has a parent")
+            }
+            childIds.append(childId)
+        }
+        let removedChildIds = parent.children.filter { !childIds.contains($0) }
+        for oldChildId in removedChildIds {
+            for descendant in descendants(of: oldChildId, nodes: nodes).union([oldChildId]) {
+                nodes.removeValue(forKey: descendant)
+            }
+        }
+        parent.children = childIds
+        nodes[parentId] = parent
+        for childId in childIds { nodes[childId]?.parent = parentId }
+        return parentId
+    }
+
     private func removeNode(
         _ operation: [String: Any],
         nodes: inout [String: Node],
@@ -339,11 +390,13 @@ final class CraftNativeMutationDocument {
     /// `Svg`). Only View, SafeAreaView and ScrollView used to be here, so a
     /// drawing revealed after the first paint (an `:if` around an `<svg>`)
     /// had its shapes refused as INVALID_PARENT, and the whole screen was
-    /// drawn again; Android's host already took the same list.
+    /// drawn again; Android's host already took the same list. A shape holds
+    /// its `Animate` (SMIL keyframes: HQ's moving exercise figures).
     static let containerTypes: Set<String> = [
         "View", "SafeAreaView", "ScrollView", "KeyboardAvoidingView", "Modal", "Pressable",
         "TouchableOpacity", "TouchableHighlight", "ImageBackground", "FlatList", "SectionList",
         "Fragment", "Svg", "G", "Map",
+        "Path", "Line", "Rect", "Circle", "Ellipse", "Polyline", "Polygon",
     ]
     private static let containerTypeKeys = Set(containerTypes.map { $0.lowercased() })
 

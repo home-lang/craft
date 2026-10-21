@@ -1,3 +1,4 @@
+import { createBrowserLifecycle } from './browser/lifecycle'
 import { secureUUID } from './bridge/ids'
 import { createBrowserStorage } from './browser/storage'
 import { showBrowserDialog, type BrowserDialogOptions } from './browser/dialogs'
@@ -72,6 +73,8 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
   const files = new Map<string, File>()
   const mediaURLs = new Map<string, string>()
   const sounds = new Map<string, HTMLAudioElement>()
+  const soundRequests = new Map<string, object>()
+  const soundCleanup = new Map<HTMLAudioElement, () => void>()
   const fades = new Map<HTMLAudioElement, { frame: number, done: () => void }>()
   const cancelFade = (sound: HTMLAudioElement): void => {
     const fade = fades.get(sound)
@@ -97,8 +100,9 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
     const sound = sounds.get(id)
     if (!sound) return
     await fade(sound, 0, sound.paused ? 0 : milliseconds)
-    if (sounds.get(id) !== sound) return
-    sound.pause(); sound.removeAttribute('src'); sounds.delete(id)
+    soundCleanup.get(sound)?.(); soundCleanup.delete(sound)
+    sound.pause(); sound.removeAttribute('src')
+    if (sounds.get(id) === sound) sounds.delete(id)
   }
   const lifetime = new AbortController()
   let account = new AbortController()
@@ -132,11 +136,13 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
   const resetAccount = async (): Promise<void> => {
     const previousCache = `${namespace}:media:${mediaScope}`
     account.abort()
+    soundRequests.clear()
     account = new AbortController()
     for (const path of files.keys()) URL.revokeObjectURL(path)
     for (const path of mediaURLs.values()) URL.revokeObjectURL(path)
     files.clear(); mediaURLs.clear()
-    for (const audio of sounds.values()) { cancelFade(audio); audio.pause(); audio.src = '' }
+    for (const audio of sounds.values()) { soundCleanup.get(audio)?.(); cancelFade(audio); audio.pause(); audio.src = '' }
+    soundCleanup.clear()
     sounds.clear()
     await persistence.accountChanged()
     mediaScope = persistence.scope()
@@ -147,7 +153,11 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
       void resetAccount().then(() => { if (!disposed) location.reload() })
   }
   window.addEventListener('storage', storageEvent)
-  const capabilityNames = ['storage', 'secureStorage', 'lifecycle', 'dialog', 'browser', 'linking', 'files', 'share', 'device']
+  const lifecycle = typeof document !== 'undefined'
+    ? createBrowserLifecycle(document, window, state => emit('APP_STATE', { state }))
+    : null
+  const capabilityNames = ['storage', 'secureStorage', 'dialog', 'browser', 'linking', 'files', 'share', 'device']
+  if (lifecycle) capabilityNames.push('lifecycle')
   if (persistence.atomicStorage) capabilityNames.push('storageCompareAndSet', 'storageSetIfAbsent')
   if (typeof globalThis.crypto?.randomUUID === 'function' || typeof globalThis.crypto?.getRandomValues === 'function') capabilityNames.push('crypto')
   if (navigator.clipboard) capabilityNames.push('clipboard')
@@ -160,6 +170,7 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
   const platform: BrowserPlatform = {
     craft: {
       ...persistence.craft,
+      ...(lifecycle ? { lifecycle: { getState: lifecycle.getState, onStateChange: lifecycle.onStateChange, onChange: lifecycle.onStateChange } } : {}),
       session: {
         key: sessionTokenKey,
         token: (): string | null => persistence.craft.secureStorage.getSync(sessionTokenKey),
@@ -259,12 +270,44 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
       }
       if (module === 'Audio') {
         const id = String(args[0]); const sound = sounds.get(id)
-        if (method === 'play') { await stopSound(id); const audio = new Audio(await platform.resolveMedia(String(args[1]))); const settings = object(args[2]); audio.loop = Boolean(settings.loop); const volume = Math.max(0, Math.min(1, Number(settings.volume ?? 1))); audio.volume = Number(settings.fadeIn) > 0 ? 0 : volume; audio.onended = () => { sounds.delete(id); emit('SOUND_EVENT', { id, event: 'ended' }) }; audio.onerror = () => { sounds.delete(id); emit('SOUND_EVENT', { id, event: 'error', message: audio.error?.message }) }; sounds.set(id, audio); await audio.play(); void fade(audio, volume, Number(settings.fadeIn ?? 0)); return true }
-        if (method === 'stopAll') { await Promise.all([...sounds.keys()].map(key => stopSound(key, Number(first.fadeOut ?? 0)))); return true }
+        if (method === 'play') {
+          // Claim the ID before awaiting media or playback. A newer play, stop,
+          // account change or disposal must also invalidate work still loading.
+          const request = {}; soundRequests.set(id, request)
+          const current = (): void => {
+            signal.throwIfAborted()
+            if (soundRequests.get(id) !== request) throw new DOMException('Playback replaced', 'AbortError')
+          }
+          let audio: HTMLAudioElement | undefined
+          const release = (): void => {
+            if (!audio) return
+            signal.removeEventListener('abort', release)
+            soundCleanup.delete(audio); cancelFade(audio)
+            audio.pause(); audio.removeAttribute('src')
+            if (sounds.get(id) === audio) sounds.delete(id)
+          }
+          try {
+            await stopSound(id); current()
+            const url = await platform.resolveMedia(String(args[1])); current()
+            audio = new Audio(url)
+            const settings = object(args[2]); audio.loop = Boolean(settings.loop)
+            const volume = Math.max(0, Math.min(1, Number(settings.volume ?? 1)))
+            audio.volume = Number(settings.fadeIn) > 0 ? 0 : volume
+            audio.onended = () => { release(); if (soundRequests.get(id) === request) { soundRequests.delete(id); emit('SOUND_EVENT', { id, event: 'ended' }) } }
+            audio.onerror = () => { const message = audio?.error?.message; release(); if (soundRequests.get(id) === request) { soundRequests.delete(id); emit('SOUND_EVENT', { id, event: 'error', message }) } }
+            sounds.set(id, audio); soundCleanup.set(audio, release)
+            signal.addEventListener('abort', release, { once: true })
+            await audio.play(); current()
+            void fade(audio, volume, Number(settings.fadeIn ?? 0))
+            return true
+          }
+          catch (error) { release(); if (soundRequests.get(id) === request) soundRequests.delete(id); throw error }
+        }
+        if (method === 'stopAll') { soundRequests.clear(); await Promise.all([...sounds.keys()].map(key => stopSound(key, Number(first.fadeOut ?? 0)))); return true }
+        if (method === 'stop') { soundRequests.delete(id); await stopSound(id, Number(object(args[1]).fadeOut ?? 0)); return Boolean(sound) }
         if (!sound) return false
         if (method === 'pause') { sound.pause(); return true }
         if (method === 'resume') { await sound.play(); return true }
-        if (method === 'stop') { await stopSound(id, Number(object(args[1]).fadeOut ?? 0)); return true }
         if (method === 'setVolume') { await fade(sound, Number(args[1]), Number(object(args[2]).fade ?? 0)); return true }
       }
       if (module === 'Media') {
@@ -307,13 +350,16 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
     dispose() {
       if (disposed) return
       disposed = true
+      soundRequests.clear()
+      lifecycle?.dispose()
       window.removeEventListener('storage', storageEvent)
       lifetime.abort()
       account.abort()
       for (const path of files.keys()) URL.revokeObjectURL(path)
       for (const path of mediaURLs.values()) URL.revokeObjectURL(path)
       files.clear(); mediaURLs.clear()
-      for (const audio of sounds.values()) { cancelFade(audio); audio.pause(); audio.src = '' }
+      for (const audio of sounds.values()) { soundCleanup.get(audio)?.(); cancelFade(audio); audio.pause(); audio.src = '' }
+      soundCleanup.clear()
       sounds.clear()
       void wakeLock?.release()
       listeners.clear()

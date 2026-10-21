@@ -24,7 +24,7 @@ import type {
   LiveActivityHandle,
   LiveActivityOptions,
 } from '../api/mobile'
-import mobile, { biometrics, brightness, bridgeNotification, crashReporter, health, heartRate, music, normalizeDeepLinkURL, normalizeScheduledWorkout, scheduledWorkouts, normalizeHeartRateReading, normalizeHeartRateSamples, normalizeHeartRateState, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
+import mobile, { biometrics, brightness, bridgeNotification, crashReporter, files, health, heartRate, music, normalizeDeepLinkURL, normalizeScheduledWorkout, scheduledWorkouts, normalizeHeartRateReading, normalizeHeartRateSamples, normalizeHeartRateState, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
 
 describe('Mobile deep links', () => {
   it('normalizes native payloads to the public string contract', () => {
@@ -210,6 +210,16 @@ describe('Mobile secure storage aliases', () => {
       await secureStorage.remove('session-token')
     })
     expect(removed).toEqual(['session-token'])
+  })
+})
+
+describe('Mobile file picker', () => {
+  it('forwards general picker options and returns owned file metadata', async () => {
+    const options: any[] = []
+    await withWindow({ craft: { files: { pickFile: async (value: unknown) => { options.push(value); return [{ path: '/tmp/route.gpx', name: 'route.gpx', type: 'application/gpx+xml', size: 42 }] } } } }, async () => {
+      expect(await files.pickFile({ contentTypes: ['gpx', 'application/pdf'], maxSelections: 3, maxBytes: 1000 })).toEqual([{ path: '/tmp/route.gpx', name: 'route.gpx', type: 'application/gpx+xml', size: 42 }])
+    })
+    expect(options).toEqual([{ contentTypes: ['gpx', 'application/pdf'], maxSelections: 3, maxBytes: 1000 }])
   })
 })
 
@@ -877,12 +887,24 @@ describe('Mobile native chrome', () => {
     }
     try {
       expect(tabBar.isAvailable()).toBe(true)
-      expect(tabBar.set([{ id: '/m', title: 'Today', symbol: 'sun.max' }], { selected: '/m', tint: '#1d4ed8', swipeEnabled: false })).toBe(true)
+      expect(tabBar.set([{ id: '/m', title: 'Today', symbol: 'sun.max' }], {
+        selected: '/m',
+        tint: '#1d4ed8',
+        swipeEnabled: false,
+        selection: { cornerRadius: 6 },
+      })).toBe(true)
       tabBar.select('/m/calendar')
       tabBar.hide()
       splash.hide()
       expect(posted).toEqual([
-        { type: 'tabBar', tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }], selected: '/m', tint: '#1d4ed8', swipeEnabled: false },
+        {
+          type: 'tabBar',
+          tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }],
+          selected: '/m',
+          tint: '#1d4ed8',
+          swipeEnabled: false,
+          selection: { cornerRadius: 6 },
+        },
         { type: 'selectTab', id: '/m/calendar' },
         { type: 'hideTabBar' },
         { type: 'ready' },

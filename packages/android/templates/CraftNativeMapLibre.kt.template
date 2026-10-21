@@ -16,6 +16,8 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
     private var pendingChildren = JSONArray()
     private var styleKey: String? = null
     private var styleVersion = 0
+    /** The prefix of a style key that is a vector style's URL, not raster style JSON. */
+    private val vectorStylePrefix = "uri:"
     private var readyStyle: Style? = null
     private var initialCameraKey: String? = null
     private var reportedRegion: LatLngBounds? = null
@@ -146,7 +148,10 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
             styleKey = nextStyle
             readyStyle = null
             val version = ++styleVersion
-            nativeMap.setStyle(Style.Builder().fromJson(nextStyle)) { loaded ->
+            // A vector style (the standard basemap) loads from its URL; the
+            // raster ones are composed here as style JSON.
+            val builder = if (nextStyle.startsWith(vectorStylePrefix)) Style.Builder().fromUri(nextStyle.removePrefix(vectorStylePrefix)) else Style.Builder().fromJson(nextStyle)
+            nativeMap.setStyle(builder) { loaded ->
                 if (!destroyed && version == styleVersion) {
                     readyStyle = loaded
                     installOverlays(loaded)
@@ -183,6 +188,20 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
     }
 
     private fun basemapStyle(): String {
+        // `basemap`: the named presets, drawn as well as each can be here.
+        // Standard is OpenFreeMap's vector style - sharp at any density, no
+        // key - where it was raster tiles from tile.openstreetmap.org, whose
+        // policy does not allow an app's traffic. Outdoors is topography with
+        // contours; satellite and hybrid are Esri imagery.
+        when (pendingProps.optString("basemap", "").lowercase()) {
+            "standard" -> {
+                attribution.text = "OpenFreeMap © OpenMapTiles · Data © OpenStreetMap contributors"
+                return vectorStylePrefix + "https://tiles.openfreemap.org/styles/liberty"
+            }
+            "outdoors" -> return rasterStyle("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", "Topography: Esri, USGS, NOAA, OpenStreetMap contributors", labels = false)
+            "satellite" -> return rasterStyle("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community", labels = false)
+            "hybrid" -> return rasterStyle("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community", labels = true)
+        }
         val custom = pendingProps.optJSONObject("tileOverlay")
         val template = custom?.optString("urlTemplate").orEmpty()
         val credit = custom?.optString("attribution").orEmpty()
@@ -208,6 +227,18 @@ internal class CraftNativeMapView(context: Context) : FrameLayout(context), OnMa
             sources.put("labels", rasterSource("https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", "Labels © Esri"))
             layers.put(JSONObject().put("id", "labels").put("type", "raster").put("source", "labels"))
             attribution.text = "$attributionText · Labels © Esri"
+        }
+        return JSONObject().put("version", 8).put("sources", sources).put("layers", layers).toString()
+    }
+
+    private fun rasterStyle(url: String, credit: String, labels: Boolean): String {
+        val sources = JSONObject().put("basemap", rasterSource(url, credit))
+        val layers = JSONArray().put(JSONObject().put("id", "basemap").put("type", "raster").put("source", "basemap"))
+        attribution.text = credit
+        if (labels) {
+            sources.put("labels", rasterSource("https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", "Labels © Esri"))
+            layers.put(JSONObject().put("id", "labels").put("type", "raster").put("source", "labels"))
+            attribution.text = "$credit · Labels © Esri"
         }
         return JSONObject().put("version", 8).put("sources", sources).put("layers", layers).toString()
     }

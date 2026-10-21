@@ -918,7 +918,8 @@ export function renderWatchEntitlements(config: CraftConfig): string {
   const appGroups = config.appGroups?.length
     ? `    <key>com.apple.security.application-groups</key>\n    <array>\n${plistArray(config.appGroups)}\n    </array>\n`
     : ''
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n${appGroups}</dict>\n</plist>\n`
+  const healthKit = config.enableHealthKit ? '    <key>com.apple.developer.healthkit</key>\n    <true/>\n' : ''
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n${appGroups}${healthKit}</dict>\n</plist>\n`
 }
 
 /**
@@ -1459,7 +1460,9 @@ function writeShell(output: string, config: CraftConfig): void {
   ] as const) {
     if (!enabled) continue
     mkdirSync(join(output, folder), { recursive: true })
-    const source = readFileSync(join(TEMPLATES_DIR, template), 'utf8').replace(/\{\{APP_NAME\}\}/g, name)
+    const source = readFileSync(join(TEMPLATES_DIR, template), 'utf8')
+      .replace(/\{\{APP_NAME\}\}/g, name)
+      .replace(/\{\{HEALTH_KIT_ENABLED\}\}/g, config.enableHealthKit ? 'true' : 'false')
     writeFileSync(join(output, folder, filename), source)
   }
 }
@@ -1637,6 +1640,9 @@ export async function init(options: InitOptions): Promise<void> {
     const watchExtensionInfo = readFileSync(join(TEMPLATES_DIR, 'WatchExtension.Info.plist.template'), 'utf8')
       .replace(/\{\{APP_NAME\}\}/g, xmlEscape(displayName))
       .replace(/\{\{BUNDLE_ID\}\}/g, finalBundleId)
+      .replace(/\{\{HEALTH_USAGE_DESCRIPTIONS\}\}/g, config.enableHealthKit
+        ? `${plistString('NSHealthShareUsageDescription', `${displayName} reads health data you choose to share.`)}\n${plistString('NSHealthUpdateUsageDescription', `${displayName} writes health data only with your permission.`)}`
+        : '')
     writeFileSync(join(output, 'WatchExtension', 'Info.plist'), watchExtensionInfo)
     writeFileSync(join(output, 'WatchExtension', 'Watch.entitlements'), renderWatchEntitlements(config))
   }

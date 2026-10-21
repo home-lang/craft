@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test'
 import { assertShippingScope, collectFindings, isToolingOnly, reviewScope } from './sbom-scope'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 const match = (name: string, severity: string, paths: string[], id = 'GHSA-test') => ({
   vulnerability: { id, severity },
@@ -10,6 +12,11 @@ test('a benchmark-only High is inventory, not a failure', () => {
   const review = assertShippingScope({ matches: [match('electron', 'High', ['/benchmarks/apps/electron/bun.lock'])] })
   expect(review.tooling).toHaveLength(1)
   expect(review.shipped).toHaveLength(0)
+})
+
+test('the Electron benchmark stays outside the vulnerable release line', () => {
+  const packageJson = JSON.parse(readFileSync(join(import.meta.dir, '..', 'benchmarks/apps/electron/package.json'), 'utf8')) as { dependencies?: { electron?: string } }
+  expect(packageJson.dependencies?.electron).toBe('^42.0.1')
 })
 
 test('the Go runtime inside the compiler binary is inventory', () => {

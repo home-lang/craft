@@ -668,7 +668,7 @@ export interface CraftBridge {
    */
   health?: CraftHealth;
 
-  /** Apple Wallet pass presentation and lookup (iOS, `enableWallet`). */
+  /** Native platform wallet pass presentation and lookup (`enableWallet`). */
   wallet?: CraftWallet;
 
   /**
@@ -1599,10 +1599,10 @@ export interface CraftHealth {
 export interface CraftWallet {
   /** Whether this device can hand a pass to its platform wallet. */
   isAvailable(): Promise<boolean>;
-  /** Whether a pass with this serial number is already present (iOS). */
+  /** Whether a pass with this serial number is already present (iOS). Android does not expose local pass lookup. */
   has(serialNumber: string): Promise<boolean>;
-  /** Presents a pass: iOS accepts base64 `.pkpass` data or an HTTPS URL; Android accepts an HTTPS Google Wallet save URL. */
-  add(source: { data: string } | { url: string }): Promise<boolean>;
+  /** Presents a pass: iOS accepts base64 `.pkpass` data or an HTTPS URL; Android accepts an HTTPS Google Wallet save URL or signed JWT. */
+  add(source: { data: string } | { url: string } | { jwt: string }): Promise<boolean>;
 }
 
 export interface CraftCrashReporter {
@@ -1637,7 +1637,7 @@ export interface CraftCapabilities {
   share: boolean;
   camera: boolean;
   biometric: boolean;
-  /** Apple Wallet pass presentation and lookup (iOS, `enableWallet`). */
+  /** Native platform wallet pass presentation and lookup (`enableWallet`). */
   wallet?: boolean;
   pushNotifications: boolean;
   secureStorage: boolean;

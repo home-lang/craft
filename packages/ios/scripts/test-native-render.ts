@@ -47,6 +47,7 @@ try {
   copyFileSync(join(fixture, 'HeartRateUnitTests.swift'), join(output, 'UnitTests', 'HeartRateUnitTests.swift'))
   copyFileSync(join(fixture, 'FilesUnitTests.swift'), join(output, 'UnitTests', 'FilesUnitTests.swift'))
   copyFileSync(join(fixture, 'ScriptThreadUnitTests.swift'), join(output, 'UnitTests', 'ScriptThreadUnitTests.swift'))
+  copyFileSync(join(fixture, 'KeychainUnitTests.swift'), join(output, 'UnitTests', 'KeychainUnitTests.swift'))
   copyFileSync(join(fixture, 'NativeRenderUITests.swift'), join(output, 'UITests', 'NativeRenderUITests.swift'))
   const project = join(output, 'project.yml')
   const projectWithTargets = insertProjectTargetsBeforeSchemes(readFileSync(project, 'utf8'), `

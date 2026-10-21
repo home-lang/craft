@@ -49,6 +49,8 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
 
         private(set) var representedIdentity: String?
         private(set) var hostedView: UIView?
+        /// Top, bottom, leading and trailing: the row's own margins inset it.
+        private var hostedConstraints: [NSLayoutConstraint] = []
         var onRecycle: ((String) -> Void)?
         override func prepareForReuse() {
             super.prepareForReuse()
@@ -63,32 +65,66 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
             onRecycle = nil
         }
 
+        /// Whether the row view this cell is meant to show is in it. UIKit
+        /// can prepare a second cell for a row (a prefetch, an update), and
+        /// the row's one view then moves there: the first cell keeps its
+        /// height and draws nothing.
+        var showsHostedView: Bool { hostedView.map { $0.superview === contentView } ?? true }
+
         func host(_ view: UIView, identity: String) {
             if let shown = representedIdentity, shown != identity { recycle() }
             representedIdentity = identity
-            guard hostedView !== view else { return }
-            hostedView?.removeFromSuperview()
+            // The same view, already here. A view that left for another cell
+            // and is asked for again is put back below.
+            guard hostedView !== view || view.superview !== contentView else { return applyHostedMargins() }
+            // Only a view still in this cell is taken out of it: one that has
+            // since moved to another cell is that cell's now, and pulling it
+            // from there blanked a row on screen.
+            if let shown = hostedView, shown !== view, shown.superview === contentView { shown.removeFromSuperview() }
             hostedView = view
             view.translatesAutoresizingMaskIntoConstraints = false
             contentView.addSubview(view)
-            NSLayoutConstraint.activate([
+            hostedConstraints = [
                 view.topAnchor.constraint(equalTo: contentView.topAnchor),
-                view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+                contentView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
                 view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-                view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            ])
+                contentView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            ]
+            applyHostedMargins()
+            NSLayoutConstraint.activate(hostedConstraints)
+        }
+
+        /// A row's margins (`mx-4` on a grouped row) inset it in its cell, as
+        /// a column inset it: pinned edge to edge, HQ's Discover results ran
+        /// to the screen's sides. Read again on every pass, since a style
+        /// update changes the row in place.
+        private func applyHostedMargins() {
+            guard let view = hostedView, view.superview === contentView, hostedConstraints.count == 4 else { return }
+            let margins = view.craftLayoutMargins
+            let constants = [margins.top, margins.bottom, margins.left, margins.right]
+            for (constraint, constant) in zip(hostedConstraints, constants) where constraint.constant != constant {
+                constraint.constant = constant
+            }
         }
 
         func releaseHostedView() {
             recycle()
-            hostedView?.removeFromSuperview()
+            if let shown = hostedView, shown.superview === contentView { shown.removeFromSuperview() }
             hostedView = nil
+        }
+
+        /// Puts this cell's row view back when another cell took it.
+        func reclaimHostedView() {
+            guard let identity = representedIdentity, let view = hostedView, view.superview !== contentView else { return }
+            host(view, identity: identity)
         }
 
         override func preferredLayoutAttributesFitting(
             _ layoutAttributes: UICollectionViewLayoutAttributes
         ) -> UICollectionViewLayoutAttributes {
             guard let hostedView = hostedView else { return layoutAttributes }
+            applyHostedMargins()
+            let margins = hostedView.craftLayoutMargins
             let attributes = layoutAttributes.copy() as! UICollectionViewLayoutAttributes
             // A cell has no collectionView property; the list is its nearest
             // collection view ancestor.
@@ -104,24 +140,26 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
                let flowLayout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout,
                flowLayout.scrollDirection == .horizontal {
                 let height = fittingExtent ?? layoutAttributes.size.height
+                let inner = max(0, height - margins.top - margins.bottom)
                 let measured = CraftNativeFlexLayout.measure(
                     hostedView,
                     width: nil,
-                    height: height,
+                    height: inner,
                     maxWidth: CraftNativeFlexLayout.unbounded,
-                    maxHeight: height
+                    maxHeight: inner
                 )
-                attributes.size = CGSize(width: max(1, ceil(measured.width)), height: max(1, height))
+                attributes.size = CGSize(width: max(1, ceil(measured.width + margins.left + margins.right)), height: max(1, height))
             } else {
                 let width = fittingExtent ?? layoutAttributes.size.width
+                let inner = max(0, width - margins.left - margins.right)
                 let measured = CraftNativeFlexLayout.measure(
                     hostedView,
-                    width: width,
+                    width: inner,
                     height: nil,
-                    maxWidth: width,
+                    maxWidth: inner,
                     maxHeight: CraftNativeFlexLayout.unbounded
                 )
-                attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height)))
+                attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height + margins.top + margins.bottom)))
             }
             return attributes
         }
@@ -167,6 +205,14 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     private var keyboardShouldPersistTaps = "never"
     private var scrollTargetKey: String?
     private var pendingScrollTarget: (id: String, animated: Bool, attempts: Int)?
+    /// A target that ends at the list's end, held to the true bottom while
+    /// the rows near it measure themselves. Rows self-size from a 44pt
+    /// estimate, so an offset worked out before they are measured stops short
+    /// of tall rows (multi-paragraph replies, cards). Cleared by a drag.
+    private var endSettlePasses: Int?
+    private var endSettleGeneration = 0
+    private var isAnimatingToEnd = false
+    private var isMeasuringEnd = false
 
     init() {
         let layout = CraftNativeFlatListLayout()
@@ -279,8 +325,20 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     override func layoutSubviews() {
         updateItemEstimate()
         super.layoutSubviews()
+        reclaimVisibleRows()
         craftApplyCornerRadius()
         scrollToPendingTarget()
+    }
+
+    /// A row on screen whose view went to a cell UIKit prepared for the same
+    /// row and then did not show gets it back, rather than staying blank.
+    private func reclaimVisibleRows() {
+        for case let cell as Cell in visibleCells where !cell.showsHostedView { cell.reclaimHostedView() }
+    }
+
+    /// Every row on screen draws its own view (simulator-hosted XCTest).
+    var visibleRowsShowTheirViews: Bool {
+        visibleCells.allSatisfy { ($0 as? Cell)?.showsHostedView ?? true }
     }
 
     /// Scroll to a virtualized row identified by its native testID, id, or key.
@@ -310,6 +368,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         guard key != scrollTargetKey else { return }
         scrollTargetKey = key
         pendingScrollTarget = (id, animated, 0)
+        cancelEndSettle()
         scrollToPendingTarget()
     }
 
@@ -509,6 +568,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         pendingThemeRefresh = false
         scrollTargetKey = nil
         pendingScrollTarget = nil
+        cancelEndSettle()
     }
 
     /// Releases callbacks and UIKit ownership that belong to a permanently
@@ -540,13 +600,26 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        // The end is measured by jumping there and back in one pass, before
+        // anything draws: the screen hears only where the scroll goes.
+        guard !isMeasuringEnd else { return }
         onScrollEvent?(scrollView)
         onLayoutChanged?()
         evaluateEndReached()
     }
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        // The finger has the list now: stop holding it to its end.
+        cancelEndSettle()
         onScrollBeginDrag?(scrollView)
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        guard isAnimatingToEnd else { return }
+        isAnimatingToEnd = false
+        // Rows passed on the way measured themselves and moved the end.
+        settleAtEnd()
+        scheduleEndSettle()
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
@@ -607,12 +680,16 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
 
     private func scrollToPendingTarget() {
         guard let target = pendingScrollTarget else { return }
+        // A snapshot that is landing, or queued behind the one landing, can
+        // add rows before the target or move it: an index read now is stale
+        // (it scrolled to the old end). finishApplyingSnapshot() aims again
+        // once the rows are in, and so does a list not laid out yet.
+        guard !isApplyingSnapshot, pendingApply == nil, bounds.width > 0, bounds.height > 0 else { return }
         guard let index = targetIndex(for: target.id), index < numberOfItems(inSection: 0) else {
+            // No row has this id once the list is idle: try a few more
+            // passes, then let it go.
             if target.attempts >= 4 {
-                // A diffable snapshot may still be applying. Keep the target
-                // for finishApplyingSnapshot(), but discard an invalid target
-                // once the list is otherwise idle.
-                if !isApplyingSnapshot { pendingScrollTarget = nil }
+                pendingScrollTarget = nil
                 return
             }
             pendingScrollTarget = (target.id, target.animated, target.attempts + 1)
@@ -620,8 +697,100 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
             return
         }
         pendingScrollTarget = nil
+        let indexPath = IndexPath(item: index, section: 0)
+        let identity = diffableDataSource.itemIdentifier(for: indexPath) ?? items[index].identity
+        if index == numberOfItems(inSection: 0) - 1 {
+            scrollToEnd(animated: target.animated)
+            return
+        }
         let position: UICollectionView.ScrollPosition = flowLayout.scrollDirection == .horizontal ? .left : .top
-        scrollToItem(at: IndexPath(item: index, section: 0), at: position, animated: target.animated)
+        scrollToItem(at: indexPath, at: position, animated: target.animated)
+        guard !target.animated else { return }
+        // A row near the end cannot come to the top: the list stops at its
+        // end, which is only true once the rows there are measured.
+        layoutIfNeeded()
+        if rowReachesPastEnd(identity) { scrollToEnd(animated: false) }
+    }
+
+    /// The offset that shows the end of the content, along the scroll axis.
+    private var endOffset: CGPoint {
+        if flowLayout.scrollDirection == .horizontal {
+            return CGPoint(
+                x: max(-adjustedContentInset.left, contentSize.width + adjustedContentInset.right - bounds.width),
+                y: contentOffset.y
+            )
+        }
+        return CGPoint(
+            x: contentOffset.x,
+            y: max(-adjustedContentInset.top, contentSize.height + adjustedContentInset.bottom - bounds.height)
+        )
+    }
+
+    /// Whether the row's leading edge lies past where the list can scroll to.
+    private func rowReachesPastEnd(_ identity: String) -> Bool {
+        guard let indexPath = diffableDataSource.indexPath(for: identity),
+              let frame = layoutAttributesForItem(at: indexPath)?.frame else { return false }
+        if flowLayout.scrollDirection == .horizontal {
+            return frame.minX - adjustedContentInset.left >= endOffset.x - 0.5
+        }
+        return frame.minY - adjustedContentInset.top >= endOffset.y - 0.5
+    }
+
+    private func scrollToEnd(animated: Bool) {
+        endSettlePasses = 2
+        endSettleGeneration += 1
+        if animated {
+            // Measure the rows at the end where they will be, then animate
+            // there from where the list was, so the animation lands on the
+            // true end rather than on an estimate.
+            let start = contentOffset
+            isMeasuringEnd = true
+            settleAtEnd()
+            let end = contentOffset
+            setContentOffset(start, animated: false)
+            isMeasuringEnd = false
+            if abs(end.x - start.x) > 0.5 || abs(end.y - start.y) > 0.5 {
+                isAnimatingToEnd = true
+                setContentOffset(end, animated: true)
+            }
+        } else {
+            settleAtEnd()
+        }
+        scheduleEndSettle()
+    }
+
+    /// Moves to the end until it stops moving: each move shows rows that
+    /// measure themselves and change the content size.
+    private func settleAtEnd() {
+        guard endSettlePasses != nil, !isDragging, !isTracking else { return cancelEndSettle() }
+        for _ in 0..<6 {
+            layoutIfNeeded()
+            let end = endOffset
+            guard abs(end.x - contentOffset.x) > 0.5 || abs(end.y - contentOffset.y) > 0.5 else { break }
+            setContentOffset(end, animated: false)
+        }
+    }
+
+    /// Checks the end again on the next runloop passes, while late rows and
+    /// the content size settle.
+    private func scheduleEndSettle() {
+        let generation = endSettleGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.endSettleGeneration == generation, let passes = self.endSettlePasses,
+                  // An animation on its way there settles, and checks
+                  // again, when it ends.
+                  !self.isAnimatingToEnd else { return }
+            if passes <= 0 { return self.cancelEndSettle() }
+            self.endSettlePasses = passes - 1
+            if !self.isApplyingSnapshot, self.pendingApply == nil { self.settleAtEnd() }
+            self.scheduleEndSettle()
+        }
+    }
+
+    private func cancelEndSettle() {
+        endSettlePasses = nil
+        endSettleGeneration += 1
+        isAnimatingToEnd = false
     }
 
     private func clamped(_ offset: CGPoint) -> CGPoint {

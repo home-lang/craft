@@ -114,6 +114,8 @@ dependencies {
     // Android Health Services live exercise tracking (included only when enabled)
 {{HEALTH_SERVICES_DEPENDENCIES}}
 
+{{WALLET_DEPENDENCY}}
+
     // On-device computer vision APIs exposed by CraftBridge
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     implementation("com.google.mlkit:image-labeling:17.0.9")

@@ -442,7 +442,7 @@ jobs:
   verify-release:
     name: verify release assets
     needs: [validate-release, pantry]
-    if: ${{ !cancelled() && needs.validate-release.result == 'success' }}
+    if: ${{ !cancelled() && needs.validate-release.result == 'success' && needs.pantry.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -502,6 +502,7 @@ jobs:
   publish-pantry:
     name: publish verified Zig package to pantry
     needs: [validate-release, publish-release]
+    if: ${{ !cancelled() && needs.validate-release.result == 'success' && needs.publish-release.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -522,6 +523,7 @@ jobs:
   notify-registry:
     name: notify registry and channel after publication
     needs: [publish-release, publish-pantry]
+    if: ${{ !cancelled() && needs.publish-release.result == 'success' && needs.publish-pantry.result == 'success' }}
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -593,7 +595,7 @@ jobs:
   verify-macos-downloads:
     name: verify downloaded ${{ matrix.platform.name }}
     needs: [validate-release, pantry]
-    if: ${{ !cancelled() && needs.validate-release.result == 'success' }}
+    if: ${{ !cancelled() && needs.validate-release.result == 'success' && needs.pantry.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -630,6 +632,7 @@ jobs:
   verify-desktop-downloads:
     name: verify downloaded ${{ matrix.platform.name }}
     needs: [validate-release, pantry]
+    if: ${{ !cancelled() && needs.validate-release.result == 'success' && needs.pantry.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -682,6 +685,7 @@ jobs:
   attach-release-sbom:
     name: attach and verify release SBOMs
     needs: [pantry, release-sbom]
+    if: ${{ !cancelled() && needs.pantry.result == 'success' && needs.release-sbom.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

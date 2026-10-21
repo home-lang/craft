@@ -119,6 +119,10 @@ class CraftNativeMutationDocument {
                         // be reconciled so the host can move its existing view.
                         requiresFullRender = true
                     }
+                    "replaceChildren" -> {
+                        val parentId = replaceChildren(operation, candidateNodes)
+                        if (parentId !in affectedNodeIds) affectedNodeIds.add(parentId)
+                    }
                     "removeNode" -> {
                         val parent = candidateNodes[operation.optString("id")]?.parent
                         if (parent == null) requiresFullRender = true
@@ -257,6 +261,37 @@ class CraftNativeMutationDocument {
         return previousParentId
     }
 
+    /** Replaces a container's ordered child snapshot in one atomic mutation. */
+    private fun replaceChildren(operation: JSONObject, nodes: MutableMap<String, Node>): String {
+        val parentId = requiredId(operation, "parentId", "replaceChildren")
+        val parent = nodes[parentId] ?: fail("UNKNOWN_PARENT", "node $parentId does not exist")
+        if (!acceptsChildren(parent.type)) fail("INVALID_PARENT", "node $parentId cannot contain child nodes")
+        val values = operation.optJSONArray("children")
+            ?: fail("INVALID_CHILDREN", "replaceChildren.children must be an array")
+        val childIds = mutableListOf<String>()
+        for (index in 0 until values.length()) {
+            val childId = values.opt(index) as? String
+            if (childId.isNullOrBlank()) {
+                fail("INVALID_CHILDREN", "replaceChildren.children must contain non-empty ids")
+            }
+            if (childId in childIds) fail("DUPLICATE_CHILD", "child $childId appears more than once")
+            val child = nodes[childId] ?: fail("UNKNOWN_NODE", "node $childId does not exist")
+            if (childId == parentId || parentId in descendants(childId, nodes)) {
+                fail("CYCLE", "attaching node $childId would create a cycle")
+            }
+            if (child.parent != null && child.parent != parentId) {
+                fail("NODE_ATTACHED", "node $childId already has a parent")
+            }
+            childIds.add(childId)
+        }
+        parent.children.filterNot { it in childIds }.forEach { childId ->
+            (descendants(childId, nodes) + childId).forEach { nodes.remove(it) }
+        }
+        parent.children = childIds
+        childIds.forEach { nodes[it]?.parent = parentId }
+        return parentId
+    }
+
     private fun removeNode(
         operation: JSONObject,
         nodes: MutableMap<String, Node>,
@@ -309,6 +344,8 @@ class CraftNativeMutationDocument {
             "View", "SafeAreaView", "ScrollView", "KeyboardAvoidingView", "Modal", "Pressable",
             "TouchableOpacity", "TouchableHighlight", "ImageBackground", "FlatList", "SectionList",
             "Fragment", "Svg", "G", "Map",
+            // A shape holds its `Animate`: SMIL keyframes.
+            "Path", "Line", "Rect", "Circle", "Ellipse", "Polyline", "Polygon",
         )
     }
 

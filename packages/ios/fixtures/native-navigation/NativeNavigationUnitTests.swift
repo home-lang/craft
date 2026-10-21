@@ -54,6 +54,10 @@ final class NativeNavigationUnitTests: XCTestCase {
         previousWindow = previous?.view.window
         selection = CraftChrome.shared.selected
         CraftChrome.shared.selected = "/"
+        // A screen going away leaves its accessory drawn for the next one to
+        // decide (0.0.263), so a test starts from no accessory rather than
+        // the last test's.
+        CraftChrome.shared.updateTabAccessory(nil)
         shell = CraftHybridController(config: CraftHybrid.shared.config)
         let scene = previousWindow?.windowScene
             ?? UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
@@ -77,6 +81,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         window = nil
         CraftHybrid.shared.controller = previous
         CraftChrome.shared.selected = selection
+        CraftChrome.shared.updateTabAccessory(nil)
         previous = nil
         previousWindow?.makeKeyAndVisible()
         previousWindow = nil
@@ -441,6 +446,44 @@ final class NativeNavigationUnitTests: XCTestCase {
         await settle()
     }
 
+    func testFirstPanMovementCancelsAShortDragWithoutAChangedEvent() async throws {
+        mountDetails()
+        let width = shell.view.bounds.width
+        let home = try XCTUnwrap(stack("/"))
+        let details = try XCTUnwrap(stack("/details"))
+        let distance = width * 0.1
+        drag(-distance, phase: .began)
+        XCTAssertEqual(details.view.frame.minX, width - distance, accuracy: 0.5,
+                       "the first recognized movement must move the incoming native screen")
+        drag(-distance, phase: .ended)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/", "a short pan without changed events must cancel")
+        XCTAssertEqual(home.view.frame.minX, 0, accuracy: 0.5)
+        XCTAssertTrue(details.view.isHidden)
+
+        drag(-width * 0.6, phase: .began)
+        drag(-width * 0.6, phase: .ended)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/details", "the next full pan must still commit")
+        XCTAssertEqual(details.view.frame.minX, 0, accuracy: 0.5)
+        XCTAssertFalse(details.view.isHidden)
+    }
+
+    func testEndedOnlyPanKeepsTheInteractiveCompletionThresholds() async throws {
+        mountDetails()
+        let width = shell.view.bounds.width
+        drag(-width * 0.1, phase: .ended)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/", "the fallback must cancel a short slow drag too")
+
+        drag(-width * 0.1, phase: .ended, speed: -900)
+        await settle()
+        XCTAssertEqual(CraftChrome.shared.selected, "/details", "a deliberate fast flick must remain supported")
+        let details = try XCTUnwrap(stack("/details"))
+        XCTAssertEqual(details.view.frame.minX, 0, accuracy: 0.5)
+        XCTAssertFalse(details.view.isHidden)
+    }
+
     func testIncomingTabKeepsItsEdgePastHalfwayInBothDirections() async throws {
         mountDetails()
         let width = shell.view.bounds.width
@@ -717,8 +760,12 @@ final class NativeNavigationUnitTests: XCTestCase {
         background.viewWillDisappear(false)
         XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
         let visible = try XCTUnwrap(home.topViewController as? CraftNativeScreenController)
+        // Its owner going away gives it up but leaves it drawn until the next
+        // screen says what it wants (the pill no longer stretches and back).
         visible.viewWillDisappear(false)
-        XCTAssertNil(CraftChrome.shared.tabAccessory, "the owning screen must still clear its accessory")
+        XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities", "released, still drawn")
+        CraftChrome.shared.clearUnclaimedTabAccessory()
+        XCTAssertNil(CraftChrome.shared.tabAccessory, "an accessory nobody claims comes off")
         visible.screenVisibilityChanged(true)
         XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
     }
