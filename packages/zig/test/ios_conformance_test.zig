@@ -201,7 +201,10 @@ const dispatch_end = "func webView(";
 /// and HKLiveWorkoutBuilder are owned by CraftHealth.swift, including their
 /// delegate callbacks and iOS 26 availability; the actions remain on the
 /// Swift shim until the Zig bridge has an equivalent lifecycle channel.
-const max_not_yet_migrated: usize = 58;
+/// 60 when native screens gained setAppearance and getAppearance. They update
+/// the app-wide UIKit style and remain on the Swift side until Zig owns that
+/// lifecycle as well; no existing Zig action was removed.
+const max_not_yet_migrated: usize = 60;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.
