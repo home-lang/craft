@@ -18,7 +18,8 @@ independent signals are combined:
 
 The two window-list signals match the **sharing indicator** — the floating
 control an app shows *only while a share is live* — never the application
-itself. This distinction is the whole design: "Zoom is running" or "Chrome is
+itself. Only on-screen windows count; retained hidden sharing windows after
+**Stop sharing** must not keep a meeting active. This distinction is the whole design: "Zoom is running" or "Chrome is
 frontmost" describes most of a working day, and an app that acts on it silences
 notifications permanently.
 

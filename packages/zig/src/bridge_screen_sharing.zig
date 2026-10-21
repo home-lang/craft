@@ -137,8 +137,9 @@ fn evaluate(allocator: std.mem.Allocator, sources: ?*std.ArrayListUnmanaged(u8))
     if (state.remote) state.digest.add(.remote, "CGSession", "offConsole");
 
     const macos = @import("macos.zig");
-    // kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements
-    const list = CGWindowListCopyWindowInfo(0x10, 0) orelse return state;
+    // kCGWindowListOptionOnScreenOnly (1) | kCGWindowListExcludeDesktopElements (16).
+    // Conferencing clients retain hidden sharing windows after Stop Sharing.
+    const list = CGWindowListCopyWindowInfo(0x11, 0) orelse return state;
     defer CFRelease(list);
 
     const CountFn = *const fn (?*anyopaque, macos.objc.SEL) callconv(.c) c_ulong;
