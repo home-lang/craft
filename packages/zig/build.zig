@@ -253,6 +253,9 @@ pub fn build(b: *std.Build) void {
     const renderer_module = b.createModule(.{
         .root_source_file = b.path("src/renderer.zig"),
     });
+    const graphics_module = b.createModule(.{
+        .root_source_file = b.path("src/graphics.zig"),
+    });
 
     const log_module = b.createModule(.{
         .root_source_file = b.path("src/log.zig"),
@@ -973,6 +976,16 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "../src/renderer.zig", .module = renderer_module },
+            },
+        }),
+    });
+    const graphics_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/graphics_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/graphics.zig", .module = graphics_module },
             },
         }),
     });
@@ -1864,6 +1877,7 @@ pub fn build(b: *std.Build) void {
     const run_bridge_tests = b.addRunArtifact(bridge_tests);
     const run_devmode_tests = b.addRunArtifact(devmode_tests);
     const run_renderer_tests = b.addRunArtifact(renderer_tests);
+    const run_graphics_tests = b.addRunArtifact(graphics_tests);
     const run_log_tests = b.addRunArtifact(log_tests);
     const run_theme_tests = b.addRunArtifact(theme_tests);
     const run_animation_tests = b.addRunArtifact(animation_tests);
@@ -2037,6 +2051,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_bridge_tests.step);
     test_step.dependOn(&run_devmode_tests.step);
     test_step.dependOn(&run_renderer_tests.step);
+    test_step.dependOn(&run_graphics_tests.step);
     test_step.dependOn(&run_log_tests.step);
     test_step.dependOn(&run_theme_tests.step);
     test_step.dependOn(&run_animation_tests.step);
@@ -2165,6 +2180,8 @@ pub fn build(b: *std.Build) void {
 
     const test_renderer_step = b.step("test:renderer", "Run Renderer tests");
     test_renderer_step.dependOn(&run_renderer_tests.step);
+    const test_graphics_step = b.step("test:graphics", "Run standalone raster core tests");
+    test_graphics_step.dependOn(&run_graphics_tests.step);
 
     const test_log_step = b.step("test:log", "Run Log tests");
     test_log_step.dependOn(&run_log_tests.step);
