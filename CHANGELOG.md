@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.274...v0.0.275)
+
+## 🐛 Bug Fixes
+
+- **ios**: maps and wheel pickers take touches, and a pin is tappable over your location ([246a2d3](https://github.com/craft-native/craft/commit/246a2d3)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.273...v0.0.274)
 
 ## ⚡ Performance Improvements
