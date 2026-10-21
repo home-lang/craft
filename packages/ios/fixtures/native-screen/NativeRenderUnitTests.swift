@@ -1876,6 +1876,29 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(moving.isAnimating, "out of the window, no frames")
     }
 
+    /// A tab opened for the first time mounts in the window. The bar its
+    /// script asks for before it has appeared (HQ's Me: a title, a large
+    /// title) is in place from the first frame; once the screen has appeared,
+    /// a change to the bar animates as before.
+    func testABarAskedForBeforeTheScreenAppearsDoesNotSlideIn() throws {
+        let window = try hostWindow()
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        let stack = UINavigationController(rootViewController: screen)
+        stack.setNavigationBarHidden(true, animated: false)
+        window.rootViewController = stack
+        defer { window.isHidden = true }
+        screen.loadViewIfNeeded()
+        window.makeKeyAndVisible()
+        stack.view.layoutIfNeeded()
+        if screen.view.window != nil, !screen.animatesNavigationBarChanges {
+            screen.evaluateScript("craftNativePostMessage(JSON.stringify({ type: 'NAVIGATION_SET_OPTIONS', payload: { title: 'Me', largeTitle: true } }))")
+            XCTAssertFalse(stack.isNavigationBarHidden, "the bar it asked for")
+            XCTAssertTrue(stack.navigationBar.layer.animationKeys()?.isEmpty ?? true, "there, not sliding in")
+        }
+        screen.viewDidAppear(false)
+        XCTAssertTrue(screen.animatesNavigationBarChanges, "after appearing, a change animates")
+    }
+
     func testFlatListScrollIndicatorsAndBounceAxesFollowProps() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

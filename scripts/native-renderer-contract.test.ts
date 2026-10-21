@@ -910,6 +910,12 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('func testALongInputWithoutAMaxHeightKeepsItsCaretAboveTheKeyboard()')
   })
 
+  it('puts a bar a screen asks for before it appears in place without sliding it in', () => {
+    expect(ios).toContain('var animatesNavigationBarChanges: Bool { hasAppeared && view.window != nil }')
+    expect(ios).not.toContain('setNavigationBarHidden(false, animated: view.window != nil)')
+    expect(iosNativeUnitTests).toContain('func testABarAskedForBeforeTheScreenAppearsDoesNotSlideIn()')
+  })
+
   it('keeps SVG stroke semantics aligned across hosts', () => {
     expect(ios).toContain('line.lineCapStyle')
     expect(ios).toContain('line.lineJoinStyle')

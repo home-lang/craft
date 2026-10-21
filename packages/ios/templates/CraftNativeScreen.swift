@@ -5635,6 +5635,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // A tab prepared in a hidden stack "appears" to UIKit as well; the
         // shell says when it really shows (screenVisibilityChanged).
         if isShownOnScreen {
+            hasAppeared = true
             screenVisibilityChanged(true)
             // A navigation breadcrumb for the crash reporter: the trail a
             // crash report carries is the screens that led to it.
@@ -5706,6 +5707,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // preview also restores a screen that never lost focus, so restore its
         // chrome even when no new SCREEN_FOCUS event is needed.
         if visible { restoreShellChrome() }
+        // A prepared tab the shell now shows has appeared once its frame is
+        // drawn; what its script asks for until then is there from the start.
+        if visible, !hasAppeared {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isViewLoaded, self.isShownOnScreen else { return }
+                self.hasAppeared = true
+            }
+        }
         if visible, frameWanted { CraftNativeFrameClock.shared.request(self) { [weak self] in self?.fireFrame() } }
         if !visible { CraftNativeFrameClock.shared.cancel(self) }
         guard visible != reportedVisible else { return }
@@ -6558,6 +6567,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// own horizontal pager or chart gesture.
     private(set) var tabSwipeEnabled = true
     private var prefersLargeTitle: Bool?
+    /// Whether the screen has been on screen. Until then, a bar its script
+    /// asks for is simply there in its first frame: a tab opened for the
+    /// first time (HQ's Me) mounts in the window, and its bar and large title
+    /// slid in from the side as the screen appeared.
+    private var hasAppeared = false
+    /// A bar shown or hidden after the screen has appeared animates; before,
+    /// it is in place from the start.
+    var animatesNavigationBarChanges: Bool { hasAppeared && view.window != nil }
     /// Whether this screen opts into an opaque navigation bar filled with its
     /// own background colour. The default keeps UIKit's material appearance.
     private var navigationBarSolid = false
@@ -6636,7 +6653,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if let hidden = options["hidden"] as? Bool {
             navigationBarHidden = hidden
             if navigationController?.topViewController === self {
-                navigationController?.setNavigationBarHidden(hidden, animated: view.window != nil)
+                navigationController?.setNavigationBarHidden(hidden, animated: animatesNavigationBarChanges)
             }
         }
         if options.keys.contains("leftButtons") {
@@ -6654,7 +6671,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // Asked for after the bar was hidden for a bare root screen.
         if navigationBarHidden == nil, wantsNavigationBar, navigationController?.topViewController === self,
            navigationController?.isNavigationBarHidden == true {
-            navigationController?.setNavigationBarHidden(false, animated: view.window != nil)
+            navigationController?.setNavigationBarHidden(false, animated: animatesNavigationBarChanges)
         }
     }
 
