@@ -13,7 +13,12 @@ pub const DrawError = graphics.BitmapError || error{
     AliasedInput,
     AssetLimitExceeded,
     FrameLimitExceeded,
+    InvalidAssetViewLimit,
+    AssetViewLimitExceeded,
 };
+
+pub const max_supported_asset_views: usize = 1024;
+const asset_table_slots = max_supported_asset_views * 2;
 
 pub const Limits = struct {
     max_asset_bytes: usize = 64 * 1024 * 1024,
@@ -21,6 +26,7 @@ pub const Limits = struct {
     max_font_glyphs: usize = 4096,
     max_text_bytes: usize = 1024 * 1024,
     max_commands: usize = 65_536,
+    max_asset_views: usize = max_supported_asset_views,
 };
 
 /// Maps local pixel-edge coordinates to frame coordinates:
@@ -381,31 +387,73 @@ pub fn drawText(canvas: *graphics.Canvas, text: Text, limits: Limits) DrawError!
 
 pub const Command = union(enum) { sprite: Sprite, triangle: Triangle, text: Text };
 
-fn assetBytes(bitmap: graphics.Bitmap, tint: Tint) DrawError!usize {
-    return std.math.add(usize, bitmap.pixels.len, if (tint.mask) |mask| mask.len else 0) catch error.AssetLimitExceeded;
-}
+const AssetRole = enum(u8) { atlas, mask, glyphs };
+const AssetView = struct {
+    address: usize = 0,
+    length: usize = 0,
+    role: AssetRole = .atlas,
+};
+
+const FrameAssets = struct {
+    slots: [asset_table_slots]AssetView = @splat(.{}),
+    count: usize = 0,
+    bytes: usize = 0,
+
+    fn add(self: *FrameAssets, role: AssetRole, bytes: []const u8, limits: Limits) DrawError!void {
+        if (bytes.len == 0) return;
+        const address = @intFromPtr(bytes.ptr);
+        const length = bytes.len;
+        // Hash explicit scalar fields, never struct padding. Slot placement
+        // cannot change equality, charging or the supported unique-view count.
+        var hash = std.hash.Wyhash.init(@backingInt(role));
+        hash.update(std.mem.asBytes(&address));
+        hash.update(std.mem.asBytes(&length));
+        var index = @as(usize, @truncate(hash.final())) & (asset_table_slots - 1);
+        for (0..asset_table_slots) |_| {
+            const slot = &self.slots[index];
+            if (slot.address == 0) {
+                if (self.count >= limits.max_asset_views) return error.AssetViewLimitExceeded;
+                const total = std.math.add(usize, self.bytes, length) catch return error.AssetLimitExceeded;
+                if (total > limits.max_asset_bytes) return error.AssetLimitExceeded;
+                slot.* = .{ .address = address, .length = length, .role = role };
+                self.count += 1;
+                self.bytes = total;
+                return;
+            }
+            if (slot.address == address and slot.length == length and slot.role == role) return;
+            index = (index + 1) & (asset_table_slots - 1);
+        }
+        // Keep even an unexpected full-table probe deterministic and bounded.
+        return error.AssetViewLimitExceeded;
+    }
+
+    fn bitmap(self: *FrameAssets, image: graphics.Bitmap, tint: Tint, limits: Limits) DrawError!void {
+        try self.add(.atlas, image.pixels, limits);
+        if (tint.mask) |mask| try self.add(.mask, mask, limits);
+    }
+};
 
 /// A borrowed frame executes commands in slice order. Preflight covers every
-/// command before writing, with conservative aggregate source-byte, text-byte,
-/// clipped pixel-work and command-count budgets. Repeated assets count again;
-/// no unbounded deduplication table or queued allocation is hidden here.
+/// command before writing, with aggregate unique typed-view bytes, text bytes,
+/// clipped pixel-work and command-count budgets. The fixed metadata table is
+/// frame-local, has no allocator and retains no source pointers after return.
 pub fn drawFrame(canvas: *graphics.Canvas, commands: []const Command, limits: Limits) DrawError!void {
+    if (limits.max_asset_views > max_supported_asset_views) return error.InvalidAssetViewLimit;
     if (commands.len > limits.max_commands) return error.FrameLimitExceeded;
     if (overlaps(canvas, std.mem.sliceAsBytes(commands))) return error.AliasedInput;
+    var assets = FrameAssets{};
     var work: usize = 0;
-    var source_bytes: usize = 0;
     var text_bytes: usize = 0;
     for (commands) |command| {
-        var bytes: usize = 0;
         const pixels = switch (command) {
             .sprite => |sprite| blk: {
                 const prepared = try prepareSprite(canvas, sprite, limits);
-                bytes = try assetBytes(sprite.bitmap, sprite.tint);
+                try assets.bitmap(sprite.bitmap, sprite.tint, limits);
                 break :blk prepared.bounds.pixels();
             },
             .triangle => |triangle| blk: {
                 const prepared = try prepareTriangle(canvas, triangle, limits);
-                bytes = try assetBytes(triangle.bitmap, triangle.tint);
+                try assets.bitmap(triangle.bitmap, triangle.tint, limits);
                 break :blk prepared.bounds.pixels();
             },
             .text => |text| blk: {
@@ -413,12 +461,11 @@ pub fn drawFrame(canvas: *graphics.Canvas, commands: []const Command, limits: Li
                 text_bytes = std.math.add(usize, text_bytes, text.text.len) catch return error.FrameLimitExceeded;
                 if (text_bytes > limits.max_text_bytes) return error.FrameLimitExceeded;
                 const glyph_bytes = std.math.mul(usize, text.font.glyphs.len, @sizeOf(Glyph)) catch return error.AssetLimitExceeded;
-                bytes = std.math.add(usize, try assetBytes(text.font.bitmap, text.tint), glyph_bytes) catch return error.AssetLimitExceeded;
+                try assets.bitmap(text.font.bitmap, text.tint, limits);
+                try assets.add(.glyphs, std.mem.sliceAsBytes(text.font.glyphs)[0..glyph_bytes], limits);
                 break :blk prepared;
             },
         };
-        source_bytes = std.math.add(usize, source_bytes, bytes) catch return error.AssetLimitExceeded;
-        if (source_bytes > limits.max_asset_bytes) return error.AssetLimitExceeded;
         work = std.math.add(usize, work, pixels) catch return error.FrameLimitExceeded;
         if (work > limits.max_covered_pixels) return error.FrameLimitExceeded;
     }

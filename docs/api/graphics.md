@@ -80,18 +80,35 @@ leave an earlier command's pixels behind. The default `scene.Limits` are:
 
 | Limit | Default |
 | --- | --- |
-| Asset bytes | 64 MiB, including masks and glyph records |
+| Asset bytes | 64 MiB of unique typed views, including masks and glyph records |
+| Unique asset views | 1,024 per frame, with a fixed supported maximum |
 | Clipped bounding-box pixel work | 67,108,864 pixels |
 | Font glyph count | 4,096 per font |
 | UTF-8 text bytes | 1 MiB |
 | Frame commands | 65,536 |
 
-Asset bytes, pixel work and text bytes accumulate across a frame. Repeated assets
-are conservatively charged again. Hosts can explicitly set different limits; all
-budget arithmetic is checked. Offscreen geometry is clipped before iteration.
-Canvas allocation retains its separate pixel budget and allocator error contract.
-A scene draw does not request more memory, even if that allocator can no longer
-allocate. Rejected work returns an error before changing the canvas.
+Asset bytes count identical typed views once within a frame. A view's identity is
+its role (RGBA atlas, player mask or glyph metadata), start address and exact byte
+length. A full atlas is charged even when commands sample different subregions.
+Different offsets, lengths and roles remain separate charges, including partially
+overlapping views. Each command still receives complete validation. Deduplication
+never removes a command's pixel-work or text-byte charge.
+
+The frame uses a fixed 2,048-slot table with at most 1,024 unique views. Its entries
+occupy 48 KiB on 64-bit targets, plus two counters and ordinary call frames. Hosts
+must budget that stack storage separately from canvas pixels and borrowed inputs.
+No allocator or global cache supplies the table, and all stored addresses expire
+at function return. Lookups use bounded probing; exhaustion returns
+`AssetViewLimitExceeded` before drawing. `max_asset_views` can select a smaller
+limit, including zero for an empty frame. Values above
+`scene.max_supported_asset_views` return `InvalidAssetViewLimit`.
+
+Pixel work and text bytes still accumulate across every frame command. Hosts can
+explicitly set different byte/work limits; all budget arithmetic is checked.
+Offscreen geometry is clipped before iteration. Canvas allocation retains its
+separate pixel budget and allocator error contract. A scene draw does not request
+more memory, even if that allocator can no longer allocate. Rejected work returns
+an error before changing the canvas.
 
 ## Hardware capability boundary
 
@@ -133,4 +150,5 @@ These tests establish CPU behavior and explicit capability errors. Native surfac
 platform rendering require their own execution evidence. Scene tests compare actual
 transformed sprite, masked tint, shared-edge triangle, UV atlas, UTF-8 glyph and
 ordered-alpha pixels. They also retain invalid-input, all-or-nothing frame,
-conservative budget, aliasing and allocation-free repeated-frame checks.
+unique-view byte/count budgets, metadata exhaustion, aliasing and allocation-free
+repeated-frame checks.
