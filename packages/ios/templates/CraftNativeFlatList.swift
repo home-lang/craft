@@ -49,6 +49,8 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
 
         private(set) var representedIdentity: String?
         private(set) var hostedView: UIView?
+        /// Top, bottom, leading and trailing: the row's own margins inset it.
+        private var hostedConstraints: [NSLayoutConstraint] = []
         var onRecycle: ((String) -> Void)?
         override func prepareForReuse() {
             super.prepareForReuse()
@@ -74,7 +76,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
             representedIdentity = identity
             // The same view, already here. A view that left for another cell
             // and is asked for again is put back below.
-            guard hostedView !== view || view.superview !== contentView else { return }
+            guard hostedView !== view || view.superview !== contentView else { return applyHostedMargins() }
             // Only a view still in this cell is taken out of it: one that has
             // since moved to another cell is that cell's now, and pulling it
             // from there blanked a row on screen.
@@ -82,12 +84,27 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
             hostedView = view
             view.translatesAutoresizingMaskIntoConstraints = false
             contentView.addSubview(view)
-            NSLayoutConstraint.activate([
+            hostedConstraints = [
                 view.topAnchor.constraint(equalTo: contentView.topAnchor),
-                view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+                contentView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
                 view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-                view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            ])
+                contentView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            ]
+            applyHostedMargins()
+            NSLayoutConstraint.activate(hostedConstraints)
+        }
+
+        /// A row's margins (`mx-4` on a grouped row) inset it in its cell, as
+        /// a column inset it: pinned edge to edge, HQ's Discover results ran
+        /// to the screen's sides. Read again on every pass, since a style
+        /// update changes the row in place.
+        private func applyHostedMargins() {
+            guard let view = hostedView, view.superview === contentView, hostedConstraints.count == 4 else { return }
+            let margins = view.craftLayoutMargins
+            let constants = [margins.top, margins.bottom, margins.left, margins.right]
+            for (constraint, constant) in zip(hostedConstraints, constants) where constraint.constant != constant {
+                constraint.constant = constant
+            }
         }
 
         func releaseHostedView() {
@@ -106,6 +123,8 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
             _ layoutAttributes: UICollectionViewLayoutAttributes
         ) -> UICollectionViewLayoutAttributes {
             guard let hostedView = hostedView else { return layoutAttributes }
+            applyHostedMargins()
+            let margins = hostedView.craftLayoutMargins
             let attributes = layoutAttributes.copy() as! UICollectionViewLayoutAttributes
             // A cell has no collectionView property; the list is its nearest
             // collection view ancestor.
@@ -121,24 +140,26 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
                let flowLayout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout,
                flowLayout.scrollDirection == .horizontal {
                 let height = fittingExtent ?? layoutAttributes.size.height
+                let inner = max(0, height - margins.top - margins.bottom)
                 let measured = CraftNativeFlexLayout.measure(
                     hostedView,
                     width: nil,
-                    height: height,
+                    height: inner,
                     maxWidth: CraftNativeFlexLayout.unbounded,
-                    maxHeight: height
+                    maxHeight: inner
                 )
-                attributes.size = CGSize(width: max(1, ceil(measured.width)), height: max(1, height))
+                attributes.size = CGSize(width: max(1, ceil(measured.width + margins.left + margins.right)), height: max(1, height))
             } else {
                 let width = fittingExtent ?? layoutAttributes.size.width
+                let inner = max(0, width - margins.left - margins.right)
                 let measured = CraftNativeFlexLayout.measure(
                     hostedView,
-                    width: width,
+                    width: inner,
                     height: nil,
-                    maxWidth: width,
+                    maxWidth: inner,
                     maxHeight: CraftNativeFlexLayout.unbounded
                 )
-                attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height)))
+                attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height + margins.top + margins.bottom)))
             }
             return attributes
         }

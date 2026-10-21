@@ -351,9 +351,130 @@ private class CraftNativeSvgView(context: Context) : View(context) {
     var drawing: JSONObject = JSONObject()
         set(value) {
             field = value
+            animates = hasAnimation(value.optJSONArray("children"))
             invalidate()
             requestLayout()
+            updateFrames()
         }
+
+    /** Whether a shape carries keyframes (SMIL `<animate attributeName="d">`, stx's `Animate`). */
+    private var animates = false
+    /** When this drawing's repetition began (System.nanoTime), 0 while still. */
+    private var animationStart = 0L
+    private var frameScheduled = false
+    private val frameCallback = android.view.Choreographer.FrameCallback { nextFrame() }
+
+    /** Moving now: shown, and animations are on (off is Android's reduced motion). */
+    val isAnimating: Boolean
+        get() = animates && isAttachedToWindow && isShown && ValueAnimator.areAnimatorsEnabled()
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        updateFrames()
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        updateFrames()
+    }
+
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        updateFrames()
+    }
+
+    /** One frame at a time from the display (Choreographer) while moving; none while still or away. */
+    private fun updateFrames() {
+        if (isAnimating) {
+            if (animationStart == 0L) animationStart = System.nanoTime()
+            if (!frameScheduled) {
+                frameScheduled = true
+                android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
+            }
+        } else {
+            animationStart = 0L
+            if (frameScheduled) {
+                frameScheduled = false
+                android.view.Choreographer.getInstance().removeFrameCallback(frameCallback)
+            }
+        }
+    }
+
+    private fun nextFrame() {
+        frameScheduled = false
+        if (!isAnimating) return updateFrames()
+        // Drawn only while some of it is on screen; a row scrolled away keeps its time.
+        if (getLocalVisibleRect(android.graphics.Rect())) invalidate()
+        frameScheduled = true
+        android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
+    }
+
+    private fun hasAnimation(children: JSONArray?): Boolean {
+        if (children == null) return false
+        return (0 until children.length()).any { index ->
+            val node = children.optJSONObject(index) ?: return@any false
+            if (node.optString("type") == "Animate") node.optJSONObject("props")?.has("frames") == true
+            else hasAnimation(node.optJSONArray("children"))
+        }
+    }
+
+    /** A shape's outline now: between its keyframes while moving, else its own. */
+    private fun outline(node: JSONObject): List<Float>? {
+        if (isAnimating && animationStart != 0L) {
+            val children = node.optJSONArray("children")
+            val animate = children?.let { list -> (0 until list.length()).mapNotNull { list.optJSONObject(it) }.firstOrNull { it.optString("type") == "Animate" } }
+            animate?.optJSONObject("props")?.let { keyframe(it, (System.nanoTime() - animationStart) / 1e9) }?.let { return it }
+        }
+        val geometry = node.optJSONObject("props")?.optJSONArray("geometry") ?: return null
+        return (0 until geometry.length()).map { craftNativeNumber(geometry.opt(it))?.toFloat() ?: Float.NaN }
+    }
+
+    companion object {
+        /**
+         * The outline `elapsed` seconds into an `Animate`'s repetitions, between
+         * the keyframes either side of now (SMIL's linear `calcMode`); null when
+         * it does not animate path data or its repetitions are over.
+         */
+        fun keyframe(props: JSONObject, elapsed: Double): List<Float>? {
+            if (props.optString("attributeName") != "d" || elapsed < 0) return null
+            val duration = craftNativeNumber(props.opt("duration"))?.takeIf { it.isFinite() && it > 0 } ?: return null
+            val raw = props.optJSONArray("frames") ?: return null
+            val frames = (0 until raw.length()).mapNotNull { index ->
+                raw.optJSONArray(index)?.let { frame -> (0 until frame.length()).map { craftNativeNumber(frame.opt(it))?.toFloat() ?: Float.NaN } }
+            }
+            if (frames.size < 2 || frames.size != raw.length()) return null
+            craftNativeNumber(props.opt("repeatCount"))?.let { if (it.isFinite() && elapsed >= it * duration) return null }
+            val given = props.optJSONArray("frameTimes")?.let { times -> (0 until times.length()).mapNotNull { craftNativeNumber(times.opt(it)) } }.orEmpty()
+            val times = if (given.size == frames.size) given else frames.indices.map { it.toDouble() / (frames.size - 1) }
+            val phase = (elapsed % duration) / duration
+            var index = 0
+            while (index < frames.size - 2 && times[index + 1] <= phase) index++
+            val span = times[index + 1] - times[index]
+            val share = if (span > 0) ((phase - times[index]) / span).coerceIn(0.0, 1.0).toFloat() else 0f
+            return interpolate(frames[index], frames[index + 1], share)
+        }
+
+        /** Two outlines with the same commands, a share of the way between; the first when they differ. */
+        fun interpolate(from: List<Float>, to: List<Float>, share: Float): List<Float> {
+            if (from.size != to.size || share <= 0f) return from
+            val out = from.toMutableList()
+            var index = 0
+            while (index < from.size) {
+                if (to[index] != from[index]) return from
+                val count = when (from[index].toInt()) {
+                    0, 1 -> 2
+                    2 -> 6
+                    3 -> 4
+                    4 -> 0
+                    else -> return from
+                }
+                if (index + count >= from.size) return from
+                for (offset in 1..count) out[index + offset] = from[index + offset] + (to[index + offset] - from[index + offset]) * share
+                index += count + 1
+            }
+            return out
+        }
+    }
 
     private data class SvgPaint(
         val fill: String? = "#000000",
@@ -489,25 +610,25 @@ private class CraftNativeSvgView(context: Context) : View(context) {
             when (node.optString("type")) {
                 "G" -> drawNodes(canvas, node.optJSONArray("children") ?: JSONArray(), paint)
                 "SvgText" -> drawText(canvas, node, paint)
+                "Animate" -> Unit
                 else -> drawPath(canvas, node, paint)
             }
         }
     }
 
     private fun drawPath(canvas: Canvas, node: JSONObject, style: SvgPaint) {
-        val props = node.optJSONObject("props") ?: JSONObject()
-        val geometry = props.optJSONArray("geometry") ?: return
-        if ((0 until geometry.length()).any { craftNativeNumber(geometry.opt(it))?.toFloat()?.isFinite() != true }) return
+        val geometry = outline(node) ?: return
+        if (geometry.any { !it.isFinite() }) return
         val path = Path()
         var index = 0
-        while (index < geometry.length()) {
-            val command = craftNativeNumber(geometry.opt(index))?.toInt() ?: break
-            fun number(offset: Int): Float = craftNativeNumber(geometry.opt(index + offset))?.toFloat() ?: Float.NaN
+        while (index < geometry.size) {
+            val command = geometry[index].toInt()
+            fun number(offset: Int): Float = geometry[index + offset]
             when (command) {
-                0 -> if (index + 2 < geometry.length()) { path.moveTo(number(1), number(2)); index += 3 } else break
-                1 -> if (index + 2 < geometry.length()) { path.lineTo(number(1), number(2)); index += 3 } else break
-                2 -> if (index + 6 < geometry.length()) { path.cubicTo(number(1), number(2), number(3), number(4), number(5), number(6)); index += 7 } else break
-                3 -> if (index + 4 < geometry.length()) { path.quadTo(number(1), number(2), number(3), number(4)); index += 5 } else break
+                0 -> if (index + 2 < geometry.size) { path.moveTo(number(1), number(2)); index += 3 } else break
+                1 -> if (index + 2 < geometry.size) { path.lineTo(number(1), number(2)); index += 3 } else break
+                2 -> if (index + 6 < geometry.size) { path.cubicTo(number(1), number(2), number(3), number(4), number(5), number(6)); index += 7 } else break
+                3 -> if (index + 4 < geometry.size) { path.quadTo(number(1), number(2), number(3), number(4)); index += 5 } else break
                 4 -> { path.close(); index += 1 }
                 else -> break
             }

@@ -2164,6 +2164,13 @@ extension UIView {
         set { objc_setAssociatedObject(self, &craftNativeLayoutStyleKey, CraftNativeLayoutStyleBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
 
+    /// The margins this view's style asks for, for a container that places
+    /// it without a flex parent (a FlatList cell).
+    var craftLayoutMargins: UIEdgeInsets {
+        let style = craftLayoutStyle
+        return UIEdgeInsets(top: max(0, style.marginTop), left: max(0, style.marginLeft), bottom: max(0, style.marginBottom), right: max(0, style.marginRight))
+    }
+
     /// The corner radius the style asked for. The layer gets at most half the
     /// shortest side: Core Animation draws nothing at all for a radius larger
     /// than the view (`rounded-full` is 9999).
@@ -4328,9 +4335,13 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
 /// 3 quadratic, 4 close, in viewBox units - and scaled to the view. Paint is
 /// inherited down the tree as SVG does; `dark:` classes arrive already
 /// resolved for the appearance, so a redraw is all a theme change needs.
-private final class CraftNativeSvgView: UIView {
+final class CraftNativeSvgView: UIView {
     var drawing: [String: Any] = [:] {
-        didSet { setNeedsDisplay() }
+        didSet {
+            animates = Self.hasAnimation(drawing["children"] as? [Any] ?? [])
+            setNeedsDisplay()
+            updateFrames()
+        }
     }
 
     override init(frame: CGRect) {
@@ -4338,9 +4349,122 @@ private final class CraftNativeSvgView: UIView {
         isOpaque = false
         backgroundColor = .clear
         contentMode = .redraw
+        NotificationCenter.default.addObserver(self, selector: #selector(reduceMotionChanged), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    deinit { CraftNativeFrameClock.shared.cancel(self) }
+
+    // MARK: Animation
+
+    /// Whether a shape carries keyframes (SMIL `<animate attributeName="d">`,
+    /// stx's `Animate`: an exercise's moving figure).
+    private var animates = false
+    /// When this drawing's repetition began: each one starts from its first
+    /// pose when it comes on screen, as a page's SMIL starts when it loads.
+    private var animationStart: CFTimeInterval?
+
+    /// Moving now: on display, and the person has not asked for less motion,
+    /// when each shape keeps its own outline (the still pose).
+    var isAnimating: Bool { animates && window != nil && !isHidden && !UIAccessibility.isReduceMotionEnabled }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        updateFrames()
+    }
+
+    override var isHidden: Bool {
+        didSet { if isHidden != oldValue { updateFrames() } }
+    }
+
+    @objc private func reduceMotionChanged() {
+        updateFrames()
+        setNeedsDisplay()
+    }
+
+    /// Frames from the screens' display link (CraftNativeFrameClock, up to
+    /// 120Hz) while moving; none at all while still or out of sight.
+    private func updateFrames() {
+        if isAnimating {
+            if animationStart == nil { animationStart = CACurrentMediaTime() }
+            CraftNativeFrameClock.shared.request(self) { [weak self] in self?.nextFrame() }
+        } else {
+            animationStart = nil
+            CraftNativeFrameClock.shared.cancel(self)
+        }
+    }
+
+    private func nextFrame() {
+        guard isAnimating else { return updateFrames() }
+        // Drawn only while some of it is on screen; a row scrolled away keeps
+        // its time and is right when it comes back.
+        if let window, window.bounds.intersects(convert(bounds, to: window)) { setNeedsDisplay() }
+        CraftNativeFrameClock.shared.request(self) { [weak self] in self?.nextFrame() }
+    }
+
+    private static func hasAnimation(_ children: [Any]) -> Bool {
+        children.contains { child in
+            guard let node = child as? [String: Any] else { return false }
+            if node["type"] as? String == "Animate" { return (node["props"] as? [String: Any])?["frames"] != nil }
+            return hasAnimation(node["children"] as? [Any] ?? [])
+        }
+    }
+
+    /// A shape's outline now: between the keyframes either side of `elapsed`
+    /// seconds into its animation (SMIL's linear `calcMode`), or its own
+    /// outline when it has none, the animation has ended, or motion is reduced.
+    private func outline(of shape: [String: Any]) -> Any? {
+        let geometry = (shape["props"] as? [String: Any])?["geometry"]
+        guard isAnimating, let start = animationStart,
+              let animate = (shape["children"] as? [Any])?.lazy.compactMap({ $0 as? [String: Any] }).first(where: { $0["type"] as? String == "Animate" }),
+              let current = Self.keyframe(animate["props"] as? [String: Any] ?? [:], at: CACurrentMediaTime() - start) else { return geometry }
+        return current
+    }
+
+    /// The outline `elapsed` seconds into an `Animate`'s repetitions; nil
+    /// when it does not animate path data or its repetitions are over.
+    static func keyframe(_ props: [String: Any], at elapsed: CFTimeInterval) -> [Any]? {
+        guard props["attributeName"] as? String == "d",
+              let duration = number(props["duration"]), duration > 0, duration.isFinite,
+              let frames = (props["frames"] as? [Any])?.compactMap({ ($0 as? [Any])?.compactMap(number) }),
+              frames.count >= 2, elapsed >= 0 else { return nil }
+        if let count = number(props["repeatCount"]), elapsed >= Double(count * duration) { return nil }
+        let given = (props["frameTimes"] as? [Any])?.compactMap(number) ?? []
+        let times = given.count == frames.count ? given : frames.indices.map { CGFloat($0) / CGFloat(frames.count - 1) }
+        let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: Double(duration))) / duration
+        var index = 0
+        while index < frames.count - 2, times[index + 1] <= phase { index += 1 }
+        let from = frames[index]
+        let to = frames[index + 1]
+        let span = times[index + 1] - times[index]
+        let share = span > 0 ? min(1, max(0, (phase - times[index]) / span)) : 0
+        return interpolate(from, to, share).map { NSNumber(value: Double($0)) }
+    }
+
+    /// Two outlines with the same commands, a share of the way from one to
+    /// the other; the first as it is when their commands differ.
+    static func interpolate(_ from: [CGFloat], _ to: [CGFloat], _ share: CGFloat) -> [CGFloat] {
+        guard from.count == to.count, share > 0 else { return from }
+        var out = from
+        var i = 0
+        while i < from.count {
+            let command = Int(from[i])
+            guard to[i] == from[i] else { return from }
+            let count: Int
+            switch command {
+            case 0, 1: count = 2
+            case 2: count = 6
+            case 3: count = 4
+            case 4: count = 0
+            default: return from
+            }
+            guard i + count < from.count else { return from }
+            if count > 0 { for k in 1...count { out[i + k] = from[i + k] + (to[i + k] - from[i + k]) * share } }
+            i += count + 1
+        }
+        return out
+    }
 
     var viewBox: CGRect? {
         let props = drawing["props"] as? [String: Any] ?? [:]
@@ -4461,8 +4585,10 @@ private final class CraftNativeSvgView: UIView {
                 draw(children: shape["children"] as? [Any] ?? [], paint: own, in: context)
             case "SvgText":
                 drawText(shape, paint: own)
+            case "Animate":
+                continue
             default:
-                guard let path = CraftNativeSvgView.path((shape["props"] as? [String: Any])?["geometry"]) else { continue }
+                guard let path = CraftNativeSvgView.path(outline(of: shape)) else { continue }
                 context.saveGState()
                 path.usesEvenOddFillRule = own.fillRule == "evenodd"
                 if let fill = own.resolve(own.fill) {

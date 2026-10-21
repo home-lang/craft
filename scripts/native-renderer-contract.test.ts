@@ -924,9 +924,9 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`Svg` is DOM-free in native mode')
     expect(guide).toContain('line caps, joins, miter limits, dash patterns, and')
     expect(ios).toContain('n.allSatisfy(\\.isFinite)')
-    expect(android).toContain('if ((0 until geometry.length()).any { craftNativeNumber(geometry.opt(it))?.toFloat()?.isFinite() != true }) return')
+    expect(android).toContain('if (geometry.any { !it.isFinite() }) return')
     expect(android).toContain('craftNativeNumber(values.opt(0))?.toFloat() ?: Float.NaN')
-    expect(android).toContain('craftNativeNumber(geometry.opt(index))?.toInt() ?: break')
+    expect(android).toContain('val command = geometry[index].toInt()')
     expect(ios).toContain('guard n.count == 4, n.allSatisfy(\\.isFinite), n[2] > 0, n[3] > 0 else { return nil }')
     expect(android).toContain('!x.isFinite() || !y.isFinite() || !width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f')
   })
@@ -2787,7 +2787,7 @@ describe('native renderer component contract', () => {
   it('keeps horizontal list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('flowLayout.scrollDirection = horizontal ? .horizontal : .vertical')
     expect(iosFlatList).toContain('maxWidth: CraftNativeFlexLayout.unbounded,')
-    expect(iosFlatList).toContain('attributes.size = CGSize(width: max(1, ceil(measured.width)), height: max(1, height))')
+    expect(iosFlatList).toContain('attributes.size = CGSize(width: max(1, ceil(measured.width + margins.left + margins.right)), height: max(1, height))')
     expect(iosFlatList).not.toContain('bounds.width * 0.8')
     expect(androidFlatList).toContain('if (horizontal) LayoutParams.WRAP_CONTENT else LayoutParams.MATCH_PARENT')
     expect(androidFlatList).toContain('updateVisibleHolderLayoutParams()')
@@ -2797,7 +2797,7 @@ describe('native renderer component contract', () => {
   it('keeps vertical list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('let width = fittingExtent ?? layoutAttributes.size.width')
     expect(iosFlatList).toContain('maxHeight: CraftNativeFlexLayout.unbounded')
-    expect(iosFlatList).toContain('attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height)))')
+    expect(iosFlatList).toContain('attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height + margins.top + margins.bottom)))')
     expect(androidFlatList).toContain('renderedLayout?.height ?: LayoutParams.WRAP_CONTENT')
     expect(androidFlatList).toContain('holder.host.addView(view, hostedLayout)')
   })
@@ -3292,10 +3292,30 @@ describe('native renderer component contract', () => {
 
   it('keeps vertical FlatList row roots full-width across hosts', () => {
     expect(iosFlatList).toContain('view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor)')
-    expect(iosFlatList).toContain('view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)')
+    expect(iosFlatList).toContain('contentView.trailingAnchor.constraint(equalTo: view.trailingAnchor)')
     expect(androidFlatList).toContain('val hostedWidth = if (!horizontal && renderedWidth == LayoutParams.WRAP_CONTENT)')
     expect(androidFlatList).toContain('LayoutParams.MATCH_PARENT')
     expect(androidFlatListTest).toContain('verticalRowsFillTheListWidthWhenNoWidthIsAuthored')
+  })
+
+  it('insets a FlatList row by its own margins on both hosts', () => {
+    // A row's `mx-4` (HQ's grouped rows) leaves room either side, as a column does.
+    expect(iosFlatList).toContain('let margins = view.craftLayoutMargins')
+    expect(iosFlatList).toContain('let inner = max(0, width - margins.left - margins.right)')
+    expect(ios).toContain('var craftLayoutMargins: UIEdgeInsets')
+    expect(iosNativeUnitTests).toContain('func testFlatListRowsKeepTheirOwnSideMargins()')
+    expect(androidFlatList).toContain('if (renderedLayout is ViewGroup.MarginLayoutParams) {')
+  })
+
+  it('plays SMIL path keyframes on native SVG on both hosts, only while shown', () => {
+    expect(ios).toContain('static func keyframe(_ props: [String: Any], at elapsed: CFTimeInterval) -> [Any]?')
+    expect(ios).toContain('CraftNativeFrameClock.shared.request(self) { [weak self] in self?.nextFrame() }')
+    expect(ios).toContain('!UIAccessibility.isReduceMotionEnabled')
+    expect(android).toContain('fun keyframe(props: JSONObject, elapsed: Double): List<Float>?')
+    expect(android).toContain('android.view.Choreographer.getInstance().postFrameCallback(frameCallback)')
+    expect(android).toContain('ValueAnimator.areAnimatorsEnabled()')
+    expect(iosNativeUnitTests).toContain('func testSvgKeyframesPlayBetweenTheirKeyTimes()')
+    expect(iosNativeUnitTests).toContain('func testAnimatedSvgAsksForFramesOnlyWhileOnScreen()')
   })
 
   it('verifies intrinsic horizontal FlatList row widths on both hosts', () => {
@@ -3632,7 +3652,7 @@ describe('native renderer component contract', () => {
   it('releases replaced iOS row roots only from their owning cell', () => {
     expect(ios).toContain('if let previous, previous.view !== next.view, !adopting {')
     expect(ios).toContain('self.forgetHandlers(previous)')
-    expect(iosFlatList).toContain('guard hostedView !== view || view.superview !== contentView else { return }')
+    expect(iosFlatList).toContain('guard hostedView !== view || view.superview !== contentView else { return applyHostedMargins() }')
     expect(iosFlatList).toContain('if let shown = hostedView, shown !== view, shown.superview === contentView { shown.removeFromSuperview() }')
     expect(iosFlatList).toContain('if let shown = hostedView, shown.superview === contentView { shown.removeFromSuperview() }')
     expect(iosNativeUnitTests).toContain('func testFlatListRowsOnScreenTakeTheirViewsBackFromASecondCell()')

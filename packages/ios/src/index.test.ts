@@ -236,7 +236,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('case "Picker":')
     // Vector drawing (stx svg.ts): an Svg draws its shapes' geometry
     // commands, and a change to a shape redraws its Svg.
-    expect(nativeSwift).toContain('private final class CraftNativeSvgView: UIView')
+    expect(nativeSwift).toContain('final class CraftNativeSvgView: UIView')
     expect(nativeSwift).toContain('private var overlayCoordinatesByID: [String: [CLLocationCoordinate2D]] = [:]')
     expect(nativeSwift).toContain('let staleOverlays = overlaysByID.keys.filter { nextPolylines[$0] == nil }')
     expect(nativeSwift).toContain('Self.coordinatesEqual(coordinates, value.coordinates)')
@@ -351,8 +351,8 @@ describe('Craft iOS builder', () => {
     expect(flatListSwift).toContain('UICollectionViewDiffableDataSource<Int, String>')
     expect(flatListSwift).toContain('reconfigureItems(changedLive)')
     expect(flatListSwift).toContain('preferredLayoutAttributesFitting')
-    expect(flatListSwift).toContain('attributes.size = CGSize(width: max(1, ceil(measured.width)), height: max(1, height))')
-    expect(flatListSwift).toContain('attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height)))')
+    expect(flatListSwift).toContain('attributes.size = CGSize(width: max(1, ceil(measured.width + margins.left + margins.right)), height: max(1, height))')
+    expect(flatListSwift).toContain('attributes.size = CGSize(width: max(1, width), height: max(1, ceil(measured.height + margins.top + margins.bottom)))')
     expect(flatListSwift).toContain('let fittingExtent = list?.itemExtent(isChrome: isChrome)')
     expect(flatListSwift).toContain('func fittingHeight(width: CGFloat) -> CGFloat')
     expect(flatListSwift).toContain('pendingApply')
