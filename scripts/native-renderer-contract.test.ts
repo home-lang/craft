@@ -900,6 +900,36 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val options = if (itemOptions.isNotEmpty()) itemOptions else')
   })
 
+  it('lets a long multiline input scroll inside itself and keeps its caret in view', () => {
+    expect(ios).toContain('let overflows = isEditable && bounds.height > 0 && needed > bounds.height + 1')
+    expect(ios).toContain('private func keepCaretVisible(in textView: UITextView)')
+    expect(ios).toContain('func textViewDidChangeSelection(_ textView: UITextView)')
+    expect(iosNativeUnitTests).toContain('func testAMultilineInputScrollsInsideItselfPastItsMaxHeight()')
+    expect(iosNativeUnitTests).toContain('func testTheCaretStaysInViewAsAnInputGrows()')
+    expect(ios).toContain('if rect.height > visible.height, let caret = caretRect(of: input, in: scroll) { rect = caret }')
+    expect(iosNativeUnitTests).toContain('func testALongInputWithoutAMaxHeightKeepsItsCaretAboveTheKeyboard()')
+  })
+
+  it('puts a bar a screen asks for before it appears in place without sliding it in', () => {
+    expect(ios).toContain('var animatesNavigationBarChanges: Bool { hasAppeared && view.window != nil }')
+    expect(ios).not.toContain('setNavigationBarHidden(false, animated: view.window != nil)')
+    expect(iosNativeUnitTests).toContain('func testABarAskedForBeforeTheScreenAppearsDoesNotSlideIn()')
+  })
+
+  it('keeps a tab picture once loaded and never animates its arrival', () => {
+    const app = readFileSync(join(root, 'packages/ios/templates/CraftApp.swift'), 'utf8')
+    expect(app).toContain('private struct CraftTabPicture: View')
+    expect(app).toContain('.transaction { $0.animation = nil }')
+    expect(app).not.toContain('AsyncImage(url: url)')
+  })
+
+  it('makes a tab not prepared yet before the bar selection moves', () => {
+    const app = readFileSync(join(root, 'packages/ios/templates/CraftApp.swift'), 'utf8')
+    const hybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
+    expect(app).toContain('CraftHybrid.shared.mountTabBeforeSelecting(tab.id)')
+    expect(hybrid).toContain('func mountTabBeforeSelecting(_ id: String)')
+  })
+
   it('keeps SVG stroke semantics aligned across hosts', () => {
     expect(ios).toContain('line.lineCapStyle')
     expect(ios).toContain('line.lineJoinStyle')

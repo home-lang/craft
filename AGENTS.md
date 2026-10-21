@@ -32,6 +32,8 @@ Before pushing, run what your machine can actually run:
 bun run test:sdk        # the SDK suite
 bun run typecheck
 bun run verify:packages # needs the package dists built first
+bun run fmt:check       # use the pinned Zig toolchain, as CI does
+bun run test:release    # real versioning, rollback and changelog rehearsals
 bunx --bun pickier .    # never eslint; 0 errors is the bar
 ```
 

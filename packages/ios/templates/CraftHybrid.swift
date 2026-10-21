@@ -880,6 +880,13 @@ final class CraftHybrid: NSObject {
         return controller.tabTapped(id, reselect: reselect)
     }
 
+    /// A native tab not prepared yet mounts its screen now, hidden, before
+    /// the bar's selection moves (CraftChrome.tap).
+    func mountTabBeforeSelecting(_ id: String) {
+        guard isEnabled else { return }
+        controller?.mountTabBeforeSelecting(id)
+    }
+
     /// The page chose a tab itself (its `selectTab`, or a tab link).
     func pageSelectedTab(_ id: String) {
         guard isEnabled else { return }
@@ -1730,6 +1737,20 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     private var preparation: Timer?
+
+    /// A native tab tapped before the shell prepared it (HQ's Me, prepared
+    /// last, tapped right after launch) mounts its screen hidden first. Mounted
+    /// in the tap's own turn after the selection began, it held the main
+    /// thread while SwiftUI's spring should have moved the pill, which then
+    /// stalled and jumped in from the side.
+    func mountTabBeforeSelecting(_ id: String) {
+        guard stacks[id] == nil, id != currentTab, activeTabSwipeTarget == nil,
+              hybrid.tabIds.contains(id), hybrid.routes.match(id) != nil, view.window != nil else { return }
+        let nav = makeStack(tab: id, rootPath: id, hidden: true)
+        nav.view.layoutIfNeeded()
+        Self.drawContents(of: nav.view.layer)
+        (visibleStack?.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(true)
+    }
 
     /// When the shell last moved between screens: a tab, a push or a pop.
     private var lastNavigation: CFTimeInterval = 0

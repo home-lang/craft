@@ -903,6 +903,9 @@ final class CraftChrome: ObservableObject {
     func tap(_ tab: Tab) {
         let reselect = tab.id == selected
         if !reselect {
+            // A tab's screen not made yet is made first, so the pill moves on
+            // a free main thread rather than stalling behind its mount.
+            CraftHybrid.shared.mountTabBeforeSelecting(tab.id)
             withAnimation(Self.motion(.spring(response: 0.32, dampingFraction: 0.86))) { selected = tab.id }
         }
         // A hybrid app shows the tab's own stack first; the page hears the
@@ -1162,11 +1165,7 @@ struct CraftTabBarView: View {
                     VStack(spacing: 3) {
                         ZStack(alignment: .topTrailing) {
                             if let image = tab.image, let url = URL(string: image) {
-                                AsyncImage(url: url) { image in
-                                    image.resizable().scaledToFill()
-                                } placeholder: {
-                                    Image(systemName: symbol(tab.symbol, selected: isSelected))
-                                }
+                                CraftTabPicture(url: url, placeholder: symbol(tab.symbol, selected: isSelected))
                                 .frame(width: iconSize + 4, height: iconSize + 4)
                                 .clipShape(Circle())
                                 .frame(height: iconSize + 6)
@@ -1255,6 +1254,46 @@ struct CraftTabBarView: View {
         let exists = UIImage(systemName: "\(name).fill") != nil
         filledSymbols[name] = exists
         return exists
+    }
+}
+
+/// A tab's picture (HQ's Me: the account's photo). It is kept once loaded,
+/// so a tab item drawn again (its screen mounting, the bar coming back) shows
+/// it at once: AsyncImage keeps nothing, so the photo went back to the
+/// person symbol, loaded again and arrived inside whatever animation was
+/// running, sliding in from the side on the first visit to Me.
+private struct CraftTabPicture: View {
+    let url: URL
+    let placeholder: String
+    @State private var image: UIImage?
+
+    private static let cache: NSCache<NSURL, UIImage> = {
+        let cache = NSCache<NSURL, UIImage>()
+        cache.countLimit = 16
+        return cache
+    }()
+
+    var body: some View {
+        Group {
+            if let shown = image ?? Self.cache.object(forKey: url as NSURL) {
+                Image(uiImage: shown).resizable().scaledToFill()
+            } else {
+                Image(systemName: placeholder)
+            }
+        }
+        // A picture arriving never animates, whatever transaction it lands in.
+        .transaction { $0.animation = nil }
+        .task(id: url) {
+            if let cached = Self.cache.object(forKey: url as NSURL) {
+                image = cached
+                return
+            }
+            guard let (data, response) = try? await URLSession.shared.data(from: url),
+                  (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
+                  let loaded = UIImage(data: data) else { return }
+            Self.cache.setObject(loaded, forKey: url as NSURL)
+            image = loaded
+        }
     }
 }
 

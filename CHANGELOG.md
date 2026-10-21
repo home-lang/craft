@@ -1,5 +1,51 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.286...v0.0.287)
+
+## 🐛 Bug Fixes
+
+- **ios**: the Me tab arrives cleanly on its first visit ([1623462](https://github.com/craft-native/craft/commit/1623462)) _(by Chris Breuer)_
+- **ios**: put a navigation bar asked for before a screen appears in place ([e7f37fe](https://github.com/craft-native/craft/commit/e7f37fe)) _(by Chris Breuer)_
+- **ios**: let a long multiline TextInput be edited to its last line ([52fe715](https://github.com/craft-native/craft/commit/52fe715)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.285...v0.0.286)
+
+## 🐛 Bug Fixes
+
+- **release**: keep version validation standalone and rehearse automation ([71b0214](https://github.com/craft-native/craft/commit/71b0214)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.284...v0.0.285)
+
+## 🚀 Features
+
+- expose cancellable native deadlines through the bridge ([5ae324b](https://github.com/craft-native/craft/commit/5ae324b)) _(by Chris Breuer)_
+- schedule hidden app deadlines on the native run loop ([9ef142d](https://github.com/craft-native/craft/commit/9ef142d)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **release**: require pinned Zig formatting before tagging ([65b0db6](https://github.com/craft-native/craft/commit/65b0db6)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- explain native background deadlines and lifecycle ([b6405dd](https://github.com/craft-native/craft/commit/b6405dd)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into HEAD ([393fafb](https://github.com/craft-native/craft/commit/393fafb)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into HEAD ([2a42d46](https://github.com/craft-native/craft/commit/2a42d46)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.283...v0.0.284)
 
 ## 🐛 Bug Fixes
