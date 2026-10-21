@@ -1,5 +1,63 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.277...v0.0.278)
+
+## 🚀 Features
+
+- **packaging**: preserve prebuilt apps and support notarization API keys ([46ba751](https://github.com/craft-native/craft/commit/46ba751)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **build**: link macOS logger tests to their native dependencies ([1eae66d](https://github.com/craft-native/craft/commit/1eae66d)) _(by Chris)_
+- **graphics**: reject unsupported drawing and composite atlas sprites ([86daaf5](https://github.com/craft-native/craft/commit/86daaf5)) _(by Chris)_
+- **app**: pass the sender when terminating a macOS app ([b1f3a0e](https://github.com/craft-native/craft/commit/b1f3a0e)) _(by Chris Breuer)_
+- **macos**: keep packaged tray popovers alive and detection running ([1c4c147](https://github.com/craft-native/craft/commit/1c4c147)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/settlers-render-truth ([f8ccf93](https://github.com/craft-native/craft/commit/f8ccf93)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-render-truth ([ba2a7ee](https://github.com/craft-native/craft/commit/ba2a7ee)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' into codex/hush-sharing-timer ([1bbd382](https://github.com/craft-native/craft/commit/1bbd382)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.276...v0.0.277)
+
+## 🚀 Features
+
+- **tray**: render embedded image data without temporary files ([fbe4352](https://github.com/craft-native/craft/commit/fbe4352)) _(by Chris Breuer)_
+- **mobile**: expose typed file picker ([d7a68cd](https://github.com/craft-native/craft/commit/d7a68cd)) _(by glennmichael123)_
+- **ios**: add general native file picker ([a3d4b5b](https://github.com/craft-native/craft/commit/a3d4b5b)) _(by glennmichael123)_
+- **ios**: run watch workouts through HealthKit ([4fe0406](https://github.com/craft-native/craft/commit/4fe0406)) _(by glennmichael123)_
+- **ios**: persist watch workout handoff state ([b7b5744](https://github.com/craft-native/craft/commit/b7b5744)) _(by glennmichael123)_
+- **native**: add atomic list child snapshots ([05688c6](https://github.com/craft-native/craft/commit/05688c6)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **menubar**: schedule collapse on the native run loop ([12143cc](https://github.com/craft-native/craft/commit/12143cc)) _(by Chris Breuer)_
+- **power**: release native activities on replacement stop and teardown ([4867f9f](https://github.com/craft-native/craft/commit/4867f9f)) _(by Chris Breuer)_
+- **android**: wait for Google SDK setup to release HOME ([cfde9ae](https://github.com/craft-native/craft/commit/cfde9ae)) _(by Chris Breuer)_
+- **ios**: preserve document MIME types ([f6f1818](https://github.com/craft-native/craft/commit/f6f1818)) _(by glennmichael123)_
+- **native**: discard rows removed from list snapshots ([89d4449](https://github.com/craft-native/craft/commit/89d4449)) _(by glennmichael123)_
+- **security**: update electron benchmark dependency ([1339fdb](https://github.com/craft-native/craft/commit/1339fdb)) _(by glennmichael123)_
+
+## 📚 Documentation
+
+- **ios**: document live workout sessions ([2b1d715](https://github.com/craft-native/craft/commit/2b1d715)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **ios**: await complete native input accessibility values ([5f0b0d0](https://github.com/craft-native/craft/commit/5f0b0d0)) _(by Chris Breuer)_
+- **ios**: wait for a typed label's echo, check the typed value at once ([c322032](https://github.com/craft-native/craft/commit/c322032)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.275...v0.0.276)
 
 ## 🐛 Bug Fixes

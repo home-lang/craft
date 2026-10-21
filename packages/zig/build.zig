@@ -564,6 +564,20 @@ pub fn build(b: *std.Build) void {
     // conformance gate: it embeds three files and is about what `window.craft`
     // offers rather than about iOS, and the iOS gate is already the largest
     // test in the tree.
+    const power_tests = b.addTest(.{
+        .filters = &.{"native power"},
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/bridge_power.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "js_backend", .module = js_backend_module }},
+        }),
+    });
+    linkPlatformLibraries(b, power_tests.root_module, target_os, macos_sdk);
+    const run_power_tests = b.addRunArtifact(power_tests);
+    const power_step = b.step("test:power", "Run native power activity lifecycle tests");
+    power_step.dependOn(&run_power_tests.step);
+
     const bridge_surface_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("test/bridge_surface_test.zig"),
@@ -1440,6 +1454,15 @@ pub fn build(b: *std.Build) void {
     });
     bridge_log_tests.root_module.link_libc = true;
 
+    // Both logger roots reach global_state through io_context. The native
+    // power bridge it retains now owns AppKit activities, so imported tests
+    // reach the same macOS dispatch graph as other native bridge roots.
+    // Name those libraries instead of depending on another test's linkage.
+    if (target_os == .macos) {
+        linkPlatformLibraries(b, log_unit_tests.root_module, target_os, macos_sdk);
+        linkPlatformLibraries(b, bridge_log_tests.root_module, target_os, macos_sdk);
+    }
+
     // The blocking primitives every other lock in craft is built on. They
     // spun without yielding until now, so this is the first time they have
     // been exercised at all.
@@ -1986,6 +2009,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_ios_conformance_tests.step);
     test_step.dependOn(&run_jni_tests.step);
     test_step.dependOn(&run_bridge_surface_tests.step);
+    test_step.dependOn(&run_power_tests.step);
     test_step.dependOn(&run_android_conformance_tests.step);
     test_step.dependOn(&run_android_bridge_tests.step);
     test_step.dependOn(&run_android_escaping_tests.step);

@@ -165,6 +165,7 @@ var saved_tray_menu: objc.id = if (builtin.target.os.tag == .macos) null else nu
 var tray_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var click_target: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var class_registered: bool = false;
+var native_timer: objc.id = null;
 
 var separator_hidden: bool = false;
 
@@ -312,6 +313,12 @@ pub fn earlyInit() void {
                 @ptrCast(@constCast(&toggleClicked)),
                 "v@:@",
             );
+            _ = objc.class_addMethod(
+                @ptrCast(@alignCast(targetClass)),
+                objc.sel_registerName("collapseTimer:"),
+                @ptrCast(@constCast(&collapseTimer)),
+                "v@:@",
+            );
             objc.objc_registerClassPair(@ptrCast(@alignCast(targetClass)));
         }
 
@@ -351,6 +358,13 @@ pub fn init() void {
     drawMarker(separator_item, false);
     routeClicks(msgSend0(separator_item, "button"));
     suppressHighlight(separator_item);
+
+    // Native run-loop scheduling keeps collapse independent of hidden WebKit timers.
+    const NSTimer = getClass("NSTimer");
+    const schedule = @as(*const fn (objc.id, objc.SEL, f64, objc.id, objc.SEL, objc.id, bool) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    native_timer = schedule(NSTimer, objc.sel_registerName("timerWithTimeInterval:target:selector:userInfo:repeats:"), 0.1, click_target, objc.sel_registerName("collapseTimer:"), null, true);
+    const run_loop = msgSend0(getClass("NSRunLoop"), "mainRunLoop");
+    msgSendVoid2(run_loop, "addTimer:forMode:", native_timer, createNSString("kCFRunLoopCommonModes"));
 
     is_initialized = true;
     is_collapsed = false;
@@ -432,6 +446,10 @@ pub fn toggle() void {
 
 pub fn cleanup() void {
     if (is_collapsed) expand();
+    if (builtin.target.os.tag == .macos and native_timer != null) {
+        _ = msgSend0(native_timer, "invalidate");
+        native_timer = null;
+    }
 }
 
 pub fn isCollapsed() bool {
@@ -450,6 +468,10 @@ pub fn setAutoCollapse(delay_seconds: u32) void {
     } else {
         auto_collapse_timer_active = false;
     }
+}
+
+fn collapseTimer(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
+    checkAutoCollapse();
 }
 
 pub fn checkAutoCollapse() void {
@@ -474,6 +496,8 @@ pub fn checkAutoCollapse() void {
     const elapsed_ns = now - start;
     const delay_ns: u64 = @as(u64, auto_collapse_delay) * std.time.ns_per_s;
     if (elapsed_ns >= delay_ns) {
+        // Let a Cmd-drag finish before changing the status bar geometry.
+        if (builtin.target.os.tag == .macos and msgSendUsize(getClass("NSEvent"), "pressedMouseButtons") != 0) return;
         collapse();
     }
 }

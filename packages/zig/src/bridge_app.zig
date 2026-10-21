@@ -113,7 +113,7 @@ pub const AppBridge = struct {
             const macos = @import("macos.zig");
             const NSApplication = macos.getClass("NSApplication");
             const app = macos.msgSend0(NSApplication, "sharedApplication");
-            macos.msgSendVoid0(app, "terminate:");
+            _ = macos.msgSend1(app, "terminate:", @as(macos.objc.id, null));
         } else {
             std.process.exit(0);
         }

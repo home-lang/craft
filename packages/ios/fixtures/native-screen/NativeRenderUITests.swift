@@ -5,11 +5,16 @@ final class NativeRenderUITests: XCTestCase {
         app.keyboards.firstMatch.waitForExistence(timeout: 5)
     }
 
-    /// A label the screen derives from typed text is drawn from the script
-    /// thread, after the keystroke: `typeText` returns once the main thread
-    /// is idle, which says nothing about a mutation still on its way back.
-    /// The typed value itself is checked at once; only its echo is waited
-    /// for, and a missing last keystroke still fails after `timeout`.
+    /// Event synthesis, the native accessibility snapshot, and the script's
+    /// derived label settle separately. Await the complete native value as
+    /// well as its echo: a partial value must never satisfy either check.
+    @discardableResult
+    private func waitForValue(_ element: XCUIElement, _ expected: String, timeout: TimeInterval = 3, file: StaticString = #filePath, line: UInt = #line) -> Bool {
+        let matched = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: element)], timeout: timeout) == .completed
+        XCTAssertTrue(matched, "\(element.identifier) reads \"\(String(describing: element.value))\", not \"\(expected)\", \(timeout)s after typing", file: file, line: line)
+        return matched
+    }
+
     @discardableResult
     private func waitForLabel(_ element: XCUIElement, _ expected: String, timeout: TimeInterval = 10, file: StaticString = #filePath, line: UInt = #line) -> Bool {
         let matched = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: element)], timeout: timeout) == .completed
@@ -25,7 +30,7 @@ final class NativeRenderUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()
         field.typeText("Ada")
-        XCTAssertEqual(field.value as? String, "Ada", "the native field lost typed characters")
+        waitForValue(field, "Ada")
         waitForLabel(app.staticTexts["name"], "Hello Ada")
         XCTAssertTrue(keyboardIsVisible(app))
 
@@ -37,7 +42,7 @@ final class NativeRenderUITests: XCTestCase {
                 "state update \(count) dismissed the keyboard"
             )
             field.typeText("x")
-            XCTAssertEqual(field.value as? String, "Ada" + String(repeating: "x", count: count))
+            waitForValue(field, "Ada" + String(repeating: "x", count: count))
             waitForLabel(app.staticTexts["name"], "Hello Ada" + String(repeating: "x", count: count))
         }
     }
@@ -52,7 +57,7 @@ final class NativeRenderUITests: XCTestCase {
         notes.tap()
         XCTAssertTrue(keyboardIsVisible(app))
         notes.typeText("Easy run")
-        XCTAssertEqual(notes.value as? String, "Easy run", "the native text view lost typed characters")
+        waitForValue(notes, "Easy run")
         XCTAssertTrue(app.keyboards.firstMatch.exists, "typing dismissed the native keyboard")
         waitForLabel(app.staticTexts["notes"], "Notes: Easy run")
     }

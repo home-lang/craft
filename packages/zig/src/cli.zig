@@ -196,6 +196,7 @@ const BundleConfig = struct {
     systemTray: ?bool = null,
     hideDockIcon: ?bool = null,
     menubarOnly: ?bool = null,
+    trayPopover: ?bool = null,
     titlebarHidden: ?bool = null,
     headless: ?bool = null,
     keepRunning: ?bool = null,
@@ -314,6 +315,29 @@ fn applyScalarConfig(cfg: BundleConfig, options: *WindowOptions) void {
             options.hide_dock_icon = true;
         }
     }
+    if (cfg.trayPopover == true) applyTrayPopover(options);
+}
+
+fn applyTrayPopover(options: *WindowOptions) void {
+    options.tray_popover = true;
+    options.menubar_only = false;
+    options.system_tray = true;
+    options.hide_dock_icon = true;
+    options.frameless = true;
+    options.resizable = false;
+    options.web_window_material = true;
+    options.web_chrome_controls = false;
+    options.headless = true;
+}
+
+test "trayPopover manifest retains a live page behind a hidden status-item window" {
+    var options = WindowOptions{};
+    applyScalarConfig(.{ .trayPopover = true, .menubarOnly = true }, &options);
+    try std.testing.expect(options.tray_popover);
+    try std.testing.expect(options.system_tray and options.hide_dock_icon);
+    try std.testing.expect(options.headless and options.frameless);
+    try std.testing.expect(!options.menubar_only and !options.resizable);
+    try std.testing.expect(options.web_window_material and !options.web_chrome_controls);
 }
 
 test "applyScalarConfig leaves untouched fields at their defaults" {
@@ -563,16 +587,7 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
             // Everything a popover is, so one flag asks for it: a status item,
             // no titlebar or Dock icon, a fixed size, the material behind the
             // page, and hidden until the item is clicked.
-            options.tray_popover = true;
-            options.system_tray = true;
-            options.hide_dock_icon = true;
-            options.frameless = true;
-            options.resizable = false;
-            options.web_window_material = true;
-            // Craft's sidebar toggle and history arrows belong to a window
-            // with a titlebar, not a popover.
-            options.web_chrome_controls = false;
-            options.headless = true;
+            applyTrayPopover(&options);
         } else if (std.mem.eql(u8, arg, "--native-sidebar")) {
             options.native_sidebar = true;
         } else if (std.mem.eql(u8, arg, "--web-sidebar-material")) {

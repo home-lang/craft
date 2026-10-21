@@ -49,6 +49,16 @@ pub const Rect = struct {
     height: u32,
 };
 
+/// Tightly packed, straight-alpha RGBA8 pixels. The caller retains ownership;
+/// drawBitmap reads synchronously and does not retain this slice.
+pub const Bitmap = struct {
+    width: u32,
+    height: u32,
+    pixels: []const u8,
+};
+
+pub const BitmapError = error{ InvalidBitmap, InvalidSourceRect };
+
 pub const Font = struct {
     family: []const u8,
     size: f32,
@@ -110,7 +120,10 @@ pub const Canvas = struct {
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, width: u32, height: u32) !Canvas {
-        const pixels = try allocator.alloc(u32, width * height);
+        if (width == 0 or height == 0 or width > std.math.maxInt(i32) or height > std.math.maxInt(i32))
+            return error.InvalidDimensions;
+        const count = try std.math.mul(usize, width, height);
+        const pixels = try allocator.alloc(u32, count);
         @memset(pixels, 0xFFFFFFFF); // White background
 
         return Canvas{
@@ -128,6 +141,53 @@ pub const Canvas = struct {
     pub fn clear(self: *Canvas, color: Color) void {
         const pixel = (@as(u32, color.a) << 24) | (@as(u32, color.r) << 16) | (@as(u32, color.g) << 8) | color.b;
         @memset(self.pixels, pixel);
+    }
+
+    /// Composite an atlas rectangle at its unscaled destination. Source
+    /// bounds are validated before any pixel changes; destination clipping
+    /// never changes which source pixel corresponds to a destination pixel.
+    pub fn drawBitmap(self: *Canvas, bitmap: Bitmap, source: Rect, destination: Point) BitmapError!void {
+        if (bitmap.width == 0 or bitmap.height == 0) return error.InvalidBitmap;
+        const count = std.math.mul(usize, bitmap.width, bitmap.height) catch return error.InvalidBitmap;
+        const bytes = std.math.mul(usize, count, 4) catch return error.InvalidBitmap;
+        if (bitmap.pixels.len != bytes) return error.InvalidBitmap;
+        if (source.x < 0 or source.y < 0 or
+            @as(i64, source.x) + source.width > bitmap.width or
+            @as(i64, source.y) + source.height > bitmap.height)
+            return error.InvalidSourceRect;
+
+        const left = @max(0, @as(i64, destination.x));
+        const top = @max(0, @as(i64, destination.y));
+        const right = @min(@as(i64, self.width), @as(i64, destination.x) + source.width);
+        const bottom = @min(@as(i64, self.height), @as(i64, destination.y) + source.height);
+        var y: i64 = top;
+        while (y < bottom) : (y += 1) {
+            var x: i64 = left;
+            while (x < right) : (x += 1) {
+                const sx: usize = @intCast(@as(i64, source.x) + x - destination.x);
+                const sy: usize = @intCast(@as(i64, source.y) + y - destination.y);
+                const at = (sy * bitmap.width + sx) * 4;
+                const index = @as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x));
+                self.pixels[index] = compositeRgba(bitmap.pixels[at..][0..4].*, self.pixels[index]);
+            }
+        }
+    }
+
+    fn compositeRgba(source: [4]u8, destination: u32) u32 {
+        const alpha: u32 = source[3];
+        if (alpha == 0) return destination;
+        if (alpha == 255)
+            return 0xFF000000 | (@as(u32, source[0]) << 16) | (@as(u32, source[1]) << 8) | source[2];
+        const destination_alpha = destination >> 24;
+        const inverse = 255 - alpha;
+        const combined = alpha * 255 + destination_alpha * inverse;
+        var result: u32 = ((combined + 127) / 255) << 24;
+        for ([_]u5{ 16, 8, 0 }, 0..) |shift, channel| {
+            const old = (destination >> shift) & 0xFF;
+            const value = (@as(u32, source[channel]) * alpha * 255 + old * destination_alpha * inverse + combined / 2) / combined;
+            result |= value << shift;
+        }
+        return result;
     }
 
     pub fn drawRect(self: *Canvas, rect: Rect, color: Color) void {
@@ -204,13 +264,13 @@ pub const Canvas = struct {
         }
     }
 
-    pub fn drawText(self: *Canvas, text: []const u8, pos: Point, font: Font, color: Color) void {
+    pub fn drawText(self: *Canvas, text: []const u8, pos: Point, font: Font, color: Color) error{TextRenderingUnavailable}!void {
         _ = self;
         _ = text;
         _ = pos;
         _ = font;
         _ = color;
-        // Would render text using platform-specific text rendering
+        return error.TextRenderingUnavailable;
     }
 
     pub fn getPixel(self: Canvas, x: u32, y: u32) ?Color {
@@ -295,12 +355,9 @@ pub const Button = struct {
         };
     }
 
-    pub fn render(self: *Button, canvas: *Canvas) void {
+    pub fn render(self: *Button, canvas: *Canvas) !void {
         canvas.drawRect(self.component.bounds, self.background);
-        // Would render text
-        _ = self.text;
-        _ = self.foreground;
-        _ = self.font;
+        try canvas.drawText(self.text, .{ .x = self.component.bounds.x, .y = self.component.bounds.y }, self.font, self.foreground);
     }
 };
 
@@ -323,7 +380,7 @@ pub const Label = struct {
         };
     }
 
-    pub fn render(self: *Label, canvas: *Canvas) void {
-        canvas.drawText(self.text, Point{ .x = self.component.bounds.x, .y = self.component.bounds.y }, self.font, self.color);
+    pub fn render(self: *Label, canvas: *Canvas) !void {
+        try canvas.drawText(self.text, Point{ .x = self.component.bounds.x, .y = self.component.bounds.y }, self.font, self.color);
     }
 };

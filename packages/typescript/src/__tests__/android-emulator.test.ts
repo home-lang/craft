@@ -271,7 +271,7 @@ test('boot completion waits for the automatic SDK setup activity to release HOME
   finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
 }, 10_000)
 
-test.each(['com.android.settings/.FallbackHome', 'android/com.android.internal.app.ResolverActivity'])('boot readiness rejects the temporary HOME destination %s', async (bootstrapHome) => {
+test.each(['com.android.settings/.FallbackHome', 'android/com.android.internal.app.ResolverActivity', 'com.google.android.googlesdksetup/.DefaultActivity'])('boot readiness rejects the temporary HOME destination %s', async (bootstrapHome) => {
   const { root, options } = fixture(true, false, false, true, 'normal', bootstrapHome)
   let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
   try {
