@@ -2,6 +2,54 @@ const std = @import("std");
 const testing = std.testing;
 const gpu = @import("../src/gpu.zig");
 
+test "hardware video decode refuses bytes without a maintained decoder" {
+    var owner = try gpu.GPU.init(testing.allocator, .{ .hardware_decode = true });
+    defer owner.deinit();
+    var decoder = gpu.VideoDecoder.init(&owner);
+    try testing.expect(!decoder.hardware_enabled);
+    try testing.expect(!decoder.isHardwareAccelerated());
+    try testing.expectError(error.UnsupportedOperation, decoder.decode("video"));
+}
+
+test "post-processing reports unsupported work and preserves output pixels" {
+    var owner = try gpu.GPU.init(testing.allocator, .{});
+    defer owner.deinit();
+    var pipeline = gpu.RenderPipeline.init(testing.allocator, &owner);
+    defer pipeline.deinit();
+    var processor = gpu.PostProcessor.init(testing.allocator, &pipeline);
+    defer processor.deinit();
+    var input = try gpu.RenderTarget.init(testing.allocator, 1, 1, .rgba8);
+    defer input.deinit();
+    var output = try gpu.RenderTarget.init(testing.allocator, 1, 1, .rgba8);
+    defer output.deinit();
+    output.clear(.{ 0, 0, 1, 1 });
+    try processor.addEffect(.blur);
+    try testing.expectError(error.UnsupportedOperation, processor.process(&input, &output));
+    try testing.expectEqual([4]u8{ 0, 0, 255, 255 }, output.getColorTexture().?.getPixel(0, 0).?);
+    try testing.expect(!owner.getRenderingCapabilities().post_processing);
+}
+
+test "ray tracing cannot report a successful build or an unexecuted miss" {
+    var owner = try gpu.GPU.init(testing.allocator, .{});
+    defer owner.deinit();
+    var tracer = try gpu.RayTracer.init(testing.allocator, &owner);
+    defer tracer.deinit();
+    try testing.expectError(error.UnsupportedOperation, tracer.buildAccelerationStructure(&.{}));
+    try testing.expectError(error.UnsupportedOperation, tracer.trace(.{ 0, 0, 0 }, .{ 1, 0, 0 }));
+    try testing.expect(tracer.acceleration_structure == null);
+    try testing.expect(!owner.getRenderingCapabilities().ray_tracing);
+}
+
+test "GPU discovery reports unavailable enumeration instead of an empty success" {
+    var owner = try gpu.GPU.init(testing.allocator, .{});
+    defer owner.deinit();
+    var multiple = gpu.MultiGPU.init(testing.allocator);
+    defer multiple.deinit();
+    try testing.expectError(error.UnsupportedOperation, multiple.detectGPUs());
+    try testing.expectEqual(@as(usize, 0), multiple.getGPUCount());
+    try testing.expect(!owner.getRenderingCapabilities().multi_gpu_discovery);
+}
+
 test "shader source is not a compiled program without a compiler backend" {
     var shader = try gpu.Shader.init(testing.allocator, .{
         .type = .vertex,

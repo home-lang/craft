@@ -26,6 +26,10 @@ pub const RenderingCapabilities = struct {
     draw: bool = false,
     compute: bool = false,
     presentation: bool = false,
+    hardware_video_decode: bool = false,
+    post_processing: bool = false,
+    ray_tracing: bool = false,
+    multi_gpu_discovery: bool = false,
 };
 
 pub const RenderError = error{
@@ -479,15 +483,14 @@ pub const VideoDecoder = struct {
     pub fn init(gpu: *GPU) VideoDecoder {
         return VideoDecoder{
             .gpu = gpu,
-            .hardware_enabled = gpu.config.hardware_decode,
+            .hardware_enabled = gpu.config.hardware_decode and gpu.getRenderingCapabilities().hardware_video_decode,
         };
     }
 
     pub fn decode(self: *VideoDecoder, data: []const u8) ![]u8 {
         _ = self;
         _ = data;
-        // Would decode video using GPU
-        return &[_]u8{};
+        return error.UnsupportedOperation;
     }
 
     pub fn isHardwareAccelerated(self: VideoDecoder) bool {
@@ -1372,27 +1375,24 @@ pub const PostProcessor = struct {
     pub fn init(allocator: std.mem.Allocator, pipeline: *RenderPipeline) PostProcessor {
         return PostProcessor{
             .pipeline = pipeline,
-            .effects = std.ArrayList(Effect).init(allocator),
+            .effects = .empty,
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *PostProcessor) void {
-        self.effects.deinit();
+        self.effects.deinit(self.allocator);
     }
 
     pub fn addEffect(self: *PostProcessor, effect: Effect) !void {
-        try self.effects.append(effect);
+        try self.effects.append(self.allocator, effect);
     }
 
     pub fn process(self: *PostProcessor, input: *RenderTarget, output: *RenderTarget) !void {
+        _ = self;
         _ = input;
         _ = output;
-
-        for (self.effects.items) |effect| {
-            _ = effect;
-            // Apply effect
-        }
+        return error.UnsupportedOperation;
     }
 };
 
@@ -1515,14 +1515,14 @@ pub const RayTracer = struct {
     pub fn buildAccelerationStructure(self: *RayTracer, meshes: []const Mesh) !void {
         _ = self;
         _ = meshes;
-        // Build BVH acceleration structure
+        return error.UnsupportedOperation;
     }
 
     pub fn trace(self: *RayTracer, ray_origin: [3]f32, ray_direction: [3]f32) !?Hit {
         _ = self;
         _ = ray_origin;
         _ = ray_direction;
-        return null;
+        return error.UnsupportedOperation;
     }
 
     pub const Hit = struct {
@@ -1553,7 +1553,7 @@ pub const MultiGPU = struct {
 
     pub fn detectGPUs(self: *MultiGPU) !void {
         _ = self;
-        // Detect all available GPUs
+        return error.UnsupportedOperation;
     }
 
     pub fn setPrimaryGPU(self: *MultiGPU, index: usize) !void {
