@@ -22,6 +22,50 @@ class NativeCapabilitiesTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
     @Test
+    fun rejectedSnapshotReplacementPreservesDiskCacheAndTheOtherIsolates() {
+        val base = instrumentation.targetContext
+        val root = java.io.File(base.cacheDir, "snapshot-replace-${UUID.randomUUID()}").apply { check(mkdirs()) }
+        val destination = java.io.File(root, "craft-snapshots/campaign.json").apply {
+            check(parentFile!!.mkdirs())
+            writeText("{\"tick\":24}")
+        }
+        val context = object : android.content.ContextWrapper(base) {
+            override fun getApplicationContext(): android.content.Context = this
+            override fun getFilesDir() = root
+        }
+        val files = CraftSnapshotFile(replace = { _, _ -> throw java.io.IOException("atomic move refused") })
+        val constructor = CraftNativeStores::class.java.getDeclaredConstructor(
+            android.content.Context::class.java, Boolean::class.javaPrimitiveType, CraftSnapshotFile::class.java,
+        ).apply { isAccessible = true }
+        val stores = constructor.newInstance(context, false, files)
+        val receiver = "snapshot-test-${UUID.randomUUID()}"
+        val complete = CountDownLatch(1)
+        val events = mutableListOf<String>()
+        var accepted: Boolean? = null
+        try {
+            assertEquals("{\"tick\":24}", stores.snapshot("campaign"))
+            CraftNativeHub.register(receiver) { type, payload ->
+                if (type == "SYNC_UPDATE" && payload.optString("store") == "snapshots" && payload.optString("key") == "campaign")
+                    events.add(payload.getString("value"))
+            }
+            stores.setSnapshot("campaign", "{\"tick\":25}", null) {
+                accepted = it
+                events.add("result:$it")
+                complete.countDown()
+            }
+            assertTrue("snapshot failure did not settle", complete.await(5, TimeUnit.SECONDS))
+            assertEquals(false, accepted)
+            assertEquals("{\"tick\":24}", destination.readText())
+            assertEquals("{\"tick\":24}", stores.snapshot("campaign"))
+            assertEquals(listOf("{\"tick\":24}", "result:false"), events)
+            assertEquals(listOf("campaign.json"), destination.parentFile!!.listFiles()!!.map { it.name })
+        } finally {
+            CraftNativeHub.unregister(receiver)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun secureUuidUsesTheNativePlatformWithoutJavaScriptEntropy() {
         val capabilities = CraftNativeCapabilities(instrumentation.targetContext, JSONObject())
         try {
