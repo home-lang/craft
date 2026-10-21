@@ -1454,6 +1454,15 @@ pub fn build(b: *std.Build) void {
     });
     bridge_log_tests.root_module.link_libc = true;
 
+    // Both logger roots reach global_state through io_context. The native
+    // power bridge it retains now owns AppKit activities, so imported tests
+    // reach the same macOS dispatch graph as other native bridge roots.
+    // Name those libraries instead of depending on another test's linkage.
+    if (target_os == .macos) {
+        linkPlatformLibraries(b, log_unit_tests.root_module, target_os, macos_sdk);
+        linkPlatformLibraries(b, bridge_log_tests.root_module, target_os, macos_sdk);
+    }
+
     // The blocking primitives every other lock in craft is built on. They
     // spun without yielding until now, so this is the first time they have
     // been exercised at all.
