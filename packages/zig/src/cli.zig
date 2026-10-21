@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 pub const WindowOptions = struct {
+    backend_executable: ?[]const u8 = null,
     url: ?[]const u8 = null,
     /// URL handed to this installed app by its registered protocol handler.
     /// It is page data, not the document Craft should navigate to.
@@ -104,6 +105,7 @@ fn debugPrint(comptime fmt: []const u8, args: anytype) void {
 /// Release every string inside `options` that was allocated by `parseArgs`.
 /// `title` defaults to a string literal, so only free it if it was replaced.
 pub fn freeOptionStrings(allocator: std.mem.Allocator, options: *WindowOptions) void {
+    if (options.backend_executable) |s| allocator.free(s);
     if (options.url) |s| allocator.free(s);
     if (options.deep_link) |s| allocator.free(s);
     if (options.html) |s| allocator.free(s);
@@ -177,6 +179,7 @@ pub fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]const u8
 /// With this, craft *is* the executable. It reads the manifest sitting beside
 /// it and configures itself, so the bundle contains exactly one program.
 const BundleConfig = struct {
+    backend: ?struct { executable: []const u8 } = null,
     /// Document to load, relative to `Resources/` (or absolute).
     html: ?[]const u8 = null,
     url: ?[]const u8 = null,
@@ -210,7 +213,7 @@ const BundleConfig = struct {
 /// `std` has no self-exe helper in this Zig version, so this goes straight to
 /// the platform call. macOS-only for now: it is the only platform with a bundle
 /// layout to resolve against.
-fn selfExeDir(allocator: std.mem.Allocator) ?[]const u8 {
+pub fn selfExeDir(allocator: std.mem.Allocator) ?[]const u8 {
     if (comptime builtin.os.tag != .macos) return null;
 
     var size: u32 = 0;
@@ -273,6 +276,7 @@ fn loadBundleConfig(allocator: std.mem.Allocator) ?WindowOptions {
             break :blk null;
         };
     }
+    if (cfg.backend) |backend| options.backend_executable = allocator.dupe(u8, backend.executable) catch return null;
     if (cfg.url) |v| options.url = allocator.dupe(u8, v) catch null;
     if (cfg.title) |v| options.title = allocator.dupe(u8, v) catch options.title;
     if (cfg.appName) |v| options.app_name = allocator.dupe(u8, v) catch null;
@@ -444,6 +448,12 @@ test "unknown manifest keys are ignored rather than failing the launch" {
 }
 
 pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !WindowOptions {
+    for (args) |arg| {
+        if (std.mem.eql(u8, arg, "--capabilities")) {
+            std.debug.print("{{\"bundleBackend\":{s}}}\n", .{if (builtin.os.tag == .macos) "true" else "false"});
+            std.process.exit(0);
+        }
+    }
     // First pass: check for --debug flag
     for (args) |arg| {
         if (std.mem.eql(u8, arg, "--debug")) {

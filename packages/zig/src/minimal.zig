@@ -95,7 +95,7 @@ pub fn main(init: std.process.Init) !void {
         }
     }
 
-    const options = cli.parseArgs(allocator, args) catch |err| {
+    var options = cli.parseArgs(allocator, args) catch |err| {
         switch (err) {
             cli.CliError.InvalidArgument => std.debug.print("Error: Invalid argument\n", .{}),
             cli.CliError.MissingValue => std.debug.print("Error: Missing value for argument\n", .{}),
@@ -111,6 +111,18 @@ pub fn main(init: std.process.Init) !void {
     defer {
         var owned = options;
         cli.freeOptionStrings(allocator, &owned);
+    }
+
+    // The native UI is the application process. Its backend inherits the
+    // sandbox as a managed helper, with stdin as a parent-lifetime lease.
+    var backend: ?craft.bundle_backend.Host = null;
+    defer if (backend) |*host| host.stop();
+    if (options.backend_executable) |name| {
+        if (options.url != null or options.html != null) return error.ConflictingBackendDocument;
+        const directory = cli.selfExeDir(allocator) orelse return error.MissingBundleDirectory;
+        defer allocator.free(directory);
+        backend = try craft.bundle_backend.Host.start(allocator, directory, name);
+        options.url = try allocator.dupe(u8, backend.?.url);
     }
 
     // The protocol URL is application data, never the document URL. Install
