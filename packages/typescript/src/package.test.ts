@@ -487,3 +487,46 @@ it('preserves the resources and metadata of a prebuilt macOS app', async () => {
   }
   finally { removeTempDir(root) }
 })
+
+it.skipIf(process.platform !== 'darwin')('signs prebuilt app helpers with inheritance and applies store metadata before signing', async () => {
+  const root = createTempDir('prebuilt-sandbox-sign')
+  try {
+    const { mkdirSync, copyFileSync } = await import('node:fs')
+    const source = join(root, 'source', 'App.app')
+    const contents = join(source, 'Contents')
+    mkdirSync(join(contents, 'MacOS'), { recursive: true })
+    mkdirSync(join(contents, 'Resources'), { recursive: true })
+    writeFileSync(join(contents, 'Info.plist'), macOSInfoPlist({ name: 'App', version: '1.0.0', bundleId: 'dev.craft.sign-test' }))
+    copyFileSync('/usr/bin/true', join(contents, 'MacOS', 'App'))
+    copyFileSync('/usr/bin/true', join(contents, 'MacOS', 'backend'))
+    const entitlements = join(root, 'main.plist')
+    writeFileSync(entitlements, '<?xml version="1.0"?><plist version="1.0"><dict><key>com.apple.security.app-sandbox</key><true/><key>com.apple.security.files.user-selected.read-write</key><true/></dict></plist>')
+    const profile = join(root, 'profile')
+    const privacy = join(root, 'PrivacyInfo.xcprivacy')
+    writeFileSync(profile, 'test-profile')
+    writeFileSync(privacy, '<plist version="1.0"><dict/></plist>')
+    const results = await packageApp({
+      name: 'App', version: '1.0.0', bundleId: 'dev.craft.sign-test',
+      binaryPath: join(contents, 'MacOS', 'App'), outDir: join(root, 'out'), platforms: ['macos'],
+      macos: { appBundlePath: source, dmg: false, appStore: true, signIdentity: '-', entitlements, provisioningProfile: profile, privacyManifest: privacy, buildNumber: '42' },
+    })
+    expect(results[0].success).toBe(true)
+    const app = results[0].outputPath!
+    expect(readFileSync(join(app, 'Contents', 'embedded.provisionprofile'), 'utf8')).toBe('test-profile')
+    expect(readFileSync(join(app, 'Contents', 'Resources', 'PrivacyInfo.xcprivacy'), 'utf8')).toContain('<dict/>')
+    const metadata = Bun.spawnSync(['plutil', '-extract', 'CFBundleVersion', 'raw', '-o', '-', join(app, 'Contents', 'Info.plist')])
+    expect(metadata.stdout.toString().trim()).toBe('42')
+    const signedEntitlements = (path: string) => {
+      const result = Bun.spawnSync(['codesign', '-d', '--entitlements', ':-', path])
+      expect(result.exitCode).toBe(0)
+      return result.stdout.toString()
+    }
+    expect(signedEntitlements(app)).toContain('com.apple.security.files.user-selected.read-write')
+    const helper = signedEntitlements(join(app, 'Contents', 'MacOS', 'backend'))
+    expect(helper).toContain('com.apple.security.inherit')
+    expect(helper).not.toContain('com.apple.security.files.user-selected.read-write')
+    expect(Bun.spawnSync(['codesign', '--verify', '--deep', '--strict', app]).exitCode).toBe(0)
+    expect(results[1].error).toContain('installerIdentity')
+  }
+  finally { removeTempDir(root) }
+})
