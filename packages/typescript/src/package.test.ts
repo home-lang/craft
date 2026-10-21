@@ -264,14 +264,16 @@ describe('macOS app bundle assembly', () => {
       bundleId: 'org.stacksjs.barista',
       outDir: join(dir, 'out'),
       platforms: ['macos'],
-      macos: { dmg: false, menuBarOnly: true, additionalExecutables: [helperPath] },
+      macos: { dmg: false, menuBarOnly: true, buildNumber: '42', additionalExecutables: [helperPath] },
     })
 
     const app = results.find(result => result.format === 'app')
     expect(app?.success).toBe(true)
     const bundled = join(app!.outputPath!, 'Contents', 'MacOS', 'craft')
     expect(existsSync(bundled)).toBe(true)
-    expect(readFileSync(join(app!.outputPath!, 'Contents', 'Info.plist'), 'utf8')).toContain('LSUIElement')
+    const metadata = readFileSync(join(app!.outputPath!, 'Contents', 'Info.plist'), 'utf8')
+    expect(metadata).toContain('LSUIElement')
+    expect(metadata).toMatch(/<key>CFBundleVersion<\/key>\s*<string>42<\/string>/)
   })
 
   it('writes the declared URL schemes into the bundle it produces', async () => {

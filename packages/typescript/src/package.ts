@@ -428,21 +428,25 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
       copyFileSync(opts.provisioningProfile, join(contents, 'embedded.provisionprofile'))
     if (opts.privacyManifest)
       copyFileSync(opts.privacyManifest, join(contents, 'Resources', 'PrivacyInfo.xcprivacy'))
-    const metadata: Record<string, string | boolean | undefined> = {
-      CFBundleVersion: opts.buildNumber,
-      LSApplicationCategoryType: opts.category,
-      LSMinimumSystemVersion: opts.minimumSystemVersion,
-      LSUIElement: opts.menuBarOnly,
-    }
-    if (config.iconPath) {
-      const icon = basename(config.iconPath)
-      copyFileSync(config.iconPath, join(contents, 'Resources', icon))
-      metadata.CFBundleIconFile = icon
-    }
-    for (const [key, value] of Object.entries(metadata)) {
-      if (value === undefined) continue
-      const result = await runTool('plutil', ['-replace', key, typeof value === 'boolean' ? '-bool' : '-string', String(value), join(contents, 'Info.plist')])
-      if (!result.success) throw new Error(result.error)
+    // Fresh bundles already receive these fields from macOSInfoPlist.
+    // Only a preserved plist needs native editing before signing.
+    if (opts.appBundlePath) {
+      const metadata: Record<string, string | boolean | undefined> = {
+        CFBundleVersion: opts.buildNumber,
+        LSApplicationCategoryType: opts.category,
+        LSMinimumSystemVersion: opts.minimumSystemVersion,
+        LSUIElement: opts.menuBarOnly,
+      }
+      if (config.iconPath) {
+        const icon = basename(config.iconPath)
+        copyFileSync(config.iconPath, join(contents, 'Resources', icon))
+        metadata.CFBundleIconFile = icon
+      }
+      for (const [key, value] of Object.entries(metadata)) {
+        if (value === undefined) continue
+        const result = await runTool('plutil', ['-replace', key, typeof value === 'boolean' ? '-bool' : '-string', String(value), join(contents, 'Info.plist')])
+        if (!result.success) throw new Error(result.error)
+      }
     }
     if (opts.signIdentity) {
       await signMacOSAppBundle(appBundlePath, bundleId, opts, hardenedRuntime)
