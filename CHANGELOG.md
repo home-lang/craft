@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.264...v0.0.265)
+
+## 🐛 Bug Fixes
+
+- **native**: a shape holds its Animate child in a mutation on both hosts ([059f0ae](https://github.com/craft-native/craft/commit/059f0ae)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.263...v0.0.264)
 
 ## 🚀 Features
