@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.263...v0.0.264)
+
+## 🚀 Features
+
+- **native**: play SVG path keyframes; list rows keep their margins ([b519e36](https://github.com/craft-native/craft/commit/b519e36)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- expect the tab accessory release and unclaimed clear ([4ec032b](https://github.com/craft-native/craft/commit/4ec032b)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.262...v0.0.263)
 
 ## 🐛 Bug Fixes
