@@ -5,6 +5,7 @@ const native_sidebar_bootstrap = @import("native_sidebar_bootstrap.zig");
 const local_tls = @import("local_tls.zig");
 const menu_roles = @import("menu_roles.zig");
 const external_link = @import("external_link.zig");
+const bridge_origin = @import("bridge_origin.zig");
 const webview_recovery = @import("webview_recovery.zig");
 const window_registry = @import("window_registry.zig");
 const request_context = @import("request_context.zig");
@@ -2588,6 +2589,7 @@ pub fn createWindowWithSidebar(
     defer msgSendVoid0(html_str, "release");
     const base_url_string = createNSString("http://localhost/");
     const base_url = msgSend1(getClass("NSURL"), "URLWithString:", base_url_string);
+    rememberContent(webview, .{ .html = .{ .string = html_str, .base_url = base_url } });
     _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, base_url);
 
     if (comptime std.ascii.eqlIgnoreCase(@tagName(builtin.mode), "debug"))
@@ -3683,6 +3685,7 @@ pub fn createWindowWithSidebarURL(
     const url_str = createNSString(url);
     const nsurl = msgSend1(NSURL, "URLWithString:", url_str);
     const request = msgSend1(getClass("NSURLRequest"), "requestWithURL:", nsurl);
+    rememberContent(webview, .{ .request = request });
     _ = msgSend1(webview, "loadRequest:", request);
 
     if (comptime std.ascii.eqlIgnoreCase(@tagName(builtin.mode), "debug"))
@@ -6225,6 +6228,10 @@ export fn didReceiveScriptMessage(self: objc.id, _: objc.SEL, userContentControl
     // Pushed unconditionally, including the zero a detached webview gives, so
     // an unknown sender shadows an enclosing frame instead of inheriting it.
     const sender = sendingWebView(message);
+    if (!bridgeFrameAllowed(msgSend0(message, "webView"), msgSend0(message, "frameInfo"))) {
+        std.log.warn("refused native bridge message from an untrusted origin or child frame", .{});
+        return;
+    }
     window_context.push(sender.window, sender.webview);
     defer window_context.pop();
 
@@ -6383,9 +6390,8 @@ fn handleMediaCapturePermission(
 ) callconv(.c) void {
     _ = self;
     _ = _sel;
-    _ = webView;
     _ = origin;
-    _ = frame;
+    const permission: c_long = if (bridgeFrameAllowed(webView, frame)) 1 else 2;
 
     // WKMediaCaptureType:
     // 0 = WKMediaCaptureTypeCamera
@@ -6402,9 +6408,9 @@ fn handleMediaCapturePermission(
 
     // Grant permission by calling decisionHandler with WKPermissionDecisionGrant (1)
     // WKPermissionDecision:
-    // 0 = WKPermissionDecisionDeny
+    // 0 = WKPermissionDecisionPrompt
     // 1 = WKPermissionDecisionGrant
-    // 2 = WKPermissionDecisionPrompt
+    // 2 = WKPermissionDecisionDeny
     const invoke_sel = sel("invokeWithTarget:");
 
     // The decisionHandler is a block that takes WKPermissionDecision
@@ -6435,7 +6441,7 @@ fn handleMediaCapturePermission(
         };
         const block: *BlockLayout = @ptrCast(@alignCast(handler));
         // Call the block with WKPermissionDecisionGrant (1)
-        block.invoke(handler, 1);
+        block.invoke(handler, permission);
         if (comptime std.ascii.eqlIgnoreCase(@tagName(builtin.mode), "debug"))
             std.debug.print("[Media] Permission granted for {s}\n", .{media_type_str});
     }
@@ -6708,6 +6714,7 @@ const LoadedContent = union(enum) {
 const ContentSlot = struct {
     key: usize = 0,
     content: LoadedContent = .none,
+    native_load_pending: bool = false,
 };
 
 /// One recovery source for every window the registry can retain. Evicting an
@@ -6764,19 +6771,20 @@ fn rememberContent(webview: objc.id, content: LoadedContent) void {
         if (slot.key == key) {
             releaseContent(slot.content);
             slot.content = content;
+            slot.native_load_pending = true;
             return;
         }
     }
     for (&content_slots) |*slot| {
         if (slot.key == 0) {
-            slot.* = .{ .key = key, .content = content };
+            slot.* = .{ .key = key, .content = content, .native_load_pending = true };
             return;
         }
     }
     // Full. Slot zero holds the earliest window registered, which is the one
     // least likely to still be around.
     releaseContent(content_slots[0].content);
-    content_slots[0] = .{ .key = key, .content = content };
+    content_slots[0] = .{ .key = key, .content = content, .native_load_pending = true };
 }
 
 /// Navigate one concrete webview and make the new URL its reload/recovery
@@ -6790,8 +6798,8 @@ pub fn loadURLInWebView(webview: objc.id, url: []const u8) !void {
     if (nsurl == null) return error.InvalidURL;
     const request = msgSend1(getClass("NSURLRequest"), "requestWithURL:", nsurl);
     if (request == null) return error.InvalidURL;
-    _ = msgSend1(webview, "loadRequest:", request);
     rememberContent(webview, .{ .request = request });
+    _ = msgSend1(webview, "loadRequest:", request);
 }
 
 /// Replace one concrete webview's document and retain exactly that document
@@ -6807,8 +6815,8 @@ pub fn loadHTMLInWebView(webview: objc.id, html: []const u8) !void {
     const base_url = msgSend1(getClass("NSURL"), "URLWithString:", base_url_string);
     if (base_url == null) return error.InvalidURL;
 
-    _ = msgSend2(webview, "loadHTMLString:baseURL:", html_string, base_url);
     rememberContent(webview, .{ .html = .{ .string = html_string, .base_url = base_url } });
+    _ = msgSend2(webview, "loadHTMLString:baseURL:", html_string, base_url);
 }
 
 fn contentFor(webview: objc.id) LoadedContent {
@@ -6821,7 +6829,9 @@ fn contentFor(webview: objc.id) LoadedContent {
 
 /// Put the window's content back after the content process was replaced.
 fn restoreContent(webview: objc.id) void {
-    switch (contentFor(webview)) {
+    const content = contentFor(webview);
+    if (content != .none) rememberContent(webview, content);
+    switch (content) {
         .request => |r| _ = msgSend1(webview, "loadRequest:", r),
         .html => |h| _ = msgSend2(webview, "loadHTMLString:baseURL:", h.string, h.base_url),
         // Nothing recorded — a webview craft did not load. `reload` is the
@@ -6898,9 +6908,114 @@ fn handleContentProcessTerminated(_: objc.id, _: objc.SEL, webview: objc.id) cal
     }
 }
 
+fn nsStringSlice(value: objc.id) []const u8 {
+    const raw = msgSend0(value, "UTF8String") orelse return "";
+    return std.mem.span(@as([*:0]const u8, @ptrCast(raw)));
+}
+
+fn urlParts(url: objc.id) bridge_origin.URL {
+    const standardized = msgSend0(url, "URLByStandardizingPath");
+    const actual = if (msgSendBool(url, "isFileURL")) msgSend0(standardized, "URLByResolvingSymlinksInPath") else url;
+    const port = msgSend0(actual, "port");
+    return .{
+        .scheme = nsStringSlice(msgSend0(actual, "scheme")),
+        .host = nsStringSlice(msgSend0(actual, "host")),
+        .port = if (port != null) msgSend0Ulong(port, "unsignedIntegerValue") else 0,
+        .path = nsStringSlice(msgSend0(actual, "path")),
+    };
+}
+
+fn trustedDocument(webview: objc.id) ?struct { url: bridge_origin.URL, inline_html: bool } {
+    return switch (contentFor(webview)) {
+        .none => null,
+        .request => |request| .{ .url = urlParts(msgSend0(request, "URL")), .inline_html = false },
+        .html => |html| .{ .url = urlParts(html.base_url), .inline_html = true },
+    };
+}
+
+fn bridgeFrameAllowed(webview: objc.id, frame: objc.id) bool {
+    if (webview == null or frame == null) return false;
+    const trusted = trustedDocument(webview) orelse return false;
+    const origin = msgSend0(frame, "securityOrigin");
+    const frame_url = msgSend0(msgSend0(frame, "request"), "URL");
+    if (origin == null or frame_url == null) return false;
+    return bridge_origin.allowsBridge(trusted.url, .{
+        .scheme = nsStringSlice(msgSend0(origin, "protocol")),
+        .host = nsStringSlice(msgSend0(origin, "host")),
+        .port = msgSend0Ulong(origin, "port"),
+    }, urlParts(frame_url), msgSendBool(frame, "isMainFrame"), trusted.inline_html);
+}
+
+const NavigationDecisionBlock = extern struct {
+    isa: ?*anyopaque,
+    flags: c_int,
+    reserved: c_int,
+    invoke: *const fn (*anyopaque, c_long) callconv(.c) void,
+};
+
+fn finishNavigation(handler: objc.id, allow: bool) void {
+    const raw = handler orelse return;
+    const block: *NavigationDecisionBlock = @ptrCast(@alignCast(raw));
+    block.invoke(raw, if (allow) 1 else 0);
+}
+
+fn navigationAllowed(webview: objc.id, url: objc.id) bool {
+    const trusted = trustedDocument(webview) orelse return false;
+    if (url == null) return false;
+    return bridge_origin.allowsNavigation(trusted.url, urlParts(url), trusted.inline_html);
+}
+
+fn consumeNativeLoad(webview: objc.id) bool {
+    for (&content_slots) |*slot| {
+        if (slot.key != @intFromPtr(webview)) continue;
+        const pending = slot.native_load_pending;
+        slot.native_load_pending = false;
+        return pending;
+    }
+    return false;
+}
+
+fn decideNavigationAction(_: objc.id, _: objc.SEL, webview: objc.id, action: objc.id, handler: objc.id) callconv(.c) void {
+    const target = msgSend0(action, "targetFrame");
+    // New-window requests are handled by the existing external-link delegate.
+    if (target == null or !msgSendBool(target, "isMainFrame")) {
+        finishNavigation(handler, true);
+        return;
+    }
+    const url = msgSend0(msgSend0(action, "request"), "URL");
+    const trusted = trustedDocument(webview);
+    const native_load = consumeNativeLoad(webview);
+    const allow = if (native_load and trusted != null and
+        bridge_origin.sameOrigin(trusted.?.url, urlParts(url)) and
+        std.mem.eql(u8, trusted.?.url.path, urlParts(url).path)) true
+    else if (trusted != null and trusted.?.inline_html)
+        bridge_origin.sameOrigin(trusted.?.url, urlParts(url)) and
+            std.mem.eql(u8, trusted.?.url.path, urlParts(url).path) and
+            msgSend0(url, "fragment") != null and nsStringSlice(msgSend0(url, "query")).len == 0
+    else navigationAllowed(webview, url);
+    if (!allow and msgSend0Ulong(action, "navigationType") == 0 and url != null) {
+        const absolute = nsStringSlice(msgSend0(url, "absoluteString"));
+        if (external_link.decide(absolute) == .open_externally)
+            _ = msgSend1(msgSend0(getClass("NSWorkspace"), "sharedWorkspace"), "openURL:", url);
+    }
+    finishNavigation(handler, allow);
+}
+
+fn decideNavigationResponse(_: objc.id, _: objc.SEL, webview: objc.id, response: objc.id, handler: objc.id) callconv(.c) void {
+    // Also check the final response URL: server redirects can cross origins.
+    const url = msgSend0(msgSend0(response, "response"), "URL");
+    const trusted = trustedDocument(webview);
+    const allow = !msgSendBool(response, "isForMainFrame") or
+        (if (trusted != null and trusted.?.inline_html)
+            bridge_origin.sameOrigin(trusted.?.url, urlParts(url)) and std.mem.eql(u8, trusted.?.url.path, urlParts(url).path)
+        else navigationAllowed(webview, url));
+    finishNavigation(handler, allow);
+}
+
 /// Attach craft's `WKNavigationDelegate`.
 ///
-/// Two methods, for two unrelated jobs:
+/// Navigation and response policy keep the native bridge on its trusted document.
+/// Other delegate methods handle:
 ///
 ///   - `webViewWebContentProcessDidTerminate:` — the only notification that
 ///     WebKit's renderer died. Without it the window is white and stays white.
@@ -6912,8 +7027,7 @@ fn handleContentProcessTerminated(_: objc.id, _: objc.SEL, webview: objc.id) cal
 ///
 /// It used to install only under `CRAFT_ALLOW_LOCAL_TLS`, which meant every
 /// shipped app ran without the crash notification. Everything not implemented
-/// here — navigation policy, redirects, provisional failures — stays at its
-/// AppKit default, as before.
+/// here, such as provisional failures, keeps its AppKit default.
 var navigation_delegate_association_key: u8 = 0;
 
 pub fn setupNavigationDelegate(webview: objc.id) !void {
@@ -6950,6 +7064,11 @@ pub fn setupNavigationDelegate(webview: objc.id) !void {
             @as(objc.IMP, @ptrCast(@constCast(&handleDidCommitNavigation))),
             "v@:@@",
         ))
+            return error.MethodAdditionFailed;
+
+        if (!objc.class_addMethod(@ptrCast(@alignCast(delegateClass)), objc.sel_registerName("webView:decidePolicyForNavigationAction:decisionHandler:"), @as(objc.IMP, @ptrCast(@constCast(&decideNavigationAction))), "v@:@@@?"))
+            return error.MethodAdditionFailed;
+        if (!objc.class_addMethod(@ptrCast(@alignCast(delegateClass)), objc.sel_registerName("webView:decidePolicyForNavigationResponse:decisionHandler:"), @as(objc.IMP, @ptrCast(@constCast(&decideNavigationResponse))), "v@:@@@?"))
             return error.MethodAdditionFailed;
 
         objc.objc_registerClassPair(@ptrCast(delegateClass));
