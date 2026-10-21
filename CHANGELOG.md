@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.269...v0.0.270)
+
+## 🧪 Tests
+
+- **ios**: accessory and Keychain tests follow their hosts' contracts ([b02a03c](https://github.com/craft-native/craft/commit/b02a03c)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.268...v0.0.269)
 
 ## 🐛 Bug Fixes
