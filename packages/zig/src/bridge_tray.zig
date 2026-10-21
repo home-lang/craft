@@ -406,13 +406,28 @@ pub const TrayBridge = struct {
             // name. Apps whose mark is not in the system set — a particular cup,
             // a logo — ship a PDF or PNG and point at it, and still get the
             // template tinting the symbols get.
-            const from_file = std.mem.indexOfScalar(u8, resolved_name, '/') != null;
-            const image = if (from_file)
+            const from_data = std.mem.startsWith(u8, resolved_name, "data:");
+            const from_file = !from_data and std.mem.indexOfScalar(u8, resolved_name, '/') != null;
+            const image = if (from_data) blk: {
+                const marker = std.mem.indexOf(u8, resolved_name, ";base64,") orelse return BridgeError.InvalidJSON;
+                const encoded = try @import("memory.zig").dupeZ(self.allocator, u8, resolved_name[marker + 8 ..]);
+                defer self.allocator.free(encoded);
+                const encoded_string = macos.msgSend1(NSString, "stringWithUTF8String:", encoded.ptr);
+                const bytes = macos.msgSend2(macos.msgSend0(macos.getClass("NSData"), "alloc"), "initWithBase64EncodedString:options:", encoded_string, @as(usize, 0));
+                if (bytes == null) return BridgeError.InvalidJSON;
+                defer _ = macos.msgSend0(bytes, "release");
+                break :blk macos.msgSend1(macos.msgSend0(NSImage, "alloc"), "initWithData:", bytes);
+            } else if (from_file)
                 macos.msgSend1(macos.msgSend0(NSImage, "alloc"), "initWithContentsOfFile:", ns_name)
             else
                 macos.msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", ns_name, @as(?*anyopaque, null));
 
-            if (image != null and from_file) {
+            defer _ = macos.msgSend0(ns_name, "release");
+            defer if ((from_file or from_data) and image != null) {
+                _ = macos.msgSend0(image, "release");
+            };
+
+            if (image != null and (from_file or from_data)) {
                 // A file-backed image carries its own artwork, so it only needs
                 // sizing and template tinting.
                 _ = macos.msgSend1(image, "setTemplate:", @as(c_int, 1));
@@ -422,7 +437,7 @@ pub const TrayBridge = struct {
                 });
                 _ = macos.msgSend1(button, "setImage:", image);
                 syncImagePosition(button);
-                log.debug("Set icon from file: {s}", .{resolved_name});
+                log.debug("Set template icon from image data or file", .{});
             } else if (image != null) {
                 // An SF Symbol with no configuration inherits a point size from
                 // the control's font, which in a status item button renders as a

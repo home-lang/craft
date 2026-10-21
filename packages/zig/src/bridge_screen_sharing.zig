@@ -266,13 +266,17 @@ fn startWatching(interval_ms: u32) void {
     const f: Fn = @ptrCast(&objc.objc_msgSend);
     watcher_timer = f(
         NSTimer,
-        macos.sel("scheduledTimerWithTimeInterval:target:selector:userInfo:repeats:"),
+        macos.sel("timerWithTimeInterval:target:selector:userInfo:repeats:"),
         @as(f64, @floatFromInt(interval_ms)) / 1000.0,
         watcher_instance,
         macos.sel("onScreenSharingTick:"),
         @as(objc.id, null),
         true,
     );
+    // Menu tracking switches AppKit's run-loop mode. Sharing detection must
+    // continue while a menubar menu is open or a window is being dragged.
+    const run_loop = macos.msgSend0(macos.getClass("NSRunLoop"), "mainRunLoop");
+    _ = macos.msgSend2(run_loop, "addTimer:forMode:", watcher_timer, macos.createNSString("kCFRunLoopCommonModes"));
 }
 
 fn stopWatching() void {

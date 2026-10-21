@@ -11,6 +11,7 @@ pub const PowerBridge = struct {
     allocator: std.mem.Allocator,
     sleep_disabled: bool = false,
     assertion_id: u32 = 0,
+    activity_token: ?*anyopaque = null,
 
     const Self = @This();
 
@@ -224,49 +225,46 @@ pub const PowerBridge = struct {
     /// Prevent system from sleeping
     /// JSON: {"reason": "Downloading file"}
     fn preventSleep(self: *Self, data: []const u8) !void {
-        var reason: []const u8 = "Application request";
-
-        if (std.mem.indexOf(u8, data, "\"reason\":\"")) |idx| {
-            const start = idx + 10;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                reason = data[start..end];
-            }
-        }
-
-        log.debug("preventSleep: {s}", .{reason});
+        const parsed = std.json.parseFromSlice(std.json.Value, self.allocator, data, .{}) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        if (parsed.value != .object) return BridgeError.InvalidJSON;
+        const reason = if (parsed.value.object.get("reason")) |value| blk: {
+            if (value != .string) return BridgeError.InvalidJSON;
+            break :blk value.string;
+        } else "Application request";
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-
-            // Use NSProcessInfo to disable sleep
-            const NSProcessInfo = macos.getClass("NSProcessInfo");
-            const process_info = macos.msgSend0(NSProcessInfo, "processInfo");
-
-            // beginActivityWithOptions:reason:
-            // NSActivityUserInitiated | NSActivityIdleSystemSleepDisabled = 0x00FFFFFF | 0x00000001
-            const activity_options: u64 = 0x00FFFFFF;
-
-            const NSString = macos.getClass("NSString");
-            const reason_str = macos.msgSend1(NSString, "stringWithUTF8String:", @as([*c]const u8, @ptrCast(reason.ptr)));
-
-            _ = macos.msgSend2(process_info, "beginActivityWithOptions:reason:", activity_options, reason_str);
-
+            const process_info = macos.msgSend0(macos.getClass("NSProcessInfo"), "processInfo");
+            const reason_z = try @import("memory.zig").dupeZ(self.allocator, u8, reason);
+            defer self.allocator.free(reason_z);
+            const reason_str = macos.msgSend1(macos.getClass("NSString"), "stringWithUTF8String:", reason_z.ptr);
+            // NSActivityIdleDisplaySleepDisabled | NSActivityUserInitiated.
+            // UserInitiated includes IdleSystemSleepDisabled; display sleep is separate.
+            const activity_options: u64 = (1 << 40) | 0x00FFFFFF;
+            const token = macos.msgSend2(process_info, "beginActivityWithOptions:reason:", activity_options, reason_str);
+            if (token == null) return BridgeError.NativeCallFailed;
+            _ = macos.msgSend0(token, "retain");
+            // Acquire before releasing: replacement must not leave a gap or leak.
+            try self.allowSleep("{}");
+            self.activity_token = token;
             self.sleep_disabled = true;
         }
     }
 
-    /// Allow system to sleep again
-    /// JSON: {}
+    /// Release the exact activity acquired by preventSleep. Safe to repeat.
     fn allowSleep(self: *Self, data: []const u8) !void {
         _ = data;
-
-        log.debug("allowSleep", .{});
-
         if (builtin.os.tag == .macos) {
-            // Note: In a full implementation, we'd need to track the activity token
-            // and call endActivity: on it. For now, just mark as allowed.
-            self.sleep_disabled = false;
+            if (self.activity_token) |token| {
+                const macos = @import("macos.zig");
+                const process_info = macos.msgSend0(macos.getClass("NSProcessInfo"), "processInfo");
+                _ = macos.msgSend1(process_info, "endActivity:", token);
+                _ = macos.msgSend0(token, "release");
+                self.activity_token = null;
+            }
         }
+        self.sleep_disabled = false;
     }
 
     /// Check if Low Power Mode is enabled
@@ -379,10 +377,7 @@ pub const PowerBridge = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        if (self.sleep_disabled) {
-            // Would release activity assertion here
-            self.sleep_disabled = false;
-        }
+        self.allowSleep("{}") catch {};
     }
 };
 
@@ -395,4 +390,29 @@ pub fn getGlobalPowerBridge() ?*PowerBridge {
 
 pub fn setGlobalPowerBridge(bridge: *PowerBridge) void {
     global_power_bridge = bridge;
+}
+
+test "native power activity is replaced and released" {
+    if (builtin.os.tag != .macos) return;
+    var power = PowerBridge.init(std.testing.allocator);
+    defer power.deinit();
+    try power.preventSleep("{\"reason\":\"Native lifecycle test\"}");
+    try std.testing.expect(power.activity_token != null);
+    const first = power.activity_token;
+    try power.preventSleep("{}");
+    try std.testing.expect(power.activity_token != null);
+    try std.testing.expect(power.activity_token != first);
+    try power.allowSleep("{}");
+    try std.testing.expect(power.activity_token == null);
+    try std.testing.expect(!power.sleep_disabled);
+    try power.allowSleep("{}");
+}
+
+test "native power deinit ends its activity" {
+    if (builtin.os.tag != .macos) return;
+    var power = PowerBridge.init(std.testing.allocator);
+    try power.preventSleep("{}");
+    power.deinit();
+    try std.testing.expect(power.activity_token == null);
+    try std.testing.expect(!power.sleep_disabled);
 }
