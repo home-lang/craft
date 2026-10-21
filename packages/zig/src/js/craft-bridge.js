@@ -1702,6 +1702,5 @@
   // until we have a proper native→JS push channel for these channels.
   if (window.__craftEnableTrayPolling) {
     setInterval(function () { _post('tray', 'pollActions', '') }, 100)
-    setInterval(function () { _post('menubarCollapse', 'poll', '') }, 1000)
   }
 })()
