@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.271...v0.0.272)
+
+## 🧪 Tests
+
+- **ios**: each navigation test starts without the last test's accessory ([9189289](https://github.com/craft-native/craft/commit/9189289)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.270...v0.0.271)
 
 ## 🐛 Bug Fixes
