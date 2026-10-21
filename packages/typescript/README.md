@@ -668,3 +668,19 @@ Browser audio assigns one owner per sound ID. A newer play or stop invalidates
 pending media resolution for that ID; stopping all sounds, changing accounts,
 aborting a call or disposing the host also releases active audio. Superseded
 play calls reject with `AbortError`.
+
+### Packaging sandboxed macOS apps
+
+Pass `macos.appBundlePath` to package a complete STX app without discarding its
+resources. Distribution options also apply to prebuilt bundles: `buildNumber`,
+`provisioningProfile`, `privacyManifest`, and the icon are embedded before signing.
+Craft signs nested Mach-O code before the main bundle and verifies the result.
+Use `helperEntitlements` for a compiled backend's runtime permissions; App Store
+helpers inherit the main sandbox by default. `signingKeychain` selects the
+keychain for both application and installer identities.
+
+Craft's bundled-backend host reads `backend: { executable: 'stx-backend' }` from
+`Contents/Resources/craft.json`. The native app remains the main process, starts
+the helper with `--serve --managed`, and consumes its authenticated loopback URL.
+The helper's standard input is a lifetime lease: it must stop when that pipe
+closes. `craft --capabilities` advertises `bundleBackend` on macOS.

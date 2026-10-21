@@ -1,5 +1,41 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.279...v0.0.280)
+
+## 🐛 Bug Fixes
+
+- **packaging**: edit metadata only in prebuilt macOS bundles ([b319d25](https://github.com/craft-native/craft/commit/b319d25)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.278...v0.0.279)
+
+## 🚀 Features
+
+- **app**: report the native sandbox state ([1cacada](https://github.com/craft-native/craft/commit/1cacada)) _(by Chris Breuer)_
+- **macos**: host bundled backends behind the native application ([78a81a7](https://github.com/craft-native/craft/commit/78a81a7)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **packaging**: sign sandbox helpers separately and preserve store assets ([0908699](https://github.com/craft-native/craft/commit/0908699)) _(by Chris Breuer)_
+- **build**: retain native threading in WebKit-only runtimes ([d7b71bb](https://github.com/craft-native/craft/commit/d7b71bb)) _(by Chris Breuer)_
+- **macos**: handle Focus asynchronously and report screen capture access ([8f52a11](https://github.com/craft-native/craft/commit/8f52a11)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **packaging**: make invalid macOS bundle fixture portable ([81e0361](https://github.com/craft-native/craft/commit/81e0361)) _(by Chris Breuer)_
+- **ios**: snapshot manual-scroll blocker geometry ([2a500ff](https://github.com/craft-native/craft/commit/2a500ff)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/hush-sharing-timer ([79c91cb](https://github.com/craft-native/craft/commit/79c91cb)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.277...v0.0.278)
 
 ## 🚀 Features

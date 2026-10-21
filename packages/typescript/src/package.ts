@@ -9,12 +9,15 @@ import { spawn } from 'child_process'
 import { createHash } from 'crypto'
 import {
   chmodSync,
+  closeSync,
   copyFileSync,
   cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
+  openSync,
   readFileSync,
+  readSync,
   readdirSync,
   rmSync,
   writeFileSync,
@@ -187,6 +190,15 @@ export interface PackageConfig {
 
     /** Path to the entitlements plist applied when signing the app */
     entitlements?: string
+
+    /** Entitlements for bundled helper executables, separate from the main app. */
+    helperEntitlements?: string
+
+    /** Keychain containing the application and installer signing identities. */
+    signingKeychain?: string
+
+    /** Privacy manifest copied to `Contents/Resources/PrivacyInfo.xcprivacy`. */
+    privacyManifest?: string
 
     /** Path to a `.provisionprofile` embedded as `Contents/embedded.provisionprofile` */
     provisioningProfile?: string
@@ -376,6 +388,9 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
   // runtime; every other distribution channel requires it for notarization.
   const hardenedRuntime = !opts.appStore
 
+  if (opts.appStore && (!opts.entitlements || !opts.provisioningProfile))
+    return [{ success: false, platform: 'macos', format: 'app', error: 'App Store packaging requires macos.entitlements and macos.provisioningProfile' }]
+
   // Create app bundle
   const appBundlePath = join(outDir, `${name}.app`)
   const appBundle = opts.appBundlePath
@@ -406,28 +421,42 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
     return results
   }
 
-  // Sign the bundle before it is wrapped into a DMG or PKG — signing after
-  // packaging would leave the copy inside the installer unsigned.
-  if (opts.signIdentity) {
-    const signed = await runTool('codesign', codesignArguments({
-      path: appBundlePath,
-      identity: opts.signIdentity,
-      entitlements: opts.entitlements,
-      hardenedRuntime,
-    }))
-    if (!signed.success) {
-      results.push({ success: false, platform: 'macos', format: 'app', error: signed.error })
-      return results
+  // Apply distribution metadata to complete prebuilt bundles too, before signing.
+  try {
+    const contents = join(appBundlePath, 'Contents')
+    if (opts.provisioningProfile)
+      copyFileSync(opts.provisioningProfile, join(contents, 'embedded.provisionprofile'))
+    if (opts.privacyManifest)
+      copyFileSync(opts.privacyManifest, join(contents, 'Resources', 'PrivacyInfo.xcprivacy'))
+    // Fresh bundles already receive these fields from macOSInfoPlist.
+    // Only a preserved plist needs native editing before signing.
+    if (opts.appBundlePath) {
+      const metadata: Record<string, string | boolean | undefined> = {
+        CFBundleVersion: opts.buildNumber,
+        LSApplicationCategoryType: opts.category,
+        LSMinimumSystemVersion: opts.minimumSystemVersion,
+        LSUIElement: opts.menuBarOnly,
+      }
+      if (config.iconPath) {
+        const icon = basename(config.iconPath)
+        copyFileSync(config.iconPath, join(contents, 'Resources', icon))
+        metadata.CFBundleIconFile = icon
+      }
+      for (const [key, value] of Object.entries(metadata)) {
+        if (value === undefined) continue
+        const result = await runTool('plutil', ['-replace', key, typeof value === 'boolean' ? '-bool' : '-string', String(value), join(contents, 'Info.plist')])
+        if (!result.success) throw new Error(result.error)
+      }
+    }
+    if (opts.signIdentity) {
+      await signMacOSAppBundle(appBundlePath, bundleId, opts, hardenedRuntime)
+    }
+    else if (opts.appStore) {
+      throw new Error('App Store packaging requires macos.signIdentity (a "3rd Party Mac Developer Application" identity)')
     }
   }
-  else if (opts.appStore) {
-    results.push({
-      success: false,
-      platform: 'macos',
-      format: 'pkg',
-      error: 'App Store packaging requires macos.signIdentity (a "3rd Party Mac Developer Application" identity)',
-    })
-    return results
+  catch (error) {
+    return [{ success: false, platform: 'macos', format: 'app', error: (error as Error).message }]
   }
 
   results.push({ success: true, platform: 'macos', format: 'app', outputPath: appBundlePath })
@@ -457,6 +486,7 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
       version,
       appStore: opts.appStore === true,
       installerIdentity: opts.installerIdentity,
+      signingKeychain: opts.signingKeychain,
     })
     results.push({
       success: pkgResult.success,
@@ -783,6 +813,61 @@ ${body}
 </plist>`
 }
 
+/** Sign nested code first without applying the main app's sandbox to helpers. */
+async function signMacOSAppBundle(
+  app: string,
+  bundleId: string,
+  opts: NonNullable<PackageConfig['macos']>,
+  hardenedRuntime: boolean,
+): Promise<void> {
+  const scratch = createTempDir('craft-sign-')
+  try {
+    let helperEntitlements = opts.helperEntitlements
+    if (opts.appStore && !helperEntitlements) {
+      helperEntitlements = join(scratch, 'inherit.plist')
+      writeFileSync(helperEntitlements, '<?xml version="1.0"?><plist version="1.0"><dict><key>com.apple.security.app-sandbox</key><true/><key>com.apple.security.inherit</key><true/></dict></plist>')
+    }
+    const extracted = await runTool('plutil', ['-extract', 'CFBundleExecutable', 'raw', '-o', '-', join(app, 'Contents', 'Info.plist')])
+    if (!extracted.success) throw new Error(extracted.error)
+    const main = join(app, 'Contents', 'MacOS', extracted.stdout.trim())
+    const sign = async (path: string, entitlements?: string, identifier?: string) => {
+      const signed = await runTool('codesign', codesignArguments({ path, identity: opts.signIdentity!, entitlements, hardenedRuntime, identifier, keychain: opts.signingKeychain, deep: false }))
+      if (!signed.success) throw new Error(signed.error)
+    }
+    const walk = async (directory: string): Promise<void> => {
+      for (const entry of readdirSync(directory)) {
+        const path = join(directory, entry)
+        const stat = lstatSync(path)
+        if (stat.isSymbolicLink()) continue
+        if (stat.isDirectory()) {
+          await walk(path)
+          if (/\.(?:app|framework|xpc|appex|bundle)$/.test(entry))
+            await sign(path, /\.(?:app|xpc|appex)$/.test(entry) ? helperEntitlements : undefined)
+        }
+        else if (path !== main && stat.isFile() && isMachO(path)) {
+          const executable = (stat.mode & 0o111) !== 0 && !/\.(?:dylib|so)$/.test(entry)
+          await sign(path, executable ? helperEntitlements : undefined, `${bundleId}.${entry}`)
+        }
+      }
+    }
+    await walk(join(app, 'Contents'))
+    await sign(app, opts.entitlements)
+    const verified = await runTool('codesign', ['--verify', '--deep', '--strict', app])
+    if (!verified.success) throw new Error(verified.error)
+  }
+  finally { removeTempDir(scratch) }
+}
+
+function isMachO(path: string): boolean {
+  const fd = openSync(path, 'r')
+  try {
+    const magic = Buffer.alloc(4)
+    if (readSync(fd, magic, 0, 4, 0) !== 4) return false
+    return [0xFEEDFACE, 0xCEFAEDFE, 0xFEEDFACF, 0xCFFAEDFE, 0xCAFEBABE, 0xBEBAFECA, 0xCAFEBABF, 0xBFBAFECA].includes(magic.readUInt32BE())
+  }
+  finally { closeSync(fd) }
+}
+
 /**
  * Build the `codesign` argument list for an app bundle.
  *
@@ -794,6 +879,9 @@ export function codesignArguments(opts: {
   identity: string
   entitlements?: string
   hardenedRuntime?: boolean
+  deep?: boolean
+  identifier?: string
+  keychain?: string
 }): string[] {
   return [
     '--force',
@@ -803,7 +891,9 @@ export function codesignArguments(opts: {
     ...(opts.identity === '-' ? [] : ['--timestamp']),
     ...(opts.hardenedRuntime ? ['--options', 'runtime'] : []),
     ...(opts.entitlements ? ['--entitlements', opts.entitlements] : []),
-    '--deep',
+    ...(opts.identifier ? ['--identifier', opts.identifier] : []),
+    ...(opts.keychain ? ['--keychain', opts.keychain] : []),
+    ...(opts.deep === false ? [] : ['--deep']),
     opts.path,
   ]
 }
@@ -813,10 +903,12 @@ export function productbuildArguments(opts: {
   appBundlePath: string
   outputPath: string
   identity: string
+  keychain?: string
 }): string[] {
   return [
     '--component', opts.appBundlePath, '/Applications',
     '--sign', opts.identity,
+    ...(opts.keychain ? ['--keychain', opts.keychain] : []),
     opts.outputPath,
   ]
 }
@@ -960,7 +1052,7 @@ export function shouldRetryHdiutil(error: string, attempt: number, maxAttempts: 
 }
 
 /** Run a packaging tool, capturing output so failures carry the real diagnostic. */
-function runTool(tool: string, args: string[]): Promise<{ success: true } | { success: false, error: string }> {
+function runTool(tool: string, args: string[]): Promise<{ success: true; stdout: string } | { success: false, error: string }> {
   return new Promise((resolve) => {
     const proc = spawn(tool, args)
     let stdout = ''
@@ -968,7 +1060,7 @@ function runTool(tool: string, args: string[]): Promise<{ success: true } | { su
     proc.stdout?.on('data', chunk => { stdout += chunk.toString() })
     proc.stderr?.on('data', chunk => { stderr += chunk.toString() })
     proc.on('close', (code) => {
-      if (code === 0) resolve({ success: true })
+      if (code === 0) resolve({ success: true, stdout })
       else resolve({ success: false, error: formatPackagingCommandError(tool, code, stdout, stderr) })
     })
     proc.on('error', err => resolve({ success: false, error: err.message }))
@@ -1089,6 +1181,7 @@ async function createPKG(opts: {
   version: string
   appStore?: boolean
   installerIdentity?: string
+  signingKeychain?: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   // pkgbuild requires reverse-DNS form for the identifier. Validate
   // upfront so the error message is actionable rather than the cryptic
@@ -1107,6 +1200,7 @@ async function createPKG(opts: {
       appBundlePath: opts.appBundlePath,
       outputPath: opts.outputPath,
       identity: opts.installerIdentity,
+      keychain: opts.signingKeychain,
     }))
     return built.success
       ? { success: true, outputPath: opts.outputPath }
