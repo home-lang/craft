@@ -1,5 +1,29 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.277...v0.0.278)
+
+## 🚀 Features
+
+- **packaging**: preserve prebuilt apps and support notarization API keys ([46ba751](https://github.com/craft-native/craft/commit/46ba751)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **build**: link macOS logger tests to their native dependencies ([1eae66d](https://github.com/craft-native/craft/commit/1eae66d)) _(by Chris)_
+- **graphics**: reject unsupported drawing and composite atlas sprites ([86daaf5](https://github.com/craft-native/craft/commit/86daaf5)) _(by Chris)_
+- **app**: pass the sender when terminating a macOS app ([b1f3a0e](https://github.com/craft-native/craft/commit/b1f3a0e)) _(by Chris Breuer)_
+- **macos**: keep packaged tray popovers alive and detection running ([1c4c147](https://github.com/craft-native/craft/commit/1c4c147)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/settlers-render-truth ([f8ccf93](https://github.com/craft-native/craft/commit/f8ccf93)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-render-truth ([ba2a7ee](https://github.com/craft-native/craft/commit/ba2a7ee)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' into codex/hush-sharing-timer ([1bbd382](https://github.com/craft-native/craft/commit/1bbd382)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.276...v0.0.277)
 
 ## 🚀 Features
