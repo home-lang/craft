@@ -1,5 +1,12 @@
 import { appendFileSync, existsSync, readFileSync, realpathSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { runZig } from './zig'
+
+/** Match CI's core formatting gate before creating an immutable release tag. */
+export function validateReleaseFormatting(root: string, env: NodeJS.ProcessEnv = process.env): void {
+  const code = runZig(root, ['--core', 'fmt', '--check', 'src/', 'build.zig'], { ...env, CRAFT_ALLOW_UNPINNED_ZIG: undefined })
+  if (code !== 0) throw new Error('Release Zig formatting check failed. Run bun run fmt, review the changes, and commit them before releasing.')
+}
 
 /** Fail before a bump if a sparse checkout omits manifests that CI will publish. */
 export function validateReleaseCheckout(root: string): void {
@@ -75,6 +82,7 @@ if (import.meta.main) {
   if (process.argv.includes('--preflight')) {
     validateReleaseCheckout(root)
     validateReleaseDependencies(root)
+    validateReleaseFormatting(root)
     validateReleaseGit(root)
     console.log('Release checkout contains every tracked package manifest')
     process.exit(0)

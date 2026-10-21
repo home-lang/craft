@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from 'bun:test'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { validateReleaseCheckout, validateReleaseGit, checkReleaseVersion, validateReleaseVersion } from './release-version'
+import { validateReleaseCheckout, validateReleaseFormatting, validateReleaseGit, checkReleaseVersion, validateReleaseVersion } from './release-version'
 import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
 
 // Every scratch directory this file made goes when the file is done (#357).
@@ -67,12 +67,35 @@ test('release preflight rejects missing tools before changing package versions o
   const manifest = '{"version":"1.2.3"}\n'
   writeFileSync(join(root, 'package.json'), manifest)
   writeFileSync(join(root, 'scripts/release-version.ts'), readFileSync(join(import.meta.dir, 'release-version.ts')))
+  writeFileSync(join(root, 'scripts/zig.ts'), readFileSync(join(import.meta.dir, 'zig.ts')))
   expect(Bun.spawnSync(['git', 'init', '-q'], { cwd: root }).exitCode).toBe(0)
   const result = Bun.spawnSync([process.execPath, 'scripts/release-version.ts', '--preflight'], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
   expect(result.exitCode).not.toBe(0)
   expect(result.stderr.toString()).toContain('bun install --frozen-lockfile')
   expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe(manifest)
   expect(Bun.spawnSync(['git', 'tag', '--list'], { cwd: root, stdout: 'pipe' }).stdout.toString()).toBe('')
+})
+
+test('release formatting checks the core project, propagates failure and rejects an unpinned override', () => {
+  const root = createTempDir('craft-release-format-')
+  const core = join(root, 'packages/zig')
+  mkdirSync(join(core, 'src'), { recursive: true })
+  const version = '0.18.0-dev.146+35accc06e'
+  writeFileSync(join(root, 'pantry.lock'), JSON.stringify({ workspaces: { '': { system: { 'ziglang.org': version } } } }))
+  const compiler = join(root, 'zig')
+  const script = `#!/bin/sh
+if [ "$1" = version ]; then printf '%s\\n' '${version}'; exit 0; fi
+[ "$*" = 'fmt --check src/ build.zig' ] || exit 9
+pwd > checked-directory
+exit "\${CRAFT_FORMAT_RESULT:-0}"
+`
+  writeFileSync(compiler, script, { mode: 0o755 })
+  const env = { ...process.env, CRAFT_ZIG: compiler, CRAFT_FORMAT_RESULT: '0' }
+  expect(() => validateReleaseFormatting(root, env)).not.toThrow()
+  expect(realpathSync(readFileSync(join(core, 'checked-directory'), 'utf8').trim())).toBe(realpathSync(core))
+  expect(() => validateReleaseFormatting(root, { ...env, CRAFT_FORMAT_RESULT: '23' })).toThrow('Release Zig formatting check failed')
+  writeFileSync(compiler, script.replace(version, '0.17.0'))
+  expect(() => validateReleaseFormatting(root, { ...env, CRAFT_ALLOW_UNPINNED_ZIG: '1' })).toThrow('Zig version mismatch')
 })
 
 test('release Git preflight requires clean main and checks the current remote', () => {

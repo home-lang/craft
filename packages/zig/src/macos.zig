@@ -6987,12 +6987,12 @@ fn decideNavigationAction(_: objc.id, _: objc.SEL, webview: objc.id, action: obj
     const native_load = consumeNativeLoad(webview);
     const allow = if (native_load and trusted != null and
         bridge_origin.sameOrigin(trusted.?.url, urlParts(url)) and
-        std.mem.eql(u8, trusted.?.url.path, urlParts(url).path)) true
-    else if (trusted != null and trusted.?.inline_html)
+        std.mem.eql(u8, trusted.?.url.path, urlParts(url).path)) true else if (trusted != null and trusted.?.inline_html)
         bridge_origin.sameOrigin(trusted.?.url, urlParts(url)) and
             std.mem.eql(u8, trusted.?.url.path, urlParts(url).path) and
             msgSend0(url, "fragment") != null and nsStringSlice(msgSend0(url, "query")).len == 0
-    else navigationAllowed(webview, url);
+    else
+        navigationAllowed(webview, url);
     if (!allow and msgSend0Ulong(action, "navigationType") == 0 and url != null) {
         const absolute = nsStringSlice(msgSend0(url, "absoluteString"));
         if (external_link.decide(absolute) == .open_externally)
@@ -7008,7 +7008,8 @@ fn decideNavigationResponse(_: objc.id, _: objc.SEL, webview: objc.id, response:
     const allow = !msgSendBool(response, "isForMainFrame") or
         (if (trusted != null and trusted.?.inline_html)
             bridge_origin.sameOrigin(trusted.?.url, urlParts(url)) and std.mem.eql(u8, trusted.?.url.path, urlParts(url).path)
-        else navigationAllowed(webview, url));
+        else
+            navigationAllowed(webview, url));
     finishNavigation(handler, allow);
 }
 
