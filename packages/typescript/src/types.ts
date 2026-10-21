@@ -759,6 +759,12 @@ export interface CraftAppAPI {
      * Get application information
      */
     getInfo(): Promise<AppInfo>
+
+    /** Pin every native surface to Light, Dark, or the system setting. */
+    setAppearance(appearance: 'light' | 'dark' | 'system'): Promise<void>
+
+    /** Read the app's effective Light/Dark appearance. */
+    getAppearance(): Promise<'light' | 'dark'>
 }
 
 /**
