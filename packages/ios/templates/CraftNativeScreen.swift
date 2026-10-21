@@ -1345,6 +1345,22 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
     deinit { stop() }
 }
 
+/// A map pin that answers being activated as it answers a tap.
+final class CraftMarkerAnnotationView: MKAnnotationView {
+    var onActivate: (() -> Void)?
+
+    override func accessibilityActivate() -> Bool {
+        guard let onActivate else { return super.accessibilityActivate() }
+        onActivate()
+        return true
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        onActivate = nil
+    }
+}
+
 /// A tile overlay whose tiles are kept on disk.
 ///
 /// MKTileOverlay asked the network for every tile on every pan back over the
@@ -1439,6 +1455,10 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         isRotateEnabled = false
         let tap = UITapGestureRecognizer(target: self, action: #selector(pressedMap(_:)))
         tap.cancelsTouchesInView = false
+        // Alongside MapKit's own recognizers, not instead of them: on its own
+        // this tap won the touch, MapKit never selected the pin under it, and
+        // a pin's onPress (Explore's trail card) never fired on a phone.
+        tap.delegate = CraftMapTapDelegate.shared
         addGestureRecognizer(tap)
     }
 
@@ -1841,6 +1861,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             // badges over the route.
             view.displayPriority = .defaultLow
             view.collisionMode = .circle
+            // Decoration along the route: not a stop for VoiceOver.
+            view.isAccessibilityElement = false
         } else {
             let color = (markerPinColors[id] ?? .systemRed).resolvedColor(with: traitCollection)
             view.tintColor = color
@@ -1848,6 +1870,12 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             view.transform = .identity
             view.displayPriority = .required
             view.collisionMode = .rectangle
+            // Above the user's own location: at a trailhead - where the map
+            // is most often opened - the dot sat on the trail's pin and took
+            // every tap meant for it.
+            if #available(iOS 14.0, *) { view.zPriority = .max }
+            view.isAccessibilityElement = true
+            view.accessibilityTraits = .button
         }
     }
 
@@ -1957,9 +1985,12 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
 
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
         guard let id = annotationsByID.first(where: { $0.value === annotation })?.key else { return nil }
-        let view = dequeueReusableAnnotationView(withIdentifier: "craft-native-marker")
-            ?? MKAnnotationView(annotation: annotation, reuseIdentifier: "craft-native-marker")
+        let view = (dequeueReusableAnnotationView(withIdentifier: "craft-native-marker") as? CraftMarkerAnnotationView)
+            ?? CraftMarkerAnnotationView(annotation: annotation, reuseIdentifier: "craft-native-marker")
         view.annotation = annotation
+        // Activated (VoiceOver, Switch Control, a UI test) as a tap would:
+        // the plain annotation view did nothing when activated.
+        view.onActivate = { [weak self] in self?.onMarkerTap?(id) }
         configureMarkerView(view, id: id)
         view.accessibilityIdentifier = id
         return view
@@ -4108,6 +4139,16 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     /// whole screen, what the modal holds stays clear of the bars.
     var contentInsets: UIEdgeInsets = .zero {
         didSet { if contentInsets != oldValue { setNeedsLayout() } }
+    }
+}
+
+/// The delegate of a map's own tap (`Map`'s onPress): it watches beside
+/// MapKit's recognizers, so a tap on a pin still selects it.
+final class CraftMapTapDelegate: NSObject, UIGestureRecognizerDelegate {
+    static let shared = CraftMapTapDelegate()
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
     }
 }
 
@@ -8773,8 +8814,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// Views that take their own touches whatever handlers the screen gives
     /// them: native controls, a scroll view, a modal, and a video's controls (with
     /// interaction off, its play, scrubber and full screen never answered).
+    /// A map and a wheel picker too: neither is a UIControl, so a map with no
+    /// long-press handler - every map - was made non-interactive, and could
+    /// not be panned, zoomed, or have a pin tapped; a picker could not be spun.
     private func ownsTouches(_ view: UIView) -> Bool {
         view is UIControl || view is UIScrollView || view is CraftNativeModalView || view is CraftNativeVideoView
+            || view is MKMapView || view is UIPickerView
     }
 
     private func updatePressHandler(_ handler: String?, for view: UIView) {

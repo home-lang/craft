@@ -1067,6 +1067,63 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(marker.transform.b, 1, accuracy: 0.02)
     }
 
+    /// A pin's press handler arrives after the pin itself (stx sends the
+    /// handler id in a later `updateNode`, as it does for a pin in a `:for`).
+    /// Tapping the pin must still reach the screen: Explore's trail card
+    /// never opened because it did not.
+    func testAPinsPressHandlerPatchedInLaterStillReachesTheScreen() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+        controller.render([
+            "id": "map-node", "type": "Map", "props": ["key": "pins", "region": ["center": ["latitude": 37.7, "longitude": -119.5], "span": ["latitudeDelta": 0.05, "longitudeDelta": 0.05]]],
+            "style": ["width": 320, "height": 320],
+            "children": [["id": "pin-node", "type": "MapMarker", "props": ["id": "trail-21", "geometry": [37.7, -119.5], "title": "Craggy Gardens"]]],
+        ])
+        controller.view.layoutIfNeeded()
+        _ = try controller.applyMutation(batch(1, [
+            ["op": "updateNode", "id": "pin-node", "patch": ["events": ["onPress": "h31"]]],
+        ]))
+        controller.view.layoutIfNeeded()
+        controller.evaluateScript("globalThis.__pinPress = ''; globalThis.__stxNativeCallback = function(json) { const message = JSON.parse(json); if (message.type === 'EVENT') globalThis.__pinPress = message.payload.handlerName + ':' + message.payload.nativeEvent.id; };")
+        let map = try XCTUnwrap(find(MKMapView.self, key: "pins", below: controller.view))
+        // A map with no handler of its own still pans, zooms and takes taps
+        // on its pins: it was switched off, as a container without one is.
+        XCTAssertTrue(map.isUserInteractionEnabled, "a map owns its touches")
+        let annotation = try XCTUnwrap(map.annotations.first)
+        let pin = try XCTUnwrap(map.delegate?.mapView?(map, viewFor: annotation))
+        XCTAssertEqual(pin.zPriority, .max, "a trail's pin sits above the user's own location dot")
+        XCTAssertTrue(pin.accessibilityTraits.contains(.button))
+        // Activated, as VoiceOver does, it presses like a tap.
+        XCTAssertTrue(pin.accessibilityActivate())
+        let activated = Date().addingTimeInterval(2)
+        while controller.evaluateScript("globalThis.__pinPress")?.toString() != "h31:trail-21", Date() < activated {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertEqual(controller.evaluateScript("globalThis.__pinPress")?.toString(), "h31:trail-21")
+        controller.evaluateScript("globalThis.__pinPress = ''")
+        map.delegate?.mapView?(map, didSelect: annotation)
+        let deadline = Date().addingTimeInterval(2)
+        while controller.evaluateScript("globalThis.__pinPress")?.toString() != "h31:trail-21", Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertEqual(controller.evaluateScript("globalThis.__pinPress")?.toString(), "h31:trail-21")
+    }
+
+    /// A wheel picker is not a UIControl either, and was switched off the
+    /// same way: it could not be spun.
+    func testAWheelPickerTakesTouchesWithoutAPressHandler() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(["type": "Picker", "props": ["key": "wheel", "items": [["label": "One", "value": 1], ["label": "Two", "value": 2]], "selectedValue": 1], "style": ["width": 320, "height": 200]])
+        controller.view.layoutIfNeeded()
+        let picker = try XCTUnwrap(find(UIPickerView.self, key: "wheel", below: controller.view))
+        XCTAssertTrue(picker.isUserInteractionEnabled)
+    }
+
     func testMapDirectionSignsKeepALightBackdropAndTheAuthoredColor() throws {
         for appearance in [UIUserInterfaceStyle.light, .dark] {
             let controller = CraftNativeScreenController(config: CraftConfig())
