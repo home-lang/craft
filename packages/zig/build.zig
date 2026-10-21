@@ -121,11 +121,10 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/minimal.zig"),
             .target = target,
             .optimize = optimize,
-            // Single-threaded by default: craft's CLI has no use for threads
-            // and it keeps the binary small. zig-js does spawn them, so the
-            // constraint is relaxed only for builds that include the JS
-            // runtime, rather than giving it up for everyone.
-            .single_threaded = !js_runtime_enabled,
+            // WebKit-only apps still use background native operations and
+            // permission callbacks. Removing the separate JS interpreter
+            // does not make the application single-threaded.
+            .single_threaded = false,
             .strip = if (!debug_build) true else null,
             // Never `.none` on Windows. The x64 ABI requires unwind data for
             // non-leaf functions, and zig passes this module option down into
