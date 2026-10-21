@@ -448,6 +448,10 @@ describe('native renderer component contract', () => {
     expect(iosHealth).toContain('detail["activeEnergyCalories"] = value')
     expect(iosHealth).toContain('detail["distanceMeters"] = value')
     expect(iosHealth).toContain('onMain { [weak self] in self?.sendWorkout(detail) }')
+    expect(iosReadme).toContain('Live workout sessions (iOS 26+, requires enableHealthKit: true)')
+    expect(iosReadme).toContain('const live = await health.startWorkout({ type: \'running\', location: \'outdoor\' })')
+    expect(iosReadme).toContain('const saved = await health.endWorkout()')
+    expect(iosReadme).toContain('existing post-hoc `saveWorkout` API remains separate')
   })
 
   it('lets every container both hosts draw take children in a mutation', () => {

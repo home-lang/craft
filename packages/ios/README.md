@@ -594,6 +594,28 @@ stopListening()
 // sends a made-up watch reading every 5 s instead: someone settling into slow
 // breathing, from about 72 toward 60 bpm.
 
+// Live workout sessions (iOS 26+, requires enableHealthKit: true). The OS
+// keeps the session alive while the app is backgrounded; samples arrive as
+// typed craftHealthWorkout events. Ask for the workout/heart-rate grants before
+// starting a session.
+await health.requestAuthorization(['workouts', 'heartRate', 'activeEnergy', 'distance'], { write: true })
+const stopWorkout = health.onWorkout(event => {
+  if (event.event === 'metrics') showMetrics(event.heartRateBpm, event.activeEnergyCalories, event.distanceMeters)
+  if (event.event === 'state') showWorkoutState(event.state)
+  if (event.event === 'error') showWorkoutError(event.message)
+})
+const live = await health.startWorkout({ type: 'running', location: 'outdoor' })
+await health.pauseWorkout()
+await health.resumeWorkout()
+const saved = await health.endWorkout() // { id, workoutId, endDate, durationSeconds }
+stopWorkout()
+
+`startWorkout`, `pauseWorkout`, `resumeWorkout`, and `endWorkout` reject with
+`Live workouts are unavailable` when the build does not include HealthKit or
+when the OS is older than iOS 26. `onWorkout` receives lifecycle events plus
+live `heartRateBpm`, `activeEnergyCalories`, and `distanceMeters` metrics; the
+existing post-hoc `saveWorkout` API remains separate.
+
 // Screen Capture
 const screenshotBase64 = await window.craft.takeScreenshot();
 
