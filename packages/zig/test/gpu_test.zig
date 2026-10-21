@@ -2,6 +2,107 @@ const std = @import("std");
 const testing = std.testing;
 const gpu = @import("../src/gpu.zig");
 
+test "shader source is not a compiled program without a compiler backend" {
+    var shader = try gpu.Shader.init(testing.allocator, .{
+        .type = .vertex,
+        .code = "void main() { gl_Position = vec4(0.0); }",
+    });
+    defer shader.deinit();
+
+    try testing.expectError(error.ShaderCompilationUnavailable, shader.compile());
+    try testing.expect(!shader.isReady());
+    try testing.expect(!shader.compiled);
+    try testing.expect(!shader.validated);
+    try testing.expectEqual(@as(usize, 0), shader.uniforms.items.len);
+}
+
+test "rendering support is distinct from a requested hardware backend" {
+    var g = try gpu.GPU.init(testing.allocator, .{ .backend = .metal });
+    defer g.deinit();
+    const capabilities = g.getRenderingCapabilities();
+    try testing.expect(capabilities.offscreen_clear);
+    try testing.expect(!capabilities.hardware_canvas);
+    try testing.expect(!capabilities.shader_compilation);
+    try testing.expect(!capabilities.draw);
+    try testing.expect(!capabilities.compute);
+    try testing.expect(!capabilities.presentation);
+}
+
+test "hardware canvas calls refuse work without a drawing backend" {
+    var g = try gpu.GPU.init(testing.allocator, .{});
+    defer g.deinit();
+    var accelerator = gpu.CanvasAccelerator.init(&g);
+    try testing.expect(!accelerator.enabled);
+    try testing.expectError(error.UnsupportedOperation, accelerator.drawRect(0, 0, 2, 2));
+    try testing.expectError(error.UnsupportedOperation, accelerator.drawCircle(1, 1, 2));
+    try testing.expectError(error.UnsupportedOperation, accelerator.clear());
+}
+
+test "offscreen pipeline clear changes pixels and unsupported work is not counted" {
+    var g = try gpu.GPU.init(testing.allocator, .{});
+    defer g.deinit();
+    var pipeline = gpu.RenderPipeline.init(testing.allocator, &g);
+    defer pipeline.deinit();
+    const target = try pipeline.createRenderTarget(2, 2, .rgba8);
+    try pipeline.submit(.{ .set_render_target = target });
+    try pipeline.submit(.{ .clear = .{ .color = .{ 1, 0, 0, 1 } } });
+    try pipeline.submit(.{ .draw = .{ .vertex_count = 3 } });
+    try testing.expectError(error.UnsupportedOperation, pipeline.flush());
+    try testing.expectEqual([4]u8{ 255, 0, 0, 255 }, target.getColorTexture().?.getPixel(1, 1).?);
+    try testing.expectEqual(@as(u32, 2), pipeline.getStatistics().commands_executed);
+    try testing.expectEqual(@as(u32, 0), pipeline.getStatistics().draw_calls);
+    try testing.expectEqual(@as(u32, 0), pipeline.getStatistics().vertices_processed);
+    try testing.expectEqual(@as(usize, 0), pipeline.command_buffer.items.len);
+    try pipeline.flush();
+    try testing.expectEqual(@as(u32, 2), pipeline.getStatistics().commands_executed);
+}
+
+test "indexed and compute commands refuse work without recording success" {
+    var g = try gpu.GPU.init(testing.allocator, .{});
+    defer g.deinit();
+    var pipeline = gpu.RenderPipeline.init(testing.allocator, &g);
+    defer pipeline.deinit();
+    const indexed = [_]gpu.RenderCommand{.{ .draw_indexed = .{ .index_count = 3 } }};
+    try testing.expectError(error.UnsupportedOperation, pipeline.render(&indexed));
+    const compute = [_]gpu.RenderCommand{.{ .dispatch_compute = .{ .groups_x = 1, .groups_y = 1, .groups_z = 1 } }};
+    try testing.expectError(error.UnsupportedOperation, pipeline.render(&compute));
+    try testing.expectEqual(@as(u32, 0), pipeline.getStatistics().commands_executed);
+    try testing.expectEqual(@as(u32, 0), pipeline.getStatistics().triangles_drawn);
+}
+
+test "clear without a target and uncompiled shader cannot report success" {
+    var g = try gpu.GPU.init(testing.allocator, .{});
+    defer g.deinit();
+    var pipeline = gpu.RenderPipeline.init(testing.allocator, &g);
+    defer pipeline.deinit();
+    const clear = [_]gpu.RenderCommand{.{ .clear = .{ .color = .{ 1, 0, 0, 1 } } }};
+    try testing.expectError(error.MissingRenderTarget, pipeline.render(&clear));
+    var shader = try gpu.Shader.init(testing.allocator, .{ .type = .vertex, .code = "void main() {}" });
+    defer shader.deinit();
+    const set_shader = [_]gpu.RenderCommand{.{ .set_shader = &shader }};
+    try testing.expectError(error.ShaderNotReady, pipeline.render(&set_shader));
+    try testing.expectEqual(@as(u32, 0), pipeline.getStatistics().commands_executed);
+    try testing.expect(pipeline.getState().current_shader == null);
+}
+
+test "compute shader dispatch does not pretend to execute" {
+    var shader = try gpu.ComputeShader.init(testing.allocator, "void main() {}", .{ 1, 1, 1 });
+    defer shader.deinit();
+    try testing.expectError(error.UnsupportedOperation, shader.dispatch(1, 1, 1));
+}
+
+fn createOffscreenTarget(allocator: std.mem.Allocator) !void {
+    var g = try gpu.GPU.init(allocator, .{});
+    defer g.deinit();
+    var pipeline = gpu.RenderPipeline.init(allocator, &g);
+    defer pipeline.deinit();
+    _ = try pipeline.createRenderTarget(2, 2, .rgba8);
+}
+
+test "offscreen target creation releases every allocation on failure" {
+    try testing.checkAllAllocationFailures(testing.allocator, createOffscreenTarget, .{});
+}
+
 test "GPUBackend enum" {
     try testing.expectEqual(gpu.GPUBackend.vulkan, .vulkan);
     try testing.expectEqual(gpu.GPUBackend.metal, .metal);

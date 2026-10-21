@@ -1,0 +1,60 @@
+# Standalone native graphics status
+
+The standalone Zig graphics interfaces are distinct from Craft's WebView
+rendering and the maintained UIKit/Android UI hosts. A detected Metal or Vulkan
+device does not establish that these interfaces have a draw backend.
+
+## Executed behavior
+
+| Interface | Supported behavior | Evidence |
+| --- | --- | --- |
+| `renderer.Canvas` | CPU pixel storage, clear, basic shapes, and unscaled RGBA8 atlas compositing | `test:renderer` checks actual pixels |
+| `gpu.RenderPipeline` | Offscreen target selection and clear | `test:gpu` reads the resulting RGBA8 pixels |
+| Offscreen target construction | Allocation failure cleanup | `test:gpu` fails every allocation in turn and checks for leaks |
+| Native drawing and presentation | Not provided by the standalone GPU pipeline | Capability flags are false and unsupported operations return errors |
+| Shader compilation | No compiler backend connected | `Shader.compile` returns `ShaderCompilationUnavailable`; readiness remains false |
+| Canvas text | No font renderer connected | `Canvas.drawText` returns `TextRenderingUnavailable` |
+
+`GPU.getRenderingCapabilities()` describes implemented rendering operations.
+`GPU.detectBackend()` and `GPU.isAccelerationAvailable()` describe hardware
+discovery; callers must not use them as substitutes for rendering capabilities.
+
+## Atlas compositing
+
+`Canvas.drawBitmap` accepts a caller-owned, tightly packed, straight-alpha RGBA8
+bitmap, a source rectangle, and an unscaled destination point. It validates the
+entire bitmap and source rectangle before writing. Destination clipping retains
+the corresponding source coordinates. Source-over compositing accounts for both
+source and destination alpha, including transparent destinations.
+
+The canvas does not retain the bitmap. Its source bytes must remain immutable
+and must not overlap destination pixel storage during the call. Scaling, tint,
+textured triangles, font shaping, batching, and native surface presentation are
+separate capabilities; this operation does not claim them.
+
+## Error handling
+
+Hardware canvas operations, mesh drawing, pipeline draw/indexed-draw commands,
+and compute dispatch return `UnsupportedOperation` until a real backend exists.
+`CanvasAccelerator` operations and `Canvas.drawText` previously returned `void`;
+callers now handle their error unions. `Button.render` and `Label.render`
+propagate unavailable text errors rather than silently omitting their labels.
+
+A pipeline clear without a target returns `MissingRenderTarget`; selecting an
+unready shader returns `ShaderNotReady`. Failed commands do not increase success
+statistics. A failed deferred flush discards its remaining queue so retrying a
+corrected batch cannot inadvertently replay an already executed prefix.
+
+## Verification
+
+Use the exact Zig version pinned in `pantry.lock`:
+
+```sh
+CRAFT_ZIG=/absolute/path/to/pinned/zig bun scripts/zig.ts --core build test:gpu test:renderer
+```
+
+These tests prove offscreen operations and error behavior. A future native
+game-surface claim additionally requires presented pixels, actual input,
+resize/display-scale behavior, lifecycle recovery, and resource teardown on each
+claimed host. Source compilation, successful counters, or a blank window do not
+provide that evidence.
