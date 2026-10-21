@@ -900,6 +900,16 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val options = if (itemOptions.isNotEmpty()) itemOptions else')
   })
 
+  it('lets a long multiline input scroll inside itself and keeps its caret in view', () => {
+    expect(ios).toContain('let overflows = isEditable && bounds.height > 0 && needed > bounds.height + 1')
+    expect(ios).toContain('private func keepCaretVisible(in textView: UITextView)')
+    expect(ios).toContain('func textViewDidChangeSelection(_ textView: UITextView)')
+    expect(iosNativeUnitTests).toContain('func testAMultilineInputScrollsInsideItselfPastItsMaxHeight()')
+    expect(iosNativeUnitTests).toContain('func testTheCaretStaysInViewAsAnInputGrows()')
+    expect(ios).toContain('if rect.height > visible.height, let caret = caretRect(of: input, in: scroll) { rect = caret }')
+    expect(iosNativeUnitTests).toContain('func testALongInputWithoutAMaxHeightKeepsItsCaretAboveTheKeyboard()')
+  })
+
   it('keeps SVG stroke semantics aligned across hosts', () => {
     expect(ios).toContain('line.lineCapStyle')
     expect(ios).toContain('line.lineJoinStyle')

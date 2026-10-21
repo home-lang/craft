@@ -5101,6 +5101,17 @@ private final class CraftNativeTextView: UITextView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        // A multiline input grows with its text up to its `maxHeight`, then
+        // scrolls inside itself. Never scrolling, the text past that height
+        // was cut off and could not be reached (a long workout comment).
+        // With scrolling off, contentSize is the view's own height: measure
+        // the text itself.
+        let needed = isEditable ? sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height : 0
+        let overflows = isEditable && bounds.height > 0 && needed > bounds.height + 1
+        if isScrollEnabled != overflows {
+            isScrollEnabled = overflows
+            if overflows, isFirstResponder { scrollRangeToVisible(selectedRange) }
+        }
         let inset = textContainerInset
         let padding = textContainer.lineFragmentPadding
         placeholderLabel.frame = CGRect(
@@ -5117,6 +5128,7 @@ private final class CraftNativeTextView: UITextView {
     }
 
     private func configurePlaceholder() {
+        isScrollEnabled = false
         placeholderLabel.numberOfLines = 0
         placeholderLabel.font = font
         placeholderLabel.textColor = .placeholderText
@@ -7104,11 +7116,37 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// `input`, scrolled into the visible part of the scroll view it is in.
     /// Internal for XCTest.
     func scrollIntoView(_ input: UIView, animated: Bool) {
-        var ancestor = input.superview
-        while let current = ancestor, !(current is CraftNativeScrollView) { ancestor = current.superview }
-        guard let scroll = ancestor as? CraftNativeScrollView, scroll.isVertical else { return }
-        let rect = input.convert(input.bounds, to: scroll).insetBy(dx: 0, dy: -16)
+        guard let scroll = enclosingVerticalScroll(of: input) else { return }
+        var rect = input.convert(input.bounds, to: scroll).insetBy(dx: 0, dy: -16)
+        // A field taller than the part the keyboard leaves (a long comment
+        // with no max height) shows its caret rather than its top: scrolled
+        // to its top, the caret at the end of the text stayed under the
+        // keyboard with no way to scroll it out.
+        let visible = scroll.bounds.inset(by: scroll.adjustedContentInset)
+        if rect.height > visible.height, let caret = caretRect(of: input, in: scroll) { rect = caret }
         scroll.scrollRectToVisible(rect, animated: animated)
+    }
+
+    /// The vertical scroll view `view` sits in, if any.
+    private func enclosingVerticalScroll(of view: UIView) -> CraftNativeScrollView? {
+        var ancestor = view.superview
+        while let current = ancestor, !(current is CraftNativeScrollView) { ancestor = current.superview }
+        guard let scroll = ancestor as? CraftNativeScrollView, scroll.isVertical else { return nil }
+        return scroll
+    }
+
+    /// A focused input's caret in `scroll`'s coordinates, with a little room
+    /// around it, kept within the input (one scrolling inside itself has its
+    /// caret beyond its own frame until it scrolls to it).
+    private func caretRect(of input: UIView, in scroll: UIScrollView) -> CGRect? {
+        guard input.isFirstResponder, let text = input as? UITextInput,
+              let end = text.selectedTextRange?.end else { return nil }
+        let caret = text.caretRect(for: end)
+        guard caret.minY.isFinite, caret.height > 0 else { return nil }
+        let frame = input.convert(input.bounds, to: scroll)
+        var rect = input.convert(caret, to: scroll)
+        rect.origin.y = min(max(rect.minY, frame.minY), max(frame.minY, frame.maxY - rect.height))
+        return rect.insetBy(dx: 0, dy: -16)
     }
 
     private func sendAppState(_ state: String) {
@@ -8977,7 +9015,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if textView.textContainerInset != padding { textView.textContainerInset = padding }
             textView.textContainer.lineFragmentPadding = 0
         }
-        textView.isScrollEnabled = false
+        // An input's own scrolling follows its height (CraftNativeTextView).
+        if !(textView is CraftNativeTextView) { textView.isScrollEnabled = false }
         let numberOfLines = Int(number(props["numberOfLines"]) ?? 0)
         if numberOfLines > 0 {
             textView.textContainer.maximumNumberOfLines = numberOfLines
@@ -9846,9 +9885,36 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let id = ObjectIdentifier(textView)
         inputIdentities[id].map { inputDrafts[$0] = textView.text ?? "" }
         (textView as? CraftNativeTextView)?.refreshPlaceholder()
+        keepCaretVisible(in: textView)
         guard let handler = handlers[id] else { return }
         noteSentText(textView.text ?? "", for: textView)
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": textView.text ?? ""]])
+    }
+
+    func textViewDidChangeSelection(_ textView: UITextView) {
+        guard textView.isFirstResponder else { return }
+        keepCaretVisible(in: textView)
+    }
+
+    /// The caret, kept where it can be seen as a multiline input grows or the
+    /// caret moves: in the part of the screen's scroll view the keyboard
+    /// leaves. Only the field was scrolled into view, when editing began, so
+    /// a long comment typed at the bottom of a screen went under the keyboard.
+    private func keepCaretVisible(in textView: UITextView) {
+        DispatchQueue.main.async { [weak self, weak textView] in
+            guard let self, let textView, textView.isFirstResponder else { return }
+            // The input grows with its text first: a text view's new lines
+            // are news to the flex layout around it, which sized the scroll
+            // view's content to the old height.
+            textView.invalidateIntrinsicContentSize()
+            CraftNativeFlexLayout.invalidateAncestors(of: textView)
+            self.view.layoutIfNeeded()
+            guard let scroll = self.enclosingVerticalScroll(of: textView),
+                  let rect = self.caretRect(of: textView, in: scroll) else { return }
+            let visible = scroll.bounds.inset(by: scroll.adjustedContentInset)
+            guard !visible.contains(rect) else { return }
+            scroll.scrollRectToVisible(rect, animated: false)
+        }
     }
 
     func textViewDidBeginEditing(_ textView: UITextView) {
