@@ -1166,6 +1166,11 @@ const id = await craft.notifications.schedule({ title: 'Reminder', delay: 60_000
 await craft.notifications.cancel(id)
 
 const photo = await craft.files.pickImage({ source: 'library' })
+const attachments = await craft.files.pickFile({
+  contentTypes: ['application/pdf', 'csv', 'gpx', 'fit'],
+  maxSelections: 4,
+  maxBytes: 20 * 1024 * 1024,
+}) // [{ path, name, type, size }], or [] when dismissed
 const form = new FormData()
 form.append('photo', photo)
 const upload = await fetch('https://api.example.com/upload', {

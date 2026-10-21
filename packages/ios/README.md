@@ -863,6 +863,14 @@ if (await window.craft.scheduledWorkouts.isSupported()) {
 // FormData through fetch, or hand its path to the share sheet.
 const photo = await craft.files.pickImage({ maxPixels: 2048, quality: 0.85 });
 // { path, name: 'IMG_1234.jpg', type: 'image/jpeg', size, width, height }
+// General documents use the same owned-file path and can be selected more
+// than one at a time. Filters are MIME types, UTIs, or filename extensions.
+const attachments = await craft.files.pickFile({
+  contentTypes: ['application/pdf', 'csv', 'gpx', 'fit'],
+  maxSelections: 4,
+  maxBytes: 20 * 1024 * 1024,
+});
+// [{ path, name, type, size }], or [] when the picker is dismissed.
 const form = new FormData();
 form.append('photo', photo);                      // multipart, built natively
 await fetch('https://example.com/upload', { method: 'POST', body: form });
