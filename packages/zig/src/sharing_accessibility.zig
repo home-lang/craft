@@ -1,6 +1,6 @@
-//! Browser tab capture has no CoreGraphics sharing window. Read browser-owned
-//! accessibility indicators with the user's grant, on a bounded worker.
-//! Web content is never searched for native sharing controls.
+//! Authorized native sharing indicators for browsers and conferencing apps.
+//! Browser web content and conferencing chat/message lists are excluded.
+//! All IPC runs on a bounded worker, never on the UI thread.
 const std = @import("std");
 const builtin = @import("builtin");
 const detect = @import("screen_sharing.zig");
@@ -30,11 +30,11 @@ pub fn visit(context: anytype, comptime onWindow: anytype) !void {
         if (std.Io.Clock.awake.now(io).nanoseconds >= deadline) break;
         const app = macos.msgSend1(apps, "objectAtIndex:", index);
         const bundle_id = string(macos.msgSend0(app, "bundleIdentifier")) orelse continue;
-        const dia = std.mem.eql(u8, bundle_id, "company.thebrowser.dia");
-        if (!dia and !std.mem.eql(u8, bundle_id, "com.google.Chrome")) continue;
+        const provider = providerFor(bundle_id) orelse continue;
         const element = AXUIElementCreateApplication(pid(app, macos.sel("processIdentifier"))) orelse continue;
         defer CFRelease(element);
         _ = AXUIElementSetMessagingTimeout(element, 0.05);
+        if (provider == .discord or provider == .slack) enableElectronAccessibility(element);
         var windows: ?*anyopaque = null;
         if (AXUIElementCopyAttributeValue(element, macos.createNSString("AXWindows"), &windows) != 0 or windows == null) continue;
         defer CFRelease(windows);
@@ -44,9 +44,15 @@ pub fn visit(context: anytype, comptime onWindow: anytype) !void {
             if (std.Io.Clock.awake.now(io).nanoseconds >= deadline) break;
             const window = CFArrayGetValueAtIndex(windows, window_index) orelse continue;
             _ = AXUIElementSetMessagingTimeout(window, 0.05);
-            if (dia) {
+            if (provider == .dia) {
                 var reader = NativeBannerReader{ .deadline = deadline };
                 if (reader.containsBanner(window, 0)) try onWindow(context, "Dia", "Browser tab sharing");
+                continue;
+            }
+            if (provider == .discord or provider == .slack) {
+                var reader = NativeBannerReader{ .deadline = deadline, .remaining = 512 };
+                if (reader.containsConferenceControl(window, 0, false, provider))
+                    try onWindow(context, if (provider == .discord) "Discord" else "Slack", "Screen sharing controls");
                 continue;
             }
             var title: ?*anyopaque = null;
@@ -104,7 +110,7 @@ const NativeBannerReader = struct {
             defer CFRelease(child_role);
             const role_text = string(child_role) orelse continue;
             // Do not read labels from web content, including its root.
-            if (std.mem.eql(u8, role_text, "AXWebArea")) continue;
+            if (!std.mem.eql(u8, role_text, "AXStaticText") and !std.mem.eql(u8, role_text, "AXButton")) continue;
             for ([_][:0]const u8{ "AXTitle", "AXDescription", "AXValue" }) |attribute| {
                 if (self.expired()) return false;
                 const label = copyAttribute(child, attribute) orelse continue;
@@ -120,6 +126,34 @@ const NativeBannerReader = struct {
         return false;
     }
 
+    /// App-owned voice controls are outside message lists. Never
+    /// infer sharing from arbitrary chat text or controls elsewhere in the app.
+    fn containsConferenceControl(self: *NativeBannerReader, element: ?*anyopaque, depth: usize, within_panel: bool, provider: Provider) bool {
+        if (depth > 24 or self.remaining == 0 or self.expired()) return false;
+        self.remaining -= 1;
+        _ = AXUIElementSetMessagingTimeout(element, 0.05);
+        const role_value = copyAttribute(element, "AXRole") orelse return false;
+        defer CFRelease(role_value);
+        const role = string(role_value) orelse return false;
+        const control = std.mem.eql(u8, role, "AXButton") or std.mem.eql(u8, role, "AXCheckBox");
+        if (within_panel and control) return hasLabel(element, if (provider == .discord) "Stop Streaming" else "Stop sharing screen");
+        // Electron exposes its application UI as AXWebArea. Lists, outlines,
+        // message text, editors and arbitrary buttons are not traversed.
+        if (!conferenceContainer(role)) return false;
+        const scope_role = if (provider == .discord) "AXGroup" else "AXToolbar";
+        const scope_label = if (provider == .discord) "User status and settings" else "Huddles actions";
+        const in_panel = within_panel or (std.mem.eql(u8, role, scope_role) and hasLabel(element, scope_label));
+        const children = copyAttribute(element, "AXChildren") orelse return false;
+        defer CFRelease(children);
+        if (CFGetTypeID(children) != CFArrayGetTypeID()) return false;
+        const length = @min(CFArrayGetCount(children), 128);
+        var index: c_long = 0;
+        while (index < length and !self.expired()) : (index += 1) {
+            if (self.containsConferenceControl(CFArrayGetValueAtIndex(children, index), depth + 1, in_panel, provider)) return true;
+        }
+        return false;
+    }
+
     fn expired(self: *NativeBannerReader) bool {
         return std.Io.Clock.awake.now(@import("io_context.zig").get()).nanoseconds >= self.deadline;
     }
@@ -128,6 +162,40 @@ const NativeBannerReader = struct {
 fn nativeContainer(role: []const u8) bool {
     return std.mem.eql(u8, role, "AXWindow") or std.mem.eql(u8, role, "AXGroup") or
         std.mem.eql(u8, role, "AXScrollArea") or std.mem.eql(u8, role, "AXSplitGroup");
+}
+
+const Provider = enum { chrome, dia, discord, slack };
+
+fn providerFor(bundle_id: []const u8) ?Provider {
+    if (std.mem.eql(u8, bundle_id, "com.google.Chrome")) return .chrome;
+    if (std.mem.eql(u8, bundle_id, "company.thebrowser.dia")) return .dia;
+    if (std.mem.eql(u8, bundle_id, "com.hnc.Discord")) return .discord;
+    if (std.mem.eql(u8, bundle_id, "com.tinyspeck.slackmacgap")) return .slack;
+    return null;
+}
+
+fn conferenceContainer(role: []const u8) bool {
+    return nativeContainer(role) or std.mem.eql(u8, role, "AXWebArea") or std.mem.eql(u8, role, "AXToolbar");
+}
+
+fn hasLabel(element: ?*anyopaque, label: []const u8) bool {
+    for ([_][:0]const u8{ "AXTitle", "AXDescription", "AXValue" }) |attribute| {
+        const value = copyAttribute(element, attribute) orelse continue;
+        defer CFRelease(value);
+        if (std.mem.eql(u8, string(value) orelse continue, label)) return true;
+    }
+    return false;
+}
+
+fn enableElectronAccessibility(element: ?*anyopaque) void {
+    // Electron's documented third-party accessibility interface, not a
+    // command-line switch or injected renderer script:
+    // https://www.electronjs.org/docs/latest/tutorial/accessibility
+    if (copyAttribute(element, "AXManualAccessibility")) |enabled| {
+        defer CFRelease(enabled);
+        if (CFGetTypeID(enabled) == CFBooleanGetTypeID() and CFBooleanGetValue(enabled)) return;
+    }
+    _ = AXUIElementSetAttributeValue(element, @import("macos.zig").createNSString("AXManualAccessibility"), kCFBooleanTrue);
 }
 
 fn copyAttribute(element: ?*anyopaque, name: [:0]const u8) ?*anyopaque {
@@ -148,6 +216,10 @@ extern "c" fn AXIsProcessTrusted() bool;
 extern "c" fn AXUIElementCreateApplication(pid: c_int) ?*anyopaque;
 extern "c" fn AXUIElementSetMessagingTimeout(element: ?*anyopaque, timeout: f32) c_int;
 extern "c" fn AXUIElementCopyAttributeValue(element: ?*anyopaque, attribute: ?*anyopaque, value: *?*anyopaque) c_int;
+extern "c" fn AXUIElementSetAttributeValue(element: ?*anyopaque, attribute: ?*anyopaque, value: ?*anyopaque) c_int;
+extern "c" var kCFBooleanTrue: ?*anyopaque;
+extern "c" fn CFBooleanGetTypeID() c_ulong;
+extern "c" fn CFBooleanGetValue(value: ?*anyopaque) bool;
 extern "c" fn CFArrayGetCount(array: ?*anyopaque) c_long;
 extern "c" fn CFArrayGetValueAtIndex(array: ?*anyopaque, index: c_long) ?*anyopaque;
 extern "c" fn CFGetTypeID(value: ?*anyopaque) c_ulong;
@@ -193,4 +265,17 @@ test "Dia keeps detecting capture when another tab is selected" {
     mixed.observe("AXStaticText", "Sharing this tab");
     mixed.observe("AXButton", "Share This Tab");
     try std.testing.expect(!mixed.active());
+}
+
+test "only trusted app identities can expose conferencing renderer controls" {
+    try std.testing.expectEqual(Provider.discord, providerFor("com.hnc.Discord").?);
+    try std.testing.expectEqual(Provider.slack, providerFor("com.tinyspeck.slackmacgap").?);
+    try std.testing.expect(providerFor("com.example.Discord") == null);
+    try std.testing.expect(providerFor("com.google.Chrome.beta") == null);
+    try std.testing.expect(conferenceContainer("AXWebArea"));
+    try std.testing.expect(!conferenceContainer("AXList"));
+    try std.testing.expect(!conferenceContainer("AXOutline"));
+    try std.testing.expect(!conferenceContainer("AXTextArea"));
+    try std.testing.expect(!conferenceContainer("AXStaticText"));
+    try std.testing.expect(!conferenceContainer("AXButton"));
 }

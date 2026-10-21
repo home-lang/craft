@@ -159,18 +159,18 @@ fn evaluate(allocator: std.mem.Allocator, sources: ?*std.ArrayListUnmanaged(u8))
         const kind = detect.matchWindow(&detect.default_indicators, owner, window) orelse continue;
         try noteSource(allocator, &state, sources, kind, owner, window);
     }
-    var context = BrowserContext{ .allocator = allocator, .state = &state, .sources = sources };
-    try @import("browser_tab_sharing.zig").visit(&context, noteBrowser);
+    var context = AccessibilityContext{ .allocator = allocator, .state = &state, .sources = sources };
+    try @import("sharing_accessibility.zig").visit(&context, noteAccessibility);
     return state;
 }
 
-const BrowserContext = struct {
+const AccessibilityContext = struct {
     allocator: std.mem.Allocator,
     state: *State,
     sources: ?*std.ArrayListUnmanaged(u8),
 };
 
-fn noteBrowser(context: *BrowserContext, app: []const u8, window: []const u8) !void {
+fn noteAccessibility(context: *AccessibilityContext, app: []const u8, window: []const u8) !void {
     try noteSource(context.allocator, context.state, context.sources, .conference, app, window);
 }
 

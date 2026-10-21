@@ -32,7 +32,7 @@ const state = await window.craft.screenSharing.getState()
 // }
 ```
 
-### Browser tab capture
+### Accessibility sharing controls
 
 Chrome and Dia tab-only capture may have no separate CoreGraphics sharing
 window. With the user's Accessibility grant, Craft reads Chrome's browser-owned
@@ -41,6 +41,13 @@ the user switches from the shared tab to the meeting tab. Its paired native
 controls must occur on the same surface; webpage accessibility subtrees are
 excluded. Merely displaying matching words on a website cannot activate this
 reader. Dia sources use `app: 'Dia'`, `window: 'Browser tab sharing'`.
+
+Discord and Slack may also share without a separate indicator window. Craft
+uses Electron’s documented `AXManualAccessibility` interface, then matches
+Discord’s **Stop Streaming** button inside its **User status and settings**
+panel or Slack’s **Stop sharing screen** control inside its **Huddles actions**
+toolbar. Message lists, outlines and editors are excluded. Sources identify
+`Discord` or `Slack` with `window: 'Screen sharing controls'`.
 
 Use `craft.permissions.check('accessibility')` to check the grant and
 `craft.permissions.request('accessibility')` only in response to an explicit
@@ -69,7 +76,7 @@ off()
 ```
 
 Each tick includes one `CGWindowListCopyWindowInfo` call and, when authorized,
-a bounded native browser Accessibility walk. Browser IPC has a 50ms per-element
+a bounded native Accessibility walk. Application IPC has a 50ms per-element
 timeout and a 750ms overall budget, with node and depth limits for native
 controls. These queries do not block the UI thread. The default cadence is 2s;
 raise it to trade detection latency for less work.
