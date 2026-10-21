@@ -2,6 +2,81 @@ const std = @import("std");
 const testing = std.testing;
 const gpu = @import("../src/gpu.zig");
 
+test "offscreen texture allocation rejects overflow and caller budget excess" {
+    try testing.expectError(error.AllocationLimitExceeded, gpu.Texture.initWithLimits(testing.allocator, 2, 1, .rgba8, .{ .max_bytes = 7 }));
+    try testing.expectError(error.InvalidDimensions, gpu.Texture.init(testing.allocator, std.math.maxInt(u32), std.math.maxInt(u32), .rgba8));
+    try testing.expectError(error.AllocationLimitExceeded, gpu.Texture.init(testing.allocator, 65536, 65536, .rgba8));
+    var texture = try gpu.Texture.initWithLimits(testing.allocator, 2, 1, .rgba8, .{ .max_bytes = 8 });
+    defer texture.deinit();
+    try testing.expectError(error.AllocationLimitExceeded, texture.resize(3, 1));
+    try testing.expectEqual(@as(u32, 2), texture.width);
+    try testing.expectEqual(@as(usize, 8), texture.data.?.len);
+}
+
+test "texture resize allocation failure retains its complete original storage" {
+    var failing = testing.FailingAllocator.init(testing.allocator, .{ .fail_index = 1 });
+    var texture = try gpu.Texture.init(failing.allocator(), 1, 1, .rgba8);
+    defer texture.deinit();
+    texture.setPixel(0, 0, .{ 10, 20, 30, 40 });
+    try testing.expectError(error.OutOfMemory, texture.resize(2, 2));
+    try testing.expectEqual(@as(usize, 0), failing.freed_bytes);
+    try testing.expectEqual(@as(u32, 1), texture.width);
+    try testing.expectEqual([4]u8{ 10, 20, 30, 40 }, texture.getPixel(0, 0).?);
+}
+
+test "render target resize commits color and depth storage together" {
+    var failing = testing.FailingAllocator.init(testing.allocator, .{ .fail_index = 3 });
+    var target = try gpu.RenderTarget.init(failing.allocator(), 1, 1, .rgba8);
+    defer target.deinit();
+    target.getColorTexture().?.setPixel(0, 0, .{ 10, 20, 30, 40 });
+    target.getDepthTexture().?.setPixel(0, 0, .{ 1, 2, 3, 4 });
+    try testing.expectError(error.OutOfMemory, target.resize(2, 2));
+    try testing.expectEqual(@as(u32, 1), target.width);
+    try testing.expectEqual(@as(u32, 1), target.getColorTexture().?.width);
+    try testing.expectEqual(@as(u32, 1), target.getDepthTexture().?.width);
+    try testing.expectEqual([4]u8{ 10, 20, 30, 40 }, target.getColorTexture().?.getPixel(0, 0).?);
+    try testing.expectEqual([4]u8{ 1, 2, 3, 4 }, target.getDepthTexture().?.getPixel(0, 0).?);
+    try testing.expectEqual(@as(usize, 16), failing.freed_bytes);
+}
+
+test "texture downloads reject mismatched destinations before writing" {
+    var texture = try gpu.Texture.init(testing.allocator, 1, 1, .rgba8);
+    defer texture.deinit();
+    texture.setPixel(0, 0, .{ 10, 20, 30, 40 });
+    var short = [_]u8{ 99, 99 };
+    try testing.expectError(error.InvalidDimensions, texture.download(&short));
+    try testing.expectEqualSlices(u8, &.{ 99, 99 }, &short);
+    var oversized = [_]u8{ 99, 99, 99, 99, 99 };
+    try testing.expectError(error.InvalidDimensions, texture.download(&oversized));
+    try testing.expectEqualSlices(u8, &.{ 99, 99, 99, 99, 99 }, &oversized);
+    var exact: [4]u8 = undefined;
+    try texture.download(&exact);
+    try testing.expectEqual([4]u8{ 10, 20, 30, 40 }, exact);
+}
+
+test "offscreen clear validates color and format before changing any storage" {
+    var target = try gpu.RenderTarget.init(testing.allocator, 1, 1, .rgba8);
+    defer target.deinit();
+    target.getColorTexture().?.setPixel(0, 0, .{ 10, 20, 30, 40 });
+    try testing.expectError(error.InvalidColor, target.clear(.{ std.math.nan(f32), 0, 0, 1 }));
+    try testing.expectError(error.InvalidColor, target.clear(.{ 0, 0, 0, 2 }));
+    try testing.expectEqual([4]u8{ 10, 20, 30, 40 }, target.getColorTexture().?.getPixel(0, 0).?);
+    var unsupported = try gpu.RenderTarget.init(testing.allocator, 1, 1, .r8);
+    defer unsupported.deinit();
+    try testing.expectError(error.UnsupportedOperation, unsupported.clear(.{ 1, 0, 0, 1 }));
+    try testing.expectEqual([4]u8{ 0, 0, 0, 255 }, unsupported.getColorTexture().?.getPixel(0, 0).?);
+}
+
+fn resizeOffscreenTarget(allocator: std.mem.Allocator) !void {
+    var target = try gpu.RenderTarget.init(allocator, 1, 1, .rgba8);
+    defer target.deinit();
+    try target.resize(2, 2);
+}
+
+test "offscreen resize releases temporary allocations at every failure point" {
+    try testing.checkAllAllocationFailures(testing.allocator, resizeOffscreenTarget, .{});
+}
+
 test "hardware video decode refuses bytes without a maintained decoder" {
     var owner = try gpu.GPU.init(testing.allocator, .{ .hardware_decode = true });
     defer owner.deinit();
@@ -22,7 +97,7 @@ test "post-processing reports unsupported work and preserves output pixels" {
     defer input.deinit();
     var output = try gpu.RenderTarget.init(testing.allocator, 1, 1, .rgba8);
     defer output.deinit();
-    output.clear(.{ 0, 0, 1, 1 });
+    try output.clear(.{ 0, 0, 1, 1 });
     try processor.addEffect(.blur);
     try testing.expectError(error.UnsupportedOperation, processor.process(&input, &output));
     try testing.expectEqual([4]u8{ 0, 0, 255, 255 }, output.getColorTexture().?.getPixel(0, 0).?);

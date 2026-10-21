@@ -33,7 +33,7 @@ entire offscreen geometry. Directed Bresenham tie behavior is preserved.
 
 [`GPU.getRenderingCapabilities`](../../packages/zig/src/gpu.zig) describes
 implemented execution separately from requested backend settings and hardware
-discovery. Currently it reports offscreen clear, with hardware canvas, shader
+discovery. Currently it reports RGBA8 offscreen clear, with hardware canvas, shader
 compilation, drawing, compute, presentation, hardware video decode, post-processing,
 ray tracing and multi-GPU discovery unavailable.
 
@@ -43,6 +43,15 @@ enumeration calls return `UnsupportedOperation`. Shader compilation returns
 miss, and an undecoded stream does not return successful empty video bytes.
 Unsupported work does not increment successful render statistics. CPU query timing
 is not GPU execution evidence. Offscreen pixel allocation is not native presentation.
+
+Offscreen `Texture.init` limits each attachment to 64 MiB, with an explicit
+`Texture.initWithLimits` byte budget for hosts requiring a different bound. A render
+target can own both color and depth attachments. Resizing temporarily owns the old
+and new storage, then commits both attachments together. An allocation failure
+retains the entire previous frame and releases temporary storage. Upload and
+download require exactly matching byte counts, and do not write a rejected buffer.
+RGBA8 clears reject nonfinite or out-of-range channels before changing either
+attachment. Other clear formats return `UnsupportedOperation`.
 
 ## Verification
 
