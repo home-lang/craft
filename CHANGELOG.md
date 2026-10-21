@@ -1,5 +1,52 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.281...v0.0.283)
+
+## 🚀 Features
+
+- **graphics**: render bounded textured scenes and bitmap text ([7a357cf](https://github.com/craft-native/craft/commit/7a357cf)) _(by Chris)_
+- **macos**: detect Discord and Slack native sharing controls ([ee69d61](https://github.com/craft-native/craft/commit/ee69d61)) _(by Chris Breuer)_
+- **macos**: detect Dia native tab sharing across tab switches ([e7df4ab](https://github.com/craft-native/craft/commit/e7df4ab)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **ios**: synchronize native fixture completion and loopback binding ([a18a8ae](https://github.com/craft-native/craft/commit/a18a8ae)) _(by Chris Breuer)_
+- **graphics**: account shared scene asset views once ([614c555](https://github.com/craft-native/craft/commit/614c555)) _(by Chris Breuer)_
+- **macos**: ignore hidden sharing windows after capture stops ([189980c](https://github.com/craft-native/craft/commit/189980c)) _(by Chris Breuer)_
+- **macos**: preserve duplicate native sharing indicators in watcher digests ([8e3c4cc](https://github.com/craft-native/craft/commit/8e3c4cc)) _(by Chris Breuer)_
+- **cli**: report the actual Zig compiler version ([7a86114](https://github.com/craft-native/craft/commit/7a86114)) _(by Chris)_
+- **ci**: give hybrid iOS acceptance an independent budget ([a5f4e3e](https://github.com/craft-native/craft/commit/a5f4e3e)) _(by Chris Breuer)_
+- **gpu**: preserve offscreen storage across allocation failures ([06e0cec](https://github.com/craft-native/craft/commit/06e0cec)) _(by Chris)_
+- **gpu**: reject unavailable graphics execution paths ([a2d0fee](https://github.com/craft-native/craft/commit/a2d0fee)) _(by Chris)_
+- **graphics**: extract a bounded standalone raster core ([9d9f331](https://github.com/craft-native/craft/commit/9d9f331)) _(by Chris)_
+- **android**: preserve confirmed checkpoints on replacement failure ([5b899b0](https://github.com/craft-native/craft/commit/5b899b0)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+- **browser**: cancel queued checkpoint calls before persistence ([00751a4](https://github.com/craft-native/craft/commit/00751a4)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+
+## 📚 Documentation
+
+- **graphics**: document CPU scene contracts and budgets ([4bbbcc7](https://github.com/craft-native/craft/commit/4bbbcc7)) _(by Chris)_
+
+## 🧪 Tests
+
+- **android**: verify rejected checkpoint rollback across isolates ([7697c30](https://github.com/craft-native/craft/commit/7697c30)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+
+## 🧹 Chores
+
+- release v0.0.282 ([7c5602d](https://github.com/craft-native/craft/commit/7c5602d)) _(by Chris)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/image-optimization-packaging ([29b0405](https://github.com/craft-native/craft/commit/29b0405)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-gold-textured-graphics ([94fe67f](https://github.com/craft-native/craft/commit/94fe67f)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' ([c4f4c32](https://github.com/craft-native/craft/commit/c4f4c32)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-gold-graphics-core ([f76a1ca](https://github.com/craft-native/craft/commit/f76a1ca)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-render-truth ([907f92d](https://github.com/craft-native/craft/commit/907f92d)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.281...v0.0.282)
 
 ## 🚀 Features

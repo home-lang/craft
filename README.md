@@ -109,8 +109,9 @@ Build native menubar/system tray apps with full platform support:
 
 ### 🎮 Standalone Graphics
 
-- Window-independent CPU pixels for clear, rectangles, circles, lines and RGBA atlas regions
-- Clipped geometry, checked allocation budgets and explicit buffer ownership
+- Window-independent CPU pixels for primitives, transformed atlas sprites, textured triangles and bitmap-font text
+- Masked player tint, clipped affine geometry, ordered frames and checked asset/work budgets
+- Explicit buffer ownership and allocation-free borrowed scene commands
 - Hardware discovery and CPU-backed offscreen GPU resource types
 - Explicit errors for unavailable shader compilation, GPU drawing, compute, post-processing, video decoding and ray tracing
 

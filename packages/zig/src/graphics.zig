@@ -1,5 +1,7 @@
 const std = @import("std");
 
+pub const scene = @import("graphics_scene.zig");
+
 /// Window-independent CPU raster core. Pixel words use 0xAARRGGBB; bitmaps
 /// borrow tightly packed straight-alpha RGBA8 bytes for synchronous drawing.
 pub const Color = struct {
@@ -123,17 +125,7 @@ pub const Canvas = struct {
     /// bounds are validated before any pixel changes; destination clipping
     /// never changes which source pixel corresponds to a destination pixel.
     pub fn drawBitmap(self: *Canvas, bitmap: Bitmap, source: Rect, destination: Point) BitmapError!void {
-        if (bitmap.width == 0 or bitmap.height == 0) return error.InvalidBitmap;
-        const count = std.math.mul(usize, bitmap.width, bitmap.height) catch return error.InvalidBitmap;
-        const bytes = std.math.mul(usize, count, 4) catch return error.InvalidBitmap;
-        if (bitmap.pixels.len != bytes) return error.InvalidBitmap;
-        const source_start = @intFromPtr(bitmap.pixels.ptr);
-        const destination_start = @intFromPtr(self.pixels.ptr);
-        const overlaps = if (source_start >= destination_start)
-            source_start - destination_start < self.pixels.len * @sizeOf(u32)
-        else
-            destination_start - source_start < bitmap.pixels.len;
-        if (overlaps) return error.AliasedBitmap;
+        try self.validateBitmap(bitmap);
         if (source.x < 0 or source.y < 0 or
             @as(i64, source.x) + source.width > bitmap.width or
             @as(i64, source.y) + source.height > bitmap.height)
@@ -154,6 +146,28 @@ pub const Canvas = struct {
                 self.pixels[index] = compositeRgba(bitmap.pixels[at..][0..4].*, self.pixels[index]);
             }
         }
+    }
+
+    /// Validate borrowed RGBA8 storage without retaining or changing it.
+    pub fn validateBitmap(self: *const Canvas, bitmap: Bitmap) BitmapError!void {
+        if (bitmap.width == 0 or bitmap.height == 0) return error.InvalidBitmap;
+        const count = std.math.mul(usize, bitmap.width, bitmap.height) catch return error.InvalidBitmap;
+        const bytes = std.math.mul(usize, count, 4) catch return error.InvalidBitmap;
+        if (bitmap.pixels.len != bytes) return error.InvalidBitmap;
+        const source_start = @intFromPtr(bitmap.pixels.ptr);
+        const destination_start = @intFromPtr(self.pixels.ptr);
+        const overlaps = if (source_start >= destination_start)
+            source_start - destination_start < self.pixels.len * @sizeOf(u32)
+        else
+            destination_start - source_start < bitmap.pixels.len;
+        if (overlaps) return error.AliasedBitmap;
+    }
+
+    /// Straight-alpha source-over for one clipped pixel.
+    pub fn blendPixel(self: *Canvas, x: u32, y: u32, color: Color) void {
+        if (x >= self.width or y >= self.height) return;
+        const index = @as(usize, y) * self.width + x;
+        self.pixels[index] = compositeRgba(.{ color.r, color.g, color.b, color.a }, self.pixels[index]);
     }
 
     fn compositeRgba(source: [4]u8, destination: u32) u32 {
