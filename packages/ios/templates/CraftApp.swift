@@ -102,6 +102,83 @@ enum CraftPageAppearance {
     }
 }
 
+/// The app-wide UIKit appearance override. SwiftUI's `preferredColorScheme`
+/// only controls the SwiftUI environment; native screen controllers need the
+/// UIKit override as well so their trait collection, controls and navigation
+/// chrome resolve the same way. A runtime choice is kept here so screens
+/// created after the choice inherit it instead of reverting to the bundle
+/// config.
+enum CraftInterfaceStyleController {
+    private static var selected: UIUserInterfaceStyle?
+
+    static func configuredStyle(for config: CraftConfig) -> UIUserInterfaceStyle {
+        switch config.appearance {
+        case "system": return .unspecified
+        case "light": return .light
+        case "dark": return .dark
+        default: return config.darkMode ? .dark : .light
+        }
+    }
+
+    static func configure(_ config: CraftConfig) {
+        selected = configuredStyle(for: config)
+        applyToWindows()
+    }
+
+    static func style(for config: CraftConfig) -> UIUserInterfaceStyle {
+        selected ?? configuredStyle(for: config)
+    }
+
+    /// Returns false rather than silently accepting a typo from JavaScript.
+    @discardableResult
+    static func set(_ value: String) -> Bool {
+        let style: UIUserInterfaceStyle
+        switch value {
+        case "system": style = .unspecified
+        case "light": style = .light
+        case "dark": style = .dark
+        default: return false
+        }
+        selected = style
+        applyToWindows()
+        NotificationCenter.default.post(name: .craftColorSchemeChanged, object: nil)
+        return true
+    }
+
+    static func currentName() -> String {
+        let requested = selected ?? UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow })?.traitCollection.userInterfaceStyle }
+            .first ?? .unspecified
+        let style = requested == .unspecified
+            ? (UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow })?.traitCollection.userInterfaceStyle }
+                .first { $0 != .unspecified } ?? UITraitCollection.current.userInterfaceStyle)
+            : requested
+        return style == .dark ? "dark" : "light"
+    }
+
+    static func apply(to controller: UIViewController, config: CraftConfig) {
+        controller.overrideUserInterfaceStyle = style(for: config)
+    }
+
+    private static func applyToWindows() {
+        let style = selected ?? .unspecified
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            for window in scene.windows {
+                window.overrideUserInterfaceStyle = style
+                apply(style, to: window.rootViewController)
+            }
+        }
+    }
+
+    private static func apply(_ style: UIUserInterfaceStyle, to controller: UIViewController?) {
+        guard let controller else { return }
+        controller.overrideUserInterfaceStyle = style
+        controller.children.forEach { apply(style, to: $0) }
+        if let presented = controller.presentedViewController { apply(style, to: presented) }
+    }
+}
+
 /// Tells the shell when SwiftUI's colour scheme changes: the one appearance
 /// setting with no notification of its own.
 struct CraftColorSchemeObserver: View {
@@ -195,6 +272,7 @@ struct CraftRecoveryBudget {
 final class CraftAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         let config = CraftConfig.bundled()
+        CraftInterfaceStyleController.configure(config)
         // First, so a crash anywhere in the rest of launch is reported too.
         CraftCrashReporter.shared.start(config)
         UNUserNotificationCenter.current().delegate = self
@@ -2496,6 +2574,18 @@ struct CraftWebView: UIViewRepresentable {
                 resolveCallback(callbackId, result: CraftSymbols.image(named: body["name"] as? String ?? "", options: body) ?? NSNull())
             case "statusBarSetStyle":
                 resolveCallback(callbackId, result: CraftStatusBar.setStyle(body["style"] as? String ?? "default"))
+            case "setAppearance":
+                guard let appearance = body["appearance"] as? String else {
+                    rejectCallback(callbackId, error: "setAppearance needs light, dark or system", code: "INVALID_ARGUMENT")
+                    return
+                }
+                guard CraftInterfaceStyleController.set(appearance) else {
+                    rejectCallback(callbackId, error: "setAppearance needs light, dark or system", code: "INVALID_ARGUMENT")
+                    return
+                }
+                resolveCallback(callbackId, result: true)
+            case "getAppearance":
+                resolveCallback(callbackId, result: CraftInterfaceStyleController.currentName())
             case "chromeSetUnderPageColor":
                 // What shows past the page's edges when it rubber-bands.
                 if #available(iOS 15.0, *), let webView, let css = body["color"] as? String, let color = UIColor(css: css) {
@@ -5541,6 +5631,14 @@ struct CraftWebView: UIViewRepresentable {
                     getInfo: function() { return craft.getDeviceInfo(); },
                     getCapabilities: function() { return Promise.resolve(Object.assign({}, craft.capabilities)); }
                 };
+                craft.app = Object.assign(craft.app || {}, {
+                    setAppearance: function(appearance) {
+                        return craft._invoke('setAppearance', {appearance: appearance});
+                    },
+                    getAppearance: function() {
+                        return craft._invoke('getAppearance', {});
+                    }
+                });
                 // Feedback, as on Android and the web, where there is no
                 // motor to fire: an app that left enableHaptics off gets
                 // nothing played and a settled promise, so `await
