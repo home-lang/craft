@@ -109,7 +109,11 @@ enum CraftPageAppearance {
 /// created after the choice inherit it instead of reverting to the bundle
 /// config.
 enum CraftInterfaceStyleController {
-    private static var selected: UIUserInterfaceStyle?
+    /// The app's bundled choice is the default for newly-created screens.
+    /// A runtime choice is separate: it is the only value that should
+    /// override a screen's own generated config.
+    private static var configured: UIUserInterfaceStyle = .unspecified
+    private static var runtimeSelection: UIUserInterfaceStyle?
 
     static func configuredStyle(for config: CraftConfig) -> UIUserInterfaceStyle {
         switch config.appearance {
@@ -121,12 +125,13 @@ enum CraftInterfaceStyleController {
     }
 
     static func configure(_ config: CraftConfig) {
-        selected = configuredStyle(for: config)
+        configured = configuredStyle(for: config)
+        runtimeSelection = nil
         applyToWindows()
     }
 
     static func style(for config: CraftConfig) -> UIUserInterfaceStyle {
-        selected ?? configuredStyle(for: config)
+        runtimeSelection ?? configuredStyle(for: config)
     }
 
     /// Returns false rather than silently accepting a typo from JavaScript.
@@ -139,14 +144,14 @@ enum CraftInterfaceStyleController {
         case "dark": style = .dark
         default: return false
         }
-        selected = style
+        runtimeSelection = style
         applyToWindows()
         NotificationCenter.default.post(name: .craftColorSchemeChanged, object: nil)
         return true
     }
 
     static func currentName() -> String {
-        let requested = selected ?? UIApplication.shared.connectedScenes
+        let requested = runtimeSelection ?? UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow })?.traitCollection.userInterfaceStyle }
             .first ?? .unspecified
         let style = requested == .unspecified
@@ -162,7 +167,7 @@ enum CraftInterfaceStyleController {
     }
 
     private static func applyToWindows() {
-        let style = selected ?? .unspecified
+        let style = runtimeSelection ?? configured
         for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
             for window in scene.windows {
                 window.overrideUserInterfaceStyle = style
