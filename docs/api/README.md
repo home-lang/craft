@@ -47,3 +47,5 @@ complete native message surface, see the [Bridge API](../BRIDGE_API.md).
 ## Configuration
 
 - [craft.config.ts](./config.md) - Application configuration
+
+- [Background deadlines](./timers.md) - Cancellable native macOS timers for hidden pages
