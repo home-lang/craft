@@ -1041,7 +1041,9 @@ await window.craft.watch.updateContext({
 });
 
 // Watch controls include a protocol version and requestId. Use requestId for
-// idempotency when a queued command arrives after a reconnect.
+// idempotency when a queued command arrives after a reconnect. The watch's
+// `watch-state` context includes a monotonically increasing stateVersion; use
+// the highest version when a queued command and a reconnect snapshot cross.
 await window.craft.watch.send({ type: 'recording-control', action: 'start' });
 
 // Listen for messages from watch

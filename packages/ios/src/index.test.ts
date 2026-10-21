@@ -2502,7 +2502,7 @@ describe('Craft iOS builder', () => {
       name: 'WildLoop',
       bundleId: 'org.wildloop.app',
       output,
-      config: { deviceFamilies: ['iphone'], enableWatchApp: true, watchosVersion: '9.0' },
+      config: { deviceFamilies: ['iphone'], enableWatchApp: true, enableHealthKit: true, watchosVersion: '9.0' },
     })
     await init({
       runtimeDir: null,
@@ -2517,6 +2517,7 @@ describe('Craft iOS builder', () => {
     const watch = readFileSync(join(output, 'WatchExtension', 'WildLoopWatchApp.swift'), 'utf8')
     const watchInfo = readFileSync(join(output, 'WatchApp', 'Info.plist'), 'utf8')
     const watchExtensionInfo = readFileSync(join(output, 'WatchExtension', 'Info.plist'), 'utf8')
+    const watchEntitlements = readFileSync(join(output, 'WatchExtension', 'Watch.entitlements'), 'utf8')
     expect(project).toContain('WildLoopWatch:')
     expect(project).toContain('type: application.watchapp2')
     expect(project).toContain('WildLoopWatchExtension:')
@@ -2531,10 +2532,14 @@ describe('Craft iOS builder', () => {
     expect(watch).toContain('recording-control')
     expect(watch).toContain('protocolVersion')
     expect(watch).toContain('requestId')
+    expect(watch).toContain('stateVersion')
     expect(watch).toContain('planned-session')
     expect(watch).toContain('craft.watch.state.v1')
     expect(watch).toContain('updateApplicationContext(state)')
     expect(watch).toContain('restoreState()')
+    expect(watch).toContain('private static let healthKitEnabled = true')
+    expect(watch).toContain('HKLiveWorkoutBuilder')
+    expect(watch).toContain('heartRateZone')
     expect(watch).toContain('WCSessionDelegate')
     expect(watch).toContain('sessionDidBecomeInactive')
     expect(watch).toContain('sessionDidDeactivate')
@@ -2548,6 +2553,9 @@ describe('Craft iOS builder', () => {
     expect(watchInfo).toContain('<true/>')
     expect(watchExtensionInfo).toContain('<string>com.apple.watchkit</string>')
     expect(watchExtensionInfo).toContain('<string>org.wildloop.app.watchkitapp</string>')
+    expect(watchExtensionInfo).toContain('NSHealthShareUsageDescription')
+    expect(watchExtensionInfo).toContain('NSHealthUpdateUsageDescription')
+    expect(watchEntitlements).toContain('com.apple.developer.healthkit')
     expect(existsSync(join(output, 'WatchApp', 'Info.plist'))).toBe(true)
     expect(existsSync(join(output, 'WatchApp', 'Watch.entitlements'))).toBe(true)
     expect(existsSync(join(output, 'WatchApp', 'WildLoopWatchApp.swift'))).toBe(false)

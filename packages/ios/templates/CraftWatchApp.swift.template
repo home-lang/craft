@@ -1,4 +1,5 @@
 import SwiftUI
+import HealthKit
 import WatchConnectivity
 
 @main
@@ -17,6 +18,7 @@ struct {{APP_NAME}}WatchApp: App {
 final class CraftWatchSession: NSObject, ObservableObject {
     private static let protocolVersion = 1
     private static let persistedStateKey = "craft.watch.state.v1"
+    private static let healthKitEnabled = {{HEALTH_KIT_ENABLED}}
 
     @Published private(set) var isPhoneReachable = false
     @Published private(set) var isRecording = false
@@ -25,8 +27,17 @@ final class CraftWatchSession: NSObject, ObservableObject {
     @Published private(set) var durationSeconds = 0.0
     @Published private(set) var status = "Ready"
     @Published private(set) var plannedSession: [String: Any]?
+    @Published private(set) var heartRateBpm: Double?
+    @Published private(set) var heartRateZone: Int?
+    @Published private(set) var lastWorkout: [String: Any]?
 
     private let session: WCSession?
+    private let healthStore = HKHealthStore()
+    private var stateVersion = 0
+    private var workoutSession: HKWorkoutSession?
+    private var workoutBuilder: HKLiveWorkoutBuilder?
+    private var workoutId: String?
+    private var workoutStartedAt: Date?
 
     override init() {
         if WCSession.isSupported() {
@@ -41,19 +52,29 @@ final class CraftWatchSession: NSObject, ObservableObject {
     }
 
     func toggleRecording() {
-        let action: String
         if !isRecording {
-            action = "start"
+            if Self.healthKitEnabled {
+                startHealthWorkout { [weak self] started in
+                    if started { self?.send(action: "start") }
+                }
+            } else {
+                send(action: "start")
+            }
         } else if isPaused {
-            action = "resume"
+            resumeHealthWorkout()
+            send(action: "resume")
         } else {
-            action = "pause"
+            pauseHealthWorkout()
+            send(action: "pause")
         }
-        send(action: action)
     }
 
     func finishRecording() {
-        send(action: "finish")
+        if Self.healthKitEnabled, workoutSession != nil {
+            endHealthWorkout { [weak self] _ in self?.send(action: "finish") }
+        } else {
+            send(action: "finish")
+        }
     }
 
     /// The phone sends a planned session through application context. Context
@@ -68,6 +89,7 @@ final class CraftWatchSession: NSObject, ObservableObject {
     private func send(action: String) {
         guard let session, session.activationState == .activated else {
             status = "Open WildLoop on iPhone"
+            persistState()
             return
         }
         let message: [String: Any] = [
@@ -80,11 +102,17 @@ final class CraftWatchSession: NSObject, ObservableObject {
             session.sendMessage(message, replyHandler: { [weak self] reply in
                 Task { @MainActor in self?.apply(reply) }
             }, errorHandler: { [weak self] _ in
-                Task { @MainActor in self?.status = "Could not reach iPhone" }
+                Task { @MainActor in
+                    self?.status = "Could not reach iPhone"
+                    self?.persistState()
+                    self?.publishState()
+                }
             })
         } else {
             session.transferUserInfo(message)
             status = "Command queued"
+            persistState()
+            publishState()
         }
     }
 
@@ -100,6 +128,9 @@ final class CraftWatchSession: NSObject, ObservableObject {
         if let distance = payload["distanceMeters"] as? Double { distanceMeters = max(distance, 0) }
         if let duration = payload["durationSeconds"] as? Double { durationSeconds = max(duration, 0) }
         if let value = payload["status"] as? String { status = value }
+        if let heartRate = payload["heartRateBpm"] as? Double, heartRate.isFinite { heartRateBpm = max(heartRate, 0) }
+        if let zone = payload["heartRateZone"] as? Int { heartRateZone = min(max(zone, 1), 5) }
+        if let workout = payload["workout"] as? [String: Any] { lastWorkout = workout }
         persistState()
         publishState()
     }
@@ -111,12 +142,18 @@ final class CraftWatchSession: NSObject, ObservableObject {
         if let distance = state["distanceMeters"] as? Double { distanceMeters = max(distance, 0) }
         if let duration = state["durationSeconds"] as? Double { durationSeconds = max(duration, 0) }
         if let value = state["status"] as? String { status = value }
+        if let version = state["stateVersion"] as? Int { stateVersion = max(version, stateVersion) }
         plannedSession = state["plannedSession"] as? [String: Any]
+        if let heartRate = state["heartRateBpm"] as? Double { heartRateBpm = max(heartRate, 0) }
+        if let zone = state["heartRateZone"] as? Int { heartRateZone = min(max(zone, 1), 5) }
+        lastWorkout = state["lastWorkout"] as? [String: Any]
     }
 
     private func persistState() {
+        stateVersion += 1
         var state: [String: Any] = [
             "protocolVersion": Self.protocolVersion,
+            "stateVersion": stateVersion,
             "recording": isRecording,
             "paused": isPaused,
             "distanceMeters": distanceMeters,
@@ -124,6 +161,9 @@ final class CraftWatchSession: NSObject, ObservableObject {
             "status": status,
         ]
         if let plannedSession { state["plannedSession"] = plannedSession }
+        if let heartRateBpm { state["heartRateBpm"] = heartRateBpm }
+        if let heartRateZone { state["heartRateZone"] = heartRateZone }
+        if let lastWorkout { state["lastWorkout"] = lastWorkout }
         UserDefaults.standard.set(state, forKey: Self.persistedStateKey)
     }
 
@@ -131,6 +171,7 @@ final class CraftWatchSession: NSObject, ObservableObject {
         guard let session, session.activationState == .activated else { return }
         var state: [String: Any] = [
             "protocolVersion": Self.protocolVersion,
+            "stateVersion": stateVersion,
             "type": "watch-state",
             "recording": isRecording,
             "paused": isPaused,
@@ -139,7 +180,187 @@ final class CraftWatchSession: NSObject, ObservableObject {
             "status": status,
         ]
         if let plannedSession { state["plannedSession"] = plannedSession }
+        if let heartRateBpm { state["heartRateBpm"] = heartRateBpm }
+        if let heartRateZone { state["heartRateZone"] = heartRateZone }
+        if let lastWorkout { state["workout"] = lastWorkout }
         try? session.updateApplicationContext(state)
+    }
+
+    private func startHealthWorkout(completion: @escaping (Bool) -> Void) {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            status = "HealthKit unavailable"
+            persistState()
+            completion(false)
+            return
+        }
+        let shareTypes: Set<HKSampleType> = [HKObjectType.workoutType()]
+        var readTypes: Set<HKObjectType> = [HKObjectType.workoutType()]
+        if let heartRate = HKQuantityType.quantityType(forIdentifier: .heartRate) { readTypes.insert(heartRate) }
+        if let distance = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) { readTypes.insert(distance) }
+        if let energy = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) { readTypes.insert(energy) }
+        healthStore.requestAuthorization(toShare: shareTypes, read: readTypes) { [weak self] success, error in
+            DispatchQueue.main.async {
+                guard let self else { return completion(false) }
+                guard success else {
+                    self.status = error?.localizedDescription ?? "HealthKit authorization denied"
+                    self.persistState()
+                    return completion(false)
+                }
+                self.beginHealthWorkout(completion: completion)
+            }
+        }
+    }
+
+    private func beginHealthWorkout(completion: @escaping (Bool) -> Void) {
+        guard workoutSession == nil else { completion(true); return }
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = .running
+        configuration.locationType = .outdoor
+        do {
+            let session = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
+            let builder = session.associatedWorkoutBuilder()
+            session.delegate = self
+            builder.delegate = self
+            builder.shouldCollectWorkoutEvents = true
+            builder.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
+            workoutSession = session
+            workoutBuilder = builder
+            workoutId = UUID().uuidString.lowercased()
+            let start = Date()
+            workoutStartedAt = start
+            session.startActivity(with: start)
+            builder.beginCollection(withStart: start) { [weak self] success, error in
+                DispatchQueue.main.async {
+                    guard let self else { return completion(false) }
+                    guard success else {
+                        self.clearHealthWorkout()
+                        self.status = error?.localizedDescription ?? "Workout could not start"
+                        self.persistState()
+                        return completion(false)
+                    }
+                    self.isRecording = true
+                    self.isPaused = false
+                    self.status = "Recording"
+                    self.persistState()
+                    self.publishState()
+                    completion(true)
+                }
+            }
+        } catch {
+            status = error.localizedDescription
+            persistState()
+            completion(false)
+        }
+    }
+
+    private func pauseHealthWorkout() {
+        guard let workoutSession else { return }
+        workoutSession.pause()
+        isPaused = true
+        status = "Paused"
+        persistState()
+        publishState()
+    }
+
+    private func resumeHealthWorkout() {
+        guard let workoutSession else { return }
+        workoutSession.resume()
+        isPaused = false
+        status = "Recording"
+        persistState()
+        publishState()
+    }
+
+    private func endHealthWorkout(completion: @escaping ([String: Any]?) -> Void) {
+        guard let workoutSession, let workoutBuilder, let id = workoutId else {
+            completion(nil)
+            return
+        }
+        let end = Date()
+        workoutSession.end()
+        workoutBuilder.endCollection(withEnd: end) { [weak self] success, error in
+            guard let self else { return }
+            guard success else {
+                DispatchQueue.main.async {
+                    self.status = error?.localizedDescription ?? "Workout could not finish"
+                    self.persistState()
+                    completion(nil)
+                }
+                return
+            }
+            workoutBuilder.finishWorkout { [weak self] workout, finishError in
+                DispatchQueue.main.async {
+                    guard let self else { return completion(nil) }
+                    guard let workout else {
+                        self.status = finishError?.localizedDescription ?? "Workout could not be saved"
+                        self.persistState()
+                        return completion(nil)
+                    }
+                    let result: [String: Any] = [
+                        "id": id,
+                        "workoutId": workout.uuid.uuidString,
+                        "startDate": (self.workoutStartedAt ?? workout.startDate).timeIntervalSince1970 * 1000,
+                        "endDate": end.timeIntervalSince1970 * 1000,
+                        "durationSeconds": workout.duration,
+                        "distanceMeters": self.distanceMeters,
+                    ]
+                    self.lastWorkout = result
+                    self.isRecording = false
+                    self.isPaused = false
+                    self.status = "Saved to Apple Health"
+                    self.clearHealthWorkout()
+                    self.persistState()
+                    self.publishState()
+                    completion(result)
+                }
+            }
+        }
+    }
+
+    private func clearHealthWorkout() {
+        workoutSession = nil
+        workoutBuilder = nil
+        workoutId = nil
+        workoutStartedAt = nil
+    }
+
+    private func updateHealthMetrics(_ builder: HKLiveWorkoutBuilder) {
+        if let heartRate = HKQuantityType.quantityType(forIdentifier: .heartRate),
+           let value = builder.statistics(for: heartRate)?.mostRecentQuantity()?.doubleValue(for: HKUnit.count().unitDivided(by: .minute())),
+           value.isFinite {
+            heartRateBpm = max(value, 0)
+            let maximum = (plannedSession?["maxHeartRateBpm"] as? Double) ?? 190
+            heartRateZone = min(max(Int(ceil(value / maximum * 5)), 1), 5)
+        }
+        if let distance = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning),
+           let value = builder.statistics(for: distance)?.sumQuantity()?.doubleValue(for: .meter()),
+           value.isFinite {
+            distanceMeters = max(value, 0)
+        }
+        if let start = workoutStartedAt { durationSeconds = max(Date().timeIntervalSince(start), 0) }
+        persistState()
+        publishState()
+    }
+}
+
+extension CraftWatchSession: HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDelegate {
+    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {}
+
+    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
+        Task { @MainActor in
+            status = error.localizedDescription
+            isRecording = false
+            isPaused = false
+            clearHealthWorkout()
+            persistState()
+            publishState()
+        }
+    }
+
+    nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
+
+    nonisolated func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf types: Set<HKSampleType>) {
+        Task { @MainActor in updateHealthMetrics(workoutBuilder) }
     }
 }
 
@@ -197,6 +418,10 @@ struct CraftWatchRecordingView: View {
                 HStack {
                     metric(distance, label: "Distance")
                     metric(duration, label: "Time")
+                }
+                if let heartRate = session.heartRateBpm {
+                    metric(String(format: "%.0f bpm", heartRate), label: "Heart rate")
+                    if let zone = session.heartRateZone { Text("Zone \(zone) of 5").font(.caption2).foregroundStyle(.secondary) }
                 }
                 Button(session.isRecording && !session.isPaused ? "Pause" : session.isPaused ? "Resume" : "Start") {
                     session.toggleRecording()

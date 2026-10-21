@@ -30,5 +30,6 @@
         <key>NSExtensionPointIdentifier</key>
         <string>com.apple.watchkit</string>
     </dict>
+    {{HEALTH_USAGE_DESCRIPTIONS}}
 </dict>
 </plist>
