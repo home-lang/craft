@@ -13,7 +13,7 @@ independent signals are combined:
 | --- | --- | --- |
 | `systemScreenShare` | `CGSessionCopyCurrentDictionary()` → `CGSSessionScreenIsShared` | macOS Screen Sharing / Apple Remote Desktop has the session |
 | `remoteSession` | the same dictionary's `kCGSSessionOnConsoleKey` | the session is driven from somewhere other than this console |
-| `conferenceSharing` | on-screen window list | a conferencing app is showing its live sharing control |
+| `conferenceSharing` | on-screen window list and authorized native Accessibility indicators | a conferencing app is showing its live sharing control |
 | `screenRecording` | on-screen window list | a recorder is capturing the screen |
 
 The two window-list signals match the **sharing indicator** — the floating
@@ -32,11 +32,26 @@ const state = await window.craft.screenSharing.getState()
 // }
 ```
 
+### Browser tab capture
+
+Chrome and Dia tab-only capture may have no separate CoreGraphics sharing
+window. With the user's Accessibility grant, Craft reads Chrome's browser-owned
+window-title suffix or Dia's native sharing banner. Dia remains detectable when
+the user switches from the shared tab to the meeting tab. Its paired native
+controls must occur on the same surface; webpage accessibility subtrees are
+excluded. Merely displaying matching words on a website cannot activate this
+reader. Dia sources use `app: 'Dia'`, `window: 'Browser tab sharing'`.
+
+Use `craft.permissions.check('accessibility')` to check the grant and
+`craft.permissions.request('accessibility')` only in response to an explicit
+setup action. Screen Recording access is separately required for window titles.
+
 ### Watching for changes
 
 None of the signals has a system notification, so detection polls. `watch()`
-runs an `NSTimer` on the main run loop and evaluates the signals each tick, but
-only touches the webview when the resolved state actually differs — a share
+runs an `NSTimer` in the main run loop's common modes and gathers signals on a
+worker, with only one poll in flight. Results return to the main thread and
+only touch the webview when the resolved state actually differs — a share
 that stays up for an hour costs one window-list walk per interval and zero
 JavaScript evaluations.
 
@@ -53,9 +68,11 @@ await window.craft.screenSharing.unwatch()
 off()
 ```
 
-Each tick is one `CGWindowListCopyWindowInfo` call — a window-server round trip
-on the order of a millisecond. The default 2s cadence is effectively free;
-raise it if you would rather trade detection latency for even less work.
+Each tick includes one `CGWindowListCopyWindowInfo` call and, when authorized,
+a bounded native browser Accessibility walk. Browser IPC has a 50ms per-element
+timeout and a 750ms overall budget, with node and depth limits for native
+controls. These queries do not block the UI thread. The default cadence is 2s;
+raise it to trade detection latency for less work.
 
 ## Focus / Do Not Disturb
 
