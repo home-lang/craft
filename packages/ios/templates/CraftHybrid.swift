@@ -240,8 +240,10 @@ enum CraftHybridKeychain {
     static let nativeService = "dev.craft.native.secure"
 
     static func set(_ key: String, value: String?) {
+        defer { CraftKeychain.forget(account: key) }
         // Every item for the account, whatever its service.
         SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrAccount as String: key] as CFDictionary)
+        CraftKeychain.forget(account: key)
         guard let value else { return }
         for service in [nil, nativeService] {
             var add: [String: Any] = [
@@ -2301,6 +2303,22 @@ final class CraftFramePacing: NSObject {
         let result = work()
         write(String(format: "%@ main=%.1fms", name, (CACurrentMediaTime() - started) * 1000))
         return result
+    }
+
+    /// One piece of the screens' JavaScript (CraftNativeScriptThread): how
+    /// long it waited behind other screens' work, and how long it ran. The
+    /// screens share one serial script thread, so a screen in front can sit
+    /// behind hidden tabs reloading; `waited` is where that shows.
+    func scriptWork(_ name: String, waited: CFTimeInterval, ran: CFTimeInterval) {
+        guard enabled else { return }
+        write(String(format: "script %@ waited=%.1fms ran=%.1fms", name, waited * 1000, ran * 1000))
+    }
+
+    /// A capability a screen asked for (a request, the keychain), from the
+    /// ask to the answer. Logged from 4ms, as script work is.
+    func capability(_ name: String, took: CFTimeInterval) {
+        guard enabled, took >= 0.004 else { return }
+        write(String(format: "capability %@ took=%.1fms", name, took * 1000))
     }
 
     /// Each line to the log and to `Library/Caches/craft-frame-pacing.log`

@@ -6358,6 +6358,7 @@ struct CraftWebView: UIViewRepresentable {
 
             SecItemDelete(query as CFDictionary)
             let status = SecItemAdd(query as CFDictionary, nil)
+            CraftKeychain.forget(account: key)
             return status == errSecSuccess
         }
 
@@ -6384,12 +6385,14 @@ struct CraftWebView: UIViewRepresentable {
                 kSecAttrAccount as String: key
             ]
             let status = SecItemDelete(query as CFDictionary)
+            CraftKeychain.forget(account: key)
             return status == errSecSuccess || status == errSecItemNotFound
         }
 
         private func secureClear() -> Bool {
             let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword]
             let status = SecItemDelete(query as CFDictionary)
+            CraftKeychain.forget(account: nil)
             return status == errSecSuccess || status == errSecItemNotFound
         }
 
@@ -8270,6 +8273,7 @@ struct CraftWebView: UIViewRepresentable {
             SecItemDelete(query as CFDictionary)
 
             let status = SecItemAdd(query as CFDictionary, nil)
+            CraftKeychain.forget(account: key)
             if status == errSecSuccess {
                 resolveCallback(callbackId, result: ["success": true, "key": key])
             } else {
@@ -8312,6 +8316,7 @@ struct CraftWebView: UIViewRepresentable {
             }
 
             let status = SecItemDelete(query as CFDictionary)
+            CraftKeychain.forget(account: key)
             if status == errSecSuccess || status == errSecItemNotFound {
                 resolveCallback(callbackId, result: ["success": true, "key": key])
             } else {

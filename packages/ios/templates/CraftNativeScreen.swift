@@ -4985,9 +4985,24 @@ enum CraftNativeScriptThread {
     static let queue = DispatchQueue(label: "craft.native.script", qos: .userInteractive)
 
     /// `work` where the screens' JavaScript runs: now on the main thread, or
-    /// queued in order on the script thread.
-    static func run(_ work: @escaping () -> Void) {
-        if isBackground { queue.async(execute: work) } else { work() }
+    /// queued in order on the script thread. With frame pacing on
+    /// (`CRAFT_FRAME_PACING=1`), work that waited or ran for 4ms or more is
+    /// logged under `label`, so a slow screen can be told from a queued one.
+    static func run(label: @autoclosure @escaping () -> String = "script", _ work: @escaping () -> Void) {
+        let pacing = CraftFramePacing.shared
+        guard pacing.enabled else {
+            if isBackground { queue.async(execute: work) } else { work() }
+            return
+        }
+        let queued = CACurrentMediaTime()
+        let timed = {
+            let started = CACurrentMediaTime()
+            work()
+            let ran = CACurrentMediaTime() - started
+            let waited = started - queued
+            if waited + ran >= 0.004 { pacing.scriptWork(label(), waited: waited, ran: ran) }
+        }
+        if isBackground { queue.async(execute: timed) } else { timed() }
     }
 
     /// From the script thread, `work` on the main thread, not waited for.
@@ -5367,7 +5382,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let pacing = CraftFramePacing.shared
         let inputs = scriptInputs()
         let name = routeName ?? "screen"
-        CraftNativeScriptThread.run { [self] in
+        CraftNativeScriptThread.run(label: "mount \(name)") { [self] in
             pacing.measure("mount \(name) setup") { setupJavaScript(inputs) }
             pacing.measure("mount \(name) bundle") { loadBundle() }
         }
@@ -5496,7 +5511,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard frameWanted, !runtimeDisposed else { return }
         frameWanted = false
         let context = jsContext
-        CraftNativeScriptThread.run { context.objectForKeyedSubscript("__craftNativeFireFrame")?.call(withArguments: []) }
+        let route = routeName ?? "screen"
+        CraftNativeScriptThread.run(label: "frame \(route)") { context.objectForKeyedSubscript("__craftNativeFireFrame")?.call(withArguments: []) }
     }
 
     /// The screen came on screen or went off it: a screen pushed over it was
@@ -5531,7 +5547,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         routeProps = props
         guard isViewLoaded, !runtimeDisposed else { return }
         let context = jsContext
-        CraftNativeScriptThread.run {
+        let route = routeName ?? "screen"
+        CraftNativeScriptThread.run(label: "params \(route)") {
             context.setObject(params as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString)
             context.setObject(props as NSDictionary, forKeyedSubscript: "__stxNativeProps" as NSString)
         }
@@ -5545,7 +5562,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         CraftNativeFrameClock.shared.cancel(self)
         disposeRenderedTree()
         let context = jsContext
-        CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }
+        let route = routeName ?? "screen"
+        CraftNativeScriptThread.run(label: "unmount \(route)") { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }
         audio.close()
         sounds.close()
         streams.close()
@@ -6788,7 +6806,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 let previous = info["previous"] as? String
                 self.send(type: "SESSION_CHANGED", payload: ["key": key, "token": token ?? NSNull(), "previous": previous ?? NSNull()])
                 let context = self.jsContext
-                CraftNativeScriptThread.run { context.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()]) }
+                CraftNativeScriptThread.run(label: "session \(self.routeName ?? "screen")") { context.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()]) }
             })
         }
         if config.enablePushNotifications {
@@ -7073,8 +7091,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
             let module = payload["module"] as? String ?? ""
             let method = payload["method"] as? String ?? ""
+            // With frame pacing on: how long the capability took to answer,
+            // which a screen's script waits on (a request, the keychain).
+            let pacing = CraftFramePacing.shared
+            let asked = pacing.enabled ? CACurrentMediaTime() : 0
+            let route = routeName ?? "screen"
+            let what = module == "Network" ? "\(module).\(method) \(((args.first as? [String: Any])?["url"] as? String).flatMap { URL(string: $0)?.path } ?? "")" : "\(module).\(method)"
             let reply: (Result<Any, CraftNativeActionError>) -> Void = { [weak self] answer in
                 guard let self = self, self.pendingCapabilityRequests.remove(requestToken) != nil else { return }
+                if pacing.enabled { pacing.capability("\(what) \(route)", took: CACurrentMediaTime() - asked) }
                 self.pendingCapabilityDeadlines.removeValue(forKey: requestToken)?.cancel()
                 self.screenRequestCancellers.removeValue(forKey: requestToken)
                 switch answer {
@@ -9970,7 +9995,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard let data = try? JSONSerialization.data(withJSONObject: message),
               let json = String(data: data, encoding: .utf8) else { return }
         let context = jsContext
-        CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeCallback")?.call(withArguments: [json]) }
+        let route = routeName ?? "screen"
+        CraftNativeScriptThread.run(label: "\(type) \(route)") { context.objectForKeyedSubscript("__stxNativeCallback")?.call(withArguments: [json]) }
     }
 
     private func number(_ value: Any?) -> CGFloat? {

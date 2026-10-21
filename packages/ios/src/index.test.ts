@@ -164,7 +164,7 @@ describe('Craft iOS builder', () => {
     expect(guide).toContain('`ScrollView` and `FlatList` emit the scroll callbacks described above, accept')
     expect(nativeSwift).toContain('platform: "ios"')
     expect(nativeSwift).toContain('mutationProtocolVersion: 1')
-    expect(nativeSwift).toContain('CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }')
+    expect(nativeSwift).toContain('CraftNativeScriptThread.run(label: "unmount \\(route)") { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }')
     expect(nativeSwift).toContain('capabilityProtocolVersion: \\(craftNativeCapabilityProtocolVersion)')
     expect(nativeSwift).toContain('capabilityTimeoutMs: \\(craftNativeCapabilityTimeoutMilliseconds)')
     expect(nativeSwift).toContain('"code": "TIMEOUT"')
@@ -1792,9 +1792,11 @@ describe('Craft iOS builder', () => {
     expect(actions).toContain('enum CraftSession {')
     expect(actions).toContain('static let changed = Notification.Name("craftSessionChanged")')
     expect(actions).toContain('static let defaultKey = "auth.token"')
-    expect(actions).toContain('if ["set", "remove", "delete", "clear"].contains(method) {')
-    expect(actions).toContain('sync = CraftSession.observe(key: method == "clear" ? nil : args.first as? String, config: config, write)')
-    expect(actions.indexOf('CraftHybrid.shared.nativeWroteShared(nativeKey: key')).toBeLessThan(actions.indexOf('sync = CraftSession.observe('))
+    expect(actions).toContain('let isWrite = ["set", "remove", "delete", "clear"].contains(method)')
+    // Off the main thread, in order: a Keychain call took up to 900ms on a simulator.
+    expect(actions).toContain('CraftKeychain.queue.async {')
+    expect(actions).toContain('let result = isWrite ? CraftSession.observe(key: method == "clear" ? nil : args.first as? String, config: config, write) : write()')
+    expect(actions.indexOf('CraftHybrid.shared.nativeWroteShared(nativeKey: key')).toBeLessThan(actions.indexOf('CraftSession.observe(key: method == "clear"'))
     expect(actions).toContain('let info: [String: Any] = ["key": key, "token": token ?? NSNull(), "previous": previous ?? NSNull()]')
     // The page's own sign-in moves it too, and the page script learns its key.
     expect(hybrid).toContain('CraftSession.observe(key: nativeKey, config: config) { CraftHybridKeychain.set(nativeKey, value: value) }')
@@ -1804,7 +1806,7 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('sessionTokenKey: \\(sessionTokenKey),')
     expect(screen).toContain('forName: CraftSession.changed,')
     expect(screen).toContain('self.send(type: "SESSION_CHANGED", payload: ["key": key, "token": token ?? NSNull(), "previous": previous ?? NSNull()])')
-    expect(screen).toContain('CraftNativeScriptThread.run { context.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()]) }')
+    expect(screen).toContain('CraftNativeScriptThread.run(label: "session \\(self.routeName ?? "screen")") { context.objectForKeyedSubscript("__craftSessionChanged")?.call(withArguments: [token ?? NSNull(), previous ?? NSNull()]) }')
     expect(screen).toContain("keep('session', {")
   })
 
