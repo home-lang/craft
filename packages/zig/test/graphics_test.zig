@@ -348,3 +348,189 @@ test "fractional shared edges remain watertight in either winding and command or
         }
     }
 }
+
+test "repeated atlas commands share one frame asset charge without allocations" {
+    var failing = testing.FailingAllocator.init(testing.allocator, .{ .fail_index = 1 });
+    var canvas = try graphics.Canvas.init(failing.allocator(), 1, 1);
+    defer canvas.deinit();
+    canvas.clear(graphics.Color.rgb(0, 0, 0));
+    const atlas = [_]u8{ 255, 255, 255, 255 };
+    const sprite = graphics.scene.Sprite{ .bitmap = .{ .width = 1, .height = 1, .pixels = &atlas }, .source = .{ .x = 0, .y = 0, .width = 1, .height = 1 } };
+    const commands: [128]graphics.scene.Command = @splat(.{ .sprite = sprite });
+    try graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 4, .max_asset_views = 1 });
+    try testing.expectEqual(@as(u32, 0xFFFFFFFF), canvas.pixels[0]);
+}
+
+test "shared atlas mask and font metadata deduplicate independently at the exact view limit" {
+    var canvas = try graphics.Canvas.init(testing.allocator, 1, 1);
+    defer canvas.deinit();
+    const atlas = [_]u8{ 255, 255, 255, 255 };
+    const mask = [_]u8{255};
+    const glyphs = [_]graphics.scene.Glyph{.{ .codepoint = 'A', .source = .{ .x = 0, .y = 0, .width = 1, .height = 1 }, .advance = 1 }};
+    const bitmap = graphics.Bitmap{ .width = 1, .height = 1, .pixels = &atlas };
+    const tint = graphics.scene.Tint{ .color = graphics.Color.rgb(255, 0, 0), .mask = &mask };
+    const text = graphics.scene.Text{ .font = .{ .bitmap = bitmap, .glyphs = &glyphs, .line_height = 1 }, .text = "A", .tint = tint };
+    const commands = [_]graphics.scene.Command{
+        .{ .sprite = .{ .bitmap = bitmap, .source = glyphs[0].source, .tint = tint } },
+        .{ .text = text },
+        .{ .text = text },
+    };
+    const bytes = atlas.len + mask.len + @sizeOf(graphics.scene.Glyph);
+    try graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = bytes, .max_asset_views = 3 });
+    try testing.expectEqual(@as(u32, 0xFFFF0000), canvas.pixels[0]);
+    canvas.clear(graphics.Color.rgb(0, 0, 0));
+    try testing.expectError(error.AssetViewLimitExceeded, graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = bytes, .max_asset_views = 2 }));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+    var invalid = commands;
+    invalid[2].text.font.line_height = 0;
+    try testing.expectError(error.InvalidFont, graphics.scene.drawFrame(&canvas, &invalid, .{}));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+}
+
+test "unique-view accounting keeps distinct buffers offsets and lengths separate" {
+    var canvas = try graphics.Canvas.init(testing.allocator, 1, 1);
+    defer canvas.deinit();
+    const first = try testing.allocator.dupe(u8, &.{ 255, 255, 255, 255 });
+    defer testing.allocator.free(first);
+    const second = try testing.allocator.dupe(u8, first);
+    defer testing.allocator.free(second);
+    const region = graphics.Rect{ .x = 0, .y = 0, .width = 1, .height = 1 };
+    var commands = [_]graphics.scene.Command{
+        .{ .sprite = .{ .bitmap = .{ .width = 1, .height = 1, .pixels = first }, .source = region } },
+        .{ .sprite = .{ .bitmap = .{ .width = 1, .height = 1, .pixels = second }, .source = region } },
+    };
+    canvas.clear(graphics.Color.rgb(0, 0, 0));
+    try testing.expectError(error.AssetLimitExceeded, graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 7 }));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+    const shared = [_]u8{ 255, 0, 0, 255, 0, 0, 255, 255 };
+    commands[0].sprite.bitmap.pixels = shared[0..4];
+    commands[1].sprite.bitmap = .{ .width = 2, .height = 1, .pixels = &shared };
+    try testing.expectError(error.AssetLimitExceeded, graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 11 }));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+    commands[1].sprite.bitmap = .{ .width = 1, .height = 1, .pixels = shared[4..8] };
+    try testing.expectError(error.AssetLimitExceeded, graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 7 }));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+    try graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 8 });
+    try testing.expectEqual(@as(u32, 0xFF0000FF), canvas.pixels[0]);
+}
+
+test "one source used as atlas and mask remains two typed views" {
+    var canvas = try graphics.Canvas.init(testing.allocator, 1, 1);
+    defer canvas.deinit();
+    canvas.clear(graphics.Color.rgb(0, 0, 0));
+    const shared = [_]u8{ 255, 255, 255, 255 };
+    const large: [16]u8 = @splat(255);
+    const region = graphics.Rect{ .x = 0, .y = 0, .width = 1, .height = 1 };
+    const commands = [_]graphics.scene.Command{
+        .{ .sprite = .{ .bitmap = .{ .width = 1, .height = 1, .pixels = &shared }, .source = region } },
+        .{ .sprite = .{ .bitmap = .{ .width = 4, .height = 1, .pixels = &large }, .source = region, .tint = .{ .mask = &shared } } },
+    };
+    try testing.expectError(error.AssetLimitExceeded, graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 23 }));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+    try graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 24, .max_asset_views = 3 });
+    try testing.expectEqual(@as(u32, 0xFFFFFFFF), canvas.pixels[0]);
+}
+
+test "font prefix metadata views remain distinct even with one shared atlas" {
+    var canvas = try graphics.Canvas.init(testing.allocator, 1, 1);
+    defer canvas.deinit();
+    canvas.clear(graphics.Color.rgb(0, 0, 0));
+    const atlas = [_]u8{ 255, 255, 255, 255 };
+    const glyphs = [_]graphics.scene.Glyph{
+        .{ .codepoint = 'A', .source = .{ .x = 0, .y = 0, .width = 1, .height = 1 }, .advance = 1 },
+        .{ .codepoint = 'B', .source = .{ .x = 0, .y = 0, .width = 1, .height = 1 }, .advance = 1 },
+    };
+    const text = graphics.scene.Text{ .font = .{ .bitmap = .{ .width = 1, .height = 1, .pixels = &atlas }, .glyphs = &glyphs, .line_height = 1 }, .text = "A" };
+    var commands = [_]graphics.scene.Command{ .{ .text = text }, .{ .text = text } };
+    commands[1].text.font.glyphs = glyphs[0..1];
+    const full_bytes = atlas.len + @sizeOf(graphics.scene.Glyph) * 2;
+    try testing.expectError(error.AssetLimitExceeded, graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = full_bytes }));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+    try graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = full_bytes + @sizeOf(graphics.scene.Glyph), .max_asset_views = 3 });
+    try testing.expectEqual(@as(u32, 0xFFFFFFFF), canvas.pixels[0]);
+}
+
+test "zero excessive and exhausted view limits fail before any frame writes" {
+    var canvas = try graphics.Canvas.init(testing.allocator, 1, 1);
+    defer canvas.deinit();
+    canvas.clear(graphics.Color.rgb(0, 0, 0));
+    const atlas = [_]u8{ 255, 0, 0, 255 };
+    const sprite = graphics.scene.Sprite{ .bitmap = .{ .width = 1, .height = 1, .pixels = &atlas }, .source = .{ .x = 0, .y = 0, .width = 1, .height = 1 } };
+    const commands = [_]graphics.scene.Command{.{ .sprite = sprite }};
+    try graphics.scene.drawFrame(&canvas, &.{}, .{ .max_asset_views = 0 });
+    try testing.expectError(error.AssetViewLimitExceeded, graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_views = 0 }));
+    try testing.expectError(error.InvalidAssetViewLimit, graphics.scene.drawFrame(&canvas, &.{}, .{ .max_asset_views = graphics.scene.max_supported_asset_views + 1 }));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+}
+
+test "full atlas storage is charged once across different UV regions" {
+    var canvas = try graphics.Canvas.init(testing.allocator, 2, 1);
+    defer canvas.deinit();
+    const atlas = [_]u8{ 255, 0, 0, 255, 0, 0, 255, 255 };
+    const first = graphics.scene.Sprite{ .bitmap = .{ .width = 2, .height = 1, .pixels = &atlas }, .source = .{ .x = 0, .y = 0, .width = 1, .height = 1 } };
+    var second = first;
+    second.source.x = 1;
+    second.transform.tx = 1;
+    const commands = [_]graphics.scene.Command{ .{ .sprite = first }, .{ .sprite = second } };
+    try graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 8, .max_asset_views = 1 });
+    try testing.expectEqualSlices(u32, &.{ 0xFFFF0000, 0xFF0000FF }, canvas.pixels);
+}
+
+test "the supported asset table capacity accepts duplicates at capacity and rejects one new view atomically" {
+    var canvas = try graphics.Canvas.init(testing.allocator, 1, 1);
+    defer canvas.deinit();
+    const capacity = graphics.scene.max_supported_asset_views;
+    const bytes = try testing.allocator.alloc(u8, (capacity + 1) * 4);
+    defer testing.allocator.free(bytes);
+    @memset(bytes, 255);
+    const commands = try testing.allocator.alloc(graphics.scene.Command, capacity + 1);
+    defer testing.allocator.free(commands);
+    for (commands, 0..) |*command, index| command.* = .{ .sprite = .{
+        .bitmap = .{ .width = 1, .height = 1, .pixels = bytes[index * 4 ..][0..4] },
+        .source = .{ .x = 0, .y = 0, .width = 1, .height = 1 },
+    } };
+    try graphics.scene.drawFrame(&canvas, commands[0..capacity], .{});
+    try testing.expectEqual(@as(u32, 0xFFFFFFFF), canvas.pixels[0]);
+    const extra = commands[capacity];
+    commands[capacity] = commands[0];
+    try graphics.scene.drawFrame(&canvas, commands, .{});
+    try testing.expectEqual(@as(u32, 0xFFFFFFFF), canvas.pixels[0]);
+    commands[capacity] = extra;
+    canvas.clear(graphics.Color.rgb(0, 0, 0));
+    try testing.expectError(error.AssetViewLimitExceeded, graphics.scene.drawFrame(&canvas, commands, .{}));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+}
+
+test "asset deduplication never bypasses command validation or pixel work limits" {
+    var canvas = try graphics.Canvas.init(testing.allocator, 1, 1);
+    defer canvas.deinit();
+    canvas.clear(graphics.Color.rgb(0, 0, 0));
+    const atlas = [_]u8{ 255, 0, 0, 255 };
+    const sprite = graphics.scene.Sprite{ .bitmap = .{ .width = 1, .height = 1, .pixels = &atlas }, .source = .{ .x = 0, .y = 0, .width = 1, .height = 1 } };
+    var commands = [_]graphics.scene.Command{ .{ .sprite = sprite }, .{ .sprite = sprite } };
+    commands[1].sprite.bitmap.width = 2;
+    try testing.expectError(error.InvalidBitmap, graphics.scene.drawFrame(&canvas, &commands, .{}));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+    commands[1].sprite = sprite;
+    commands[1].sprite.tint.mask = std.mem.sliceAsBytes(canvas.pixels)[0..1];
+    try testing.expectError(error.AliasedInput, graphics.scene.drawFrame(&canvas, &commands, .{}));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+    commands[1].sprite = sprite;
+    try testing.expectError(error.FrameLimitExceeded, graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 4, .max_asset_views = 1, .max_covered_pixels = 1 }));
+    try testing.expectError(error.FrameLimitExceeded, graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 4, .max_asset_views = 1, .max_commands = 1 }));
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+}
+
+test "repeated frames read updated caller-owned assets without retaining accounting state" {
+    var failing = testing.FailingAllocator.init(testing.allocator, .{ .fail_index = 1 });
+    var canvas = try graphics.Canvas.init(failing.allocator(), 1, 1);
+    defer canvas.deinit();
+    var atlas = [_]u8{ 255, 0, 0, 255 };
+    const commands = [_]graphics.scene.Command{.{ .sprite = .{ .bitmap = .{ .width = 1, .height = 1, .pixels = &atlas }, .source = .{ .x = 0, .y = 0, .width = 1, .height = 1 } } }};
+    try graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 4, .max_asset_views = 1 });
+    try testing.expectEqual(@as(u32, 0xFFFF0000), canvas.pixels[0]);
+    atlas[0] = 0;
+    atlas[2] = 255;
+    try graphics.scene.drawFrame(&canvas, &commands, .{ .max_asset_bytes = 4, .max_asset_views = 1 });
+    try testing.expectEqual(@as(u32, 0xFF0000FF), canvas.pixels[0]);
+}
