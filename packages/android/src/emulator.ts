@@ -16,6 +16,8 @@ export interface AndroidEmulatorOptions {
   bootTimeoutMs?: number
   /** Requested guest RAM, 1536–8192 MB (Android emulator limits); defaults to 2048. */
   memoryMb?: number
+  /** Requested guest CPU count, 1–8; defaults to 2. */
+  virtualCpus?: number
   env?: Record<string, string | undefined>
 }
 
@@ -45,6 +47,9 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
   const memoryMb = options.memoryMb ?? 2048
   if (!Number.isSafeInteger(memoryMb) || memoryMb < 1536 || memoryMb > 8192)
     throw new Error('Android memoryMb must be an integer between 1536 and 8192 megabytes')
+  const virtualCpus = options.virtualCpus ?? 2
+  if (!Number.isSafeInteger(virtualCpus) || virtualCpus < 1 || virtualCpus > 8)
+    throw new Error('Android virtualCpus must be an integer between 1 and 8')
   const port = options.port ?? 5558
   if (!Number.isInteger(port) || port < 5554 || port > 5682 || port % 2 !== 0) throw new Error('Android console ports must be even and between 5554 and 5682')
   const sdk = resolve(options.sdkRoot)
@@ -133,12 +138,12 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
     const hostCpus = cpus()
     cpuStart = hostCpus.reduce((total, cpu) => total + Object.values(cpu.times).reduce((sum, value) => sum + value, 0), 0)
     idleStart = hostCpus.reduce((total, cpu) => total + cpu.times.idle, 0)
-    child = Bun.spawn([executable, '-avd', name, '-port', String(port), '-no-window', '-no-snapshot', '-no-audio', '-no-boot-anim', '-gpu', 'software', '-memory', String(memoryMb), '-cores', '2', '-accel', options.acceleration === 'software' ? 'off' : 'on'], { env, stdout: log, stderr: log })
+    child = Bun.spawn([executable, '-avd', name, '-port', String(port), '-no-window', '-no-snapshot', '-no-audio', '-no-boot-anim', '-gpu', 'software', '-memory', String(memoryMb), '-cores', String(virtualCpus), '-accel', options.acceleration === 'software' ? 'off' : 'on'], { env, stdout: log, stderr: log })
     identity = {
       image: options.image, acceleration: options.acceleration, accelerationProbeExitCode: acceleration.code,
       bootTimeoutMs, bootStartedAt: new Date(bootStartedAt).toISOString(),
       host: { cpuModel: hostCpus[0]?.model, logicalCpus: hostCpus.length, availableParallelism: availableParallelism(), memoryBytes: totalmem() },
-      virtualCpus: 2, memoryMb, serial, avdDirectory: env.ANDROID_AVD_HOME, emulatorPid: child.pid,
+      virtualCpus, memoryMb, serial, avdDirectory: env.ANDROID_AVD_HOME, emulatorPid: child.pid,
     }
     await Bun.write(join(artifacts, 'android-emulator.json'), JSON.stringify(identity, null, 2) + '\n')
     const deadline = bootStartedAt + bootTimeoutMs

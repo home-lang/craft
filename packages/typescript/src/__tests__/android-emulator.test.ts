@@ -150,6 +150,18 @@ test('explicit guest memory reaches the emulator process and its retained identi
   finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
 }, 10_000)
 
+test('explicit guest CPU count reaches the emulator process and its retained identity', async () => {
+  const { root, options } = fixture(true)
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator({ ...options, virtualCpus: 4 })
+    expect(readFileSync(join(options.sdkRoot, 'calls'), 'utf8')).toContain('-cores 4')
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(identity.virtualCpus).toBe(4)
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
 test('invalid boot budgets fail before starting tools or creating owned device data', async () => {
   const { root, options } = fixture(true)
   try {
@@ -171,6 +183,18 @@ test('invalid guest memory fails before starting tools or creating owned device 
   try {
     for (const memoryMb of [NaN, Infinity, -Infinity, 0, 1535, 8193, 4096.5]) {
       await expect(createAndroidEmulator({ ...options, memoryMb })).rejects.toThrow('memoryMb')
+      expect(existsSync(join(options.sdkRoot, 'calls'))).toBe(false)
+      expect(existsSync(options.temporaryDirectory!)).toBe(false)
+    }
+  }
+  finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test('invalid guest CPU counts fail before starting tools or creating owned device data', async () => {
+  const { root, options } = fixture(true)
+  try {
+    for (const virtualCpus of [NaN, Infinity, -Infinity, 0, 0.5, 9, 8.5]) {
+      await expect(createAndroidEmulator({ ...options, virtualCpus })).rejects.toThrow('virtualCpus')
       expect(existsSync(join(options.sdkRoot, 'calls'))).toBe(false)
       expect(existsSync(options.temporaryDirectory!)).toBe(false)
     }

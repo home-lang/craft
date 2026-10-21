@@ -16,8 +16,13 @@ const diagnostic = args.length === 1
 const bootTimeoutMs = 1_200_000
 // Both retained 2 GB-profile failures show low-memory/process-death churn and
 // a SystemUI ANR. Give the unmodified stock image an explicit 4 GB guest;
-// readiness, software acceleration, CPU count and boot deadline stay intact.
+// readiness, software acceleration and the boot deadline stay intact.
 const memoryMb = 4096
+// Intel software-emulation runners have the same four host threads as the
+// passing AMD profile but starve SystemUI with the helper's two-CPU default.
+// Keep the public helper default unchanged while giving this cold profile all
+// four guest CPUs so startup ANRs remain a real failure rather than a timeout.
+const virtualCpus = 4
 const expectedFingerprint = diagnostic ? process.env.CRAFT_ANDROID_DIAGNOSTIC_FINGERPRINT : undefined
 if (diagnostic && !expectedFingerprint)
   throw new Error('The cold-provisioning diagnostic requires the failed stock image fingerprint')
@@ -39,7 +44,7 @@ let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
 const proof: Record<string, unknown> = {
   purpose: diagnostic ? 'software-cold-provisioning-diagnostic-not-release-acceptance' : 'software-emulator-acceptance',
   platform: process.platform, architecture: process.arch, acceleration: 'software', sdkmanager, avdmanager, javaHome,
-  provisioningProfile: 'stock-play-software-cold', bootTimeoutMs, memoryMb,
+  provisioningProfile: 'stock-play-software-cold', bootTimeoutMs, memoryMb, virtualCpus,
   expectedFingerprint, runnerImage: process.env.ImageOS, runnerImageVersion: process.env.ImageVersion,
 }
 
@@ -48,7 +53,7 @@ try {
     sdkRoot: join(owned, 'sdk'), sdkmanager, avdmanager,
     image: 'system-images;android-35;google_apis_playstore;x86_64',
     acceleration: 'software', artifactsDirectory: artifacts,
-    bootTimeoutMs, memoryMb,
+    bootTimeoutMs, memoryMb, virtualCpus,
     temporaryDirectory: owned, acceptLicenses: true,
     env: { JAVA_HOME: javaHome },
   })

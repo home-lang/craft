@@ -109,9 +109,13 @@ helper defaults to a ten-minute boot budget, and hardware mode cannot exceed
 it. Software callers may explicitly set `bootTimeoutMs` up to twenty minutes.
 `memoryMb` selects the requested guest RAM, defaulting to 2048 MB. It accepts
 the emulator's documented [1536–8192 MB range](https://developer.android.com/studio/run/emulator-commandline#startup-options).
+`virtualCpus` selects the guest CPU count, defaulting to 2 and accepting values
+from 1 through 8. The stock Play software verifier requests four guest CPUs:
+the four-thread Intel runners used for this acceptance profile otherwise starve
+SystemUI during TCG startup and surface a real platform ANR.
 The stock Play software verifier requests 4096 MB after retained cold boots
 showed low-memory/process-death churn and a SystemUI ANR. It keeps the same
-image, two virtual CPUs, readiness checks and twenty-minute deadline.
+image, readiness checks and twenty-minute deadline.
 The stock Play software CI verifier uses that cold-provisioning profile: the
 API 35 image took 943,520 ms in the retained diagnostic run
 [39113277828](https://github.com/craft-native/craft/actions/runs/39113277828).
