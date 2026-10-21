@@ -58,7 +58,10 @@ setup action. Screen Recording access is separately required for window titles.
 
 None of the signals has a system notification, so detection polls. `watch()`
 runs an `NSTimer` in the main run loop's common modes and gathers signals on a
-worker, with only one poll in flight. Results return to the main thread and
+worker, with only one poll in flight. While watching, a scoped Foundation
+`NSActivityUserInitiatedAllowingIdleSystemSleep` activity keeps App Nap from
+suspending background monitoring and event delivery. `unwatch()` releases it;
+normal system and display sleep remain enabled. Results return to the main thread and
 only touch the webview when the resolved state actually differs — a share
 that stays up for an hour costs one window-list walk per interval and zero
 JavaScript evaluations.
