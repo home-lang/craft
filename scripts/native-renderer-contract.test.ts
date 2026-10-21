@@ -916,6 +916,20 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('func testABarAskedForBeforeTheScreenAppearsDoesNotSlideIn()')
   })
 
+  it('keeps a tab picture once loaded and never animates its arrival', () => {
+    const app = readFileSync(join(root, 'packages/ios/templates/CraftApp.swift'), 'utf8')
+    expect(app).toContain('private struct CraftTabPicture: View')
+    expect(app).toContain('.transaction { $0.animation = nil }')
+    expect(app).not.toContain('AsyncImage(url: url)')
+  })
+
+  it('makes a tab not prepared yet before the bar selection moves', () => {
+    const app = readFileSync(join(root, 'packages/ios/templates/CraftApp.swift'), 'utf8')
+    const hybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
+    expect(app).toContain('CraftHybrid.shared.mountTabBeforeSelecting(tab.id)')
+    expect(hybrid).toContain('func mountTabBeforeSelecting(_ id: String)')
+  })
+
   it('keeps SVG stroke semantics aligned across hosts', () => {
     expect(ios).toContain('line.lineCapStyle')
     expect(ios).toContain('line.lineJoinStyle')
