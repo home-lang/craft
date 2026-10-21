@@ -80,6 +80,8 @@ test('release formatting checks the core project, propagates failure and rejects
   const root = createTempDir('craft-release-format-')
   const core = join(root, 'packages/zig')
   mkdirSync(join(core, 'src'), { recursive: true })
+  mkdirSync(join(root, 'scripts'))
+  writeFileSync(join(root, 'scripts/zig.ts'), readFileSync(join(import.meta.dir, 'zig.ts')))
   const version = '0.18.0-dev.146+35accc06e'
   writeFileSync(join(root, 'pantry.lock'), JSON.stringify({ workspaces: { '': { system: { 'ziglang.org': version } } } }))
   const compiler = join(root, 'zig')

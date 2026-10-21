@@ -1,11 +1,22 @@
 import { appendFileSync, existsSync, readFileSync, realpathSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { runZig } from './zig'
 
 /** Match CI's core formatting gate before creating an immutable release tag. */
 export function validateReleaseFormatting(root: string, env: NodeJS.ProcessEnv = process.env): void {
-  const code = runZig(root, ['--core', 'fmt', '--check', 'src/', 'build.zig'], { ...env, CRAFT_ALLOW_UNPINNED_ZIG: undefined })
-  if (code !== 0) throw new Error('Release Zig formatting check failed. Run bun run fmt, review the changes, and commit them before releasing.')
+  // Version-only validation also runs as a standalone script in release
+  // rehearsals. Load the toolchain only when checking release prerequisites.
+  const result = Bun.spawnSync([process.execPath, join(root, 'scripts/zig.ts'), '--core', 'fmt', '--check', 'src/', 'build.zig'], {
+    cwd: root, env: { ...env, CRAFT_ALLOW_UNPINNED_ZIG: undefined }, stdout: 'inherit', stderr: 'pipe',
+  })
+  const diagnostic = result.stderr.toString().trim()
+  if (result.exitCode !== 0) throw new Error(`Release Zig formatting check failed. Run bun run fmt, review the changes, and commit them before releasing.\n${diagnostic}`)
+  if (diagnostic) console.error(diagnostic)
+}
+
+/** Rehearse versioning, rollback and changelog generation before tagging. */
+export function validateReleaseAutomation(root: string): void {
+  const result = Bun.spawnSync([process.execPath, 'run', 'test:release'], { cwd: root, stdout: 'inherit', stderr: 'inherit' })
+  if (result.exitCode !== 0) throw new Error('Release automation tests failed before a version or tag was changed.')
 }
 
 /** Fail before a bump if a sparse checkout omits manifests that CI will publish. */
@@ -84,6 +95,7 @@ if (import.meta.main) {
     validateReleaseDependencies(root)
     validateReleaseFormatting(root)
     validateReleaseGit(root)
+    validateReleaseAutomation(root)
     console.log('Release checkout contains every tracked package manifest')
     process.exit(0)
   }
