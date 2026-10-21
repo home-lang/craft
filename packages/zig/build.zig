@@ -1989,6 +1989,16 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all unit tests");
+    const screen_sharing_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/browser_tab_sharing.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_screen_sharing_tests = b.addRunArtifact(screen_sharing_tests);
+    b.step("test:screen-sharing", "Test native sharing indicator matching").dependOn(&run_screen_sharing_tests.step);
+    test_step.dependOn(&run_screen_sharing_tests.step);
     test_step.dependOn(&run_lib_unit_tests.step);
     if (js_test_run) |run| test_step.dependOn(&run.step);
     test_step.dependOn(&run_api_tests.step);
