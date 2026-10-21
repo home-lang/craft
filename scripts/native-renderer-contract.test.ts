@@ -2028,7 +2028,7 @@ describe('native renderer component contract', () => {
       'CraftNativeScriptThread.run { timers.pending.values.forEach { $0.cancel() } }',
       'pendingCapabilityRequests.forEach { CraftNativeActions.cancel(requestToken: $0) }',
       'lifecycleObservers.forEach(NotificationCenter.default.removeObserver)',
-      'CraftNativeScriptThread.run { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }',
+      'CraftNativeScriptThread.run(label: "unmount \\(route)") { context.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: []) }',
       'let inStack = navigationController?.viewControllers.contains(where: { $0 === self }) ?? false',
       'if !inStack {',
     ]) expect(ios, `${marker} missing from iOS teardown`).toContain(marker)
