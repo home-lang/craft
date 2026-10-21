@@ -893,6 +893,25 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('renderCommitted(document)')
   })
 
+  it('lets native screens pin UIKit appearance at launch and at runtime', async () => {
+    const output = createTempDir('craft-ios-native-appearance-')
+    await init({
+      runtimeDir: null,
+      name: 'NativeAppearance',
+      bundleId: 'org.example.native-appearance',
+      output,
+      config: { renderer: 'native', appearance: 'system' },
+    })
+    const swift = readFileSync(join(output, 'Sources', 'NativeAppearanceApp.swift'), 'utf8')
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    expect(swift).toContain('CraftInterfaceStyleController.configure(config)')
+    expect(swift).toContain('CraftInterfaceStyleController.set(appearance)')
+    expect(swift).toContain('case "getAppearance":')
+    expect(screen).toContain('CraftInterfaceStyleController.apply(to: self, config: config)')
+    expect(screen).toContain('craftNativeSetAppearance')
+    expect(screen).toContain("keep('app', {")
+  })
+
   it('emits native layout measurements only when a view changes frame', async () => {
     const output = createTempDir('craft-ios-native-layout-')
     await init({
