@@ -764,15 +764,19 @@ final class NativeLayoutUnitTests: XCTestCase {
         // account is the key.
         let account = "layout.test.token"
         let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrAccount as String: account]
+        // Written and deleted behind secure storage's back, so the test
+        // forgets what it changed, as every writer does (CraftKeychain).
         SecItemDelete(base as CFDictionary)
         var item = base
         item[kSecValueData as String] = Data("secret-token".utf8)
         let added = SecItemAdd(item as CFDictionary, nil)
+        CraftKeychain.forget(account: account)
         // An unsigned simulator test host has no Keychain entitlement.
         if added != errSecMissingEntitlement {
             XCTAssertEqual(added, errSecSuccess)
             XCTAssertEqual(controller.evaluateScript("craft.secureStorage.getSync('\(account)')")?.toString(), "secret-token")
             SecItemDelete(base as CFDictionary)
+            CraftKeychain.forget(account: account)
         }
         XCTAssertTrue(controller.evaluateScript("craft.secureStorage.getSync('\(account)') === null")?.toBool() == true)
 

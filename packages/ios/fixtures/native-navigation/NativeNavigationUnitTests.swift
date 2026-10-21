@@ -755,8 +755,12 @@ final class NativeNavigationUnitTests: XCTestCase {
         background.viewWillDisappear(false)
         XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
         let visible = try XCTUnwrap(home.topViewController as? CraftNativeScreenController)
+        // Its owner going away gives it up but leaves it drawn until the next
+        // screen says what it wants (the pill no longer stretches and back).
         visible.viewWillDisappear(false)
-        XCTAssertNil(CraftChrome.shared.tabAccessory, "the owning screen must still clear its accessory")
+        XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities", "released, still drawn")
+        CraftChrome.shared.clearUnclaimedTabAccessory()
+        XCTAssertNil(CraftChrome.shared.tabAccessory, "an accessory nobody claims comes off")
         visible.screenVisibilityChanged(true)
         XCTAssertEqual(CraftChrome.shared.tabAccessory?.id, "/capabilities")
     }
