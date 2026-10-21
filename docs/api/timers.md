@@ -10,7 +10,8 @@ await window.craft.timers.sleep(1000, { signal: cancellation.signal })
 ```
 
 `delayMs` must be an integer from zero through 86,400,000 (one day). Aborting
-rejects with `AbortError` and cancels the native deadline. Each page may have
+rejects with `AbortError` after native cancellation is acknowledged and both
+request replies are consumed. Each page may have
 multiple concurrent deadlines; replies are correlated to their requests even
 when they complete out of order. The runtime has a bounded pool of 256 timers
 and reports `Busy` when it is full, independently of other asynchronous APIs.

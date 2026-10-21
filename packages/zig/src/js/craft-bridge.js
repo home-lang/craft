@@ -1415,6 +1415,8 @@
       const timerId = _nextId()
       return new Promise(function (resolve, reject) {
         let settled = false
+        let cancelling = false
+        let nativeDelay
         function complete(error) {
           if (settled) return
           settled = true
@@ -1423,14 +1425,22 @@
           else resolve()
         }
         function cancel() {
-          _req('timers', 'cancel', _stringify({ timerId: timerId })).catch(function () {})
-          complete(aborted())
+          if (cancelling || settled) return
+          cancelling = true
+          const cancellation = _req('timers', 'cancel', _stringify({ timerId: timerId }))
+          // Settle only after native has released the deadline and both RPC
+          // replies have been consumed. Rapid aborts must not accumulate work.
+          Promise.allSettled([nativeDelay, cancellation]).then(function (results) {
+            complete(results[1].status === 'rejected' ? results[1].reason : aborted())
+          })
         }
         if (signal) signal.addEventListener('abort', cancel, { once: true })
         // The native timer owns this bounded deadline; a DOM timeout would
         // itself be suspended by hidden-page throttling.
-        _req('timers', 'sleep', _stringify({ timerId: timerId, delayMs: delayMs }), 0)
-          .then(function (result) { complete(result && result.fired ? null : aborted()) }, complete)
+        nativeDelay = _req('timers', 'sleep', _stringify({ timerId: timerId, delayMs: delayMs }), 0)
+        nativeDelay.then(function (result) {
+          if (!cancelling) complete(result && result.fired ? null : aborted())
+        }, function (error) { if (!cancelling) complete(error) })
       })
     },
   }
