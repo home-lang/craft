@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.265...v0.0.266)
+
+## ⚡ Performance Improvements
+
+- **ios**: remember Keychain reads and keep them off the main thread ([3e10a29](https://github.com/craft-native/craft/commit/3e10a29)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.264...v0.0.265)
 
 ## 🐛 Bug Fixes
