@@ -225,7 +225,7 @@
       q.push(entry)
       window.__craftBridgeById[id] = entry
 
-      const timeout = (typeof window.__craftBridgeRequestTimeoutMs === 'number')
+      const timeout = timeoutMs === 0 ? 0 : (typeof window.__craftBridgeRequestTimeoutMs === 'number')
         ? window.__craftBridgeRequestTimeoutMs
         : (typeof timeoutMs === 'number' ? timeoutMs : DEFAULT_TIMEOUT_MS)
       const timer = (timeout > 0)
@@ -904,7 +904,7 @@
     get: function (key, fallback) {
       const bad = _prefsKey('get', key)
       if (bad) return Promise.reject(bad)
-      return _req('prefs', 'prefs:get', _stringify({ k: key }), PREFS_TIMEOUT_MS).then(function (r) {
+      return _req('prefs', 'prefs:get', _stringify({ k: key }), PREFS_TIMEOUT_MS).then(function (_r) {
         const tag = r && r.t
         if (tag === 'none') return fallback
         if (tag === 'other') {
@@ -981,7 +981,7 @@
   // the same reason — there is no 'dead', because craft cannot prove a channel
   // has no emitter.
   window.craft.capabilities = function () {
-    return _req('capabilities', 'capabilities:get', '{}', 5000).then(function (manifest) {
+    return _req('capabilities', 'capabilities:get', '{}', 5000).then(function (_manifest) {
       window.__craftCapabilities = manifest
       return manifest
     })
@@ -1404,6 +1404,38 @@
   }
 
   // -------------------------------------------------------------------------
+  // Native deadlines continue while a tray popover's WebKit page is hidden.
+  window.craft.timers = {
+    sleep: function (delayMs, options) {
+      if (!Number.isInteger(delayMs) || delayMs < 0 || delayMs > 86400000)
+        return Promise.reject(new RangeError('delayMs must be an integer between 0 and 86400000'))
+      const signal = options && options.signal
+      function aborted() { return new DOMException('Background delay aborted', 'AbortError') }
+      if (signal && signal.aborted) return Promise.reject(aborted())
+      const timerId = _nextId()
+      return new Promise(function (resolve, reject) {
+        let settled = false
+        function complete(error) {
+          if (settled) return
+          settled = true
+          if (signal) signal.removeEventListener('abort', cancel)
+          if (error) reject(error)
+          else resolve()
+        }
+        function cancel() {
+          _req('timers', 'cancel', _stringify({ timerId: timerId })).catch(function () {})
+          complete(aborted())
+        }
+        if (signal) signal.addEventListener('abort', cancel, { once: true })
+        // The native timer owns this bounded deadline; a DOM timeout would
+        // itself be suspended by hidden-page throttling.
+        _req('timers', 'sleep', _stringify({ timerId: timerId, delayMs: delayMs }), 0)
+          .then(function (result) { complete(result && result.fired ? null : aborted()) }, complete)
+      })
+    },
+  }
+  window.addEventListener('pagehide', function () { _post('timers', 'cancelAll') })
+
   // screenSharing — is the screen being shared or recorded right now?
   // -------------------------------------------------------------------------
   window.craft.screenSharing = {
@@ -1431,7 +1463,7 @@
     getBiometryType: function () { return _req('biometric', 'getBiometryType').then(function (r) { return (r && r.type) || 'none' }) },
     evaluate:        function (reason, opts) {
       const o = Object.assign({ reason: String(reason || 'Authenticate to continue') }, opts || {})
-      return _req('biometric', 'evaluate', _stringify(o)).then(function (r) { return r || { success: false } })
+      return _req('biometric', 'evaluate', _stringify(_o)).then(function (r) { return r || { success: false } })
     },
   }
 
@@ -1448,7 +1480,7 @@
     isPlaying:       function () { return _req('audio', 'isPlaying').then(function (r) { return !!(r && r.value) }) },
     startRecording:  function (path, opts) {
       const o = Object.assign({ path: String(path) }, opts || {})
-      return _req('audio', 'startRecording', _stringify(o)).then(function (r) { return !!(r && r.ok) })
+      return _req('audio', 'startRecording', _stringify(_o)).then(function (r) { return !!(r && r.ok) })
     },
     stopRecording:   function () { return _send('audio', 'stopRecording') },
     isRecording:     function () { return _req('audio', 'isRecording').then(function (r) { return !!(r && r.value) }) },
@@ -1601,7 +1633,7 @@
   window.craft.handoff = {
     startActivity: function (type, opts) {
       const o = Object.assign({ type: String(type) }, opts || {})
-      return _req('handoff', 'startActivity', _stringify(o)).then(function (r) { return !!(r && r.ok) })
+      return _req('handoff', 'startActivity', _stringify(_o)).then(function (r) { return !!(r && r.ok) })
     },
     updateActivity: function (opts) { return _req('handoff', 'updateActivity', _stringify(opts || {})).then(function (r) { return !!(r && r.ok) }) },
     stopActivity:        function () { return _send('handoff', 'stopActivity') },

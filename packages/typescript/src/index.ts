@@ -701,6 +701,7 @@ export type {
   CraftWindowAPI,
   CraftAppAPI,
   CraftBridgeAPI,
+  CraftTimersAPI,
   Permission,
   HapticType,
   CraftHapticsAPI,

@@ -1437,6 +1437,7 @@ export interface CraftBridgeAPI {
   /**
    * Screen-sharing and screen-recording detection (macOS)
    */
+  timers?: CraftTimersAPI
   screenSharing?: CraftScreenSharingAPI
 
   /**
@@ -2599,4 +2600,10 @@ declare global {
      */
     craft?: CraftBridgeAPI & CraftEventEmitter
   }
+}
+
+/** Native background deadlines, independent of hidden WebKit DOM timers. */
+export interface CraftTimersAPI {
+  /** Wait up to one day. Aborting rejects with AbortError and releases native resources. */
+  sleep(delayMs: number, options?: { signal?: AbortSignal }): Promise<void>
 }

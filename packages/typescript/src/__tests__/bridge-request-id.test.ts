@@ -411,3 +411,47 @@ describe('bridge reply correlation', () => {
     expect(Object.keys(h.win.__craftBridgeById)).toHaveLength(0)
   })
 })
+
+describe('native background deadlines', () => {
+  it('correlates concurrent deadlines in completion order without DOM timeouts', async () => {
+    const h = loadBridge()
+    h.win.__craftBridgeRequestTimeoutMs = 1
+    const order: string[] = []
+    const slow = h.craft.timers.sleep(65000).then(() => { order.push('slow') })
+    const fast = h.craft.timers.sleep(5).then(() => { order.push('fast') })
+    const requests = h.sent.filter(m => m.t === 'timers' && m.a === 'sleep')
+    expect(requests).toHaveLength(2)
+    expect(JSON.parse(requests[0]!.d!).delayMs).toBe(65000)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(order).toEqual([])
+    h.reply('sleep', { fired: true }, requests[1]!.i!)
+    await fast
+    h.reply('sleep', { fired: true }, requests[0]!.i!)
+    await slow
+    expect(order).toEqual(['fast', 'slow'])
+  })
+
+  it('cancels exactly its native timer and rejects with AbortError', async () => {
+    const h = loadBridge()
+    const controller = new AbortController()
+    const waiting = h.craft.timers.sleep(60000, { signal: controller.signal })
+    controller.abort()
+    await expect(waiting).rejects.toHaveProperty('name', 'AbortError')
+    const sleep = h.sent.find(m => m.a === 'sleep')!
+    const cancel = h.sent.find(m => m.a === 'cancel')!
+    expect(JSON.parse(cancel.d!).timerId).toBe(JSON.parse(sleep.d!).timerId)
+    h.reply('sleep', { fired: false }, sleep.i!)
+    h.reply('cancel', { cancelled: true }, cancel.i!)
+    await settle()
+    expect(Object.keys(h.win.__craftBridgeById)).toHaveLength(0)
+  })
+
+  it('does not post invalid or already aborted deadlines', async () => {
+    const h = loadBridge()
+    const controller = new AbortController()
+    controller.abort()
+    await expect(h.craft.timers.sleep(1, { signal: controller.signal })).rejects.toHaveProperty('name', 'AbortError')
+    for (const ms of [-1, NaN, 0.5, 86400001]) await expect(h.craft.timers.sleep(ms)).rejects.toBeInstanceOf(RangeError)
+    expect(h.sent.filter(m => m.t === 'timers')).toHaveLength(0)
+  })
+})
