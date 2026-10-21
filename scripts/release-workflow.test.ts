@@ -247,7 +247,7 @@ test('every publishing path depends on release identity validation', () => {
   for (const name of ['pantry', 'prepare-npm', 'npm', 'release-sbom', 'verify-release', 'verify-macos-downloads', 'verify-desktop-downloads', 'publish-release', 'publish-pantry'])
     expect(needs(release.jobs[name])).toContain('validate-release')
   for (const name of ['verify-release', 'verify-macos-downloads'])
-    expect(release.jobs[name].if).toBe("${{ !cancelled() && needs.validate-release.result == 'success' }}")
+    expect(release.jobs[name].if).toBe("${{ !cancelled() && needs.validate-release.result == 'success' && needs.pantry.result == 'success' }}")
   expect(needs(release.jobs['prepare-npm'])).toEqual(['validate-release', 'release-sbom'])
   expect(release.jobs['prepare-npm'].if).toBe("${{ !cancelled() && needs.validate-release.result == 'success' && needs.release-sbom.result == 'success' }}")
   expect(needs(release.jobs.npm)).toEqual(['validate-release', 'release-sbom', 'prepare-npm', 'publish-release'])
@@ -314,7 +314,7 @@ test('registry indexing waits for the public release and all of its verification
   // because its acceptance was reused may be.
   for (const dependency of needs(release.jobs['publish-release']).filter(job => !job.endsWith('-suite')))
     expect(release.jobs['publish-release'].if).toContain(`needs.${dependency}.result == 'success'`)
-  expect(notify.if).toBeUndefined() // Default success gating: never bypass failed prerequisites.
+  expect(notify.if).toBe("${{ !cancelled() && needs.publish-release.result == 'success' && needs.publish-pantry.result == 'success' }}")
   expect(steps(notify)).toContain('https://registry.pantry.dev/api/rebuild')
   expect(steps(notify)).toContain('All platform archives and release SBOMs verified.')
   expect(notify.steps!.find(step => step.name === 'Announce only the complete public release')?.env?.DISCORD_WEBHOOK_URL).toBe('${{ secrets.DISCORD_WEBHOOK_URL }}')
@@ -419,7 +419,7 @@ test('a failed native leg cannot publish a partial GitHub, Zig, or npm release',
   expect(finalizer.steps![verify]?.run).toContain('scripts/verify-sbom.ts')
   expect(finalizer.steps![publish]?.run).toContain('--draft=false')
   const registry = release.jobs['publish-pantry']
-  expect(registry.if).toBeUndefined()
+  expect(registry.if).toBe("${{ !cancelled() && needs.validate-release.result == 'success' && needs.publish-release.result == 'success' }}")
   expect(needs(registry)).toEqual(['validate-release', 'publish-release'])
   // A native or downloaded-archive failure must not publish npm packages
   // while the GitHub release remains a draft. The explicit npm `if` must
@@ -634,4 +634,17 @@ test('Linux and Windows release binaries target a baseline CPU, not the build ru
   expect(builds.length).toBeGreaterThan(0)
   for (const line of builds)
     expect(line, line.trim()).toContain('-Dcpu=baseline')
+})
+
+// A skipped reused suite also affects descendants of a successful direct need.
+test('every descendant of a reused suite has explicit, fail-closed status gating', () => {
+  function dependsOnSuite(name: string): boolean {
+    return needs(release.jobs[name]).some(parent => parent.endsWith('-suite') || dependsOnSuite(parent))
+  }
+  for (const [name, job] of Object.entries(release.jobs)) {
+    if (!dependsOnSuite(name)) continue
+    expect(job.if, name).toContain('!cancelled()')
+    for (const parent of needs(job).filter(parent => !parent.endsWith('-suite')))
+      expect(job.if, `${name} must reject a failed ${parent}`).toContain(`needs.${parent}.result == 'success'`)
+  }
 })
