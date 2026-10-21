@@ -14,6 +14,8 @@ slow-page fallback rather than passing on an already-updated WebView. The
 harness serves the page from a local HTTP origin, matching the trusted
 remote-page path used by hybrid apps, and chooses a bounded process-derived
 port so parallel harnesses do not depend on Bun's ephemeral-port allocator.
+Both the server and the simulator URL use `127.0.0.1`, so cold startup does
+not depend on localhost choosing the same IPv4 or IPv6 interface as the server.
 
 Craft chooses a simulator compatible with the selected Xcode SDK. CI pins
 Xcode 26.2 for its iOS 26.2 runtime: mixing Xcode 16.4's XCTest with that runtime
