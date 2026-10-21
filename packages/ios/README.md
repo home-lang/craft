@@ -1026,6 +1026,24 @@ await window.craft.watch.updateContext({
   status: 'active'
 });
 
+// A planned workout is delivered through application context, so the latest
+// plan replaces an older one while the watch is offline and is replayed when
+// the companion launches. The watch persists its current plan and metrics in
+// its own UserDefaults store, then publishes a `watch-state` context back.
+await window.craft.watch.updateContext({
+  type: 'planned-session',
+  plan: {
+    id: 'morning-run',
+    activity: 'running',
+    startDate: Date.now() + 60 * 60 * 1000,
+    targetDistanceMeters: 5000,
+  },
+});
+
+// Watch controls include a protocol version and requestId. Use requestId for
+// idempotency when a queued command arrives after a reconnect.
+await window.craft.watch.send({ type: 'recording-control', action: 'start' });
+
 // Listen for messages from watch
 window.craft.watch.onMessage((message) => {
   console.log('Watch message:', message);
