@@ -797,10 +797,21 @@ final class CraftChrome: ObservableObject {
         tabAccessory = next
     }
 
-    /// A retained or prepared screen cannot clear another screen's chrome.
-    func clearTabAccessory(ownedBy owner: AnyObject) {
+    /// A screen going away gives its accessory up without taking it off the
+    /// bar (a retained or prepared screen cannot clear another's): the screen coming in shows it until it says what it wants. Taken
+    /// off at once, the pill stretched across the bar and back while the
+    /// next screen (Messages, opened from the accessory; a tab opened for the
+    /// first time) started up and set the same accessory again.
+    func releaseTabAccessory(ownedBy owner: AnyObject) {
         guard tabAccessoryOwner === owner else { return }
-        updateTabAccessory(nil)
+        tabAccessoryOwner = nil
+    }
+
+    /// Takes off an accessory nobody claims any more: the screen now showing
+    /// drew without asking for one, or is a page that never does.
+    func clearUnclaimedTabAccessory() {
+        guard tabAccessoryOwner == nil, tabAccessory != nil else { return }
+        tabAccessory = nil
     }
 
     func setHiddenByScreen(_ hidden: Bool) {

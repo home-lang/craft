@@ -1553,6 +1553,63 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(views["row-0"]).isDescendant(of: shown), "the cell on screen has its row back")
     }
 
+    /// The accessory beside the tab pill (HQ's Messages button) stays drawn
+    /// while one screen hands over to the next: taken off when a screen went
+    /// away, the pill stretched across the bar and back while the next screen
+    /// (Messages opened from it, Me opened for the first time) started up.
+    func testTheTabAccessoryStaysWhileTheNextScreenStartsAndGoesWhenItIsNotWanted() throws {
+        let chrome = CraftChrome.shared
+        let accessory = #"{"path":"/m/messages","title":"Messages","symbol":"bubble.left"}"#
+        func screen() -> CraftNativeScreenController {
+            let controller = CraftNativeScreenController(config: CraftConfig())
+            controller.loadViewIfNeeded()
+            return controller
+        }
+        func declare(_ controller: CraftNativeScreenController, _ json: String) {
+            controller.evaluateScript("craftNativePostMessage(JSON.stringify({ type: 'NAVIGATION_SET_OPTIONS', payload: { tabAccessory: \(json) } }))")
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let stack = UINavigationController()
+        window.rootViewController = stack
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; chrome.updateTabAccessory(nil) }
+
+        let today = screen()
+        stack.setViewControllers([today], animated: false)
+        stack.view.layoutIfNeeded()
+        declare(today, accessory)
+        XCTAssertEqual(chrome.tabAccessory?.id, "/m/messages")
+
+        // The next screen, before its script has said anything: still there.
+        let messages = screen()
+        stack.pushViewController(messages, animated: false)
+        stack.view.layoutIfNeeded()
+        today.viewWillDisappear(false)
+        XCTAssertEqual(chrome.tabAccessory?.id, "/m/messages", "kept while the next screen starts")
+        // It says it wants the same: one accessory all along.
+        declare(messages, accessory)
+        XCTAssertEqual(chrome.tabAccessory?.id, "/m/messages")
+
+        // A screen that draws without one takes it off.
+        let bare = screen()
+        stack.pushViewController(bare, animated: false)
+        stack.view.layoutIfNeeded()
+        messages.viewWillDisappear(false)
+        XCTAssertEqual(chrome.tabAccessory?.id, "/m/messages")
+        bare.render(document([node("View", key: "empty")]))
+        XCTAssertNil(chrome.tabAccessory, "a screen that drew without one wants none")
+
+        // An explicit no takes it off at once.
+        let again = screen()
+        stack.setViewControllers([again], animated: false)
+        stack.view.layoutIfNeeded()
+        declare(again, accessory)
+        XCTAssertNotNil(chrome.tabAccessory)
+        declare(again, "null")
+        XCTAssertNil(chrome.tabAccessory)
+    }
+
     func testFlatListForwardsScrollAndMomentumCallbacks() {
         let list = CraftNativeFlatList()
         list.frame = CGRect(x: 0, y: 0, width: 320, height: 160)

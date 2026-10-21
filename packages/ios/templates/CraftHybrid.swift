@@ -2034,6 +2034,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool) {
         lastNavigation = CACurrentMediaTime()
         CraftFramePacing.shared.end("navigation")
+        // A page shows no native accessory; one a screen gave up is taken off.
+        if viewController is CraftHybridWebSlot { CraftChrome.shared.clearUnclaimedTabAccessory() }
         let key = ObjectIdentifier(navigationController)
         let before = shownStacks[key] ?? []
         let now = navigationController.viewControllers

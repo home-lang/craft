@@ -5302,8 +5302,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         screenVisibilityChanged(false)
         stopCelebrations(in: view)
         // Release only this screen's accessory. A retained or prepared screen
-        // can disappear after the destination has already published its own.
-        CraftChrome.shared.clearTabAccessory(ownedBy: self)
+        // can disappear after the destination has already published its own;
+        // released, it stays drawn until the destination says what it wants.
+        CraftChrome.shared.releaseTabAccessory(ownedBy: self)
         // Popped (or its stack dismissed) while the bar was away: it comes
         // back for whatever shows next, a web page included.
         if tabBarHidden, isMovingFromParent || isBeingDismissed || navigationController?.isBeingDismissed == true {
@@ -5348,7 +5349,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func restoreShellChrome() {
         guard !isAppScript else { return }
         CraftChrome.shared.setHiddenByScreen(tabBarHidden)
-        CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self)
+        // A screen not yet asked about the accessory (one shown for the first
+        // time, before its script has run) leaves the bar as it is; one that
+        // has drawn without asking for it takes off what nobody claims.
+        if tabAccessoryDeclared { CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self) }
+        else if hybridRendered { CraftChrome.shared.clearUnclaimedTabAccessory() }
     }
 
     /// `requestAnimationFrame`: the next display frame, for a screen on display
@@ -6215,6 +6220,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// The app's tab bar away while this screen shows (`tabBarHidden`).
     private var tabBarHidden = false
     private var tabAccessory: [String: Any]?
+    /// Whether the screen has said anything about the accessory yet
+    /// (`tabAccessory`, null included): until it has, the bar keeps showing
+    /// the one it had (CraftChrome.releaseTabAccessory).
+    private var tabAccessoryDeclared = false
     /// Whether a back-swipe may leave this screen at all, the edge's
     /// included (`swipeBack: false`): a screen that steps through its own
     /// pages with a Back of its own (a first-run tour's questions) would
@@ -6263,6 +6272,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard !isAppScript else { return }
         if options.keys.contains("tabAccessory") {
             tabAccessory = options["tabAccessory"] as? [String: Any]
+            tabAccessoryDeclared = true
             if navigationController?.topViewController === self, view.window != nil {
                 CraftChrome.shared.updateTabAccessory(tabAccessory, owner: self)
             }
@@ -7167,6 +7177,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             hybridRendered = true
             // The app script's drawing is never on screen: not a first frame.
             if !isAppScript { hybridEvents?.nativeScreenDidRender(self) }
+            // Drawn without a word about the accessory: it wants none.
+            if !isAppScript, !tabAccessoryDeclared, isShownOnScreen { CraftChrome.shared.clearUnclaimedTabAccessory() }
             let waiting = renderWaiters
             renderWaiters.removeAll()
             waiting.forEach { $0() }
