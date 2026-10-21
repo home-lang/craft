@@ -260,13 +260,51 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  ios-hybrid:
+    name: iOS hybrid navigation
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' }}
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Checkout stx compiler
+        uses: actions/checkout@v6
+        with:
+          repository: stacksjs/stx
+          ref: ${{ env.STX_COMPILER_VERSION }}
+          path: .stx-compiler
+      - name: Install stx compiler dependencies
+        working-directory: .stx-compiler
+        run: bun install --frozen-lockfile
+      - name: Test hybrid web navigation transitions
+        env:
+          STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
+        run: bun packages/ios/scripts/test-hybrid-navigation.ts
+      - name: Retain hybrid XCTest evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-e2e-ios-hybrid
+          path: artifacts/mobile-e2e/ios-hybrid/**
+          if-no-files-found: error
+          retention-days: 30
+
   ios-simulator:
     name: iOS simulator
     if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' }}
     runs-on: macos-15
-    # A hung simulator launch would otherwise burn the six-hour default. The
-    # harness has its own per-app timeout; this is the backstop for everything
-    # around it.
+    # Keep protocol acceptance separate from hybrid XCTest. Both are required;
+    # combining them exhausted this budget after all app assertions passed.
     timeout-minutes: 45
     env:
       CRAFT_EVIDENCE_LABEL: ios-simulator
@@ -290,36 +328,6 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
-      # Protocol and native UI checks use separate simulators and budgets.
-      # The summary requires both jobs, including every original test suite.
-      # The multi-screen fixture is compiled from real .stx sources. Pin the
-      # @stacksjs/stx compiler (`stx native compile`) so this job cannot silently change
-      # underneath us. Bun 1.4.3 installs this release's frozen lockfile.
-      - name: Checkout stx compiler
-        uses: actions/checkout@v6
-        with:
-          repository: stacksjs/stx
-          ref: ${{ env.STX_COMPILER_VERSION }}
-          path: .stx-compiler
-
-      - name: Install stx compiler dependencies
-        working-directory: .stx-compiler
-        run: bun install --frozen-lockfile
-
-      - name: Test hybrid web navigation transitions
-        env:
-          STX_CLI: ${{ github.workspace }}/.stx-compiler/packages/stx/bin/cli.ts
-        run: bun packages/ios/scripts/test-hybrid-navigation.ts
-
-      - name: Retain hybrid XCTest evidence before protocol tests
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mobile-e2e-ios-hybrid
-          path: artifacts/mobile-e2e/ios-hybrid/**
-          if-no-files-found: error
-          retention-days: 30
 
       - name: Cache Zig artifacts
         uses: actions/cache@v5
@@ -721,7 +729,7 @@ jobs:
 
   mobile-summary:
     name: Mobile E2E summary
-    needs: [harness, ios-native, ios-simulator, android-emulator, ios-zig-slice, android-navigation, media-cache]
+    needs: [harness, ios-native, ios-hybrid, ios-simulator, android-emulator, ios-zig-slice, android-navigation, media-cache]
     runs-on: ubuntu-latest
     if: always()
 
@@ -739,6 +747,7 @@ jobs:
             echo "| Android native navigation | ${{ needs.android-navigation.result }} |"
             echo "| Harness unit tests | ${{ needs.harness.result }} |"
             echo "| iOS native UIKit and navigation | ${{ needs.ios-native.result }} |"
+            echo "| iOS hybrid navigation | ${{ needs.ios-hybrid.result }} |"
             echo "| iOS simulator (generated app) | ${{ needs.ios-simulator.result }} |"
             echo "| Android emulator (generated app) | ${{ needs.android-emulator.result }} |"
             echo "| iOS Zig runtime slice | ${{ needs.ios-zig-slice.result }} |"
@@ -761,6 +770,7 @@ jobs:
           || (inputs.scope == 'android' && contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result))
           || (inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' && (
             contains(fromJSON('["failure", "skipped"]'), needs.ios-simulator.result)
+            || contains(fromJSON('["failure", "skipped"]'), needs.ios-hybrid.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.ios-zig-slice.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.media-cache.result)

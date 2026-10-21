@@ -1,5 +1,35 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.281...v0.0.282)
+
+## 🚀 Features
+
+- **macos**: detect Dia native tab sharing across tab switches ([e7df4ab](https://github.com/craft-native/craft/commit/e7df4ab)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **cli**: report the actual Zig compiler version ([7a86114](https://github.com/craft-native/craft/commit/7a86114)) _(by Chris)_
+- **ci**: give hybrid iOS acceptance an independent budget ([a5f4e3e](https://github.com/craft-native/craft/commit/a5f4e3e)) _(by Chris Breuer)_
+- **gpu**: preserve offscreen storage across allocation failures ([06e0cec](https://github.com/craft-native/craft/commit/06e0cec)) _(by Chris)_
+- **gpu**: reject unavailable graphics execution paths ([a2d0fee](https://github.com/craft-native/craft/commit/a2d0fee)) _(by Chris)_
+- **graphics**: extract a bounded standalone raster core ([9d9f331](https://github.com/craft-native/craft/commit/9d9f331)) _(by Chris)_
+- **android**: preserve confirmed checkpoints on replacement failure ([5b899b0](https://github.com/craft-native/craft/commit/5b899b0)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+- **browser**: cancel queued checkpoint calls before persistence ([00751a4](https://github.com/craft-native/craft/commit/00751a4)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+
+## 🧪 Tests
+
+- **android**: verify rejected checkpoint rollback across isolates ([7697c30](https://github.com/craft-native/craft/commit/7697c30)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/settlers-gold-graphics-core ([f76a1ca](https://github.com/craft-native/craft/commit/f76a1ca)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-render-truth ([907f92d](https://github.com/craft-native/craft/commit/907f92d)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.280...v0.0.281)
 
 ## 🚀 Features
