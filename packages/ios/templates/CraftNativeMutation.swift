@@ -326,8 +326,11 @@ final class CraftNativeMutationDocument {
             }
             childIds.append(childId)
         }
-        for oldChildId in parent.children where !childIds.contains(oldChildId) {
-            nodes[oldChildId]?.parent = nil
+        let removedChildIds = parent.children.filter { !childIds.contains($0) }
+        for oldChildId in removedChildIds {
+            for descendant in descendants(of: oldChildId, nodes: nodes).union([oldChildId]) {
+                nodes.removeValue(forKey: descendant)
+            }
         }
         parent.children = childIds
         nodes[parentId] = parent

@@ -111,7 +111,7 @@ class NativeMutationTest {
               {"op":"createNode","id":"second","node":{"type":"Text","key":"second","children":["Second"]}},
               {"op":"createNode","id":"third","node":{"type":"Text","key":"third","children":["Third"]}},
               {"op":"insertChild","parentId":"root","childId":"list","index":0},
-              {"op":"replaceChildren","parentId":"list","children":["first","second"]}
+              {"op":"replaceChildren","parentId":"list","children":["first","second","third"]}
             ]
         """.trimIndent()))
 
@@ -122,7 +122,7 @@ class NativeMutationTest {
         assertEquals(false, result.requiresFullRender)
         val rows = document.node("list")?.getJSONArray("children")
         assertEquals(listOf("third", "first"), (0 until rows!!.length()).map { rows.getJSONObject(it).getString("id") })
-        assertNull(document.parentId("second"))
+        assertNull(document.node("second"))
 
         val failure = failure(document, batch(3, """
             [{"op":"replaceChildren","parentId":"list","children":["first","first"]}]

@@ -284,7 +284,9 @@ class CraftNativeMutationDocument {
             }
             childIds.add(childId)
         }
-        parent.children.filterNot { it in childIds }.forEach { nodes[it]?.parent = null }
+        parent.children.filterNot { it in childIds }.forEach { childId ->
+            (descendants(childId, nodes) + childId).forEach { nodes.remove(it) }
+        }
         parent.children = childIds
         childIds.forEach { nodes[it]?.parent = parentId }
         return parentId

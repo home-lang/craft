@@ -666,7 +666,7 @@ by a serialized `data`/`renderItem` callback pair.
 The versioned mutation ABI also accepts a `replaceChildren` operation for a
 keyed list snapshot: it supplies the parent node and ordered protocol ids in
 one atomic batch. Both hosts validate the snapshot before committing it,
-detach rows that left the set, and reconcile the list once. STX currently emits
+discard rows that left the set, and reconcile the list once. STX currently emits
 the equivalent keyed child mutations; this operation is reserved for a future
 compiler optimization and keeps list updates host-neutral.
 When `scrollEnabled={false}`, the list is measured to its full vertical content

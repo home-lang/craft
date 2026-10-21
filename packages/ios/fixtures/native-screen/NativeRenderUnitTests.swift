@@ -997,7 +997,7 @@ final class NativeRenderUnitTests: XCTestCase {
             ["op": "createNode", "id": "second", "node": ["type": "Text", "key": "second", "children": ["Second"]]],
             ["op": "createNode", "id": "third", "node": ["type": "Text", "key": "third", "children": ["Third"]]],
             ["op": "insertChild", "parentId": "root", "childId": "list", "index": 0],
-            ["op": "replaceChildren", "parentId": "list", "children": ["first", "second"]],
+            ["op": "replaceChildren", "parentId": "list", "children": ["first", "second", "third"]],
         ]))
 
         let result = try document.apply(batch(2, [
@@ -1007,7 +1007,7 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(result.requiresFullRender)
         let rows = try XCTUnwrap((document.node("list")?["children"] as? [[String: Any]])?.compactMap { $0["id"] as? String })
         XCTAssertEqual(rows, ["third", "first"])
-        XCTAssertNil(document.parentId(of: "second"))
+        XCTAssertNil(document.node("second"))
 
         XCTAssertThrowsError(try document.apply(batch(3, [
             ["op": "replaceChildren", "parentId": "list", "children": ["first", "first"]],
