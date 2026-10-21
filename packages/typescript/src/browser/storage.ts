@@ -17,8 +17,8 @@ export interface BrowserStorageOptions {
    * or in another tab: called once the new account's storage is in place.
    */
   sessionChanged?: (token: string | null, previous: string | null) => void
-  /** A host lock primitive; browsers use their native Web Locks implementation. */
-  lock?: (<T>(name: string, operation: () => T | Promise<T>) => Promise<T>) | null
+  /** A host lock primitive; honor signal cancellation while queued, as native Web Locks do. */
+  lock?: (<T>(name: string, operation: () => T | Promise<T>, options?: { signal?: AbortSignal }) => Promise<T>) | null
 }
 
 export interface BrowserStorage {
@@ -28,9 +28,24 @@ export interface BrowserStorage {
     secureStorage: { getSync: (key: string) => string | null }
     snapshots: { get: (name: string) => unknown, set: (name: string, value: unknown) => Promise<boolean>, clear: (keep?: string[]) => Promise<boolean>, keys: () => string[] }
   }
-  call: (module: string, method: string, args: unknown[]) => Promise<unknown>
+  call: (module: string, method: string, args: unknown[], signal?: AbortSignal) => Promise<unknown>
   accountChanged: () => Promise<void>
   scope: () => string
+}
+
+/** Stop a caller's wait while required identity cleanup continues independently. */
+async function waitForAccount<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return operation
+  let abort!: () => void
+  try {
+    // eslint-disable-next-line no-unused-vars
+    return await Promise.race([operation, new Promise<T>((resolve, reject) => {
+      abort = () => reject(signal.reason)
+      if (signal.aborted) abort()
+      else signal.addEventListener('abort', abort, { once: true })
+    })])
+  }
+  finally { signal.removeEventListener('abort', abort) }
 }
 
 /** Browser persistence has browser security semantics; it does not claim to be a Keychain. */
@@ -39,11 +54,13 @@ export async function createBrowserStorage(options: BrowserStorageOptions): Prom
   const sessionTokenKey = options.sessionTokenKey || 'auth.token'
   const prefix = `${namespace}:`
   const lock = options.lock === null ? undefined : options.lock ?? (typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function'
-    ? <T>(name: string, operation: () => T | Promise<T>) => navigator.locks.request(name, operation)
+    ? <T>(name: string, operation: () => T | Promise<T>, settings?: { signal?: AbortSignal }) => navigator.locks.request(name, settings ?? {}, operation)
     : undefined)
-  const exclusive = <T>(operation: () => T | Promise<T>): Promise<T> => lock
-    ? lock(`${namespace}:storage`, operation)
-    : Promise.resolve().then(operation)
+  const exclusive = <T>(operation: () => T | Promise<T>, signal?: AbortSignal): Promise<T> => {
+    const guarded = (): T | Promise<T> => { signal?.throwIfAborted(); return operation() }
+    signal?.throwIfAborted()
+    return lock ? lock(`${namespace}:storage`, guarded, { signal }) : Promise.resolve().then(guarded)
+  }
   const scopeChanged = (): Error => Object.assign(new Error('The storage account changed'), { code: 'STORAGE_SCOPE_CHANGED' })
   const pending = new Map<string, { json: string | null }>()
   let token = storage.getItem(tokenKey)
@@ -137,10 +154,11 @@ export async function createBrowserStorage(options: BrowserStorageOptions): Prom
         keys: () => available() ? keys(key('snapshot:')).map(name => name.slice(key('snapshot:').length)) : [],
       },
     },
-    async call(module, method, args) {
+    async call(module, method, args, signal) {
+      signal?.throwIfAborted()
       const captured = capture()
       const wasAvailable = available()
-      await accountChanged()
+      await waitForAccount(accountChanged(), signal)
       const name = String(args[0] ?? '')
       if (module === 'Storage') {
         if (!wasAvailable) throw scopeChanged()
@@ -165,7 +183,7 @@ export async function createBrowserStorage(options: BrowserStorageOptions): Prom
             return true
           }
           throw Object.assign(new Error(`Unsupported browser storage operation ${method}`), { code: 'UNSUPPORTED' })
-        })
+        }, signal)
       }
       if (module === 'SecureStorage') {
         if (!wasAvailable) throw scopeChanged()
@@ -181,7 +199,7 @@ export async function createBrowserStorage(options: BrowserStorageOptions): Prom
             return true
           }
           throw Object.assign(new Error(`Unsupported browser storage operation ${module}.${method}`), { code: 'UNSUPPORTED' })
-        })
+        }, signal)
         // Account cleanup takes the same lock. Start it only after releasing
         // this operation's lock, while stale queued calls already fail scope.
         if (method === 'clear' || (name === sessionTokenKey && (method === 'set' || method === 'remove')))
