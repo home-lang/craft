@@ -309,6 +309,8 @@ class CraftNativeMutationDocument {
             "View", "SafeAreaView", "ScrollView", "KeyboardAvoidingView", "Modal", "Pressable",
             "TouchableOpacity", "TouchableHighlight", "ImageBackground", "FlatList", "SectionList",
             "Fragment", "Svg", "G", "Map",
+            // A shape holds its `Animate`: SMIL keyframes.
+            "Path", "Line", "Rect", "Circle", "Ellipse", "Polyline", "Polygon",
         )
     }
 

@@ -339,11 +339,13 @@ final class CraftNativeMutationDocument {
     /// `Svg`). Only View, SafeAreaView and ScrollView used to be here, so a
     /// drawing revealed after the first paint (an `:if` around an `<svg>`)
     /// had its shapes refused as INVALID_PARENT, and the whole screen was
-    /// drawn again; Android's host already took the same list.
+    /// drawn again; Android's host already took the same list. A shape holds
+    /// its `Animate` (SMIL keyframes: HQ's moving exercise figures).
     static let containerTypes: Set<String> = [
         "View", "SafeAreaView", "ScrollView", "KeyboardAvoidingView", "Modal", "Pressable",
         "TouchableOpacity", "TouchableHighlight", "ImageBackground", "FlatList", "SectionList",
         "Fragment", "Svg", "G", "Map",
+        "Path", "Line", "Rect", "Circle", "Ellipse", "Polyline", "Polygon",
     ]
     private static let containerTypeKeys = Set(containerTypes.map { $0.lowercased() })
 

@@ -1746,6 +1746,23 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(CraftNativeSvgView.interpolate([0, 0, 0, 3, 2, 2, 4, 4], [0, 2, 2, 3, 4, 4, 6, 6], 0.5), [0, 1, 1, 3, 3, 3, 5, 5])
     }
 
+    /// A shape takes its `Animate` as a child through the mutation protocol,
+    /// so an exercise row's keyframes arrive without drawing the screen again.
+    func testAShapeTakesItsAnimationAsAChild() throws {
+        let document = CraftNativeMutationDocument()
+        let result = try document.apply(batch(1, [
+            ["op": "createNode", "id": "root", "root": true, "node": ["type": "View"]],
+            ["op": "createNode", "id": "art", "node": ["type": "Svg"]],
+            ["op": "createNode", "id": "limb", "node": ["type": "Path", "props": ["geometry": [0, 0, 0, 1, 1, 1]]]],
+            ["op": "createNode", "id": "move", "node": ["type": "Animate", "props": ["attributeName": "d", "duration": 1, "frames": [[0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 2, 2]]]]],
+            ["op": "insertChild", "parentId": "root", "childId": "art", "index": 0],
+            ["op": "insertChild", "parentId": "art", "childId": "limb", "index": 0],
+            ["op": "insertChild", "parentId": "limb", "childId": "move", "index": 0],
+        ]))
+        XCTAssertNotNil(result.document)
+        XCTAssertEqual(document.parentId(of: "move"), "limb")
+    }
+
     func testAnimatedSvgAsksForFramesOnlyWhileOnScreen() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))

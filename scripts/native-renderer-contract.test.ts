@@ -483,6 +483,8 @@ describe('native renderer component contract', () => {
     expect(androidMutationTest).toContain('fun reparentsChildAcrossParentsAtomically()')
     expect(iosMutation).toContain('"Fragment", "Svg", "G", "Map"')
     expect(androidMutation).toContain('"Fragment", "Svg", "G", "Map"')
+    expect(iosMutation).toContain('"Path", "Line", "Rect", "Circle", "Ellipse", "Polyline", "Polygon",')
+    expect(androidMutation).toContain('"Path", "Line", "Rect", "Circle", "Ellipse", "Polyline", "Polygon",')
     expect(androidMutation).toContain('"reparentChild" -> {')
     expect(android).toContain('val previous = protocolId?.let { previousControls["id:$it"] } ?: keyedPrevious')
     expect(android).toContain('next["id:$it"] = control')
