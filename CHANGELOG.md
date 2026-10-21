@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.285...v0.0.286)
+
+## 🐛 Bug Fixes
+
+- **release**: keep version validation standalone and rehearse automation ([71b0214](https://github.com/craft-native/craft/commit/71b0214)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.284...v0.0.285)
 
 ## 🚀 Features
