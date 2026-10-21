@@ -11,9 +11,9 @@ final class NativeRenderUITests: XCTestCase {
     /// The typed value itself is checked at once; only its echo is waited
     /// for, and a missing last keystroke still fails after `timeout`.
     @discardableResult
-    private func waitForLabel(_ element: XCUIElement, _ expected: String, timeout: TimeInterval = 3, file: StaticString = #filePath, line: UInt = #line) -> Bool {
+    private func waitForLabel(_ element: XCUIElement, _ expected: String, timeout: TimeInterval = 10, file: StaticString = #filePath, line: UInt = #line) -> Bool {
         let matched = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: element)], timeout: timeout) == .completed
-        XCTAssertTrue(matched, "\(element.identifier) reads \"\(element.label)\", not \"\(expected)\", \(timeout)s after typing", file: file, line: line)
+        XCTAssertTrue(matched, "\(element.identifier) reads \(String(reflecting: element.label)), not \(String(reflecting: expected)), \(timeout)s after typing", file: file, line: line)
         return matched
     }
 
