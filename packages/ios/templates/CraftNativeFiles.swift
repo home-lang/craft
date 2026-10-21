@@ -387,7 +387,7 @@ enum CraftNativeFiles {
             }
             let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty,
-                  let type = UTType(mimeType: name) ?? UTType(identifier: name) ?? UTType(filenameExtension: name.trimmingCharacters(in: CharacterSet(charactersIn: "."))) else {
+                  let type = UTType(mimeType: name) ?? UTType(name) ?? UTType(filenameExtension: name.trimmingCharacters(in: CharacterSet(charactersIn: "."))) else {
                 throw CraftNativeActionError(code: "INVALID_ARGUMENT", message: "files.pickFile contentType is not a MIME type, UTI, or extension: \(raw)")
             }
             types.append(type)
@@ -400,19 +400,39 @@ enum CraftNativeFiles {
     static func copyFile(_ source: URL, limit: Int) -> Result<Any, CraftNativeActionError> {
         do {
             let values = try source.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
-            let size = values.fileSize ?? ((try FileManager.default.attributesOfItem(atPath: source.path))[.size] as? NSNumber)?.intValue ?? 0
+            let size: Int
+            if let fileSize = values.fileSize {
+                size = fileSize
+            } else {
+                size = ((try? FileManager.default.attributesOfItem(atPath: source.path))?[.size] as? NSNumber)?.intValue ?? 0
+            }
             guard size > 0, size <= limit else {
                 return .failure(CraftNativeActionError(code: "FILE_TOO_LARGE", message: "Choose a nonempty file under \(limit / 1024 / 1024)MB."))
             }
             let destination = try newFile(named: source.lastPathComponent)
             do { try FileManager.default.copyItem(at: source, to: destination) }
             catch { try? FileManager.default.removeItem(at: destination.deletingLastPathComponent()); throw error }
-            let type = values.contentType?.preferredMIMEType
-                ?? UTType(filenameExtension: source.pathExtension)?.preferredMIMEType
-                ?? "application/octet-stream"
+            let type = mimeType(for: source, contentType: values.contentType)
             return .success(describe(destination, type: type))
         } catch {
             return .failure(CraftNativeActionError(code: "READ_ERROR", message: error.localizedDescription))
+        }
+    }
+
+    private static func mimeType(for source: URL, contentType: UTType?) -> String {
+        let generic = "application/octet-stream"
+        if let preferred = contentType?.preferredMIMEType, preferred != generic { return preferred }
+        if let preferred = UTType(filenameExtension: source.pathExtension)?.preferredMIMEType, preferred != generic {
+            return preferred
+        }
+        switch source.pathExtension.lowercased() {
+        case "gpx": return "application/gpx+xml"
+        case "tcx": return "application/vnd.garmin.tcx+xml"
+        case "fit": return "application/vnd.ant.fit"
+        case "csv": return "text/csv"
+        case "json": return "application/json"
+        case "txt": return "text/plain"
+        default: return generic
         }
     }
 
