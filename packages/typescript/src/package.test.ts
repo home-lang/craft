@@ -481,8 +481,9 @@ it('preserves the resources and metadata of a prebuilt macOS app', async () => {
     expect(result[0].success).toBe(true)
     expect(readFileSync(join(result[0].outputPath!, 'Contents', 'Resources', 'index.html'), 'utf8')).toBe('embedded-ui')
     expect(readFileSync(join(result[0].outputPath!, 'Contents', 'Info.plist'), 'utf8')).toBe('<plist>app-owned-metadata</plist>')
-    const invalid = await packageApp({ name: 'Invalid', version: '1.0.0', binaryPath: '/usr/bin/true', outDir: join(root, 'invalid'), platforms: ['macos'], macos: { appBundlePath: root, dmg: false } })
+    const invalid = await packageApp({ name: 'Invalid', version: '1.0.0', binaryPath: join(source, 'Contents', 'MacOS', 'App'), outDir: join(root, 'invalid'), platforms: ['macos'], macos: { appBundlePath: root, dmg: false } })
     expect(invalid[0].success).toBe(false)
+    expect(invalid[0].error).toBe(`Invalid prebuilt macOS application: ${root}`)
   }
   finally { removeTempDir(root) }
 })
