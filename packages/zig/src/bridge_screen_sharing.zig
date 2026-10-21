@@ -314,11 +314,7 @@ fn startWatching(interval_ms: u32) void {
     // Monitoring is explicitly requested work that must continue while a tray
     // popover is hidden. Allow normal system/display sleep, but keep App Nap
     // from suspending the native watcher and its WebKit event consumer.
-    const process_info = macos.msgSend0(macos.getClass("NSProcessInfo"), "processInfo");
-    // NSActivityUserInitiatedAllowingIdleSystemSleep (Foundation/NSProcessInfo.h).
-    const activity_options: u64 = 0x00FFFFFF & ~@as(u64, 1 << 20);
-    watcher_activity = macos.msgSend2(process_info, "beginActivityWithOptions:reason:", activity_options, macos.createNSString("Monitor screen sharing requested by the application"));
-    if (watcher_activity != null) _ = macos.msgSend0(watcher_activity, "retain");
+    watcher_activity = @import("background_activity.zig").begin("Monitor screen sharing requested by the application");
 
     // Emit the current state immediately so a subscriber never has to wait a
     // full interval to learn where things stand.
@@ -350,12 +346,8 @@ fn stopWatching() void {
         _ = macos.msgSend0(watcher_timer, "invalidate");
         watcher_timer = null;
     }
-    if (watcher_activity != null) {
-        const process_info = macos.msgSend0(macos.getClass("NSProcessInfo"), "processInfo");
-        _ = macos.msgSend1(process_info, "endActivity:", watcher_activity);
-        _ = macos.msgSend0(watcher_activity, "release");
-        watcher_activity = null;
-    }
+    @import("background_activity.zig").end(watcher_activity);
+    watcher_activity = null;
     have_last_digest = false;
     watcher_generation +%= 1;
 }

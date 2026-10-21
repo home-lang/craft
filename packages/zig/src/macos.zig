@@ -6000,6 +6000,8 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         if (global_focus_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
     } else if (std.mem.eql(u8, msg_type, "screenSharing")) {
         if (global_screen_sharing_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "timers")) {
+        @import("bridge_timers.zig").handleMessage(std.heap.c_allocator, action, data_json_str);
     } else if (std.mem.eql(u8, msg_type, "prefs")) {
         if (global_prefs_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
     } else if (std.mem.eql(u8, msg_type, "capabilities")) {
@@ -6736,6 +6738,7 @@ fn releaseContent(content: LoadedContent) void {
 
 fn forgetContent(webview: objc.id) void {
     const key = @intFromPtr(webview);
+    @import("bridge_timers.zig").forgetWebView(key);
     for (&content_slots) |*slot| {
         if (slot.key != key) continue;
         releaseContent(slot.content);
@@ -6843,6 +6846,7 @@ fn restoreContent(webview: objc.id) void {
 /// cannot hear them — one more per reload, for as long as the window lived.
 fn handleDidCommitNavigation(_: objc.id, _: objc.SEL, webview: objc.id, _: objc.id) callconv(.c) void {
     if (webview == null) return;
+    @import("bridge_timers.zig").forgetWebView(@intFromPtr(webview));
     if (global_fs_bridge) |bridge| bridge.forgetWebView(@intFromPtr(webview));
     publishWindowChrome(msgSend0(webview, "window"), .always);
 }
