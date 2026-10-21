@@ -54,6 +54,10 @@ final class NativeNavigationUnitTests: XCTestCase {
         previousWindow = previous?.view.window
         selection = CraftChrome.shared.selected
         CraftChrome.shared.selected = "/"
+        // A screen going away leaves its accessory drawn for the next one to
+        // decide (0.0.263), so a test starts from no accessory rather than
+        // the last test's.
+        CraftChrome.shared.updateTabAccessory(nil)
         shell = CraftHybridController(config: CraftHybrid.shared.config)
         let scene = previousWindow?.windowScene
             ?? UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
@@ -77,6 +81,7 @@ final class NativeNavigationUnitTests: XCTestCase {
         window = nil
         CraftHybrid.shared.controller = previous
         CraftChrome.shared.selected = selection
+        CraftChrome.shared.updateTabAccessory(nil)
         previous = nil
         previousWindow?.makeKeyAndVisible()
         previousWindow = nil
