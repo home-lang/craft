@@ -112,6 +112,18 @@ final class NativeNavigationUITests: XCTestCase {
     ) throws {
         let capture = try captureScroll(element, in: scroll, application: application)
         func assertFrames(_ actual: [CGRect], _ expected: [CGRect], _ name: String) {
+            // XCTest can report offscreen accessibility nodes as (inf, inf, 0, 0).
+            // They cannot participate in a gesture, and the snapshot correctly
+            // omits them, so compare only finite, non-empty geometry.
+            let valid: ([CGRect]) -> [CGRect] = { frames in
+                frames.filter { frame in
+                    frame.minX.isFinite && frame.minY.isFinite
+                        && frame.width.isFinite && frame.height.isFinite
+                        && !frame.isEmpty
+                }
+            }
+            let actual = valid(actual)
+            let expected = valid(expected)
             XCTAssertEqual(actual.count, expected.count, "snapshot lost \(name)")
             for frame in expected {
                 XCTAssertTrue(actual.contains { candidate in
