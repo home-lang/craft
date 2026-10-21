@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.262...v0.0.263)
+
+## 🐛 Bug Fixes
+
+- **ios**: the tab accessory stays while the next screen starts ([e5ca6f7](https://github.com/craft-native/craft/commit/e5ca6f7)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.261...v0.0.262)
 
 ## 🧪 Tests
