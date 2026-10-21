@@ -26,3 +26,12 @@ describe('script thread trace', () => {
       expect(screen).toContain(`CraftNativeScriptThread.run(label: ${label})`)
   })
 })
+
+describe('launch', () => {
+  it('makes JavaScriptCore\'s first machine and context on the script thread, before the first screen', () => {
+    expect(hybrid).toContain('if CraftNativeScriptThread.isBackground { CraftNativeBundle.prewarm() }')
+    expect(screen).toContain('_ = JSContext(virtualMachine: virtualMachine)')
+    // Timed work says which thread it ran on.
+    expect(hybrid).toContain('Thread.isMainThread ? "main" : "script"')
+  })
+})

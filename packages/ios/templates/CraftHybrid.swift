@@ -357,6 +357,7 @@ final class CraftHybrid: NSObject {
         isConfigured = true
         self.config = config
         CraftNativeScriptThread.isBackground = config.nativeScriptThread == "background"
+        if CraftNativeScriptThread.isBackground { CraftNativeBundle.prewarm() }
         hasWeb = config.renderer != "native"
         siteURL = config.devServerURL.flatMap(URL.init(string:)).flatMap { url in
             ["http", "https"].contains((url.scheme ?? "").lowercased()) ? url : nil
@@ -2295,13 +2296,15 @@ final class CraftFramePacing: NSObject {
         }
     }
 
-    /// One main-thread block, timed: a screen mount, a bundle evaluation.
+    /// One block, timed: a screen mount, a bundle evaluation. Labelled by the
+    /// thread it ran on, since a screen's script now runs off the main thread
+    /// and a bundle's time there costs no frames.
     @discardableResult
     func measure<T>(_ name: String, _ work: () -> T) -> T {
         guard enabled else { return work() }
         let started = CACurrentMediaTime()
         let result = work()
-        write(String(format: "%@ main=%.1fms", name, (CACurrentMediaTime() - started) * 1000))
+        write(String(format: "%@ %@=%.1fms", name, Thread.isMainThread ? "main" : "script", (CACurrentMediaTime() - started) * 1000))
         return result
     }
 

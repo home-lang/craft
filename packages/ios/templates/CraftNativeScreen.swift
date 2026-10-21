@@ -5208,6 +5208,17 @@ enum CraftNativeBundle {
     /// is not parsed again. Each screen keeps a global object of its own.
     static let virtualMachine = JSVirtualMachine()!
 
+    /// JavaScriptCore's first machine and context, made on the script thread
+    /// at launch instead of on the main thread by the first screen: that one-
+    /// time setup was a quarter of a second of the first tab's mount, all of
+    /// it in front of the first frame. Nothing is evaluated, so the main
+    /// thread never waits on the machine for it.
+    static func prewarm() {
+        CraftNativeScriptThread.queue.async {
+            _ = JSContext(virtualMachine: virtualMachine)
+        }
+    }
+
     private static let sources: NSCache<NSString, NSString> = {
         let cache = NSCache<NSString, NSString>()
         // Room for the one-file bundle, or a dozen route files.
