@@ -20,6 +20,7 @@ pub const Font = graphics.Font;
 pub const FontWeight = graphics.FontWeight;
 pub const FontStyle = graphics.FontStyle;
 pub const Canvas = graphics.Canvas;
+pub const scene = graphics.scene;
 
 pub const Renderer = struct {
     backend: RenderBackend,
