@@ -1,5 +1,27 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.280...v0.0.281)
+
+## 🚀 Features
+
+- **macos**: detect Chrome tab sharing through authorized native accessibility ([bfbf7ba](https://github.com/craft-native/craft/commit/bfbf7ba)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **packaging**: make embedded provisioning profiles readable after installation ([13fa3b6](https://github.com/craft-native/craft/commit/13fa3b6)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **macos**: include native sharing indicators in the core CI suite ([04d2d45](https://github.com/craft-native/craft/commit/04d2d45)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/hush-sharing-timer ([2379be3](https://github.com/craft-native/craft/commit/2379be3)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.279...v0.0.280)
 
 ## 🐛 Bug Fixes
