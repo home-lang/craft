@@ -134,6 +134,14 @@ enum CraftInterfaceStyleController {
         runtimeSelection ?? configuredStyle(for: config)
     }
 
+    static func colorScheme(for config: CraftConfig) -> ColorScheme? {
+        switch style(for: config) {
+        case .light: return .light
+        case .dark: return .dark
+        default: return nil
+        }
+    }
+
     /// Returns false rather than silently accepting a typo from JavaScript.
     @discardableResult
     static func set(_ value: String) -> Bool {
@@ -689,7 +697,7 @@ struct CraftApp: App {
                     .ignoresSafeArea(.keyboard, edges: .bottom)
                 }
             }
-                .preferredColorScheme(appState.config.colorScheme)
+                .preferredColorScheme(appState.appearanceScheme)
                 .environmentObject(appState)
                 .onOpenURL { url in
                     // Handle deep links and universal links
@@ -1601,6 +1609,8 @@ class DeepLinkManager {
 // MARK: - App State
 class AppState: ObservableObject {
     @Published var config: CraftConfig
+    @Published private(set) var appearanceScheme: ColorScheme?
+    private var appearanceObserver: NSObjectProtocol?
 
     init() {
         if let configURL = Bundle.main.url(forResource: "craft.config", withExtension: "json"),
@@ -1609,10 +1619,25 @@ class AppState: ObservableObject {
         } else {
             self.config = CraftConfig()
         }
+        self.appearanceScheme = CraftInterfaceStyleController.colorScheme(for: config)
+        appearanceObserver = NotificationCenter.default.addObserver(
+            forName: .craftColorSchemeChanged,
+            object: nil,
+            queue: .main,
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.appearanceScheme = CraftInterfaceStyleController.colorScheme(for: self.config)
+        }
         // Before the first frame: the hybrid start screen, and the tab bar
         // from the config, are decided here, if the app delegate has not
         // already (it does at launch; the first call decides).
         CraftHybrid.shared.configure(config)
+    }
+
+    deinit {
+        if let appearanceObserver {
+            NotificationCenter.default.removeObserver(appearanceObserver)
+        }
     }
 }
 
