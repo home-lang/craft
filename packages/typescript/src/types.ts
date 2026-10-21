@@ -667,6 +667,8 @@ export interface AppConfig {
  * Craft System Tray API (available as window.craft.tray in WebView)
  */
 export interface CraftTrayAPI {
+    /** SF Symbol name, image path, or base64 image data URL. */
+    setIcon(icon: string): Promise<void>
     /**
      * Update the system tray title/text
      * Updates in real-time (60fps max)
@@ -1362,6 +1364,18 @@ export interface CraftBridgeAPI {
    * System tray control (desktop only)
    */
   tray?: CraftTrayAPI
+
+  /** Native status-item arrangement and collapse controls (macOS). */
+  menubar?: {
+    init(): Promise<void>
+    collapse(): Promise<void>
+    expand(): Promise<void>
+    toggle(): Promise<void>
+    getState(): Promise<{ collapsed: boolean; initialized: boolean; separatorHidden: boolean }>
+    setAutoCollapse(seconds: number): Promise<void>
+    setSeparatorHidden(hidden: boolean): Promise<void>
+    onStateChange(callback: (state: { collapsed: boolean }) => void): () => void
+  }
 
   /**
    * Window control (desktop)
