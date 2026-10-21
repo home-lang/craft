@@ -1,3 +1,4 @@
+import { createBrowserLifecycle } from './browser/lifecycle'
 import { secureUUID } from './bridge/ids'
 import { createBrowserStorage } from './browser/storage'
 import { showBrowserDialog, type BrowserDialogOptions } from './browser/dialogs'
@@ -147,7 +148,11 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
       void resetAccount().then(() => { if (!disposed) location.reload() })
   }
   window.addEventListener('storage', storageEvent)
-  const capabilityNames = ['storage', 'secureStorage', 'lifecycle', 'dialog', 'browser', 'linking', 'files', 'share', 'device']
+  const lifecycle = typeof document !== 'undefined'
+    ? createBrowserLifecycle(document, window, state => emit('APP_STATE', { state }))
+    : null
+  const capabilityNames = ['storage', 'secureStorage', 'dialog', 'browser', 'linking', 'files', 'share', 'device']
+  if (lifecycle) capabilityNames.push('lifecycle')
   if (persistence.atomicStorage) capabilityNames.push('storageCompareAndSet', 'storageSetIfAbsent')
   if (typeof globalThis.crypto?.randomUUID === 'function' || typeof globalThis.crypto?.getRandomValues === 'function') capabilityNames.push('crypto')
   if (navigator.clipboard) capabilityNames.push('clipboard')
@@ -160,6 +165,7 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
   const platform: BrowserPlatform = {
     craft: {
       ...persistence.craft,
+      ...(lifecycle ? { lifecycle: { getState: lifecycle.getState, onStateChange: lifecycle.onStateChange, onChange: lifecycle.onStateChange } } : {}),
       session: {
         key: sessionTokenKey,
         token: (): string | null => persistence.craft.secureStorage.getSync(sessionTokenKey),
@@ -307,6 +313,7 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
     dispose() {
       if (disposed) return
       disposed = true
+      lifecycle?.dispose()
       window.removeEventListener('storage', storageEvent)
       lifetime.abort()
       account.abort()

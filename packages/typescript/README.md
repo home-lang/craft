@@ -646,3 +646,13 @@ An explicit discard may ACK the captured old ID only after a fresh committed
 native read proves that its previously registered intent was deleted or
 replaced. A cached missing draft or an unsuccessful initial registration is
 not evidence of deletion.
+
+### Browser lifecycle
+
+`createBrowserPlatform()` from `craft-native/browser` supplies
+`craft.lifecycle.getState()` and `onStateChange(callback)` (also `onChange`).
+States are `active` and `background`. The host emits the native-compatible
+`APP_STATE { state }` event on visibility changes and page cache navigation,
+coalesces duplicate transitions, and releases listeners in `dispose()`.
+This lets browser simulations checkpoint on backgrounding with the same contract
+as a native shell. Storage failures must still be handled by the caller.
