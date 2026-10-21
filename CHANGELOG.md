@@ -1,5 +1,26 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.283...v0.0.284)
+
+## 🐛 Bug Fixes
+
+- **android**: await committed grid snapshots in native acceptance ([c66ef04](https://github.com/craft-native/craft/commit/c66ef04)) _(by Chris Breuer)_
+- **security**: restrict native bridge access to trusted main documents ([63afeaa](https://github.com/craft-native/craft/commit/63afeaa)) _(by Chris Breuer)_
+- **macos**: keep requested sharing monitoring active in the background ([bb199b5](https://github.com/craft-native/craft/commit/bb199b5)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **security**: verify native bridge origin policy on macOS ([7f43423](https://github.com/craft-native/craft/commit/7f43423)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/native-bridge-origin-policy ([86fbd5a](https://github.com/craft-native/craft/commit/86fbd5a)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into HEAD ([648530d](https://github.com/craft-native/craft/commit/648530d)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.281...v0.0.283)
 
 ## 🚀 Features
