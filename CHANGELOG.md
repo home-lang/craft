@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.273...v0.0.274)
+
+## ⚡ Performance Improvements
+
+- **ios**: make JavaScriptCore's first machine on the script thread at launch ([b345f8f](https://github.com/craft-native/craft/commit/b345f8f)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.272...v0.0.273)
 
 ## 🚀 Features
