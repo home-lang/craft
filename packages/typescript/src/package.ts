@@ -424,8 +424,13 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
   // Apply distribution metadata to complete prebuilt bundles too, before signing.
   try {
     const contents = join(appBundlePath, 'Contents')
-    if (opts.provisioningProfile)
-      copyFileSync(opts.provisioningProfile, join(contents, 'embedded.provisionprofile'))
+    if (opts.provisioningProfile) {
+      const profile = join(contents, 'embedded.provisionprofile')
+      copyFileSync(opts.provisioningProfile, profile)
+      // Profiles are public bundle assets. A private input's 0600 mode would
+      // become root-only when productbuild installs the app, breaking trust.
+      chmodSync(profile, 0o644)
+    }
     if (opts.privacyManifest)
       copyFileSync(opts.privacyManifest, join(contents, 'Resources', 'PrivacyInfo.xcprivacy'))
     // Fresh bundles already receive these fields from macOSInfoPlist.

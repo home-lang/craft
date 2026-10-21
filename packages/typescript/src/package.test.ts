@@ -1,5 +1,5 @@
 import { afterAll, afterEach, describe, expect, it } from 'bun:test'
-import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, statSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { candleArguments, codesignArguments, DEFAULT_DEB_DEPENDENCIES, dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, linuxDesktopEntry, macOSInfoPlist, notarytoolArguments, packageApp, pkgbuildArguments, pkgbuildComponentPlist, productbuildArguments, renderWixSource, shouldRetryHdiutil, urlTypesEntry, WINDOWS_NOTIFICATION_ID_FILE, windowsArchitecture, windowsExecutableName, windowsNotificationAppId } from './package.js'
 import { createTempDir, removeAllTempDirs, removeTempDir } from './temp-dir'
@@ -505,7 +505,7 @@ it.skipIf(process.platform !== 'darwin')('signs prebuilt app helpers with inheri
     writeFileSync(entitlements, '<?xml version="1.0"?><plist version="1.0"><dict><key>com.apple.security.app-sandbox</key><true/><key>com.apple.security.files.user-selected.read-write</key><true/></dict></plist>')
     const profile = join(root, 'profile')
     const privacy = join(root, 'PrivacyInfo.xcprivacy')
-    writeFileSync(profile, 'test-profile')
+    writeFileSync(profile, 'test-profile', { mode: 0o600 })
     writeFileSync(privacy, '<plist version="1.0"><dict/></plist>')
     const results = await packageApp({
       name: 'App', version: '1.0.0', bundleId: 'dev.craft.sign-test',
@@ -515,6 +515,7 @@ it.skipIf(process.platform !== 'darwin')('signs prebuilt app helpers with inheri
     expect(results[0].success).toBe(true)
     const app = results[0].outputPath!
     expect(readFileSync(join(app, 'Contents', 'embedded.provisionprofile'), 'utf8')).toBe('test-profile')
+    expect(statSync(join(app, 'Contents', 'embedded.provisionprofile')).mode & 0o777).toBe(0o644)
     expect(readFileSync(join(app, 'Contents', 'Resources', 'PrivacyInfo.xcprivacy'), 'utf8')).toContain('<dict/>')
     const metadata = Bun.spawnSync(['plutil', '-extract', 'CFBundleVersion', 'raw', '-o', '-', join(app, 'Contents', 'Info.plist')])
     expect(metadata.stdout.toString().trim()).toBe('42')
