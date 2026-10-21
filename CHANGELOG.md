@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.272...v0.0.273)
+
+## 🚀 Features
+
+- **maps**: named basemaps drawn as well as each phone can, with cached tiles ([fff2fae](https://github.com/craft-native/craft/commit/fff2fae)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.271...v0.0.272)
 
 ## 🧪 Tests
