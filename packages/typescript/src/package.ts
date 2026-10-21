@@ -20,7 +20,7 @@ import {
   writeFileSync,
 } from 'fs'
 import { homedir } from 'os'
-import { basename, join } from 'path'
+import { basename, join, resolve } from 'path'
 import { deflateRawSync } from 'zlib'
 import { createTempDir, removeTempDir } from './temp-dir.js'
 
@@ -156,6 +156,15 @@ export interface PackageConfig {
 
   /** macOS-specific options */
   macos?: {
+    /** Preserve a prebuilt .app, including its resources and Info.plist. */
+    appBundlePath?: string
+
+    /** Use existing notarytool credentials stored in the macOS keychain. */
+    notaryKeychainProfile?: string
+
+    /** App Store Connect API-key authentication for notarization. */
+    notaryApiKey?: { path: string; keyId: string; issuer: string }
+
     /** Create DMG installer */
     dmg?: boolean
 
@@ -369,7 +378,9 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
 
   // Create app bundle
   const appBundlePath = join(outDir, `${name}.app`)
-  const appBundle = createMacOSAppBundle({
+  const appBundle = opts.appBundlePath
+    ? copyMacOSAppBundle(opts.appBundlePath, appBundlePath)
+    : createMacOSAppBundle({
     name,
     version,
     bundleId,
@@ -474,12 +485,12 @@ async function notarizeIfRequested(
   if (!opts.notarize)
     return []
 
-  if (!opts.appleId || !opts.applePassword || !opts.teamId) {
+  if (!opts.notaryKeychainProfile && !opts.notaryApiKey && (!opts.appleId || !opts.applePassword || !opts.teamId)) {
     return [{
       success: false,
       platform: 'macos',
       format: `${format} (notarize)`,
-      error: 'Notarization requires macos.appleId, macos.applePassword and macos.teamId',
+      error: 'Notarization requires a keychain profile, API key, or Apple ID/password/team ID',
     }]
   }
 
@@ -488,6 +499,8 @@ async function notarizeIfRequested(
     appleId: opts.appleId,
     applePassword: opts.applePassword,
     teamId: opts.teamId,
+    keychainProfile: opts.notaryKeychainProfile,
+    apiKey: opts.notaryApiKey,
   }))
   if (!submitted.success)
     return [{ success: false, platform: 'macos', format: `${format} (notarize)`, error: submitted.error }]
@@ -811,18 +824,34 @@ export function productbuildArguments(opts: {
 /** Build the `xcrun notarytool submit` argument list for a DMG or PKG. */
 export function notarytoolArguments(opts: {
   artifactPath: string
-  appleId: string
-  applePassword: string
-  teamId: string
+  appleId?: string
+  applePassword?: string
+  teamId?: string
+  keychainProfile?: string
+  apiKey?: { path: string; keyId: string; issuer: string }
 }): string[] {
-  return [
-    'notarytool',
-    'submit', opts.artifactPath,
-    '--apple-id', opts.appleId,
-    '--password', opts.applePassword,
-    '--team-id', opts.teamId,
-    '--wait',
-  ]
+  const base = ['notarytool', 'submit', opts.artifactPath, '--wait']
+  if (opts.keychainProfile) return [...base, '--keychain-profile', opts.keychainProfile]
+  if (opts.apiKey) return [...base, '--key', opts.apiKey.path, '--key-id', opts.apiKey.keyId, '--issuer', opts.apiKey.issuer]
+  if (!opts.appleId || !opts.applePassword || !opts.teamId)
+    throw new Error('Notarization credentials are incomplete')
+  return ['notarytool', 'submit', opts.artifactPath,
+    '--apple-id', opts.appleId, '--password', opts.applePassword, '--team-id', opts.teamId, '--wait']
+}
+
+/** Copy a complete build before signing; never rebuild it from one executable. */
+function copyMacOSAppBundle(source: string, destination: string): { success: boolean; error?: string } {
+  try {
+    const info = join(source, 'Contents', 'Info.plist')
+    if (!existsSync(info) || !existsSync(join(source, 'Contents', 'MacOS')))
+      throw new Error(`Invalid prebuilt macOS application: ${source}`)
+    if (resolve(source) !== resolve(destination)) {
+      rmSync(destination, { recursive: true, force: true })
+      cpSync(source, destination, { recursive: true })
+    }
+    return { success: true }
+  }
+  catch (error) { return { success: false, error: (error as Error).message } }
 }
 
 /**
