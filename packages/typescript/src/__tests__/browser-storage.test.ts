@@ -74,6 +74,25 @@ async function atomicFixture() {
 }
 
 describe('browser atomic account checkpoints', () => {
+  it('acknowledges ordinary checkpoints only after committing and propagates quota errors', async () => {
+    const { saved, a, lock } = await atomicFixture()
+    let release!: () => void
+    let entered!: () => void
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const held = lock('atomic:storage', () => new Promise<void>(resolve => { release = resolve; entered() }))
+    await started
+    let acknowledged = false
+    const checkpoint = a.call('Storage', 'set', ['campaign', { tick: 25 }]).then(() => { acknowledged = true })
+    await Bun.sleep(0)
+    expect(acknowledged).toBe(false)
+    expect(saved.getItem('atomic:account:guest:storage:campaign')).toBeNull()
+    release(); await Promise.all([held, checkpoint])
+    expect(acknowledged).toBe(true)
+    expect(await a.call('Storage', 'get', ['campaign'])).toEqual({ tick: 25 })
+    saved.setItem = () => { throw new Error('quota exceeded') }
+    await expect(a.call('Storage', 'set', ['campaign', { tick: 26 }])).rejects.toThrow('quota exceeded')
+    expect(await a.call('Storage', 'get', ['campaign'])).toEqual({ tick: 25 })
+  })
   it('advertises atomic support only with a lock primitive and refuses unsupported writes', async () => {
     const { browser } = await fixture()
     expect(browser.atomicStorage).toBe(false)

@@ -656,3 +656,15 @@ States are `active` and `background`. The host emits the native-compatible
 coalesces duplicate transitions, and releases listeners in `dispose()`.
 This lets browser simulations checkpoint on backgrounding with the same contract
 as a native shell. Storage failures must still be handled by the caller.
+
+Await `platform.call('Storage', 'set', [key, value], signal)` before reporting
+a saved checkpoint. `craft.storage.setSync` updates the immediate UI cache and
+queues its write when Web Locks are available; it cannot acknowledge durability
+or propagate a later quota failure. Background events are an opportunity to
+checkpoint, but browsers can terminate a page before queued work finishes, so
+also save periodically during play.
+
+Browser audio assigns one owner per sound ID. A newer play or stop invalidates
+pending media resolution for that ID; stopping all sounds, changing accounts,
+aborting a call or disposing the host also releases active audio. Superseded
+play calls reject with `AbortError`.
