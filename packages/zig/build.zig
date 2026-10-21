@@ -1175,6 +1175,15 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const bridge_origin_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/bridge_origin.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_bridge_origin_tests = b.addRunArtifact(bridge_origin_tests);
+
     // Where a link that asks for a new window is allowed to go. Pure policy,
     // so the whole drop list is provable without a browser.
     const external_link_tests = b.addTest(.{
@@ -2082,6 +2091,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_desktop_window_reads_tests.step);
     test_step.dependOn(&run_desktop_script_encoding_tests.step);
     test_step.dependOn(&run_external_link_tests.step);
+    test_step.dependOn(&run_bridge_origin_tests.step);
     test_step.dependOn(&run_webview_recovery_tests.step);
     test_step.dependOn(&run_request_context_tests.step);
     test_step.dependOn(&run_notification_actions_tests.step);
