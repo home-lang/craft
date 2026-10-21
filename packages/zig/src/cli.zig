@@ -834,8 +834,8 @@ fn writeStdout(comptime format: []const u8, args: anytype) void {
 pub fn formatVersion(buffer: []u8, version: []const u8, platform_name: []const u8) ![]const u8 {
     return std.fmt.bufPrint(
         buffer,
-        "craft version {s}\nBuilt with Zig 0.17.0-dev\nPlatform: {s}\n\n",
-        .{ version, platform_name },
+        "craft version {s}\nBuilt with Zig {s}\nPlatform: {s}\n\n",
+        .{ version, builtin.zig_version_string, platform_name },
     );
 }
 
