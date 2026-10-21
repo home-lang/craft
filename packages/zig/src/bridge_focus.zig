@@ -114,9 +114,9 @@ pub const FocusBridge = struct {
         bridge_error.sendResultToJS(self.allocator, "getStatus", json);
     }
 
-    /// Present the system's Focus-status permission prompt. The completion
-    /// handler is an ObjC block, so we pump the run loop until it fires rather
-    /// than returning a stale value.
+    /// Authorization may complete on another queue after the system prompt.
+    /// Capture the bridge request and return to AppKit instead of nesting a
+    /// run loop and replying with a stale authorization value after a timeout.
     fn requestAuthorization(self: *Self) !void {
         if (comptime builtin.os.tag != .macos) {
             bridge_error.sendResultToJS(self.allocator, "requestAuthorization", "{\"authorization\":\"unsupported\"}");
@@ -127,23 +127,12 @@ pub const FocusBridge = struct {
             return;
         };
         const macos = @import("macos.zig");
-
-        auth_result_set = false;
-        auth_result = 0;
-
+        const pending = @import("ios_async.zig");
+        const ticket = pending.acquire("requestAuthorization") orelse return BridgeError.Busy;
+        const block = AuthBlock{ .index = ticket.index, .generation = ticket.generation };
         const Fn = *const fn (macos.objc.id, macos.objc.SEL, *const anyopaque) callconv(.c) void;
         const f: Fn = @ptrCast(&macos.objc.objc_msgSend);
-        f(center, macos.sel("requestAuthorizationWithCompletionHandler:"), &auth_block);
-
-        pumpRunLoop(&auth_result_set, 30_000);
-
-        // Prefer the value the block reported; fall back to a fresh query when
-        // the prompt timed out so callers still see the real current state.
-        const status = if (auth_result_set) auth_result else msgSendLong(center, "authorizationStatus");
-
-        var buf: [96]u8 = undefined;
-        const json = try std.fmt.bufPrint(&buf, "{{\"authorization\":\"{s}\"}}", .{authorizationName(status)});
-        bridge_error.sendResultToJS(self.allocator, "requestAuthorization", json);
+        f(center, macos.sel("requestAuthorizationWithCompletionHandler:"), &block);
     }
 
     // -------------------------------------------------------------------------
@@ -194,48 +183,25 @@ pub const FocusBridge = struct {
             return;
         }
 
-        const io = io_context.get();
-        var child = std.process.spawn(io, .{
-            .argv = &.{ shortcuts_binary, "run", name },
-            .stdout = .ignore,
-            .stderr = .pipe,
-            .stdin = .ignore,
-        }) catch {
-            bridge_error.sendResultToJS(self.allocator, action, "{\"ok\":false,\"error\":\"Shortcuts CLI is unavailable\"}");
-            return;
+        const pending = @import("ios_async.zig");
+        const ticket = pending.acquire(action) orelse return BridgeError.Busy;
+        const allocator = std.heap.c_allocator;
+        const work = allocator.create(ShortcutWork) catch {
+            pending.abandon(ticket);
+            return error.OutOfMemory;
         };
-
-        var stderr_buf: std.ArrayListUnmanaged(u8) = .empty;
-        defer stderr_buf.deinit(self.allocator);
-        if (child.stderr) |stderr_file| drain(io, stderr_file, &stderr_buf, self.allocator) catch {};
-
-        const term = child.wait(io) catch {
-            bridge_error.sendResultToJS(self.allocator, action, "{\"ok\":false,\"error\":\"Shortcut did not complete\"}");
-            return;
+        work.* = .{ .ticket = ticket, .name = allocator.dupe(u8, name) catch {
+            allocator.destroy(work);
+            pending.abandon(ticket);
+            return error.OutOfMemory;
+        } };
+        const thread = std.Thread.spawn(.{}, runShortcutWork, .{work}) catch {
+            allocator.free(work.name);
+            allocator.destroy(work);
+            pending.abandon(ticket);
+            return BridgeError.NativeCallFailed;
         };
-        const exit_code: i32 = switch (term) {
-            .exited => |code| @intCast(code),
-            .signal => |sig| -@as(i32, @intCast(@backingInt(sig))),
-            else => -1,
-        };
-
-        var out: std.ArrayListUnmanaged(u8) = .empty;
-        defer out.deinit(self.allocator);
-        try out.appendSlice(self.allocator, if (exit_code == 0) "{\"ok\":true," else "{\"ok\":false,");
-        try out.appendSlice(self.allocator, "\"strategy\":\"shortcut\",\"exitCode\":");
-        var num_buf: [16]u8 = undefined;
-        try out.appendSlice(self.allocator, try std.fmt.bufPrint(&num_buf, "{d}", .{exit_code}));
-        try out.appendSlice(self.allocator, ",\"shortcut\":\"");
-        try bridge_error.appendJsonEscaped(self.allocator, &out, name);
-        try out.appendSlice(self.allocator, "\"");
-        if (exit_code != 0) {
-            try out.appendSlice(self.allocator, ",\"error\":\"");
-            try bridge_error.appendJsonEscaped(self.allocator, &out, std.mem.trim(u8, stderr_buf.items, " \t\r\n"));
-            try out.appendSlice(self.allocator, "\"");
-        }
-        try out.append(self.allocator, '}');
-
-        bridge_error.sendResultToJS(self.allocator, action, out.items);
+        thread.detach();
     }
 
     /// Hand `shortcuts://run-shortcut?name=…` to LaunchServices.
@@ -337,6 +303,56 @@ pub const FocusBridge = struct {
 // =============================================================================
 // Helpers
 // =============================================================================
+
+const ShortcutWork = struct {
+    ticket: @import("ios_async.zig").Ticket,
+    name: []u8,
+};
+
+fn runFocusProcess(allocator: std.mem.Allocator, argv: []const []const u8, timeout_ms: u32) !std.process.RunResult {
+    const io = io_context.get();
+    return std.process.run(allocator, io, .{
+        .argv = argv,
+        .stdout_limit = .limited(64 * 1024),
+        .stderr_limit = .limited(64 * 1024),
+        .timeout = (std.Io.Timeout{ .duration = .{ .clock = .awake, .raw = .fromMilliseconds(timeout_ms) } }).toDeadline(io),
+    });
+}
+
+fn runShortcutWork(work: *ShortcutWork) void {
+    const allocator = std.heap.c_allocator;
+    defer allocator.destroy(work);
+    defer allocator.free(work.name);
+    const pending = @import("ios_async.zig");
+    // Do not hold AppKit's main thread while Shortcuts handles a workflow.
+    // The deadline also reaps an unresponsive CLI instead of hanging the app.
+    const result = runFocusProcess(allocator, &.{ shortcuts_binary, "run", work.name }, 15_000) catch |err| {
+        pending.deliverJson(work.ticket, if (err == error.Timeout)
+            "{\"ok\":false,\"error\":\"Shortcut timed out; open Shortcuts and verify it completes.\"}"
+        else
+            "{\"ok\":false,\"error\":\"Shortcuts CLI did not complete.\"}");
+        return;
+    };
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+    const exit_code: i32 = switch (result.term) {
+        .exited => |code| @intCast(code),
+        .signal => |sig| -@as(i32, @intCast(@backingInt(sig))),
+        else => -1,
+    };
+    const json = std.json.Stringify.valueAlloc(allocator, .{
+        .ok = exit_code == 0,
+        .strategy = "shortcut",
+        .exitCode = exit_code,
+        .shortcut = work.name,
+        .@"error" = if (exit_code == 0) @as(?[]const u8, null) else std.mem.trim(u8, result.stderr, " \t\r\n"),
+    }, .{}) catch {
+        pending.deliverError(work.ticket);
+        return;
+    };
+    defer allocator.free(json);
+    pending.deliverJson(work.ticket, json);
+}
 
 const shortcuts_binary = "/usr/bin/shortcuts";
 
@@ -489,55 +505,29 @@ fn msgSendBool(target: anytype, selector: [*:0]const u8) bool {
     return f(@ptrCast(target), macos.sel(selector));
 }
 
-/// Spin `-[NSRunLoop runMode:beforeDate:]` until `flag` flips or the budget
-/// runs out. Same shape as the biometric bridge's prompt wait: the caller is
-/// blocked on a system-modal interaction either way.
-fn pumpRunLoop(flag: *const bool, timeout_ms: u32) void {
-    if (comptime builtin.os.tag != .macos) return;
-    const macos = @import("macos.zig");
-    const NSRunLoop = macos.getClass("NSRunLoop");
-    const NSDate = macos.getClass("NSDate");
-    const default_mode = macos.createNSString("kCFRunLoopDefaultMode");
-    const run_loop = macos.msgSend0(NSRunLoop, "currentRunLoop");
-
-    var elapsed: u32 = 0;
-    while (!flag.* and elapsed < timeout_ms) : (elapsed += 50) {
-        const tick = macos.msgSend1Double(NSDate, "dateWithTimeIntervalSinceNow:", 0.05);
-        _ = macos.msgSend2(run_loop, "runMode:beforeDate:", default_mode, tick);
-    }
-}
-
-var auth_result_set: bool = false;
-var auth_result: c_long = 0;
-
-const BlockLayout = extern struct {
-    isa: ?*anyopaque,
-    flags: c_int,
-    reserved: c_int,
-    invoke: *const fn (*const anyopaque, c_long) callconv(.c) void,
-    descriptor: *const BlockDescriptor,
-};
-
+// A capturing stack block is copied by Intents when it retains the callback.
+// Its only captures are POD ticket fields; no copy/dispose callbacks are needed.
 const BlockDescriptor = extern struct {
     reserved: usize = 0,
     size: usize,
 };
-
 extern var _NSConcreteStackBlock: anyopaque;
-
-fn authInvoke(_: *const anyopaque, status: c_long) callconv(.c) void {
-    auth_result = status;
-    auth_result_set = true;
-}
-
-const auth_descriptor = BlockDescriptor{ .size = @sizeOf(BlockLayout) };
-const auth_block = BlockLayout{
-    .isa = &_NSConcreteStackBlock,
-    .flags = 0,
-    .reserved = 0,
-    .invoke = authInvoke,
-    .descriptor = &auth_descriptor,
+const auth_descriptor = BlockDescriptor{ .size = @sizeOf(AuthBlock) };
+const AuthBlock = extern struct {
+    isa: ?*anyopaque = &_NSConcreteStackBlock,
+    flags: c_int = 0,
+    reserved: c_int = 0,
+    invoke: *const fn (*const AuthBlock, c_long) callconv(.c) void = authInvoke,
+    descriptor: *const BlockDescriptor = &auth_descriptor,
+    index: u32,
+    generation: u32,
 };
+
+fn authInvoke(block: *const AuthBlock, status: c_long) callconv(.c) void {
+    var buf: [96]u8 = undefined;
+    const json = std.fmt.bufPrint(&buf, "{{\"authorization\":\"{s}\"}}", .{authorizationName(status)}) catch return;
+    @import("ios_async.zig").deliverJson(.{ .index = @intCast(block.index), .generation = block.generation }, json);
+}
 
 // =============================================================================
 // Tests
@@ -586,4 +576,9 @@ test "validateShortcutName rejects control characters and oversized names" {
     var overlong: [256]u8 = undefined;
     @memset(&overlong, 'x');
     try std.testing.expectError(BridgeError.InvalidParameter, validateShortcutName(&overlong));
+}
+
+test "unresponsive Focus commands are bounded and reaped" {
+    if (builtin.os.tag != .macos) return error.SkipZigTest;
+    try std.testing.expectError(error.Timeout, runFocusProcess(std.testing.allocator, &.{ "/bin/sleep", "1" }, 20));
 }

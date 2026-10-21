@@ -88,6 +88,12 @@ pub const PermissionsBridge = struct {
         if (builtin.os.tag != .macos) return "not-supported";
         const macos = @import("macos.zig");
 
+        // CoreGraphics reports access directly. False means this process
+        // cannot read captured content; it is not an unsupported API.
+        if (std.mem.eql(u8, name, "screen_recording")) {
+            return if (CGPreflightScreenCaptureAccess()) "granted" else "denied";
+        }
+
         // Camera / microphone use AVCaptureDevice authorizationStatusForMediaType:
         // returning AVAuthorizationStatus (notDetermined=0, restricted=1,
         // denied=2, authorized=3).
@@ -109,6 +115,11 @@ pub const PermissionsBridge = struct {
         if (builtin.os.tag != .macos) return;
         const macos = @import("macos.zig");
 
+        if (std.mem.eql(u8, name, "screen_recording")) {
+            _ = CGRequestScreenCaptureAccess();
+            return;
+        }
+
         if (std.mem.eql(u8, name, "camera") or std.mem.eql(u8, name, "microphone")) {
             const AVCaptureDevice = macos.getClass("AVCaptureDevice");
             if (@intFromPtr(AVCaptureDevice) == 0) return;
@@ -127,6 +138,9 @@ pub const PermissionsBridge = struct {
         }
     }
 };
+
+extern "c" fn CGPreflightScreenCaptureAccess() bool;
+extern "c" fn CGRequestScreenCaptureAccess() bool;
 
 // =============================================================================
 // Tiny no-op block we hand to AVCaptureDevice's completionHandler.
