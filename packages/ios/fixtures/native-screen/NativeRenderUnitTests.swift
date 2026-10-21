@@ -988,6 +988,36 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(child["id"] as? String, "popup")
     }
 
+    func testReplaceChildrenReconcilesKeyedRowsAtomically() throws {
+        let document = CraftNativeMutationDocument()
+        _ = try document.apply(batch(1, [
+            ["op": "createNode", "id": "root", "root": true, "node": ["type": "View"]],
+            ["op": "createNode", "id": "list", "node": ["type": "FlatList"]],
+            ["op": "createNode", "id": "first", "node": ["type": "Text", "key": "first", "children": ["First"]]],
+            ["op": "createNode", "id": "second", "node": ["type": "Text", "key": "second", "children": ["Second"]]],
+            ["op": "createNode", "id": "third", "node": ["type": "Text", "key": "third", "children": ["Third"]]],
+            ["op": "insertChild", "parentId": "root", "childId": "list", "index": 0],
+            ["op": "replaceChildren", "parentId": "list", "children": ["first", "second"]],
+        ]))
+
+        let result = try document.apply(batch(2, [
+            ["op": "replaceChildren", "parentId": "list", "children": ["third", "first"]],
+        ]))
+        XCTAssertEqual(result.affectedNodeIds, ["list"])
+        XCTAssertFalse(result.requiresFullRender)
+        let rows = try XCTUnwrap((document.node("list")?["children"] as? [[String: Any]])?.compactMap { $0["id"] as? String })
+        XCTAssertEqual(rows, ["third", "first"])
+        XCTAssertNil(document.parentId(of: "second"))
+
+        XCTAssertThrowsError(try document.apply(batch(3, [
+            ["op": "replaceChildren", "parentId": "list", "children": ["first", "first"]],
+        ]))) { error in
+            XCTAssertEqual((error as? CraftNativeMutationFailure)?.code, "DUPLICATE_CHILD")
+            XCTAssertEqual(document.revision, 2)
+            XCTAssertEqual(document.parentId(of: "third"), "list")
+        }
+    }
+
     func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot() throws {
         for type in CraftNativeMutationDocument.containerTypes.sorted() + ["svg", "pressable"] {
             let document = CraftNativeMutationDocument()

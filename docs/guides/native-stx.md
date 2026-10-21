@@ -663,6 +663,12 @@ AndroidX `SwipeRefreshLayout` on Android. Use `ScrollView` for bounded content
 and `FlatList` for keyed child rows that
 need recycling. The maintained protocol is driven by the shared STX tree, not
 by a serialized `data`/`renderItem` callback pair.
+The versioned mutation ABI also accepts a `replaceChildren` operation for a
+keyed list snapshot: it supplies the parent node and ordered protocol ids in
+one atomic batch. Both hosts validate the snapshot before committing it,
+detach rows that left the set, and reconcile the list once. STX currently emits
+the equivalent keyed child mutations; this operation is reserved for a future
+compiler optimization and keeps list updates host-neutral.
 When `scrollEnabled={false}`, the list is measured to its full vertical content
 height on both hosts, so it can be placed inside an outer native `ScrollView`
 without clipping rows.

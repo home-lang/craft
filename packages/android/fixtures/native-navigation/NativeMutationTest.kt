@@ -101,6 +101,38 @@ class NativeMutationTest {
     }
 
     @Test
+    fun replacesKeyedListChildrenAtomically() {
+        val document = CraftNativeMutationDocument()
+        document.apply(batch(1, """
+            [
+              {"op":"createNode","id":"root","root":true,"node":{"type":"View"}},
+              {"op":"createNode","id":"list","node":{"type":"FlatList"}},
+              {"op":"createNode","id":"first","node":{"type":"Text","key":"first","children":["First"]}},
+              {"op":"createNode","id":"second","node":{"type":"Text","key":"second","children":["Second"]}},
+              {"op":"createNode","id":"third","node":{"type":"Text","key":"third","children":["Third"]}},
+              {"op":"insertChild","parentId":"root","childId":"list","index":0},
+              {"op":"replaceChildren","parentId":"list","children":["first","second"]}
+            ]
+        """.trimIndent()))
+
+        val result = document.apply(batch(2, """
+            [{"op":"replaceChildren","parentId":"list","children":["third","first"]}]
+        """.trimIndent()))
+        assertEquals(listOf("list"), result.affectedNodeIds)
+        assertEquals(false, result.requiresFullRender)
+        val rows = document.node("list")?.getJSONArray("children")
+        assertEquals(listOf("third", "first"), (0 until rows!!.length()).map { rows.getJSONObject(it).getString("id") })
+        assertNull(document.parentId("second"))
+
+        val failure = failure(document, batch(3, """
+            [{"op":"replaceChildren","parentId":"list","children":["first","first"]}]
+        """.trimIndent()))
+        assertEquals("DUPLICATE_CHILD", failure.code)
+        assertEquals(2, document.revision)
+        assertEquals("list", document.parentId("third"))
+    }
+
+    @Test
     fun reparentingRetainsThePopupSubtreeAndAuthoredKeys() {
         val document = CraftNativeMutationDocument()
         document.replace(JSONObject("""
