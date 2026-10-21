@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.267...v0.0.268)
+
+## 🧪 Tests
+
+- **ios**: pin the labelled unmount on the script thread in the renderer contract ([a182587](https://github.com/craft-native/craft/commit/a182587)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.266...v0.0.267)
 
 ## 🐛 Bug Fixes
