@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.275...v0.0.276)
+
+## 🐛 Bug Fixes
+
+- guard release descendants when acceptance suites are reused ([a2a751c](https://github.com/craft-native/craft/commit/a2a751c)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.274...v0.0.275)
 
 ## 🐛 Bug Fixes
