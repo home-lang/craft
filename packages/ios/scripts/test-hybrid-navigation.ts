@@ -24,6 +24,10 @@ function servePage(body: Buffer) {
   for (let offset = 0; offset < 32; offset++) {
     try {
       return Bun.serve({
+        // The simulator shares the host loopback interface. Use the same
+        // numeric address for listening and loading, without a localhost
+        // IPv4/IPv6 resolution race during cold WebKit startup.
+        hostname: '127.0.0.1',
         port: firstPort + offset,
         fetch: (request) => {
           servedRequests++
