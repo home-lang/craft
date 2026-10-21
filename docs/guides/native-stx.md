@@ -267,14 +267,21 @@ Set the Craft Android config's `mapProvider` to `maplibre` for a key-free native
 GL view; `google` preserves the existing Google Maps host. Only the selected
 provider's SDK is included in the generated Android project. These STX map
 components do not use the DOM-based `@craft-native/ts-maps` adapter.
-The shared `mapType` values are `standard`,
-`satellite`, and `hybrid`; Android's terrain-only style is intentionally not
-part of the cross-platform contract. `tileOverlay` accepts an HTTPS raster URL
-template and its visible provider attribution. `edgePadding` reserves logical
+`basemap` names a map and the host draws it as well as the platform can,
+caches its tiles on the device and shows its credit: `standard` (Apple's
+vector map with realistic terrain from iOS 16; OpenFreeMap's vector style on
+Android), `outdoors` (topography with contours, drawn over a muted Apple map
+so unloaded ground is never an empty grid), `satellite` and `hybrid`. Prefer
+it to `mapType`, whose values are `standard`, `satellite`, and `hybrid`, and
+to `tileOverlay`, which accepts an HTTPS raster URL template and its visible
+provider attribution for a map of your own; `basemap` replaces both when set.
+Android's terrain-only style is intentionally not part of the cross-platform
+contract. `edgePadding` reserves logical
 points around a fitted route for floating controls. `pitchEnabled` controls
 tilt gestures; `cameraPitch` and `cameraHeading` set the camera explicitly.
 Markers accept `pinColor` for trailheads and inspected profile positions, or
-`bearing` for a contrasting route-direction sign. The portable system colors
+`bearing` for a route-direction chevron; chevrons that would overlap at the
+current zoom are hidden by the map and return closer in. The portable system colors
 `label` and `secondaryLabel` follow light/dark appearance changes and refresh
 retained overlays without moving the camera. Clustering, turn-by-turn
 directions, and offline tile downloads remain outside this view contract.

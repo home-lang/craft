@@ -1345,6 +1345,48 @@ private final class CraftNativeVideoView: UIView, AVPlayerViewControllerDelegate
     deinit { stop() }
 }
 
+/// A tile overlay whose tiles are kept on disk.
+///
+/// MKTileOverlay asked the network for every tile on every pan back over the
+/// same ground, and drew nothing where a tile had not come yet. These go
+/// through one session with a cache of its own (Caches/craft-map-tiles), so
+/// ground seen before draws at once and offline, and a phone on a trail
+/// does not fetch the same hillside twice.
+final class CraftCachedTileOverlay: MKTileOverlay {
+    static let session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("craft-map-tiles", isDirectory: true)
+        configuration.urlCache = URLCache(memoryCapacity: 48 << 20, diskCapacity: 512 << 20, directory: directory)
+        // Topography and imagery change on the scale of months: a tile held
+        // is used without asking again.
+        configuration.requestCachePolicy = .returnCacheDataElseLoad
+        configuration.httpMaximumConnectionsPerHost = 8
+        return URLSession(configuration: configuration)
+    }()
+
+    override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, Error?) -> Void) {
+        let request = URLRequest(url: url(forTilePath: path), cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 20)
+        Self.session.dataTask(with: request) { data, response, error in
+            if let status = (response as? HTTPURLResponse)?.statusCode, !(200..<300).contains(status) {
+                result(nil, error ?? URLError(.badServerResponse))
+                return
+            }
+            result(data, error)
+        }.resume()
+    }
+}
+
+/// The basemaps a `Map` names with `basemap`, drawn the best way each
+/// platform can: Apple's vector map (with real terrain from iOS 16) for
+/// standard, imagery and hybrid, and topography with contours over a muted
+/// Apple map for outdoors.
+enum CraftBasemap: String {
+    case standard, outdoors, satellite, hybrid
+
+    static let outdoorTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
+    static let outdoorCredit = "Topography: Esri, USGS, NOAA, OpenStreetMap contributors"
+}
+
 private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var annotationsByID: [String: MKPointAnnotation] = [:]
     private var overlaysByID: [String: MKPolyline] = [:]
@@ -1371,6 +1413,8 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var markerPinColors: [String: UIColor] = [:]
     private var tileOverlay: MKTileOverlay?
     private var tileTemplate: String?
+    private var tileReplacesMap = true
+    private var appliedBasemap: CraftBasemap?
     private var tileAttributionBottom: NSLayoutConstraint?
     private lazy var tileAttribution: UILabel = {
         let label = UILabel()
@@ -1429,8 +1473,13 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         isZoomEnabled = props["zoomEnabled"] as? Bool ?? true
         isRotateEnabled = props["rotateEnabled"] as? Bool ?? false
         isPitchEnabled = props["pitchEnabled"] as? Bool ?? true
-        mapType = Self.mapType(props["mapType"] as? String)
-        configureTiles(props["tileOverlay"] as? [String: Any])
+        if let basemap = (props["basemap"] as? String).flatMap({ CraftBasemap(rawValue: $0.lowercased()) }) {
+            applyBasemap(basemap)
+        } else {
+            appliedBasemap = nil
+            mapType = Self.mapType(props["mapType"] as? String)
+            configureTiles(props["tileOverlay"] as? [String: Any])
+        }
         showsCompass = props["showsCompass"] as? Bool ?? false
         showsScale = props["showsScale"] as? Bool ?? false
         authoredPitch = Self.numeric(props["cameraPitch"])
@@ -1562,7 +1611,9 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             overlayCoordinatesByID[id] = value.coordinates
             overlayColors[ObjectIdentifier(overlay)] = value.color
             overlayWidths[ObjectIdentifier(overlay)] = value.width
-            addOverlay(overlay)
+            // Above labels, as a basemap's topography is: at a lower level
+            // the outdoors layer covered every route drawn on it.
+            addOverlay(overlay, level: .aboveLabels)
         }
         let stalePolygons = polygonsByID.keys.filter { nextPolygons[$0] == nil }
         for id in stalePolygons {
@@ -1595,7 +1646,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             polygonFills[ObjectIdentifier(polygon)] = value.fill
             polygonStrokes[ObjectIdentifier(polygon)] = value.stroke
             polygonWidths[ObjectIdentifier(polygon)] = value.width
-            addOverlay(polygon)
+            addOverlay(polygon, level: .aboveLabels)
         }
         // Keep authored casing/foreground order when an earlier line changes
         // or retained children move. Exchanging native overlays preserves the
@@ -1684,20 +1735,48 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         tileAttribution.isHidden = true
     }
 
-    private func configureTiles(_ options: [String: Any]?) {
+    /// A named basemap. Applied once per change: setting a map configuration
+    /// again redraws the whole map.
+    private func applyBasemap(_ basemap: CraftBasemap) {
+        if appliedBasemap != basemap {
+            appliedBasemap = basemap
+            if #available(iOS 16.0, *) {
+                switch basemap {
+                case .satellite: preferredConfiguration = MKImageryMapConfiguration(elevationStyle: .realistic)
+                case .hybrid: preferredConfiguration = MKHybridMapConfiguration(elevationStyle: .realistic)
+                // Flat under the topography, so the overlay's contours sit
+                // on the ground they describe.
+                case .outdoors: preferredConfiguration = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
+                case .standard: preferredConfiguration = MKStandardMapConfiguration(elevationStyle: .realistic)
+                }
+            }
+            else {
+                mapType = basemap == .satellite ? .satellite : basemap == .hybrid ? .hybrid : basemap == .outdoors ? .mutedStandard : .standard
+            }
+        }
+        configureTiles(basemap == .outdoors ? ["urlTemplate": CraftBasemap.outdoorTiles, "attribution": CraftBasemap.outdoorCredit] : nil, replacesMap: false)
+    }
+
+    /// `replacesMap`: an authored `tileOverlay` replaces Apple's map, as it
+    /// always has. A basemap's topography draws over it instead, above its
+    /// labels, so ground whose tiles have not come yet shows the map rather
+    /// than an empty grid.
+    private func configureTiles(_ options: [String: Any]?, replacesMap: Bool = true) {
         let template = options?["urlTemplate"] as? String
         let credit = options?["attribution"] as? String ?? ""
         let valid = template.map { value in value.hasPrefix("https://") && ["{z}", "{x}", "{y}"].allSatisfy { value.contains($0) } } ?? false
         let next = valid && !credit.isEmpty ? template : nil
-        if tileTemplate != next {
+        if tileTemplate != next || tileReplacesMap != replacesMap {
             if let overlay = tileOverlay { removeOverlay(overlay) }
             tileOverlay = nil
             tileTemplate = next
+            tileReplacesMap = replacesMap
             if let next {
-                let overlay = MKTileOverlay(urlTemplate: next)
-                overlay.canReplaceMapContent = true
+                let overlay = CraftCachedTileOverlay(urlTemplate: next)
+                overlay.canReplaceMapContent = replacesMap
+                overlay.maximumZ = 19
                 tileOverlay = overlay
-                insertOverlay(overlay, at: 0, level: .aboveRoads)
+                insertOverlay(overlay, at: 0, level: replacesMap ? .aboveRoads : .aboveLabels)
             }
         }
         tileAttribution.text = next == nil ? nil : credit
@@ -1756,11 +1835,19 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             view.tintColor = color
             view.image = Self.markerImage(color: color, direction: true)
             view.transform = CGAffineTransform(rotationAngle: CGFloat((bearing - camera.heading) * .pi / 180))
+            // Direction marks thin themselves: MapKit hides the ones that
+            // would overlap at this zoom and brings them back closer in, so
+            // a trail reads as a line with chevrons along it, not a column of
+            // badges over the route.
+            view.displayPriority = .defaultLow
+            view.collisionMode = .circle
         } else {
             let color = (markerPinColors[id] ?? .systemRed).resolvedColor(with: traitCollection)
             view.tintColor = color
             view.image = Self.markerImage(color: color, direction: false)
             view.transform = .identity
+            view.displayPriority = .required
+            view.collisionMode = .rectangle
         }
     }
 
@@ -1771,9 +1858,10 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     }()
 
     private static func markerImage(color: UIColor, direction: Bool) -> UIImage {
-        let key = "\(direction ? "direction" : "pin"):\(color.description)" as NSString
+        let key = "\(direction ? "chevron" : "pin"):\(color.description)" as NSString
         if let cached = markerImages.object(forKey: key) { return cached }
-        let size = direction ? CGSize(width: 20, height: 24) : CGSize(width: 28, height: 28)
+        if direction { return directionImage(color: color, key: key) }
+        let size = CGSize(width: 28, height: 28)
         // Explicit native drawing preserves the light backing independently
         // of MapKit's tint and SF Symbols' multicolor rendering preferences.
         let image = UIGraphicsImageRenderer(size: size).image { _ in
@@ -1787,7 +1875,32 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
             let symbol = UIImage(systemName: direction ? "arrow.up" : "mappin",
                 withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold))?
                 .withTintColor(color, renderingMode: .alwaysOriginal)
-            symbol?.draw(in: direction ? CGRect(x: 5, y: 6, width: 10, height: 12) : CGRect(x: 7, y: 5, width: 14, height: 18))
+            symbol?.draw(in: CGRect(x: 7, y: 5, width: 14, height: 18))
+        }.withRenderingMode(.alwaysOriginal)
+        markerImages.setObject(image, forKey: key)
+        return image
+    }
+
+    /// A route's direction: a 16-point chevron in the route's colour with a
+    /// white edge, so it sits on the line it describes and stays legible
+    /// over topography and imagery alike.
+    private static func directionImage(color: UIColor, key: NSString) -> UIImage {
+        let size = CGSize(width: 16, height: 16)
+        let image = UIGraphicsImageRenderer(size: size).image { context in
+            let chevron = UIBezierPath()
+            chevron.move(to: CGPoint(x: 8, y: 2.5))
+            chevron.addLine(to: CGPoint(x: 13.5, y: 12))
+            chevron.addLine(to: CGPoint(x: 8, y: 9.25))
+            chevron.addLine(to: CGPoint(x: 2.5, y: 12))
+            chevron.close()
+            chevron.lineJoinStyle = .round
+            context.cgContext.setShadow(offset: .zero, blur: 1.5, color: UIColor.black.withAlphaComponent(0.25).cgColor)
+            UIColor.white.setStroke()
+            chevron.lineWidth = 3
+            chevron.stroke()
+            context.cgContext.setShadow(offset: .zero, blur: 0, color: nil)
+            color.setFill()
+            chevron.fill()
         }.withRenderingMode(.alwaysOriginal)
         markerImages.setObject(image, forKey: key)
         return image
