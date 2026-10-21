@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.268...v0.0.269)
+
+## 🐛 Bug Fixes
+
+- **browser**: deliver lifecycle transitions and release listeners ([a537f64](https://github.com/craft-native/craft/commit/a537f64)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.267...v0.0.268)
 
 ## 🧪 Tests
