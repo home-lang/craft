@@ -1,0 +1,26 @@
+package {{PACKAGE_NAME}}
+
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.UUID
+
+/** One checkpoint replacement. Filesystem failures must leave the previous checkpoint intact. */
+internal class CraftSnapshotFile(
+    private val write: (File, ByteArray) -> Unit = { file, bytes ->
+        FileOutputStream(file).use { stream -> stream.write(bytes); stream.fd.sync() }
+    },
+    private val replace: (File, File) -> Unit = { source, destination ->
+        Files.move(source.toPath(), destination.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+    },
+) {
+    fun set(destination: File, json: String) {
+        val temporary = File(destination.parentFile, ".craft-snapshot-${UUID.randomUUID()}.tmp")
+        val bytes = json.toByteArray(Charsets.UTF_8)
+        try {
+            write(temporary, bytes)
+            replace(temporary, destination)
+        } finally { temporary.delete() }
+    }
+}

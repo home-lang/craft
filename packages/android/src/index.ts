@@ -749,6 +749,7 @@ function writeNativeShellSources(output: string, packagePath: string, packageNam
   }
   write('CraftBluetooth.kt.template', 'CraftBluetooth.kt')
   write('CraftNativeShell.kt.template', 'CraftNativeShell.kt')
+  write('CraftSnapshotFile.kt.template', 'CraftSnapshotFile.kt')
   write('CraftNativeImageCache.kt.template', 'CraftNativeImageCache.kt')
   write('CraftNativeHaptics.kt.template', 'CraftNativeHaptics.kt')
   write('CraftNativeBackground.kt.template', 'CraftNativeBackground.kt')
