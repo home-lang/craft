@@ -851,6 +851,12 @@ export interface AppInfo {
      * Platform (macos, linux, windows)
      */
     platform: string
+    /** Whether platform file access is restricted to explicit user grants. */
+    sandboxed?: boolean
+    bundleId?: string
+    bundlePath?: string
+    executablePath?: string
+
 }
 
 /**
