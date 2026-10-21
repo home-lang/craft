@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.270...v0.0.271)
+
+## 🐛 Bug Fixes
+
+- **browser**: own pending audio playback across replacement and disposal ([0493f04](https://github.com/craft-native/craft/commit/0493f04)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.269...v0.0.270)
 
 ## 🧪 Tests
