@@ -2,7 +2,7 @@ import { afterAll, afterEach, describe, expect, it } from 'bun:test'
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { candleArguments, codesignArguments, DEFAULT_DEB_DEPENDENCIES, dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, linuxDesktopEntry, macOSInfoPlist, notarytoolArguments, packageApp, pkgbuildArguments, pkgbuildComponentPlist, productbuildArguments, renderWixSource, shouldRetryHdiutil, urlTypesEntry, WINDOWS_NOTIFICATION_ID_FILE, windowsArchitecture, windowsExecutableName, windowsNotificationAppId } from './package.js'
-import { createTempDir, removeAllTempDirs } from './temp-dir'
+import { createTempDir, removeAllTempDirs, removeTempDir } from './temp-dir'
 
 // Every scratch directory this file made goes when the file is done (#357).
 afterAll(removeAllTempDirs)
@@ -457,4 +457,32 @@ describe('macOS signing and delivery arguments', () => {
       '--wait',
     ])
   })
+})
+
+it('uses keychain and API key notarization without passwords in process arguments', () => {
+  expect(notarytoolArguments({ artifactPath: '/tmp/App.dmg', keychainProfile: 'release' }))
+    .toEqual(['notarytool', 'submit', '/tmp/App.dmg', '--wait', '--keychain-profile', 'release'])
+  expect(notarytoolArguments({ artifactPath: '/tmp/App.dmg', apiKey: { path: '/tmp/key.p8', keyId: 'KEY', issuer: 'ISSUER' } }))
+    .toEqual(['notarytool', 'submit', '/tmp/App.dmg', '--wait', '--key', '/tmp/key.p8', '--key-id', 'KEY', '--issuer', 'ISSUER'])
+  expect(() => notarytoolArguments({ artifactPath: '/tmp/App.dmg' })).toThrow('credentials')
+})
+
+it('preserves the resources and metadata of a prebuilt macOS app', async () => {
+  const root = createTempDir('prebuilt-package')
+  try {
+    const { mkdirSync } = await import('node:fs')
+    const source = join(root, 'source', 'App.app')
+    mkdirSync(join(source, 'Contents', 'MacOS'), { recursive: true })
+    mkdirSync(join(source, 'Contents', 'Resources'), { recursive: true })
+    writeFileSync(join(source, 'Contents', 'Info.plist'), '<plist>app-owned-metadata</plist>')
+    writeFileSync(join(source, 'Contents', 'MacOS', 'App'), 'app-executable')
+    writeFileSync(join(source, 'Contents', 'Resources', 'index.html'), 'embedded-ui')
+    const result = await packageApp({ name: 'App', version: '1.0.0', binaryPath: join(source, 'Contents', 'MacOS', 'App'), outDir: join(root, 'out'), platforms: ['macos'], macos: { appBundlePath: source, dmg: false } })
+    expect(result[0].success).toBe(true)
+    expect(readFileSync(join(result[0].outputPath!, 'Contents', 'Resources', 'index.html'), 'utf8')).toBe('embedded-ui')
+    expect(readFileSync(join(result[0].outputPath!, 'Contents', 'Info.plist'), 'utf8')).toBe('<plist>app-owned-metadata</plist>')
+    const invalid = await packageApp({ name: 'Invalid', version: '1.0.0', binaryPath: '/usr/bin/true', outDir: join(root, 'invalid'), platforms: ['macos'], macos: { appBundlePath: root, dmg: false } })
+    expect(invalid[0].success).toBe(false)
+  }
+  finally { removeTempDir(root) }
 })
