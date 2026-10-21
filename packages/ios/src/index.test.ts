@@ -2195,9 +2195,10 @@ describe('Craft iOS builder', () => {
     // Always there: the library picker asks no permission; the camera is the app's choice.
     expect(actions).toContain('values.append("files")')
     expect(actions).toContain('if config.enableCamera { values.append("camera") }')
-    for (const call of ['case ("Files", "pickImage"):', 'case ("Files", "download"):', 'case ("Files", "write"):', 'case ("Files", "remove"):'])
+    for (const call of ['case ("Files", "pickImage"):', 'case ("Files", "pickFile"):', 'case ("Files", "download"):', 'case ("Files", "write"):', 'case ("Files", "remove"):'])
       expect(actions).toContain(call)
     expect(actions).toContain('CraftNativeFiles.pickImage(options, cameraEnabled: config.enableCamera)')
+    expect(actions).toContain('CraftNativeFiles.pickFile(options)')
     // The library picker, decoded once at the size wanted, upright, as JPEG.
     expect(files).toContain('let picker = PHPickerViewController(configuration: configuration)')
     expect(files).toContain('configuration.filter = .images')
@@ -2206,6 +2207,11 @@ describe('Craft iOS builder', () => {
     expect(files).toContain('CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil)')
     expect(files).toContain('picker.sourceType = .camera')
     expect(files).toContain('done(.success(NSNull()))')
+    // General documents use the same owned-file contract without the video allowlist.
+    expect(files).toContain('UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)')
+    expect(files).toContain('static func copyFile(_ source: URL, limit: Int)')
+    expect(files).toContain('UTType(filenameExtension: source.pathExtension)?.preferredMIMEType')
+    expect(files).toContain('picker.allowsMultipleSelection = selectionLimit > 1')
     // A form's files are read natively, and only files made here.
     expect(actions).toContain('if let form = options["form"] as? [Any] {')
     expect(actions).toContain('request.setValue("multipart/form-data; boundary=\\(boundary)", forHTTPHeaderField: "Content-Type")')

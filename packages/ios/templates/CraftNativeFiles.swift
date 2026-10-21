@@ -328,6 +328,122 @@ enum CraftNativeFiles {
         }
     }
 
+    // MARK: Picking a general file
+
+    /// Pick one or more documents and copy them into app-owned storage while
+    /// the security-scoped URLs are valid. `contentTypes` accepts MIME types,
+    /// UTIs, or filename extensions; an empty list means any document.
+    static func pickFile(_ options: [String: Any], done: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
+        guard activePicker == nil else {
+            done(.failure(CraftNativeActionError(code: "BUSY", message: "A picker is already open")))
+            return
+        }
+        let limit = craftNativeNumber(options["maxBytes"])
+            .map { $0.doubleValue }
+            .flatMap { value in
+                guard value.isFinite else { return nil }
+                return Int(max(1, min(Double(512 * 1024 * 1024), value)))
+            } ?? 512 * 1024 * 1024
+        let selectionLimit = craftNativeNumber(options["maxSelections"])
+            .map { $0.intValue }
+            .map { max(1, min(20, $0)) } ?? 1
+        let types: [UTType]
+        do {
+            types = try documentTypes(options["contentTypes"])
+        } catch let error as CraftNativeActionError {
+            done(.failure(error))
+            return
+        } catch {
+            done(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "files.pickFile contentTypes are invalid")))
+            return
+        }
+        let finish: (Result<Any, CraftNativeActionError>) -> Void = { result in
+            DispatchQueue.main.async { activePicker = nil; done(result) }
+        }
+        let delegate = FileDocumentDelegate(limit: limit, done: finish)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        picker.allowsMultipleSelection = selectionLimit > 1
+        picker.delegate = delegate
+        activePicker = delegate
+        if !CraftPresenter.present(picker, from: nil) {
+            activePicker = nil
+            done(.failure(CraftNativeActionError(code: "PICKER_ERROR", message: "Unable to present the file picker")))
+        }
+    }
+
+    /// Resolve an app-supplied content filter without silently broadening it.
+    /// A MIME type, UTI, or extension is enough for `UTType`; applications can
+    /// therefore ask for `application/pdf`, `com.adobe.pdf`, or `pdf` alike.
+    private static func documentTypes(_ value: Any?) throws -> [UTType] {
+        guard let value else { return [.item] }
+        guard let entries = value as? [Any] else {
+            throw CraftNativeActionError(code: "INVALID_ARGUMENT", message: "files.pickFile contentTypes must be an array")
+        }
+        guard !entries.isEmpty else { return [.item] }
+        var types: [UTType] = []
+        for entry in entries {
+            guard let raw = entry as? String else {
+                throw CraftNativeActionError(code: "INVALID_ARGUMENT", message: "files.pickFile contentTypes must be strings")
+            }
+            let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty,
+                  let type = UTType(mimeType: name) ?? UTType(identifier: name) ?? UTType(filenameExtension: name.trimmingCharacters(in: CharacterSet(charactersIn: "."))) else {
+                throw CraftNativeActionError(code: "INVALID_ARGUMENT", message: "files.pickFile contentType is not a MIME type, UTI, or extension: \(raw)")
+            }
+            types.append(type)
+        }
+        return types
+    }
+
+    /// Copy an arbitrary selected document into Craft's private file area and
+    /// return the same descriptor used by downloads, writes, and uploads.
+    static func copyFile(_ source: URL, limit: Int) -> Result<Any, CraftNativeActionError> {
+        do {
+            let values = try source.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
+            let size = values.fileSize ?? ((try FileManager.default.attributesOfItem(atPath: source.path))[.size] as? NSNumber)?.intValue ?? 0
+            guard size > 0, size <= limit else {
+                return .failure(CraftNativeActionError(code: "FILE_TOO_LARGE", message: "Choose a nonempty file under \(limit / 1024 / 1024)MB."))
+            }
+            let destination = try newFile(named: source.lastPathComponent)
+            do { try FileManager.default.copyItem(at: source, to: destination) }
+            catch { try? FileManager.default.removeItem(at: destination.deletingLastPathComponent()); throw error }
+            let type = values.contentType?.preferredMIMEType
+                ?? UTType(filenameExtension: source.pathExtension)?.preferredMIMEType
+                ?? "application/octet-stream"
+            return .success(describe(destination, type: type))
+        } catch {
+            return .failure(CraftNativeActionError(code: "READ_ERROR", message: error.localizedDescription))
+        }
+    }
+
+    private final class FileDocumentDelegate: NSObject, UIDocumentPickerDelegate {
+        let limit: Int
+        let done: (Result<Any, CraftNativeActionError>) -> Void
+        init(limit: Int, done: @escaping (Result<Any, CraftNativeActionError>) -> Void) { self.limit = limit; self.done = done }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { done(.success([])) }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard !urls.isEmpty else { done(.success([])); return }
+            let (limit, done) = (self.limit, self.done)
+            DispatchQueue.global(qos: .userInitiated).async {
+                var results: [[String: Any]] = []
+                for url in urls {
+                    let granted = url.startAccessingSecurityScopedResource()
+                    defer { if granted { url.stopAccessingSecurityScopedResource() } }
+                    switch CraftNativeFiles.copyFile(url, limit: limit) {
+                    case .success(let value):
+                        guard let info = value as? [String: Any] else { done(.failure(CraftNativeActionError(code: "READ_ERROR", message: "The selected file could not be described"))); return }
+                        results.append(info)
+                    case .failure(let error):
+                        results.compactMap { $0["path"] as? String }.forEach { CraftNativeFiles.remove($0) }
+                        done(.failure(error))
+                        return
+                    }
+                }
+                done(.success(results))
+            }
+        }
+    }
+
     static func copyVideo(_ source: URL, limit: Int) -> Result<Any, CraftNativeActionError> {
         let ext = source.pathExtension.lowercased()
         let types = ["mp4": "video/mp4", "m4v": "video/x-m4v", "mov": "video/quicktime", "webm": "video/webm"]

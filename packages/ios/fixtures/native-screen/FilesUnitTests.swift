@@ -54,6 +54,27 @@ final class FilesUnitTests: XCTestCase {
         XCTAssertTrue(CraftNativeFiles.remove(path))
     }
 
+    func testAGeneralFileIsCopiedWithItsMIMETypeAndLimit() throws {
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent("route-\(UUID().uuidString).gpx")
+        try Data("<gpx/>".utf8).write(to: source)
+        defer { try? FileManager.default.removeItem(at: source) }
+        guard case .success(let value) = CraftNativeFiles.copyFile(source, limit: 1024) else {
+            return XCTFail("the selected document was not copied")
+        }
+        let info = try XCTUnwrap(value as? [String: Any])
+        XCTAssertEqual(info["name"] as? String, source.lastPathComponent)
+        XCTAssertEqual(info["type"] as? String, "application/gpx+xml")
+        XCTAssertEqual(info["size"] as? Int, 6)
+        let path = try XCTUnwrap(info["path"] as? String)
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: path)), Data("<gpx/>".utf8))
+        XCTAssertTrue(CraftNativeFiles.remove(path))
+
+        guard case .failure(let error) = CraftNativeFiles.copyFile(source, limit: 2) else {
+            return XCTFail("an oversized document was copied")
+        }
+        XCTAssertEqual(error.code, "FILE_TOO_LARGE")
+    }
+
     func testAFormIsSentAsMultipartWithItsFile() throws {
         let made = try CraftNativeFiles.newFile(named: "IMG_2.jpg")
         try Data([0xFF, 0xD8, 0xFF, 0xD9]).write(to: made)

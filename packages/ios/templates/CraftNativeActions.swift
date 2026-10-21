@@ -253,6 +253,12 @@ enum CraftNativeActions {
                 CraftNativeFiles.pickVideo(options) { complete(requestToken, $0, completion) }
             }
             return
+        case ("Files", "pickFile"):
+            let options = args.first as? [String: Any] ?? [:]
+            DispatchQueue.main.async {
+                CraftNativeFiles.pickFile(options) { complete(requestToken, $0, completion) }
+            }
+            return
         case ("Files", "download"):
             download(requestToken: requestToken, args: args, completion: completion)
             return
