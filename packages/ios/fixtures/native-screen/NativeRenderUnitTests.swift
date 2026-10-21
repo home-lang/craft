@@ -1855,6 +1855,141 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(list.contentOffset.y.isFinite)
     }
 
+    /// A row as tall as a multi-paragraph reply or a card: far past the 44pt
+    /// estimate rows start from.
+    private final class TallRow: UIView {
+        let height: CGFloat
+        init(height: CGFloat) {
+            self.height = height
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { nil }
+        override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: height) }
+        override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: height) }
+    }
+
+    private func tallRowList(height: CGFloat = 480) -> (CraftNativeFlatList, UIWindow, ([[String: Any]]) -> Void) {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: height))
+        let list = CraftNativeFlatList()
+        list.frame = window.bounds
+        list.contentInsetAdjustmentBehavior = .never
+        list.setContentContainerStyle(["paddingBottom": 16])
+        window.addSubview(list)
+        window.isHidden = false
+        var views: [String: UIView] = [:]
+        let render: CraftNativeFlatList.RenderItem = { node, identity, _ in
+            if let view = views[identity] { return view }
+            let props = node["props"] as? [String: Any] ?? [:]
+            let view = TallRow(height: CGFloat((props["height"] as? NSNumber)?.doubleValue ?? 44))
+            views[identity] = view
+            return view
+        }
+        let apply: ([[String: Any]]) -> Void = { rows in
+            list.apply(nodes: rows, horizontal: false, columns: 1, inverted: false, endReachedThreshold: 0.1, renderItem: render, recycleItem: { _ in }, removeItem: { _ in }, endReached: nil)
+        }
+        return (list, window, apply)
+    }
+
+    private func tallRows(_ count: Int, height: Double = 320) -> [[String: Any]] {
+        (0..<count).map { ["id": "row-\($0)", "type": "View", "props": ["testID": "row-\($0)", "height": height]] }
+    }
+
+    private func settle(_ list: CraftNativeFlatList, seconds: TimeInterval = 0.3) {
+        let deadline = Date().addingTimeInterval(seconds)
+        while Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        list.layoutIfNeeded()
+    }
+
+    private func assertAtTrueEnd(_ list: CraftNativeFlatList, lastRow: Int, rowHeight: CGFloat, file: StaticString = #filePath, line: UInt = #line) throws {
+        let bottom = max(-list.adjustedContentInset.top, list.contentSize.height + list.adjustedContentInset.bottom - list.bounds.height)
+        XCTAssertEqual(list.contentOffset.y, bottom, accuracy: 0.5, "the list stopped short of its end", file: file, line: line)
+        let last = try XCTUnwrap(list.layoutAttributesForItem(at: IndexPath(item: lastRow, section: 0)), file: file, line: line)
+        XCTAssertEqual(last.frame.height, rowHeight, accuracy: 0.5, "the last row measured itself", file: file, line: line)
+        // The last row's bottom sits just above the bottom padding, on screen.
+        XCTAssertEqual(last.frame.maxY + list.adjustedContentInset.bottom, list.contentOffset.y + list.bounds.height, accuracy: 0.5, file: file, line: line)
+    }
+
+    /// HQ's chat: one render appends tall replies and moves the target to the
+    /// new last row. Aimed before the snapshot landed, the list went to the
+    /// old end; aimed from 44pt estimates, it stopped short of the real one.
+    func testFlatListScrollTargetReachesTheTrueEndOfTallRowsAddedWithIt() throws {
+        let (list, window, apply) = tallRowList()
+        defer { window.isHidden = true }
+        apply(tallRows(3))
+        list.setScrollTarget(["id": "row-2", "animated": false])
+        settle(list)
+        try assertAtTrueEnd(list, lastRow: 2, rowHeight: 320)
+
+        apply(tallRows(24))
+        list.setScrollTarget(["id": "row-23", "animated": false])
+        settle(list)
+        XCTAssertEqual(list.numberOfItems(inSection: 0), 24)
+        try assertAtTrueEnd(list, lastRow: 23, rowHeight: 320)
+    }
+
+    /// A target set while a second update waits behind the one landing aims
+    /// at the rows of that second update.
+    func testFlatListScrollTargetWaitsForAQueuedUpdate() throws {
+        let (list, window, apply) = tallRowList()
+        defer { window.isHidden = true }
+        apply(tallRows(2))
+        apply(tallRows(18))
+        list.setScrollTarget(["id": "row-17", "animated": false])
+        settle(list)
+        XCTAssertEqual(list.numberOfItems(inSection: 0), 18)
+        try assertAtTrueEnd(list, lastRow: 17, rowHeight: 320)
+    }
+
+    /// An animated scroll to the last row lands on the true end too.
+    func testFlatListAnimatedScrollTargetLandsOnTheTrueEnd() throws {
+        let (list, window, apply) = tallRowList()
+        defer { window.isHidden = true }
+        apply(tallRows(2))
+        settle(list)
+        apply(tallRows(16, height: 260))
+        list.setScrollTarget(["id": "row-15", "animated": true])
+        settle(list, seconds: 1.2)
+        try assertAtTrueEnd(list, lastRow: 15, rowHeight: 260)
+    }
+
+    /// A row near the end cannot come to the top; the list stops at its true
+    /// end. A row that can still comes to the top, as before.
+    func testFlatListScrollTargetNearTheEndStopsAtTheTrueEnd() throws {
+        // Taller than the last two rows: the second to last cannot reach the top.
+        let (list, window, apply) = tallRowList(height: 800)
+        defer { window.isHidden = true }
+        apply(tallRows(2))
+        settle(list)
+        apply(tallRows(20))
+        list.setScrollTarget(["id": "row-4", "animated": false])
+        settle(list)
+        let fourth = try XCTUnwrap(list.layoutAttributesForItem(at: IndexPath(item: 4, section: 0)))
+        XCTAssertEqual(list.contentOffset.y, fourth.frame.minY - list.adjustedContentInset.top, accuracy: 0.5)
+
+        list.setScrollTarget(["id": "row-18", "animated": false])
+        settle(list)
+        try assertAtTrueEnd(list, lastRow: 19, rowHeight: 320)
+    }
+
+    /// The end is held only until the finger takes the list.
+    func testFlatListStopsHoldingTheEndOnceTheUserDrags() throws {
+        let (list, window, apply) = tallRowList()
+        defer { window.isHidden = true }
+        apply(tallRows(2))
+        settle(list)
+        apply(tallRows(12))
+        list.setScrollTarget(["id": "row-11", "animated": false])
+        // Once the target lands, before the passes that check the end again.
+        let deadline = Date().addingTimeInterval(1)
+        while list.contentOffset.y < 1, Date() < deadline { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01)) }
+        XCTAssertGreaterThan(list.contentOffset.y, 1000)
+        list.scrollViewWillBeginDragging(list)
+        list.contentOffset = CGPoint(x: 0, y: 100)
+        settle(list)
+        XCTAssertEqual(list.contentOffset.y, 100, accuracy: 0.5, "a correction fought the finger")
+    }
+
     func testFlatListRefreshControlForwardsAndTracksControlledState() {
         let list = CraftNativeFlatList()
         // A refresh control only begins refreshing inside a window.

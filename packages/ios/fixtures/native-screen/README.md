@@ -35,7 +35,9 @@ including Xcode's successful exit for an unmatched selection.
 `NativeLayoutUnitTests.swift` covers the flex layout (`flex-1`, text that truncates inside its parent, `rounded-full`, text padding, stretched buttons, a non-scrolling FlatList inside a ScrollView, in-place style updates, inserted children), keyboard-driven additional safe-area changes, and the host functions a screen calls before its first render (`craft.storage.getSync`, `craft.snapshots`, `craft.secureStorage.getSync`, `console`, `craft.navigation.setOptions`). Set `CRAFT_NATIVE_RENDER_SIMULATOR` to a booted simulator's UDID to run on a simulator nothing else is using, so another app coming to the front cannot interrupt the UI test.
 
 The same XCTest fixture covers FlatList paging and row `scrollTarget` reconciliation,
-including a target that arrives while the diffable snapshot is still applying.
+including a target that arrives while the diffable snapshot is still applying
+or queued behind it, and a last-row target among tall self-sizing rows, which
+must land at the true end of the content rather than at an estimate.
 
 `NativeAudioUnitTests.swift` renders Web Audio graphs offline (`CraftWebAudio(live: false)`, no engine): oscillator shapes and pitch, the AudioParam timeline (ramps, targets, curves), sample-accurate start/stop and `onended`, buffer sources (offset, loop, duration), a biquad, a delay in a feedback cycle, the convolver's latency-free partitioned convolution and its spec normalisation, the compressor, a node driving a param, suspend/close, and a minute of an ambient music bed (the shape stx's `useAmbientSound` builds) whose released nodes are freed.
 

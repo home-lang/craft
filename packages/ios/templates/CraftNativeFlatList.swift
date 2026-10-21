@@ -205,6 +205,14 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     private var keyboardShouldPersistTaps = "never"
     private var scrollTargetKey: String?
     private var pendingScrollTarget: (id: String, animated: Bool, attempts: Int)?
+    /// A target that ends at the list's end, held to the true bottom while
+    /// the rows near it measure themselves. Rows self-size from a 44pt
+    /// estimate, so an offset worked out before they are measured stops short
+    /// of tall rows (multi-paragraph replies, cards). Cleared by a drag.
+    private var endSettlePasses: Int?
+    private var endSettleGeneration = 0
+    private var isAnimatingToEnd = false
+    private var isMeasuringEnd = false
 
     init() {
         let layout = CraftNativeFlatListLayout()
@@ -360,6 +368,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         guard key != scrollTargetKey else { return }
         scrollTargetKey = key
         pendingScrollTarget = (id, animated, 0)
+        cancelEndSettle()
         scrollToPendingTarget()
     }
 
@@ -559,6 +568,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
         pendingThemeRefresh = false
         scrollTargetKey = nil
         pendingScrollTarget = nil
+        cancelEndSettle()
     }
 
     /// Releases callbacks and UIKit ownership that belong to a permanently
@@ -590,13 +600,26 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        // The end is measured by jumping there and back in one pass, before
+        // anything draws: the screen hears only where the scroll goes.
+        guard !isMeasuringEnd else { return }
         onScrollEvent?(scrollView)
         onLayoutChanged?()
         evaluateEndReached()
     }
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        // The finger has the list now: stop holding it to its end.
+        cancelEndSettle()
         onScrollBeginDrag?(scrollView)
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        guard isAnimatingToEnd else { return }
+        isAnimatingToEnd = false
+        // Rows passed on the way measured themselves and moved the end.
+        settleAtEnd()
+        scheduleEndSettle()
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
@@ -657,12 +680,16 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
 
     private func scrollToPendingTarget() {
         guard let target = pendingScrollTarget else { return }
+        // A snapshot that is landing, or queued behind the one landing, can
+        // add rows before the target or move it: an index read now is stale
+        // (it scrolled to the old end). finishApplyingSnapshot() aims again
+        // once the rows are in, and so does a list not laid out yet.
+        guard !isApplyingSnapshot, pendingApply == nil, bounds.width > 0, bounds.height > 0 else { return }
         guard let index = targetIndex(for: target.id), index < numberOfItems(inSection: 0) else {
+            // No row has this id once the list is idle: try a few more
+            // passes, then let it go.
             if target.attempts >= 4 {
-                // A diffable snapshot may still be applying. Keep the target
-                // for finishApplyingSnapshot(), but discard an invalid target
-                // once the list is otherwise idle.
-                if !isApplyingSnapshot { pendingScrollTarget = nil }
+                pendingScrollTarget = nil
                 return
             }
             pendingScrollTarget = (target.id, target.animated, target.attempts + 1)
@@ -670,8 +697,100 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
             return
         }
         pendingScrollTarget = nil
+        let indexPath = IndexPath(item: index, section: 0)
+        let identity = diffableDataSource.itemIdentifier(for: indexPath) ?? items[index].identity
+        if index == numberOfItems(inSection: 0) - 1 {
+            scrollToEnd(animated: target.animated)
+            return
+        }
         let position: UICollectionView.ScrollPosition = flowLayout.scrollDirection == .horizontal ? .left : .top
-        scrollToItem(at: IndexPath(item: index, section: 0), at: position, animated: target.animated)
+        scrollToItem(at: indexPath, at: position, animated: target.animated)
+        guard !target.animated else { return }
+        // A row near the end cannot come to the top: the list stops at its
+        // end, which is only true once the rows there are measured.
+        layoutIfNeeded()
+        if rowReachesPastEnd(identity) { scrollToEnd(animated: false) }
+    }
+
+    /// The offset that shows the end of the content, along the scroll axis.
+    private var endOffset: CGPoint {
+        if flowLayout.scrollDirection == .horizontal {
+            return CGPoint(
+                x: max(-adjustedContentInset.left, contentSize.width + adjustedContentInset.right - bounds.width),
+                y: contentOffset.y
+            )
+        }
+        return CGPoint(
+            x: contentOffset.x,
+            y: max(-adjustedContentInset.top, contentSize.height + adjustedContentInset.bottom - bounds.height)
+        )
+    }
+
+    /// Whether the row's leading edge lies past where the list can scroll to.
+    private func rowReachesPastEnd(_ identity: String) -> Bool {
+        guard let indexPath = diffableDataSource.indexPath(for: identity),
+              let frame = layoutAttributesForItem(at: indexPath)?.frame else { return false }
+        if flowLayout.scrollDirection == .horizontal {
+            return frame.minX - adjustedContentInset.left >= endOffset.x - 0.5
+        }
+        return frame.minY - adjustedContentInset.top >= endOffset.y - 0.5
+    }
+
+    private func scrollToEnd(animated: Bool) {
+        endSettlePasses = 2
+        endSettleGeneration += 1
+        if animated {
+            // Measure the rows at the end where they will be, then animate
+            // there from where the list was, so the animation lands on the
+            // true end rather than on an estimate.
+            let start = contentOffset
+            isMeasuringEnd = true
+            settleAtEnd()
+            let end = contentOffset
+            setContentOffset(start, animated: false)
+            isMeasuringEnd = false
+            if abs(end.x - start.x) > 0.5 || abs(end.y - start.y) > 0.5 {
+                isAnimatingToEnd = true
+                setContentOffset(end, animated: true)
+            }
+        } else {
+            settleAtEnd()
+        }
+        scheduleEndSettle()
+    }
+
+    /// Moves to the end until it stops moving: each move shows rows that
+    /// measure themselves and change the content size.
+    private func settleAtEnd() {
+        guard endSettlePasses != nil, !isDragging, !isTracking else { return cancelEndSettle() }
+        for _ in 0..<6 {
+            layoutIfNeeded()
+            let end = endOffset
+            guard abs(end.x - contentOffset.x) > 0.5 || abs(end.y - contentOffset.y) > 0.5 else { break }
+            setContentOffset(end, animated: false)
+        }
+    }
+
+    /// Checks the end again on the next runloop passes, while late rows and
+    /// the content size settle.
+    private func scheduleEndSettle() {
+        let generation = endSettleGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.endSettleGeneration == generation, let passes = self.endSettlePasses,
+                  // An animation on its way there settles, and checks
+                  // again, when it ends.
+                  !self.isAnimatingToEnd else { return }
+            if passes <= 0 { return self.cancelEndSettle() }
+            self.endSettlePasses = passes - 1
+            if !self.isApplyingSnapshot, self.pendingApply == nil { self.settleAtEnd() }
+            self.scheduleEndSettle()
+        }
+    }
+
+    private func cancelEndSettle() {
+        endSettlePasses = nil
+        endSettleGeneration += 1
+        isAnimatingToEnd = false
     }
 
     private func clamped(_ offset: CGPoint) -> CGPoint {
