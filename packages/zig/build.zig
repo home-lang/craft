@@ -3022,6 +3022,7 @@ fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: st
             // is why the hand-linked executables below resolve it too; named
             // here so nothing depends on that chain.
             module.linkFramework("CoreServices", .{});
+            module.linkFramework("ApplicationServices", .{});
             // Carbon for `macos_hotkey.zig`: `RegisterEventHotKey` is the only
             // route to a global hotkey that neither needs an Objective-C block
             // (which Zig cannot write) nor Accessibility permission (which a
