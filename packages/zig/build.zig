@@ -130,6 +130,21 @@ pub fn build(b: *std.Build) void {
         craft_module.linkFramework("QuartzCore", .{});
     }
 
+    // The exported module has the consumer's selected target and owns its
+    // native dependencies. Internal fixtures below reuse a target-inheriting
+    // module across distinct artifacts, including cross-platform slices.
+    const public_craft_module = b.addModule("craft", .{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "js_backend", .module = js_backend_module }},
+    });
+    linkPlatformLibraries(b, public_craft_module, target.result.os.tag, macos_sdk);
+    if (target.result.os.tag == .macos or target.result.os.tag == .ios) {
+        public_craft_module.linkFramework("Metal", .{});
+        public_craft_module.linkFramework("QuartzCore", .{});
+    }
+
     // Demo executable - simple hardcoded example
     const exe = b.addExecutable(.{
         .name = "craft-demo",

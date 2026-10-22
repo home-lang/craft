@@ -79,3 +79,16 @@ game-surface claim additionally requires presented pixels, actual input,
 resize/display-scale behavior, lifecycle recovery, and resource teardown on each
 claimed host. Source compilation, successful counters, or a blank window do not
 provide that evidence.
+
+## Documented package entrypoint
+
+The exported Zig `craft` module now owns its selected target's native link
+dependencies and exports `graphics`, `renderer` and `gpu`. The internal module
+remains target-inheriting because native fixtures reuse it for distinct cross
+compilation targets. A separate application under
+`packages/zig/test/fixtures/graphics-package-consumer` uses only the documented
+`b.dependency(...).module("craft")` API. It verifies exact CPU pixels, one
+Canvas type and explicit unavailable-operation errors without consumer linker
+flags. Native macOS execution and Windows cross compilation passed locally.
+Hosted execution is required independently on each matrix host. This source
+check does not qualify a published Zig archive or native game presentation.

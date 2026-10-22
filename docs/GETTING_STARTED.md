@@ -102,9 +102,11 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "my-app",
-        .root_source_file = b.path("my-app.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("my-app.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     exe.root_module.addImport("craft", craft_module);
@@ -121,6 +123,14 @@ Then build and run:
 ```bash
 zig build run
 ```
+
+The exported `craft` module declares its native libraries. Applications should
+not copy Craft's linker flags. The maintained
+[graphics package consumer](../packages/zig/test/fixtures/graphics-package-consumer/)
+uses this same dependency API to check exact CPU bitmap pixels, shared Canvas
+types and explicit unsupported shader/text errors. Run `zig build check` from
+that fixture. It selects `js-runtime=false` because it opens no window and
+executes no JavaScript. This check does not prove native window presentation.
 
 ## Platform-Specific Setup
 

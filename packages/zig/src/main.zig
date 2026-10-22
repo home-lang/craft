@@ -25,6 +25,9 @@ pub const desktop_linux = if (builtin.os.tag == .linux) @import("linux.zig") els
 pub const desktop_windows = if (builtin.os.tag == .windows) @import("windows.zig") else struct {};
 pub const js_runtime = @import("js_runtime.zig");
 pub const metal_surface = @import("metal_surface.zig");
+pub const graphics = @import("graphics.zig");
+pub const renderer = @import("renderer.zig");
+pub const gpu = @import("gpu.zig");
 
 /// Host-neutral native layout spike. Platform hosts may consume these frames
 /// without importing UIKit, Android, or text-measurement implementation types.
