@@ -3614,3 +3614,84 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(tail.isEmpty)
     }
 }
+
+/// Shared stx controls must terminate in UIKit controls, rather than a picture
+/// of one. Kept in the maintained native renderer fixture and exercised on iOS.
+@MainActor
+final class NativePlatformControlTests: XCTestCase {
+    private func find<T: UIView>(_ type: T.Type, below view: UIView) -> T? {
+        if let result = view as? T { return result }
+        return view.subviews.compactMap { find(type, below: $0) }.first
+    }
+
+    func testSegmentsAreUIKitControlsAndReconcileWithoutFalseChanges() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        screen.evaluateScript("globalThis.changes = []; globalThis.__stxNativeCallback = function(json) { const m = JSON.parse(json); if (m.type === 'EVENT') changes.push(m.payload.nativeEvent.value); };")
+        func document(_ value: String, _ items: [[String: Any]]) -> [String: Any] {
+            ["type": "SegmentedControl", "props": ["key": "period", "value": value, "items": items], "events": ["onValueChange": "selected"], "style": ["height": 32, "color": "#123456"]]
+        }
+        let items: [[String: Any]] = [["value": "day", "label": "Day"], ["value": "week", "label": "Week"], ["value": "month", "label": "Month", "disabled": true]]
+        screen.render(document("day", items))
+        let control = try XCTUnwrap(find(UISegmentedControl.self, below: screen.view))
+        XCTAssertEqual(control.numberOfSegments, 3)
+        XCTAssertEqual(control.selectedSegmentIndex, 0)
+        XCTAssertFalse(control.isEnabledForSegment(at: 2))
+        XCTAssertTrue(control.isUserInteractionEnabled)
+        XCTAssertEqual(screen.evaluateScript("changes.length")?.toInt32(), 0)
+        control.selectedSegmentIndex = 1
+        control.sendActions(for: .valueChanged)
+        XCTAssertEqual(screen.evaluateScript("changes.join('|')")?.toString(), "week")
+        screen.render(document("week", [["value": "week", "label": "This week"], ["value": "all", "label": "All time"]]))
+        XCTAssertTrue(control === find(UISegmentedControl.self, below: screen.view))
+        XCTAssertEqual(control.numberOfSegments, 2)
+        XCTAssertEqual(control.titleForSegment(at: 0), "This week")
+        XCTAssertEqual(control.selectedSegmentIndex, 0)
+        XCTAssertEqual(screen.evaluateScript("changes.length")?.toInt32(), 1)
+    }
+
+    func testNativeClearEditsTheFieldExactlyOnce() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        screen.evaluateScript("globalThis.edits = []; globalThis.__stxNativeCallback = function(json) { const m = JSON.parse(json); if (m.type === 'EVENT') edits.push(m.payload.nativeEvent); };")
+        screen.render(["type": "TextInput", "props": ["value": "Training", "clearButtonMode": "while-editing"], "events": ["onChangeText": "edited"]])
+        let input = try XCTUnwrap(find(UITextField.self, below: screen.view))
+        XCTAssertEqual(input.clearButtonMode, .whileEditing)
+        XCTAssertFalse(screen.textFieldShouldClear(input))
+        XCTAssertEqual(input.text, "")
+        XCTAssertEqual(screen.evaluateScript("edits.length")?.toInt32(), 1)
+        XCTAssertEqual(screen.evaluateScript("edits[0].text")?.toString(), "")
+        XCTAssertEqual(screen.evaluateScript("edits[0].clear")?.toBool(), true)
+        screen.render(["type": "TextInput", "props": ["value": ""], "events": ["onChangeText": "edited"]])
+        XCTAssertEqual(input.clearButtonMode, .never, "A retained input forgets a removed affordance")
+    }
+
+    func testPageSheetUsesSystemDetentsAndDismissesWithTheOwner() throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        window.rootViewController = screen
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        func document(_ visible: Bool) -> [String: Any] {
+            ["type": "Modal", "props": ["key": "sheet", "visible": visible, "animationType": "none", "presentationStyle": "pageSheet", "sheetDetents": ["medium", "large"], "selectedDetent": "medium"], "events": ["onRequestClose": "closed"], "children": [["type": "TextInput", "props": ["key": "sheet-field", "value": "Hello"], "style": ["height": 44]]]]
+        }
+        screen.render(document(true))
+        let presented = expectation(description: "UIKit presents the native sheet")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { presented.fulfill() }
+        wait(for: [presented], timeout: 3)
+        let controller = try XCTUnwrap(screen.presentedViewController)
+        let sheet = try XCTUnwrap(controller.sheetPresentationController)
+        XCTAssertEqual(sheet.detents.map(\.identifier), [.medium, .large])
+        XCTAssertEqual(sheet.selectedDetentIdentifier, .medium)
+        XCTAssertTrue(sheet.prefersGrabberVisible)
+        XCTAssertFalse(controller.isModalInPresentation)
+        let input = try XCTUnwrap(find(UITextField.self, below: controller.view))
+        XCTAssertEqual(input.text, "Hello")
+        XCTAssertNotNil(input.craftScreenController, "Input services still resolve their owning screen inside the sheet")
+        screen.render(document(false))
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in screen.presentedViewController == nil }, object: nil)
+        wait(for: [dismissed], timeout: 3)
+        XCTAssertNil(screen.presentedViewController)
+    }
+}

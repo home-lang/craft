@@ -825,6 +825,7 @@ export interface PressableProps extends ViewProps {
  * TextInput component props.
  */
 export interface TextInputProps extends BaseProps {
+  clearButtonMode?: 'never' | 'while-editing' | 'unless-editing' | 'always'
   /** Style object or array */
   style?: StyleValue<TextStyle>
   /** Current value */
@@ -959,6 +960,15 @@ export interface PickerProps extends BaseProps {
   disabled?: boolean
 }
 
+/** Platform-owned segmented selection (UISegmentedControl / Android RadioGroup). */
+export interface SegmentedControlProps extends BaseProps {
+  items: Array<PickerOption & { disabled?: boolean, spoken?: string }>
+  value?: string | number
+  disabled?: boolean
+  tintColor?: string
+  onValueChange?: (event: { value: string, index: number }) => void
+}
+
 export interface DatePickerChange {
   value: string
   iso: string
@@ -1026,6 +1036,10 @@ export interface ModalProps extends BaseProps {
   nonModal?: boolean
   /** When non-modal, consume an outside tap and call onRequestClose. */
   dismissOnOutsideTap?: boolean
+  presentationStyle?: 'fullScreen' | 'pageSheet' | 'formSheet' | 'overFullScreen'
+  sheetDetents?: Array<'medium' | 'large'>
+  selectedDetent?: 'medium' | 'large'
+  grabberVisible?: boolean
   animationType?: 'none' | 'fade' | 'slide'
   onShow?: () => void
   onDismiss?: () => void

@@ -2578,6 +2578,7 @@ extension UIView {
         var responder: UIResponder? = next
         while let current = responder {
             if let screen = current as? CraftNativeScreenController { return screen }
+            if let sheet = current as? CraftNativeSheetController { return sheet.screen }
             responder = current.next
         }
         return nil
@@ -3976,13 +3977,94 @@ private final class CraftNativeImageBackgroundView: UIImageView {
     }
 }
 
-private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
+private final class CraftNativeSegmentedControl: UISegmentedControl {
+    var values: [String] = []
+}
+
+private final class CraftNativeSheetController: UIViewController {
+    weak var screen: CraftNativeScreenController?
+    weak var content: CraftNativeFlowView?
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        content?.frame = view.bounds.inset(by: view.safeAreaInsets)
+    }
+}
+
+private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate, UISheetPresentationControllerDelegate {
     let contentStack = CraftNativeFlowView()
     private let blocker = UIView()
     private let backdropTap = UITapGestureRecognizer()
     private var renderedVisible = false
     private var animationGeneration = 0
     var onRequestClose: ((String) -> Void)?
+    weak var sheetPresenter: CraftNativeScreenController?
+    var presentationStyle = "overFullScreen"
+    var sheetDetents: [String] = ["medium", "large"]
+    var selectedDetent: String?
+    var grabberVisible = true
+    private var sheetController: CraftNativeSheetController?
+    var isPresentedAsSheet: Bool { sheetController != nil }
+
+    private func configureSheet(_ controller: CraftNativeSheetController) {
+        controller.isModalInPresentation = onRequestClose == nil
+        guard let sheet = controller.sheetPresentationController else { return }
+        let choices = sheetDetents.filter { $0 == "medium" || $0 == "large" }
+        let values = choices.isEmpty ? ["large"] : Array(Set(choices)).sorted { $0 == "medium" && $1 == "large" }
+        sheet.detents = values.map { $0 == "medium" ? .medium() : .large() }
+        sheet.prefersGrabberVisible = grabberVisible
+        if let selectedDetent, values.contains(selectedDetent) {
+            sheet.selectedDetentIdentifier = selectedDetent == "medium" ? .medium : .large
+        }
+        sheet.delegate = self
+    }
+
+    private func restoreSheetContent(_ controller: CraftNativeSheetController) {
+        guard sheetController === controller else { return }
+        contentStack.removeFromSuperview()
+        addSubview(contentStack)
+        sheetController = nil
+        setNeedsLayout()
+    }
+
+    private func setSheetVisible(_ visible: Bool, animated: Bool) {
+        renderedVisible = visible
+        isHidden = true // UIKit owns the scrim, safe area, grabber and pan.
+        guard visible else {
+            guard let controller = sheetController else { return }
+            controller.view.endEditing(true)
+            controller.dismiss(animated: animated) { [weak self, weak controller] in
+                guard let self, let controller else { return }
+                self.restoreSheetContent(controller)
+                if self.renderedVisible { self.setSheetVisible(true, animated: animated) }
+            }
+            return
+        }
+        if let controller = sheetController { configureSheet(controller); return }
+        // A newly rendered modal is attached to its screen after this pass.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.renderedVisible, self.sheetController == nil,
+                  let presenter = self.sheetPresenter, presenter.view.window != nil else { return }
+            let controller = CraftNativeSheetController()
+            controller.screen = presenter
+            controller.modalPresentationStyle = self.presentationStyle == "formSheet" ? .formSheet : .pageSheet
+            controller.view.backgroundColor = .systemBackground
+            self.contentStack.removeFromSuperview()
+            controller.view.addSubview(self.contentStack)
+            controller.content = self.contentStack
+            self.sheetController = controller
+            self.configureSheet(controller)
+            var top: UIViewController = presenter
+            while let presented = top.presentedViewController { top = presented }
+            top.present(controller, animated: animated)
+        }
+    }
+
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        guard let controller = presentationController.presentedViewController as? CraftNativeSheetController else { return }
+        restoreSheetContent(controller)
+        renderedVisible = false
+        onRequestClose?("swipe")
+    }
 
     var transparent = false {
         didSet { blocker.backgroundColor = transparent ? .clear : UIColor.black.withAlphaComponent(0.32) }
@@ -4020,6 +4102,10 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     /// press bookkeeping once turned that off for a view with no handler of
     /// its own, and a shown modal let every tap through to the screen behind.
     func setVisible(_ visible: Bool, opacity: CGFloat, animationType: String?) {
+        if blocksBackground && (presentationStyle == "pageSheet" || presentationStyle == "formSheet") {
+            setSheetVisible(visible, animated: animationType != "none")
+            return
+        }
         if visible { isUserInteractionEnabled = true }
         if renderedVisible == visible && isHidden == !visible {
             if visible, alpha != opacity { alpha = opacity }
@@ -4072,6 +4158,12 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     }
 
     func resetForTeardown() {
+        renderedVisible = false
+        sheetPresenter = nil
+        if let controller = sheetController {
+            controller.dismiss(animated: false)
+            restoreSheetContent(controller)
+        }
         craftScreenController?.forgetFocusedInput(in: self)
         endEditing(true)
         animationGeneration += 1
@@ -4133,6 +4225,7 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     override func layoutSubviews() {
         super.layoutSubviews()
         blocker.frame = bounds
+        guard sheetController == nil else { return }
         // The scrim covers the whole screen; what the modal holds stays
         // clear of the bars and the home indicator it is drawn over.
         contentStack.frame = bounds.inset(by: UIEdgeInsets(top: contentInsets.top, left: 0, bottom: contentInsets.bottom, right: 0))
@@ -5895,7 +5988,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     @discardableResult
     func handleBackForModal() -> Bool {
         let modal = view.subviews.reversed().compactMap { $0 as? CraftNativeModalView }.first {
-            !$0.isHidden && $0.alpha > 0.01 && ($0.blocksBackground || $0.dismissOnOutsideTap)
+            ($0.isPresentedAsSheet || (!$0.isHidden && $0.alpha > 0.01)) && ($0.blocksBackground || $0.dismissOnOutsideTap)
         }
         guard let modal else { return false }
         let hasHandler = modal.onRequestClose != nil
@@ -7957,6 +8050,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 textMaxLengths.removeValue(forKey: fieldId)
             }
             field.delegate = self
+            switch props["clearButtonMode"] as? String {
+            case "while-editing": field.clearButtonMode = .whileEditing
+            case "unless-editing": field.clearButtonMode = .unlessEditing
+            case "always": field.clearButtonMode = .always
+            default: field.clearButtonMode = .never
+            }
             (field as? CraftNativeTextField)?.padding = paddingInsets(style)
             field.textColor = color(style["color"]) ?? .label
             field.font = textFont(style, default: .systemFont(ofSize: 16))
@@ -7989,6 +8088,27 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if props["autoFocus"] as? Bool == true, !field.isFirstResponder {
                 DispatchQueue.main.async { _ = field.becomeFirstResponder() }
             }
+        case "SegmentedControl":
+            let control = result as! CraftNativeSegmentedControl
+            let items = props["items"] as? [[String: Any]] ?? []
+            let labels = items.map { $0["label"] as? String ?? craftNativePickerValue($0["value"]) ?? "" }
+            // UIKit owns the segments; only rebuild when the choices change.
+            // Setting a controlled value never dispatches valueChanged.
+            if control.numberOfSegments != labels.count || labels.enumerated().contains(where: { control.titleForSegment(at: $0.offset) != $0.element }) {
+                control.removeAllSegments()
+                for (index, label) in labels.enumerated() { control.insertSegment(withTitle: label, at: index, animated: false) }
+            }
+            control.values = items.map { craftNativePickerValue($0["value"]) ?? "" }
+            for (index, item) in items.enumerated() { control.setEnabled(item["disabled"] as? Bool != true, forSegmentAt: index) }
+            let selected = craftNativePickerValue(props["value"]) ?? craftNativePickerValue(props["selectedValue"])
+            control.selectedSegmentIndex = control.values.firstIndex(where: { $0 == selected }) ?? UISegmentedControl.noSegment
+            control.isEnabled = props["disabled"] as? Bool != true
+            control.selectedSegmentTintColor = color(props["tintColor"])
+            if let foreground = color(style["color"]) {
+                control.setTitleTextAttributes([.foregroundColor: foreground], for: .normal)
+                control.setTitleTextAttributes([.foregroundColor: foreground], for: .selected)
+            }
+            updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: control)
         case "Picker":
             let picker = result as! UIPickerView
             let itemOptions = (props["items"] as? [[String: Any]])?.compactMap { item -> (value: String, label: String)? in
@@ -8051,6 +8171,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "Modal":
             let modal = result as! CraftNativeModalView
             let focusBeforeContent = firstResponder(in: rootStack) ?? lastFocusedInput
+            modal.sheetPresenter = self
+            modal.presentationStyle = props["presentationStyle"] as? String ?? "overFullScreen"
+            modal.sheetDetents = props["sheetDetents"] as? [String] ?? ["medium", "large"]
+            modal.selectedDetent = props["selectedDetent"] as? String
+            modal.grabberVisible = props["grabberVisible"] as? Bool != false
+            modal.onRequestClose = nonEmptyHandler(events["onRequestClose"]).map { handler in
+                { [weak self] reason in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["reason": reason]]) }
+            }
             modal.transparent = props["transparent"] as? Bool == true
             modal.blocksBackground = props["nonModal"] as? Bool != true
             modal.dismissOnOutsideTap = props["dismissOnOutsideTap"] as? Bool == true
@@ -8124,7 +8252,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 toggle.onTintColor = color(track["true"])
                 toggle.tintColor = color(track["false"])
             } else {
-                toggle.onTintColor = nil
+                toggle.onTintColor = color(style["color"])
                 toggle.tintColor = nil
             }
             toggle.thumbTintColor = color(props["thumbColor"])
@@ -8162,7 +8290,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
             indicator.indicatorScale = scale
             applyTransform(style["transform"], to: indicator)
-            indicator.color = color(props["color"]) ?? .tintColor
+            indicator.color = color(props["color"]) ?? color(style["color"]) ?? .tintColor
             indicator.hidesWhenStopped = props["hidesWhenStopped"] as? Bool ?? true
             if props["animating"] as? Bool == false {
                 indicator.stopAnimating()
@@ -8335,7 +8463,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             reconcileChildren(children, in: stack, parent: current, path: path, style: style)
         }
         updateLongPressHandler(props["disabled"] as? Bool == true ? nil : events["onLongPress"], for: result)
-        if type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "StatusBar" && type != "RefreshControl" && type != "Map" {
+        if type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "SegmentedControl" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "StatusBar" && type != "RefreshControl" && type != "Map" {
             let disabled = props["disabled"] as? Bool == true
             updatePressHandler(disabled ? nil : nonEmptyHandler(events["onPress"]) ?? nonEmptyHandler(events["onClick"]), for: result)
             updatePressFeedback(
@@ -8391,6 +8519,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             field.addTarget(self, action: #selector(textBlurred(_:)), for: .editingDidEnd)
             field.addTarget(self, action: #selector(textSubmitted(_:)), for: .editingDidEndOnExit)
             return field
+        case "SegmentedControl":
+            let control = CraftNativeSegmentedControl()
+            control.addTarget(self, action: #selector(segmentChanged(_:)), for: .valueChanged)
+            return control
         case "Picker":
             let picker = UIPickerView()
             picker.dataSource = self
@@ -8457,6 +8589,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "link": return "Link"
         case "checkbox": return "Checkbox"
         case "textinput", "input": return "TextInput"
+        case "segmentedcontrol", "segmented-control": return "SegmentedControl"
         case "picker", "select": return "Picker"
         case "datepicker", "date-picker", "date": return "DatePicker"
         case "modal": return "Modal"
@@ -9939,6 +10072,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// Return on a `returnKeyType="next"` field the screen does not handle
     /// itself (no `@submit`) goes to the next field down the screen, keeping
     /// the keyboard up. Every other Return ends editing and fires `@submit`.
+    func textFieldShouldClear(_ textField: UITextField) -> Bool {
+        guard textField.isEnabled else { return false }
+        textField.text = ""
+        let id = ObjectIdentifier(textField)
+        inputIdentities[id].map { inputDrafts[$0] = "" }
+        noteSentText("", for: textField)
+        if let handler = handlers[id] {
+            send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": "", "clear": true]])
+        }
+        return false // The model receives exactly one edit, including lazy models.
+    }
+
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         guard textField.returnKeyType == .next, submitHandlers[ObjectIdentifier(textField)] == nil,
               let next = inputAfter(textField) else { return true }
@@ -10048,6 +10193,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self, weak focused] in
             self?.restoreFocus(focused)
         }
+    }
+
+    @objc private func segmentChanged(_ sender: CraftNativeSegmentedControl) {
+        let index = sender.selectedSegmentIndex
+        guard sender.isEnabled, sender.values.indices.contains(index), sender.isEnabledForSegment(at: index),
+              let handler = handlers[ObjectIdentifier(sender)] else { return }
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": sender.values[index], "index": index]])
     }
 
     @objc private func switchChanged(_ sender: UISwitch) {
