@@ -35,9 +35,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Zig
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@e62755c21d946ed0f8dc8e4af39f6ea5f084537a # v0.11.106
         with:
-          version: '0.11.101'
+          version: '0.11.106'
       - name: Install Linux dependencies
         run: |
           sudo apt-get update

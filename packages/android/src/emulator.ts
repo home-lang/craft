@@ -14,6 +14,10 @@ export interface AndroidEmulatorOptions {
   acceptLicenses?: boolean
   /** Defaults to 10 minutes; hardware is capped there, software cold provisioning at 20 minutes. */
   bootTimeoutMs?: number
+  /** Requested guest RAM, 1536–8192 MB (Android emulator limits); defaults to 2048. */
+  memoryMb?: number
+  /** Requested guest CPU count, 1–8; defaults to 2. */
+  virtualCpus?: number
   env?: Record<string, string | undefined>
 }
 
@@ -40,6 +44,12 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
   const maximumBootTimeoutMs = options.acceleration === 'software' ? 1_200_000 : 600_000
   if (!Number.isSafeInteger(bootTimeoutMs) || bootTimeoutMs < 1000 || bootTimeoutMs > maximumBootTimeoutMs)
     throw new Error(`Android bootTimeoutMs must be an integer between 1000 and ${maximumBootTimeoutMs} milliseconds`)
+  const memoryMb = options.memoryMb ?? 2048
+  if (!Number.isSafeInteger(memoryMb) || memoryMb < 1536 || memoryMb > 8192)
+    throw new Error('Android memoryMb must be an integer between 1536 and 8192 megabytes')
+  const virtualCpus = options.virtualCpus ?? 2
+  if (!Number.isSafeInteger(virtualCpus) || virtualCpus < 1 || virtualCpus > 8)
+    throw new Error('Android virtualCpus must be an integer between 1 and 8')
   const port = options.port ?? 5558
   if (!Number.isInteger(port) || port < 5554 || port > 5682 || port % 2 !== 0) throw new Error('Android console ports must be even and between 5554 and 5682')
   const sdk = resolve(options.sdkRoot)
@@ -128,12 +138,12 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
     const hostCpus = cpus()
     cpuStart = hostCpus.reduce((total, cpu) => total + Object.values(cpu.times).reduce((sum, value) => sum + value, 0), 0)
     idleStart = hostCpus.reduce((total, cpu) => total + cpu.times.idle, 0)
-    child = Bun.spawn([executable, '-avd', name, '-port', String(port), '-no-window', '-no-snapshot', '-no-audio', '-no-boot-anim', '-gpu', 'software', '-memory', '2048', '-cores', '2', '-accel', options.acceleration === 'software' ? 'off' : 'on'], { env, stdout: log, stderr: log })
+    child = Bun.spawn([executable, '-avd', name, '-port', String(port), '-no-window', '-no-snapshot', '-no-audio', '-no-boot-anim', '-gpu', 'software', '-memory', String(memoryMb), '-cores', String(virtualCpus), '-accel', options.acceleration === 'software' ? 'off' : 'on'], { env, stdout: log, stderr: log })
     identity = {
       image: options.image, acceleration: options.acceleration, accelerationProbeExitCode: acceleration.code,
       bootTimeoutMs, bootStartedAt: new Date(bootStartedAt).toISOString(),
       host: { cpuModel: hostCpus[0]?.model, logicalCpus: hostCpus.length, availableParallelism: availableParallelism(), memoryBytes: totalmem() },
-      virtualCpus: 2, memoryMb: 2048, serial, avdDirectory: env.ANDROID_AVD_HOME, emulatorPid: child.pid,
+      virtualCpus, memoryMb, serial, avdDirectory: env.ANDROID_AVD_HOME, emulatorPid: child.pid,
     }
     await Bun.write(join(artifacts, 'android-emulator.json'), JSON.stringify(identity, null, 2) + '\n')
     const deadline = bootStartedAt + bootTimeoutMs
@@ -168,8 +178,12 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
           const systemUi = await run([adb, '-s', serial, 'shell', 'pidof', 'com.android.systemui'], undefined, probeTimeout(), true)
           // Native acceptance must be able to observe platform crashes before
           // launching any app. boot_completed/System UI can precede logd's ADB
-          // event stream; declaring readiness then loses that first health check.
-          const events = await run([adb, '-s', serial, 'logcat', '-b', 'events', '-d', '-t', '1'], undefined, probeTimeout(), true)
+          // event stream. Require a complete history read so a partial transport
+          // read cannot admit the device before its first health check.
+          const events = await run([adb, '-s', serial, 'logcat', '-b', 'events', '-d', '-v', 'threadtime'], undefined, probeTimeout(), true)
+          // AOSP's first boot can report all those services ready while its
+          // automatic SDK setup activity still owns HOME. Launching HOME then
+          // opens that transient activity; after it finishes UI automation has
           // AOSP and stock Play first boots can report those services ready
           // while their automatic SDK setup activity still owns HOME. Launching
           // HOME then opens that transient activity; after it finishes UI automation has
@@ -181,10 +195,15 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
             || homeActivity.startsWith('com.google.android.googlesdksetup/')
             || /^com\.android\.settings\/(?:\.|com\.android\.settings\.)FallbackHome$/.test(homeActivity)
             || /^android\/.*(?:Resolver|Chooser)Activity$/.test(homeActivity)
+          // Resolving HOME can precede its first input window during cold
+          // provisioning. Hand off only once the launcher actually has focus.
+          const windows = await run([adb, '-s', serial, 'shell', 'dumpsys', 'window'], undefined, probeTimeout(), true)
+          const focusedPackage = windows.stdout.match(/^\s*mCurrentFocus\s*=\s*Window\{[^}\r\n]*\bu\d+\s+([\w.]+)\//m)?.[1]
           booted = settings.code === 0 && packages.code === 0 && systemUi.code === 0 && events.code === 0
             && /^package:\/\S+/m.test(packages.stdout) && /^\d+(?:\s+\d+)*$/.test(systemUi.stdout.trim())
             && (!requiresPlayStore || (playStore?.code === 0 && /^package:\/\S+/m.test(playStore.stdout)))
             && home.code === 0 && /^[\w.]+\/[\w.$]+$/.test(homeActivity) && !temporaryHome
+            && windows.code === 0 && focusedPackage === homeActivity.split('/')[0]
         }
       }
       const checkedAt = Date.now()
