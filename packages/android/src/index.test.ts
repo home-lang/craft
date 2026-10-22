@@ -2630,6 +2630,21 @@ it('emits native Bluetooth GATT support and versioned permissions only when enab
   finally { rmSync(output, { recursive: true, force: true }) }
 })
 
+it('declares location once when Bluetooth overlaps unrestricted location capabilities', () => {
+  for (const bluetooth of ['enableBluetooth', 'enableHeartRate'] as const) {
+    for (const location of ['enableGeolocation', 'enableBackgroundLocation', 'enableHealthServices'] as const) {
+      const permissions = renderAndroidPermissions({
+        appName: 'Combined capabilities',
+        packageName: 'dev.craft.combined',
+        [bluetooth]: true,
+        [location]: true,
+      })
+      const fineLocation = permissions.split('\n').filter(line => line.includes('"android.permission.ACCESS_FINE_LOCATION"'))
+      expect(fineLocation).toEqual(['    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />'])
+    }
+  }
+})
+
 it('reads a heart-rate strap on the page and on native screens alike, declared only when enabled', async () => {
   for (const renderer of ['native', 'web'] as const) {
     const output = createTempDir(`craft-android-heart-rate-${renderer}-`)

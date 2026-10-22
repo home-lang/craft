@@ -35,7 +35,12 @@ try {
     pkg.dependencies['craft-native'] = `file:${join(root, 'packages/typescript')}`
     writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`)
 
-    run(['bun', 'install'], appDir)
+    // The local `craft-native` file dependency exposes the SDK checkout while
+    // the smoke app is installed. A regular install makes Bun traverse the
+    // SDK's development tool graph as well, which can ask the public registry
+    // for an unpublished compiler version. The generated app only exercises
+    // its runtime/build surface, so keep this check on production dependencies.
+    run(['bun', 'install', '--production'], appDir)
     run(['bun', 'run', 'build'], appDir)
     run(['bun', 'run', 'doctor'], appDir, {
       ...process.env,
