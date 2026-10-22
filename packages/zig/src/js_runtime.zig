@@ -31,6 +31,15 @@ const backend = @import("js_backend");
 pub const available = backend.available;
 
 pub const Error = backend.Error;
+pub const Argument = backend.Argument;
+pub const Result = backend.Result;
+pub const Persistent = backend.Persistent;
+
+pub const Options = struct {
+    /// Enable zig-js's precise moving collector. Keep this on for runtimes
+    /// that retain callbacks or typed buffers across host calls.
+    enable_gc: bool = false,
+};
 
 /// Told to the user rather than logged: an unavailable runtime is a build
 /// choice, and the fix is a flag they can pass.
@@ -49,6 +58,10 @@ pub const Runtime = struct {
         return .{ .ctx = try backend.Context.create(allocator), .allocator = allocator };
     }
 
+    pub fn initWithOptions(allocator: std.mem.Allocator, options: Options) Error!Runtime {
+        return .{ .ctx = try backend.Context.createWithOptions(allocator, options.enable_gc), .allocator = allocator };
+    }
+
     pub fn deinit(self: *Runtime) void {
         self.ctx.destroy();
     }
@@ -60,6 +73,41 @@ pub const Runtime = struct {
     /// allocator.
     pub fn evalToString(self: *Runtime, arena: std.mem.Allocator, source: []const u8) Error![]const u8 {
         return self.ctx.evalToString(arena, source);
+    }
+
+    /// Evaluate a function expression once and retain its identity in the
+    /// realm. Calls use the engine's callable path; they do not generate a
+    /// fresh source string for every frame.
+    pub fn persistFunction(self: *Runtime, source: []const u8) Error!Persistent {
+        return self.ctx.persistFunction(source);
+    }
+
+    /// Create a rooted Uint8Array whose bytes remain owned by the JavaScript
+    /// realm until the returned handle is disposed.
+    pub fn createUint8Buffer(self: *Runtime, bytes: []const u8) Error!Persistent {
+        return self.ctx.createUint8Buffer(bytes);
+    }
+
+    pub fn readUint8Buffer(self: *Runtime, buffer: *const Persistent, arena: std.mem.Allocator) Error![]const u8 {
+        return self.ctx.readUint8Buffer(buffer, arena);
+    }
+
+    pub fn writeUint8Buffer(self: *Runtime, buffer: *const Persistent, bytes: []const u8) Error!void {
+        return self.ctx.writeUint8Buffer(buffer, bytes);
+    }
+
+    pub fn call(self: *Runtime, callback: *const Persistent, arena: std.mem.Allocator, args: []const Argument) Error!Result {
+        return self.ctx.call(callback, arena, args);
+    }
+
+    /// Request one moving collection and run it at a quiescent host boundary.
+    /// Persistent handles are the only values that may safely cross it.
+    pub fn compact(self: *Runtime) void {
+        self.ctx.compact();
+    }
+
+    pub fn lastError(self: *const Runtime) []const u8 {
+        return self.ctx.lastError();
     }
 };
 
@@ -197,4 +245,54 @@ test "runs without any browser globals" {
 
     const kind = try evalOnce(testing.allocator, arena.allocator(), "typeof window");
     try testing.expectEqualStrings("undefined", kind);
+}
+
+test "persistent callbacks retain typed buffers across compaction" {
+    if (!available) return error.SkipZigTest;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    var runtime = try Runtime.initWithOptions(testing.allocator, .{ .enable_gc = true });
+    defer runtime.deinit();
+    var callback = try runtime.persistFunction("function (base, bytes) { return base + bytes[0] + bytes[1]; }");
+    defer callback.deinit();
+    var buffer = try runtime.createUint8Buffer(&.{ 2, 3 });
+    defer buffer.deinit();
+
+    runtime.compact();
+    const first = try runtime.call(&callback, arena.allocator(), &.{
+        .{ .integer = 37 },
+        .{ .buffer = &buffer },
+    });
+    try testing.expectEqual(@as(f64, 42), first.number);
+
+    try runtime.writeUint8Buffer(&buffer, &.{ 4, 5 });
+    runtime.compact();
+    const second = try runtime.call(&callback, arena.allocator(), &.{
+        .{ .number = 33 },
+        .{ .buffer = &buffer },
+    });
+    try testing.expectEqual(@as(f64, 42), second.number);
+    try testing.expectEqualSlices(u8, &.{ 4, 5 }, try runtime.readUint8Buffer(&buffer, arena.allocator()));
+}
+
+test "persistent handles reject disposal and cross-runtime use" {
+    if (!available) return error.SkipZigTest;
+
+    var first = try Runtime.init(testing.allocator);
+    defer first.deinit();
+    var second = try Runtime.init(testing.allocator);
+    defer second.deinit();
+
+    var callback = try first.persistFunction("function () { return 1; }");
+    try std.testing.expectError(
+        Error.WrongContext,
+        second.call(&callback, testing.allocator, &.{}),
+    );
+    callback.deinit();
+    try std.testing.expectError(
+        Error.InvalidHandle,
+        first.call(&callback, testing.allocator, &.{}),
+    );
 }
