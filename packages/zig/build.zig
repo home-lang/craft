@@ -28,6 +28,30 @@ pub fn build(b: *std.Build) void {
     // to the Kotlin shim, which is the quietest of the three outcomes.
     const android_ndk = b.option([]const u8, "android-ndk", "Android NDK root, required by build-android");
 
+    // SDK headers are needed only for this independent ABI check. Runtime
+    // Native surface calls can use these private declarations without SDK
+    // headers being installed in the consuming application.
+    const vulkan_abi_step = b.step("test:vulkan-abi", "Check the private Vulkan ABI against Khronos SDK headers");
+    if (b.option([]const u8, "vulkan-headers", "Vulkan-Headers include directory, required by test:vulkan-abi")) |headers| {
+        const abi_tests = b.addTest(.{ .root_module = b.createModule(.{
+            .root_source_file = b.path("test/vulkan_api_abi_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .imports = &.{
+                .{ .name = "vulkan_api", .module = b.createModule(.{ .root_source_file = b.path("src/vulkan_api.zig"), .target = target, .optimize = optimize }) },
+            },
+        }) });
+        abi_tests.root_module.addIncludePath(.{ .cwd_relative = headers });
+        abi_tests.root_module.addCSourceFile(.{ .file = b.path("test/vulkan_api_probe.cpp"), .flags = &.{ "-std=c++17", "-fno-exceptions", "-fno-rtti" } });
+        const run_abi_tests = b.addRunArtifact(abi_tests);
+        vulkan_abi_step.dependOn(&run_abi_tests.step);
+        const compile_abi_step = b.step("check:vulkan-abi", "Compile Vulkan ABI checks for a target without executing it");
+        compile_abi_step.dependOn(&abi_tests.step);
+    } else {
+        vulkan_abi_step.dependOn(&b.addFail("test:vulkan-abi requires -Dvulkan-headers=/absolute/path/to/Vulkan-Headers/include").step);
+    }
+
     // Set when the opt-in JavaScript tests are wired up, so `test` can include
     // them without the declaration being scoped inside the `if`.
     var js_test_run: ?*std.Build.Step.Run = null;
