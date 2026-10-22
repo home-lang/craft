@@ -18,7 +18,6 @@ pub fn visit(context: anytype, comptime onWindow: anytype) !void {
     if (!AXIsProcessTrusted()) return;
     const macos = @import("macos.zig");
     const io = @import("io_context.zig").get();
-    const deadline = std.Io.Clock.awake.now(io).nanoseconds + 750 * std.time.ns_per_ms;
     const workspace = macos.msgSend0(macos.getClass("NSWorkspace"), "sharedWorkspace");
     const apps = macos.msgSend0(workspace, "runningApplications");
     const Count = *const fn (macos.objc.id, macos.objc.SEL) callconv(.c) c_ulong;
@@ -27,10 +26,12 @@ pub fn visit(context: anytype, comptime onWindow: anytype) !void {
     const pid: Pid = @ptrCast(&macos.objc.objc_msgSend);
     var index: c_ulong = 0;
     while (index < count(apps, macos.sel("count"))) : (index += 1) {
-        if (std.Io.Clock.awake.now(io).nanoseconds >= deadline) break;
         const app = macos.msgSend1(apps, "objectAtIndex:", index);
         const bundle_id = string(macos.msgSend0(app, "bundleIdentifier")) orelse continue;
         const provider = providerFor(bundle_id) orelse continue;
+        // An unrelated browser with many windows must not consume another
+        // application's detection budget. Each trusted app gets bounded IPC.
+        const deadline = std.Io.Clock.awake.now(io).nanoseconds + 750 * std.time.ns_per_ms;
         const element = AXUIElementCreateApplication(pid(app, macos.sel("processIdentifier"))) orelse continue;
         defer CFRelease(element);
         _ = AXUIElementSetMessagingTimeout(element, 0.05);
@@ -39,27 +40,55 @@ pub fn visit(context: anytype, comptime onWindow: anytype) !void {
         if (AXUIElementCopyAttributeValue(element, macos.createNSString("AXWindows"), &windows) != 0 or windows == null) continue;
         defer CFRelease(windows);
         const length = @min(CFArrayGetCount(windows), 128);
+        var ordered: [128]?*anyopaque = undefined;
         var window_index: c_long = 0;
+        while (window_index < length) : (window_index += 1)
+            ordered[@intCast(window_index)] = CFArrayGetValueAtIndex(windows, window_index);
+        // Slack's floating capture toolbar is much cheaper to inspect than
+        // its full workspace. Read that live surface before huddle windows.
+        var floating_slack = false;
+        if (provider == .slack) {
+            window_index = 0;
+            while (window_index < length and std.Io.Clock.awake.now(io).nanoseconds < deadline) : (window_index += 1) {
+                const window = ordered[@intCast(window_index)] orelse continue;
+                _ = AXUIElementSetMessagingTimeout(window, 0.05);
+                const title = copyAttribute(window, "AXTitle") orelse continue;
+                defer CFRelease(title);
+                if (!std.mem.eql(u8, string(title) orelse continue, "Slack")) continue;
+                std.mem.swap(?*anyopaque, &ordered[0], &ordered[@intCast(window_index)]);
+                floating_slack = true;
+                break;
+            }
+        }
+        window_index = 0;
         while (window_index < length) : (window_index += 1) {
             if (std.Io.Clock.awake.now(io).nanoseconds >= deadline) break;
-            const window = CFArrayGetValueAtIndex(windows, window_index) orelse continue;
+            const window = ordered[@intCast(window_index)] orelse continue;
             _ = AXUIElementSetMessagingTimeout(window, 0.05);
             if (provider == .dia) {
                 var reader = NativeBannerReader{ .deadline = deadline };
-                if (reader.containsBanner(window, 0)) try onWindow(context, "Dia", "Browser tab sharing");
+                if (reader.containsBanner(window, 0)) {
+                    try onWindow(context, "Dia", "Browser tab sharing");
+                    break;
+                }
                 continue;
             }
             if (provider == .discord or provider == .slack) {
                 var reader = NativeBannerReader{ .deadline = deadline, .remaining = 512 };
-                if (reader.containsConferenceControl(window, 0, false, provider))
+                if (reader.containsConferenceControl(window, 0, false, provider, floating_slack and window_index == 0)) {
                     try onWindow(context, if (provider == .discord) "Discord" else "Slack", "Screen sharing controls");
+                    break;
+                }
                 continue;
             }
             var title: ?*anyopaque = null;
             if (AXUIElementCopyAttributeValue(window, macos.createNSString("AXTitle"), &title) != 0 or title == null) continue;
             defer CFRelease(title);
             const text = string(title) orelse continue;
-            if (matches(bundle_id, text)) try onWindow(context, "Google Chrome", text);
+            if (matches(bundle_id, text)) {
+                try onWindow(context, "Google Chrome", text);
+                break;
+            }
         }
     }
 }
@@ -82,6 +111,22 @@ const Banner = struct {
 
     fn active(self: Banner) bool {
         return (self.sharing and self.stop) or (self.other_tab and self.switch_tab);
+    }
+};
+
+/// Slack's compact huddle moves capture controls into a separate app-owned
+/// "Slack" window. Require both controls in its toolbar, never chat labels.
+const SlackShareControls = struct {
+    stop: bool = false,
+    draw: bool = false,
+
+    fn observe(self: *SlackShareControls, role: []const u8, label: []const u8) void {
+        if (std.mem.eql(u8, role, "AXButton") and std.mem.eql(u8, label, "Stop sharing your screen")) self.stop = true;
+        if (std.mem.eql(u8, role, "AXCheckBox") and std.mem.eql(u8, label, "Draw on your own screen")) self.draw = true;
+    }
+
+    fn active(self: SlackShareControls) bool {
+        return self.stop and self.draw;
     }
 };
 
@@ -128,13 +173,17 @@ const NativeBannerReader = struct {
 
     /// App-owned voice controls are outside message lists. Never
     /// infer sharing from arbitrary chat text or controls elsewhere in the app.
-    fn containsConferenceControl(self: *NativeBannerReader, element: ?*anyopaque, depth: usize, within_panel: bool, provider: Provider) bool {
+    fn containsConferenceControl(self: *NativeBannerReader, element: ?*anyopaque, depth: usize, within_panel: bool, provider: Provider, floating_slack: bool) bool {
         if (depth > 24 or self.remaining == 0 or self.expired()) return false;
         self.remaining -= 1;
         _ = AXUIElementSetMessagingTimeout(element, 0.05);
         const role_value = copyAttribute(element, "AXRole") orelse return false;
         defer CFRelease(role_value);
         const role = string(role_value) orelse return false;
+        if (floating_slack and std.mem.eql(u8, role, "AXToolbar")) {
+            var controls = SlackShareControls{};
+            if (self.containsSlackShareControls(element, 0, &controls)) return true;
+        }
         const control = std.mem.eql(u8, role, "AXButton") or std.mem.eql(u8, role, "AXCheckBox");
         if (within_panel and control) return hasLabel(element, if (provider == .discord) "Stop Streaming" else "Stop sharing screen");
         // Electron exposes its application UI as AXWebArea. Lists, outlines,
@@ -149,7 +198,40 @@ const NativeBannerReader = struct {
         const length = @min(CFArrayGetCount(children), 128);
         var index: c_long = 0;
         while (index < length and !self.expired()) : (index += 1) {
-            if (self.containsConferenceControl(CFArrayGetValueAtIndex(children, index), depth + 1, in_panel, provider)) return true;
+            if (self.containsConferenceControl(CFArrayGetValueAtIndex(children, index), depth + 1, in_panel, provider, floating_slack)) return true;
+        }
+        return false;
+    }
+
+    fn containsSlackShareControls(self: *NativeBannerReader, element: ?*anyopaque, depth: usize, controls: *SlackShareControls) bool {
+        if (depth > 4 or self.remaining == 0 or self.expired()) return false;
+        const children = copyAttribute(element, "AXChildren") orelse return false;
+        defer CFRelease(children);
+        if (CFGetTypeID(children) != CFArrayGetTypeID()) return false;
+        const length = @min(CFArrayGetCount(children), 128);
+        var index: c_long = 0;
+        while (index < length and self.remaining > 0 and !self.expired()) : (index += 1) {
+            self.remaining -= 1;
+            const child = CFArrayGetValueAtIndex(children, index) orelse continue;
+            _ = AXUIElementSetMessagingTimeout(child, 0.05);
+            const role_value = copyAttribute(child, "AXRole") orelse continue;
+            defer CFRelease(role_value);
+            const role = string(role_value) orelse continue;
+            // Electron wraps individual toolbar controls in presentation
+            // groups. Stay inside this toolbar; lists, editors, nested web
+            // areas and other toolbars cannot contribute matching labels.
+            if (std.mem.eql(u8, role, "AXGroup")) {
+                if (self.containsSlackShareControls(child, depth + 1, controls)) return true;
+                continue;
+            }
+            if (!std.mem.eql(u8, role, "AXButton") and !std.mem.eql(u8, role, "AXCheckBox")) continue;
+            for ([_][:0]const u8{ "AXTitle", "AXDescription", "AXValue" }) |attribute| {
+                if (self.expired()) return false;
+                const label = copyAttribute(child, attribute) orelse continue;
+                defer CFRelease(label);
+                controls.observe(role, string(label) orelse continue);
+            }
+            if (controls.active()) return true;
         }
         return false;
     }
@@ -278,4 +360,32 @@ test "only trusted app identities can expose conferencing renderer controls" {
     try std.testing.expect(!conferenceContainer("AXTextArea"));
     try std.testing.expect(!conferenceContainer("AXStaticText"));
     try std.testing.expect(!conferenceContainer("AXButton"));
+}
+
+test "Slack floating capture toolbar requires its stop and drawing controls" {
+    var controls = SlackShareControls{};
+    controls.observe("AXButton", "Stop sharing your screen");
+    try std.testing.expect(!controls.active());
+    controls.observe("AXCheckBox", "Draw on your own screen");
+    try std.testing.expect(controls.active());
+
+    var chat = SlackShareControls{};
+    chat.observe("AXStaticText", "Stop sharing your screen");
+    chat.observe("AXStaticText", "Draw on your own screen");
+    try std.testing.expect(!chat.active());
+
+    var idle = SlackShareControls{};
+    idle.observe("AXButton", "Share your screen");
+    idle.observe("AXButton", "Draw on your own screen");
+    try std.testing.expect(!idle.active());
+
+    var wrong_stop = SlackShareControls{};
+    wrong_stop.observe("AXCheckBox", "Stop sharing your screen");
+    wrong_stop.observe("AXSwitch", "Draw on your own screen");
+    try std.testing.expect(!wrong_stop.active());
+
+    var wrong_draw = SlackShareControls{};
+    wrong_draw.observe("AXButton", "Stop sharing your screen");
+    wrong_draw.observe("AXButton", "Draw on your own screen");
+    try std.testing.expect(!wrong_draw.active());
 }

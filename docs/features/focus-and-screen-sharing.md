@@ -50,6 +50,12 @@ panel or Slack’s **Stop sharing screen** control inside its **Huddles actions*
 toolbar. Message lists, outlines and editors are excluded. Sources identify
 `Discord` or `Slack` with `window: 'Screen sharing controls'`.
 
+Compact Slack huddles expose a separate app-owned **Slack** window instead.
+Craft recognizes its floating toolbar only when both **Stop sharing your
+screen** and **Draw on your own screen** are real controls on that toolbar.
+The huddle can remain compact and its More menu can stay closed; matching text
+in a message cannot satisfy the paired-control check.
+
 Use `craft.permissions.check('accessibility')` to check the grant and
 `craft.permissions.request('accessibility')` only in response to an explicit
 setup action. Screen Recording access is separately required for window titles.
@@ -81,8 +87,11 @@ off()
 
 Each tick includes one `CGWindowListCopyWindowInfo` call and, when authorized,
 a bounded native Accessibility walk. Application IPC has a 50ms per-element
-timeout and a 750ms overall budget, with node and depth limits for native
-controls. These queries do not block the UI thread. The default cadence is 2s;
+timeout and a 750ms budget per trusted application, with node and depth limits
+for native controls. A browser with many windows cannot starve another app's
+reader. Each app contributes at most one matching sharing source, and Slack's
+floating capture toolbar is inspected before its workspace. These queries do
+not block the UI thread. The default cadence is 2s;
 raise it to trade detection latency for less work.
 
 ## Focus / Do Not Disturb
