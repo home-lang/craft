@@ -7,23 +7,6 @@ const request = @import("request_context.zig");
 const page = @import("window_context.zig");
 const activity = @import("background_activity.zig");
 const objc = @import("objc_runtime.zig").objc;
-const capabilities = @import("capabilities.zig");
-
-/// The action names this bridge dispatches on, declared once and used by both
-/// the dispatch below and the capability table (see bridge_screen.zig).
-pub const A = struct {
-    pub const sleep = "sleep";
-    pub const cancel = "cancel";
-    pub const cancel_all = "cancelAll";
-};
-
-/// What craft serves on the `timers` namespace: native deadlines a hidden
-/// page's own timers would miss. Every action answers.
-pub const capability_actions = [_]capabilities.ActionDecl{
-    .{ .name = A.sleep, .reply = .result },
-    .{ .name = A.cancel, .reply = .result },
-    .{ .name = A.cancel_all, .reply = .result },
-};
 
 /// The dispatcher and capability manifest share these action names.
 pub const A = struct {
