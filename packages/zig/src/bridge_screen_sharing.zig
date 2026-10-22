@@ -136,10 +136,21 @@ fn evaluate(allocator: std.mem.Allocator, sources: ?*std.ArrayListUnmanaged(u8))
     if (state.system) state.digest.add(.system, "CGSession", "screenIsShared");
     if (state.remote) state.digest.add(.remote, "CGSession", "offConsole");
 
+    try readWindowSignals(allocator, &state, sources);
+    var context = AccessibilityContext{ .allocator = allocator, .state = &state, .sources = sources };
+    try @import("sharing_accessibility.zig").visit(&context, noteAccessibility);
+    return state;
+}
+
+// A status check must never keep querying protected window metadata after
+// macOS rejects the app's grant. Session signals and independently authorized
+// Accessibility indicators remain available without Screen Recording access.
+fn readWindowSignals(allocator: std.mem.Allocator, state: *State, sources: ?*std.ArrayListUnmanaged(u8)) !void {
+    if (!CGPreflightScreenCaptureAccess()) return;
     const macos = @import("macos.zig");
     // kCGWindowListOptionOnScreenOnly (1) | kCGWindowListExcludeDesktopElements (16).
     // Conferencing clients retain hidden sharing windows after Stop Sharing.
-    const list = CGWindowListCopyWindowInfo(0x11, 0) orelse return state;
+    const list = CGWindowListCopyWindowInfo(0x11, 0) orelse return;
     defer CFRelease(list);
 
     const CountFn = *const fn (?*anyopaque, macos.objc.SEL) callconv(.c) c_ulong;
@@ -158,11 +169,8 @@ fn evaluate(allocator: std.mem.Allocator, sources: ?*std.ArrayListUnmanaged(u8))
         const window = nsStringSlice(macos.msgSend1(dict, "objectForKey:", name_key)) orelse "";
 
         const kind = detect.matchWindow(&detect.default_indicators, owner, window) orelse continue;
-        try noteSource(allocator, &state, sources, kind, owner, window);
+        try noteSource(allocator, state, sources, kind, owner, window);
     }
-    var context = AccessibilityContext{ .allocator = allocator, .state = &state, .sources = sources };
-    try @import("sharing_accessibility.zig").visit(&context, noteAccessibility);
-    return state;
 }
 
 const AccessibilityContext = struct {
@@ -410,6 +418,7 @@ fn deliverWatch(raw: ?*anyopaque) callconv(.c) void {
 // CoreGraphics
 // =============================================================================
 
+extern "c" fn CGPreflightScreenCaptureAccess() bool;
 extern "c" fn CGWindowListCopyWindowInfo(options: u32, relative_to: u32) ?*anyopaque;
 extern "c" fn CGSessionCopyCurrentDictionary() ?*anyopaque;
 extern "c" fn CFRelease(cf: ?*anyopaque) void;
