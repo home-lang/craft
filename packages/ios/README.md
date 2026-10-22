@@ -569,6 +569,11 @@ const readings = await health.getHeartRateSamples({ startDate: Date.now() - 8640
 const nights = await health.getSleepIntervals({ startDate: Date.now() - 86400000 })
 // An app built before these reads existed has neither; check first.
 if (health.supports('getHeartRateSamples')) { /* ... */ }
+// Diabetes: glucose (mg/dL), insulin (IU, each marked basal or bolus) and carbs (g),
+// one sample at a time with its UUID, oldest first. Ask for them read only.
+await health.requestAuthorization(['bloodGlucose', 'insulinDelivery', 'dietaryCarbohydrates'], { write: false })
+const glucose = await health.getSamples('bloodGlucose', { startDate: Date.now() - 86400000 })
+const doses = await health.getSamples('insulinDelivery', { startDate: Date.now() - 86400000 })
 // Mindful minutes: ask for 'mindful' (with writing allowed), then save a
 // meditation or breathing session. The id is kept as the sample's external
 // UUID, so saving it again keeps the first sample ({ existing: true }).

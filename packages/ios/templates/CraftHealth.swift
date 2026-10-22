@@ -106,6 +106,9 @@ final class CraftHealth {
             getDailyStatistics(type: type, startDate: options(1)["startDate"] as? Double, endDate: options(1)["endDate"] as? Double, completion: completion)
         case "getHeartRateSamples":
             getHeartRateSamples(startDate: options(0)["startDate"] as? Double, endDate: options(0)["endDate"] as? Double, limit: options(0)["limit"] as? Int, completion: completion)
+        case "getSamples":
+            guard let type = args.first as? String else { return completion(.failure(CraftHealthError(message: "getSamples needs a type", code: "INVALID_ARGUMENT"))) }
+            getSamples(type: type, startDate: options(1)["startDate"] as? Double, endDate: options(1)["endDate"] as? Double, limit: options(1)["limit"] as? Int, completion: completion)
         case "getSleepIntervals":
             getSleepIntervals(startDate: options(0)["startDate"] as? Double, endDate: options(0)["endDate"] as? Double, completion: completion)
         case "saveMindfulSession":
@@ -195,6 +198,12 @@ final class CraftHealth {
                 if let mindfulType = HKObjectType.categoryType(forIdentifier: .mindfulSession) {
                     readTypes.insert(mindfulType)
                     shareTypes.insert(mindfulType)
+                }
+            case "bloodGlucose", "insulinDelivery":
+                // A CGM, meter, pump or closed loop's own writes: read
+                // only, never written back, so the sheet only asks to read.
+                if let diabetesType = Self.healthQuantity(type)?.type {
+                    readTypes.insert(diabetesType)
                 }
             case "dietaryEnergy", "dietaryProtein", "dietaryCarbohydrates", "dietaryFat":
                 // What a food log (MyFitnessPal, Lose It!, Cronometer...)
@@ -404,6 +413,8 @@ final class CraftHealth {
         case "dietaryProtein": return (HKQuantityType.quantityType(forIdentifier: .dietaryProtein), .gram(), .cumulativeSum)
         case "dietaryCarbohydrates": return (HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates), .gram(), .cumulativeSum)
         case "dietaryFat": return (HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal), .gram(), .cumulativeSum)
+        case "bloodGlucose": return (HKQuantityType.quantityType(forIdentifier: .bloodGlucose), HKUnit(from: "mg/dL"), .discreteAverage)
+        case "insulinDelivery": return (HKQuantityType.quantityType(forIdentifier: .insulinDelivery), .internationalUnit(), .cumulativeSum)
         default: return nil
         }
     }
@@ -609,6 +620,71 @@ final class CraftHealth {
                 return
             }
             completion(.success((samples as? [HKQuantitySample] ?? []).map(Self.heartRateRow)))
+        }
+        healthStore.execute(query)
+    }
+
+    /// The types `getSamples` reads, and the unit each answers in.
+    private static let sampleUnits: [String: String] = ["bloodGlucose": "mg/dL", "insulinDelivery": "IU", "dietaryCarbohydrates": "g"]
+
+    /// Every glucose reading, insulin dose or carb entry between two
+    /// instants, oldest first, as the writing app saved it: its UUID (so a
+    /// sync stores it once), value, source and device, plus what a diabetes
+    /// app needs to tell readings and doses apart: an insulin dose's reason
+    /// (basal or bolus) and a glucose reading's meal time.
+    func getSamples(type: String, startDate: Double?, endDate: Double?, limit: Int?, completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
+        guard let healthStore = healthStore else {
+            completion(.failure(CraftHealthError(message: "HealthKit not available")))
+            return
+        }
+        guard let unitName = Self.sampleUnits[type], let spec = Self.healthQuantity(type), let sampleType = spec.type else {
+            completion(.failure(CraftHealthError(message: "getSamples reads bloodGlucose, insulinDelivery or dietaryCarbohydrates", code: "INVALID_ARGUMENT")))
+            return
+        }
+
+        let end = endDate.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
+        let start = startDate.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Calendar.current.date(byAdding: .day, value: -7, to: end)!
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let oldestFirst = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        let cap = max(1, min(limit ?? 10_000, 50_000))
+        let ownBundle = Bundle.main.bundleIdentifier
+
+        let query = HKSampleQuery(sampleType: sampleType, predicate: predicate, limit: cap, sortDescriptors: [oldestFirst]) { _, samples, error in
+            if let error = error, (error as? HKError)?.code != .errorNoData {
+                completion(.failure(CraftHealthError(message: error.localizedDescription)))
+                return
+            }
+            let rows: [[String: Any]] = (samples as? [HKQuantitySample] ?? []).map { sample in
+                let source = sample.sourceRevision.source
+                var item: [String: Any] = [
+                    "id": sample.uuid.uuidString,
+                    "value": sample.quantity.doubleValue(for: spec.unit),
+                    "unit": unitName,
+                    "startDate": sample.startDate.timeIntervalSince1970 * 1000,
+                    "endDate": sample.endDate.timeIntervalSince1970 * 1000,
+                    "sourceName": source.name,
+                    "sourceBundleId": source.bundleIdentifier,
+                    "ownApp": ownBundle != nil && source.bundleIdentifier == ownBundle,
+                ]
+                if let device = sample.device?.name { item["deviceName"] = device }
+                if let reason = sample.metadata?[HKMetadataKeyInsulinDeliveryReason] as? NSNumber {
+                    switch HKInsulinDeliveryReason(rawValue: reason.intValue) {
+                    case .basal: item["insulinReason"] = "basal"
+                    case .bolus: item["insulinReason"] = "bolus"
+                    default: break
+                    }
+                }
+                if let meal = sample.metadata?[HKMetadataKeyBloodGlucoseMealTime] as? NSNumber {
+                    switch HKBloodGlucoseMealTime(rawValue: meal.intValue) {
+                    case .preprandial: item["mealTime"] = "beforeMeal"
+                    case .postprandial: item["mealTime"] = "afterMeal"
+                    default: break
+                    }
+                }
+                return item
+            }
+            completion(.success(rows))
         }
         healthStore.execute(query)
     }

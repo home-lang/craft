@@ -3116,6 +3116,22 @@ struct CraftWebView: UIViewRepresentable {
                 } else {
                     rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
                 }
+            // Glucose, insulin and carbs, one sample at a time (CraftHealth.swift).
+            case "getHealthSamples":
+                if config.enableHealthKit {
+                    if let dataType = body["type"] as? String {
+                        CraftHealth.shared.getSamples(
+                            type: dataType,
+                            startDate: body["startDate"] as? Double,
+                            endDate: body["endDate"] as? Double,
+                            limit: body["limit"] as? Int
+                        ) { [weak self] in self?.answer(callbackId, $0) }
+                    } else {
+                        rejectCallback(callbackId, error: "getHealthSamples was called without a type", code: "INVALID_ARGUMENT")
+                    }
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
             case "getHealthSleepIntervals":
                 if config.enableHealthKit {
                     getHealthSleepIntervals(
@@ -5748,6 +5764,10 @@ struct CraftWebView: UIViewRepresentable {
                     getHeartRateSamples: function(options) {
                         options = options || {};
                         return craft._invoke('getHealthHeartRateSamples', {startDate: options.startDate, endDate: options.endDate, limit: options.limit});
+                    },
+                    getSamples: function(type, options) {
+                        options = options || {};
+                        return craft._invoke('getHealthSamples', {type: type, startDate: options.startDate, endDate: options.endDate, limit: options.limit});
                     },
                     getSleepIntervals: function(options) {
                         options = options || {};

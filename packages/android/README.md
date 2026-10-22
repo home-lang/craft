@@ -368,7 +368,7 @@ rejected before a project is generated.
   vectors in place of Android's glyphs.
 
 Health is Health Connect with the HealthKit contract (`getWorkouts`,
-`getDailyStatistics`, `getHeartRateSamples`, `getSleepIntervals`,
+`getDailyStatistics`, `getHeartRateSamples`, `getSamples`, `getSleepIntervals`,
 `saveWorkout`, `saveMindfulSession`...), plus `availability`, `grantedTypes`
 and `openSettings` (`healthAvailability`). `healthConnect: { read, write,
 background, history }` lists the types the manifest declares; Play reviews
@@ -386,6 +386,13 @@ Unsupported devices or types emit a typed `error` event and leave the Health
 Connect fallback untouched.
 `bun scripts/test-native-health.ts` runs the Health Connect contract against
 an Android 14+ emulator.
+
+`getSamples('bloodGlucose' | 'dietaryCarbohydrates', { startDate, endDate, limit })`
+reads Health Connect's `BloodGlucoseRecord` (mg/dL, with the meal relation and
+specimen) and nutrition carbs one record at a time, each with its record id.
+Health Connect has no insulin record: `insulinDelivery` is accepted and answers
+an empty list, and requesting it adds no permission. List `bloodGlucose` under
+`healthConnect.read` so the manifest declares `READ_BLOOD_GLUCOSE`.
 
 ### Google Wallet
 

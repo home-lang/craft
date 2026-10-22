@@ -201,7 +201,12 @@ const dispatch_end = "func webView(";
 /// and HKLiveWorkoutBuilder are owned by CraftHealth.swift, including their
 /// delegate callbacks and iOS 26 availability; the actions remain on the
 /// Swift shim until the Zig bridge has an equivalent lifecycle channel.
-const max_not_yet_migrated: usize = 58;
+/// 59 when the spec gained getHealthSamples: glucose, insulin and carbs one
+/// sample at a time (bloodGlucose, insulinDelivery, dietaryCarbohydrates), an
+/// HKSampleQuery in CraftHealth.swift like the other health reads. It went
+/// into Swift first and falls through to the shim, which serves it. Not a
+/// regression: no action left Zig.
+const max_not_yet_migrated: usize = 59;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.

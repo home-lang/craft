@@ -219,6 +219,11 @@ describe('the native app shell in a generated project', () => {
     expect(permissions).toContain('android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND')
     expect(permissions).not.toContain('android.permission.health.WRITE_EXERCISE')
     expect(permissions).not.toContain('android.permission.health.READ_STEPS')
+    // Glucose is a read of its own; Health Connect has no insulin, so asking for it adds nothing.
+    const diabetes = healthConnectPermissions({ healthConnect: { read: ['bloodGlucose', 'insulinDelivery', 'dietaryCarbohydrates'], write: [] } })
+    expect(diabetes).toContain('android.permission.health.READ_BLOOD_GLUCOSE')
+    expect(diabetes).toContain('android.permission.health.READ_NUTRITION')
+    expect(diabetes.filter(p => p.includes('INSULIN'))).toEqual([])
     // Without a list, the original set.
     expect(healthConnectPermissions({})).toContain('android.permission.health.WRITE_EXERCISE')
     expect(() => healthConnectPermissions({ healthConnect: { read: ['oxygen' as never] } })).toThrow(/Unknown Health Connect type/)

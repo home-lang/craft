@@ -264,7 +264,7 @@ export interface CraftAndroidConfig {
 /** The shared health data types (the iOS builder's HealthKit names). */
 export type HealthConnectType = 'steps' | 'heartRate' | 'activeEnergy' | 'distance' | 'workouts' | 'restingHeartRate'
   | 'heartRateVariability' | 'bodyMass' | 'sleep' | 'mindful' | 'dietaryEnergy' | 'dietaryProtein'
-  | 'dietaryCarbohydrates' | 'dietaryFat'
+  | 'dietaryCarbohydrates' | 'dietaryFat' | 'bloodGlucose' | 'insulinDelivery'
 
 /**
  * The Health Connect permissions behind each type, for reading and for
@@ -289,6 +289,9 @@ export const HEALTH_CONNECT_PERMISSIONS: Record<HealthConnectType, { read: strin
   dietaryProtein: { read: ['READ_NUTRITION'], write: ['WRITE_NUTRITION'] },
   dietaryCarbohydrates: { read: ['READ_NUTRITION'], write: ['WRITE_NUTRITION'] },
   dietaryFat: { read: ['READ_NUTRITION'], write: ['WRITE_NUTRITION'] },
+  bloodGlucose: { read: ['READ_BLOOD_GLUCOSE'], write: [] },
+  // Health Connect has no insulin record; asking for it adds nothing.
+  insulinDelivery: { read: [], write: [] },
 }
 
 const DEFAULT_HEALTH_CONNECT = { read: ['steps', 'heartRate', 'activeEnergy', 'distance', 'workouts'], write: ['workouts'] } as const

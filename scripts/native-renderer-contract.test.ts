@@ -438,7 +438,7 @@ describe('native renderer component contract', () => {
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
-    expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(17)
+    expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(18)
   })
 
   it('types the live HealthKit workout event emitted by the iOS host', () => {

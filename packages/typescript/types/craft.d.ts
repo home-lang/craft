@@ -1549,6 +1549,26 @@ export interface CraftHealthHeartRateSample {
   motionContext?: 'sedentary' | 'active';
 }
 
+/** One glucose reading, insulin dose or carb entry from Apple Health or Health Connect. */
+export interface CraftHealthQuantitySample {
+  /** HealthKit's UUID or Health Connect's record id. */
+  id: string;
+  /** mg/dL for glucose, IU for insulin, g for carbs. */
+  value: number;
+  unit: 'mg/dL' | 'IU' | 'g';
+  /** ms since the epoch. */
+  startDate: number;
+  /** ms since the epoch. */
+  endDate: number;
+  sourceName: string;
+  sourceBundleId: string;
+  ownApp: boolean;
+  deviceName?: string;
+  insulinReason?: 'basal' | 'bolus';
+  mealTime?: 'beforeMeal' | 'afterMeal' | 'fasting' | 'general';
+  specimen?: 'capillaryBlood' | 'interstitialFluid' | 'plasma' | 'serum' | 'tears' | 'wholeBlood';
+}
+
 export type CraftHealthLiveWorkoutType = 'running' | 'walking' | 'hiking' | 'cycling' | 'swimming' | 'rowing' | 'elliptical' | 'strength' | 'hiit';
 export interface CraftHealthLiveWorkoutOptions {
   type: CraftHealthLiveWorkoutType;
@@ -1581,6 +1601,8 @@ export interface CraftHealth {
   requestAuthorization(types: string[], options?: { write?: boolean }): Promise<boolean>;
   /** Every heart-rate reading between two instants (ms), oldest first. */
   getHeartRateSamples?(options?: { startDate?: number, endDate?: number, limit?: number }): Promise<CraftHealthHeartRateSample[]>;
+  /** Every `bloodGlucose`, `insulinDelivery` or `dietaryCarbohydrates` sample between two instants (ms), oldest first. */
+  getSamples?(type: 'bloodGlucose' | 'insulinDelivery' | 'dietaryCarbohydrates', options?: { startDate?: number, endDate?: number, limit?: number }): Promise<CraftHealthQuantitySample[]>;
   /**
    * Heart rate as Apple Health receives it: the samples since `since` (ms;
    * two minutes ago by default), then each batch as the watch syncs it, as
