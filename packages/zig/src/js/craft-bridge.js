@@ -1655,6 +1655,7 @@
   // tray — system menubar item (only meaningful when `system_tray: true`)
   // -------------------------------------------------------------------------
   window.craft.tray = {
+    getState:   function ()         { return _req('tray', 'getState') },
     setTitle:   function (t) {
       // 20-char cap mirrors NSStatusItem behavior — anything past it gets
       // visually clipped, so we truncate eagerly to keep the JS-side

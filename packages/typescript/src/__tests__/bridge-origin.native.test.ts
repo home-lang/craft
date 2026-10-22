@@ -101,3 +101,42 @@ nativeTest('a normal tray app does not manage other menu bar items until explici
     await rm(dir, { recursive: true, force: true })
   }
 }, 20000)
+
+
+nativeTest('tray setters reach the actual status button and clearing its title preserves its icon', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'craft-tray-state-'))
+  const marker = join(dir, 'state.json')
+  const html = `<script>(async () => {
+    await craft.tray.setIcon('moon.fill');
+    await craft.tray.setTitle('Quiet "now"');
+    await craft.tray.setTooltip('A little peace of mind');
+    const titled = await craft.tray.getState();
+    await craft.tray.setTitle('');
+    const iconOnly = await craft.tray.getState();
+    await craft.fs.writeFile(${JSON.stringify(marker)}, JSON.stringify({titled, iconOnly}));
+    craft.app.quit();
+  })().catch(async error => {
+    await craft.fs.writeFile(${JSON.stringify(marker)}, JSON.stringify({error: String(error)}));
+    craft.app.quit();
+  });</script>`
+  const proc = Bun.spawn([process.env.CRAFT_NATIVE_TEST_BIN!, '--tray-popover', '--html', html], { stdout: 'ignore', stderr: 'pipe' })
+  const stderr = new Response(proc.stderr).text()
+  const timeout = setTimeout(() => proc.kill(), 15000)
+  try {
+    expect(await proc.exited).toBe(0)
+    const result = JSON.parse(await readFile(marker, 'utf8'))
+    expect(result.error).toBeUndefined()
+    expect(result.titled).toMatchObject({title: 'Quiet "now"', tooltip: 'A little peace of mind', visible: true, hasIcon: true, template: true, imagePosition: 7})
+    expect(result.iconOnly).toMatchObject({title: '', tooltip: 'A little peace of mind', visible: true, hasIcon: true, template: true, imagePosition: 1})
+    expect(result.iconOnly.imageWidth).toBeGreaterThan(0)
+    expect(result.iconOnly.imageHeight).toBeGreaterThan(0)
+  }
+  finally {
+    clearTimeout(timeout)
+    if (proc.exitCode === null) proc.kill()
+    await proc.exited
+    const output = await stderr
+    if (proc.exitCode !== 0) console.error(output)
+    await rm(dir, { recursive: true, force: true })
+  }
+}, 20000)

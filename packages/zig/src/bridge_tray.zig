@@ -15,6 +15,7 @@ const capabilities = @import("capabilities.zig");
 /// action without also declaring it.
 pub const A = struct {
     pub const set_title = "setTitle";
+    pub const get_state = "getState";
     pub const set_tooltip = "setTooltip";
     pub const set_menu = "setMenu";
     pub const poll_actions = "pollActions";
@@ -27,6 +28,7 @@ pub const A = struct {
 /// What craft serves on the `tray` namespace.
 pub const capability_actions = [_]capabilities.ActionDecl{
     .{ .name = A.set_title, .reply = .none },
+    .{ .name = A.get_state, .reply = .result },
     .{ .name = A.set_tooltip, .reply = .none },
     .{ .name = A.set_menu, .reply = .none },
     .{ .name = A.poll_actions, .reply = .none },
@@ -159,6 +161,8 @@ pub const TrayBridge = struct {
     fn handleMessageInternal(self: *Self, action: []const u8, data: []const u8) !void {
         if (std.mem.eql(u8, action, A.set_title)) {
             try self.setTitle(data);
+        } else if (std.mem.eql(u8, action, A.get_state)) {
+            try self.getState();
         } else if (std.mem.eql(u8, action, A.set_tooltip)) {
             try self.setTooltip(data);
         } else if (std.mem.eql(u8, action, A.set_menu)) {
@@ -243,6 +247,37 @@ pub const TrayBridge = struct {
             // an icon, both change where the image belongs.
             syncImagePosition(@import("macos.zig").msgSend0(handle, "button"));
         }
+    }
+
+    /// Read the native status button, rather than echoing requested values.
+    /// This catches rejected image data and accidental object stringification.
+    fn getState(self: *Self) !void {
+        const handle = try self.requireTrayHandle();
+        if (builtin.os.tag != .macos) return BridgeError.PlatformNotSupported;
+        const macos = @import("macos.zig");
+        const button = macos.msgSend0(handle, "button");
+        if (button == null) return BridgeError.TrayHandleNotSet;
+        const image = macos.msgSend0(button, "image");
+        const get_size: *const fn (macos.objc.id, macos.objc.SEL) callconv(.c) macos.NSSize = @ptrCast(&macos.objc.objc_msgSend);
+        const size = if (image != null) get_size(image, macos.sel("size")) else macos.NSSize{ .width = 0, .height = 0 };
+        const json = try std.json.Stringify.valueAlloc(self.allocator, .{
+            .title = nativeText(macos.msgSend0(button, "title")),
+            .tooltip = nativeText(macos.msgSend0(button, "toolTip")),
+            .visible = macos.msgSendBool(handle, "isVisible"),
+            .hasIcon = image != null,
+            .template = image != null and macos.msgSendBool(image, "isTemplate"),
+            .imageWidth = size.width,
+            .imageHeight = size.height,
+            .imagePosition = macos.msgSend0Ulong(button, "imagePosition"),
+        }, .{});
+        defer self.allocator.free(json);
+        bridge_error.sendResultToJS(self.allocator, A.get_state, json);
+    }
+
+    fn nativeText(value: ?*anyopaque) []const u8 {
+        if (builtin.os.tag != .macos or value == null) return "";
+        const utf8 = @import("macos.zig").msgSend0(value, "UTF8String") orelse return "";
+        return std.mem.span(@as([*:0]const u8, @ptrCast(utf8)));
     }
 
     fn setTooltip(self: *Self, tooltip: []const u8) !void {
