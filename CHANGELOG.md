@@ -1,5 +1,25 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.288...v0.0.289)
+
+## 🐛 Bug Fixes
+
+- **zig**: declare the timers bridge namespace ([38db64a](https://github.com/craft-native/craft/commit/38db64a)) _(by Chris)_
+- declare native timer capabilities from dispatch actions ([548a4d0](https://github.com/craft-native/craft/commit/548a4d0)) _(by Chris)_
+
+## ⏪ Reverts
+
+- duplicate timers declaration ([3897525](https://github.com/craft-native/craft/commit/3897525)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/settlers-gold-hybrid-ci ([2b5cceb](https://github.com/craft-native/craft/commit/2b5cceb)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.287...v0.0.288)
 
 ## 🐛 Bug Fixes
