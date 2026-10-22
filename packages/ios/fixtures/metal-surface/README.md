@@ -17,6 +17,15 @@ deletes only that simulator and its temporary project. It verifies simulator
 deletion by reading the simulator's own UUID back. Command and test budgets are
 bounded; missing tools, failed assertions, empty selections and skips fail.
 
+Each command has its own POSIX process group. Completion, timeout and
+cancellation dispose that group before the project is removed. A command that
+ignores termination is killed after 250 ms; disappearance must be confirmed
+within another second. Failure to confirm disposal fails the run. SIGINT,
+SIGTERM and SIGHUP request the same ordered command, simulator and workspace
+teardown. The execution, boot and test budgets remain unchanged. This owns
+ordinary descendants; it is not a sandbox for processes that deliberately
+escape their group, or a guarantee of teardown after an uncatchable SIGKILL.
+
 The unit test compares every pixel copied back from the actual Metal drawable
 across 60 frames, a native resize and resume. It verifies the window's backing
 scale, rejection from a background thread and removal of the owned layer.

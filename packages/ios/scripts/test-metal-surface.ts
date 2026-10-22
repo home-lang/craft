@@ -1,8 +1,10 @@
-import { closeSync, copyFileSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { resolveZig } from '../../../scripts/zig'
-import { createTempDir, removeTempDir } from '../../typescript/src/temp-dir'
+import { tempDirPrefix } from '../../typescript/src/temp-dir'
+import { nativeFixtureCommand } from './native-fixture-command'
 
 const { values } = parseArgs({ args: process.argv.slice(2), strict: true, options: { runtime: { type: 'string' }, xcodegen: { type: 'string' }, output: { type: 'string' } } })
 if (process.platform !== 'darwin' || !values.runtime || !values.xcodegen || !isAbsolute(values.xcodegen))
@@ -15,33 +17,33 @@ const xcodegen = realpathSync(values.xcodegen)
 const evidenceRoot = resolve(values.output ?? join(root, 'artifacts/native-metal-ios'))
 mkdirSync(evidenceRoot, { recursive: true })
 const evidence = mkdtempSync(join(evidenceRoot, 'run-'))
-const workspace = createTempDir('craft-metal-ios-')
+// This harness owns asynchronous command and simulator teardown. Its signal
+// handler must finish that teardown before removing the project directory.
+const workspace = mkdtempSync(join(tmpdir(), tempDirPrefix('metal-ios')))
+const interruption = new AbortController()
+const onSignal = () => interruption.abort(new Error('Native Metal acceptance interrupted'))
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(signal, onSignal)
 const proof: Record<string, unknown> = { purpose: 'native UIKit Metal surface acceptance', startedAt: new Date().toISOString(), compiler: zig, runtime: values.runtime, evidence, commands: [] }
 let simulator: string | undefined
 let failure: unknown
 function save(): void { writeFileSync(join(evidence, 'verification.json'), `${JSON.stringify(proof, null, 2)}\n`) }
-async function capture(args: string[], allowFailure = false): Promise<string> {
-  const child = Bun.spawn(args, { cwd: workspace, stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(30_000) })
-  const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()])
-  ;(proof.commands as unknown[]).push({ args, code, signal: child.signalCode, stdout, stderr })
+async function capture(args: string[], options: { allowFailure?: boolean, cleanup?: boolean } = {}): Promise<string> {
+  const result = await nativeFixtureCommand(args, { cwd: workspace, timeoutMs: 30_000, signal: options.cleanup ? undefined : interruption.signal })
+  const { code, stdout, stderr } = result
+  ;(proof.commands as unknown[]).push({ args, ...result })
   save()
-  if (code !== 0 && !allowFailure) throw new Error(`Command failed (${code}): ${args[0]}: ${stderr}`)
+  if ((code !== 0 || result.timedOut || result.cancelled) && !options.allowFailure) throw new Error(`Command failed (${code}): ${args[0]}: ${stderr}`)
   return stdout.trim()
 }
 async function run(name: string, args: string[], timeoutMs: number): Promise<void> {
   const log = join(evidence, `${name}.log`)
-  const descriptor = openSync(log, 'wx', 0o600)
   const startedAt = new Date().toISOString()
   proof.currentStep = name
   save()
-  try {
-    const child = Bun.spawn(args, { cwd: workspace, stdin: 'ignore', stdout: descriptor, stderr: descriptor, signal: AbortSignal.timeout(timeoutMs) })
-    const code = await child.exited
-    ;(proof.commands as unknown[]).push({ name, args, code, signal: child.signalCode, startedAt, finishedAt: new Date().toISOString(), log })
-    save()
-    if (code !== 0) throw new Error(`${name} failed (${code}); see ${log}`)
-  }
-  finally { closeSync(descriptor) }
+  const result = await nativeFixtureCommand(args, { cwd: workspace, timeoutMs, logPath: log, signal: interruption.signal })
+  ;(proof.commands as unknown[]).push({ name, args, ...result, startedAt, finishedAt: new Date().toISOString(), log })
+  save()
+  if (result.code !== 0 || result.timedOut || result.cancelled) throw new Error(`${name} failed (${result.code}); see ${log}`)
 }
 try {
   const runtimes = JSON.parse(await capture(['xcrun', 'simctl', 'list', 'runtimes', '--json'])).runtimes as { identifier: string, isAvailable: boolean }[]
@@ -52,6 +54,7 @@ try {
   proof.source = await capture(['git', '-C', root, 'rev-parse', 'HEAD'])
   proof.sourceDirty = (await capture(['git', '-C', root, 'status', '--porcelain', '--untracked-files=all'])).length > 0
   proof.harnessSha256 = new Bun.CryptoHasher('sha256').update(readFileSync(import.meta.path)).digest('hex')
+  proof.commandOwnerSha256 = new Bun.CryptoHasher('sha256').update(readFileSync(join(import.meta.dir, 'native-fixture-command.ts'))).digest('hex')
   proof.fixtureSources = Object.fromEntries(['fixture.zig', 'HostApp.swift', 'MetalSurfaceTests.swift', 'MetalSurfaceUITests.swift'].map(name => [name, new Bun.CryptoHasher('sha256').update(readFileSync(join(source, name))).digest('hex')]))
   proof.surfaceSha256 = new Bun.CryptoHasher('sha256').update(readFileSync(join(root, 'packages/zig/src/metal_surface.zig'))).digest('hex')
   const target = process.arch === 'arm64' ? 'aarch64-ios.15.0-simulator' : 'x86_64-ios.15.0-simulator'
@@ -151,25 +154,31 @@ finally {
   const cleanupErrors: string[] = []
   if (simulator) {
     // Failure to retain a cleanup log must not prevent the next owned cleanup.
-    try { await capture(['xcrun', 'simctl', 'shutdown', simulator], true) }
+    try { await capture(['xcrun', 'simctl', 'shutdown', simulator], { allowFailure: true, cleanup: true }) }
     catch (error) { cleanupErrors.push(String(error)) }
-    try { await capture(['xcrun', 'simctl', 'delete', simulator]) }
+    try { await capture(['xcrun', 'simctl', 'delete', simulator], { cleanup: true }) }
     catch (error) { cleanupErrors.push(String(error)) }
     try {
-      const remaining = JSON.parse(await capture(['xcrun', 'simctl', 'list', 'devices', simulator, '--json'])).devices as Record<string, { udid: string }[]>
+      const remaining = JSON.parse(await capture(['xcrun', 'simctl', 'list', 'devices', simulator, '--json'], { cleanup: true })).devices as Record<string, { udid: string }[]>
       if (Object.values(remaining).flat().some(device => device.udid === simulator)) throw new Error('The owned simulator remained registered after deletion')
       proof.simulatorDisposed = true
     }
     catch (error) { cleanupErrors.push(String(error)) }
   }
-  try { removeTempDir(workspace); proof.workspaceDisposed = true }
+  try { rmSync(workspace, { recursive: true, force: true }); proof.workspaceDisposed = true }
   catch (error) { cleanupErrors.push(String(error)) }
   if (cleanupErrors.length) {
     failure ??= new Error(cleanupErrors.join('; '))
     proof.status = 'failed'
     proof.cleanupErrors = cleanupErrors
   }
+  if (interruption.signal.aborted) {
+    failure ??= interruption.signal.reason
+    proof.status = 'failed'
+    proof.error = String(failure)
+  }
   proof.finishedAt = new Date().toISOString()
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.off(signal, onSignal)
   save()
 }
 console.log(JSON.stringify({ status: proof.status, evidence, simulatorDisposed: proof.simulatorDisposed }))
