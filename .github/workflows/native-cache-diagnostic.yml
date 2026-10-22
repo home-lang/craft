@@ -36,6 +36,20 @@ jobs:
         run: |
           export PATH="$PWD/pantry/.bin:$PATH"
           "$PWD/pantry/.bin/bun" scripts/diagnose-native-cache.ts "$PANTRY_DIAGNOSTIC_CLI"
+      - name: Restore the original tree before the complete action replay
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ github.workspace }}/pantry
+          key: ${{ env.NATIVE_DIAGNOSTIC_CACHE_KEY }}
+          fail-on-cache-miss: true
+      - name: Replay the complete original managed tool setup
+        uses: pantry-pm/pantry/packages/action@3a37ec776aa9e37e17bd8e3aea2d457cdbd02c36 # v0.11.113
+        env:
+          PANTRY_VERBOSE: '1'
+        with:
+          version: '0.11.113'
+          install: 'false'
+          packages: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e github.com/yonaskolb/XcodeGen@2.46.0
       - name: Retain bounded provisioning evidence
         if: always()
         uses: actions/upload-artifact@v4
