@@ -75,8 +75,22 @@ pub fn build(b: *std.Build) void {
         });
     };
 
-    // Create the craft module (library module — does not own build_options;
-    // each executable supplies build_options directly so there is no duplicate)
+    const host_fixture = b.addExecutable(.{
+        .name = "craft-js-hosting-test",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/js_host_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .imports = &.{.{ .name = "js_backend", .module = js_backend_module }},
+        }),
+    });
+    const run_host_fixture = b.addRunArtifact(host_fixture);
+    const host_fixture_step = b.step("test-js-hosting", "Exercise persistent typed JavaScript hosting through Craft's public API");
+    host_fixture_step.dependOn(&run_host_fixture.step);
+
+    // Create the craft module. Each executable supplies build_options directly
+    // so there is no duplicate module ownership.
     const craft_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .imports = &.{
@@ -85,6 +99,12 @@ pub fn build(b: *std.Build) void {
     });
     // Add vendored SQLite include path for any C compilation units.
     craft_module.addIncludePath(b.path("vendor/sqlite"));
+    if (target.result.os.tag == .macos or target.result.os.tag == .ios) {
+        // The public surface declares these dependencies. Consumers of the
+        // Craft module inherit them instead of repairing their linker flags.
+        craft_module.linkFramework("Metal", .{});
+        craft_module.linkFramework("QuartzCore", .{});
+    }
 
     // Demo executable - simple hardcoded example
     const exe = b.addExecutable(.{
@@ -2022,6 +2042,19 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all unit tests");
+    const metal_surface_step = b.step("test-metal-surface", "Verify bounded native Metal presentation and drawable pixels");
+    const metal_layout_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/metal_surface.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    const run_metal_layout = b.addRunArtifact(metal_layout_tests);
+    metal_surface_step.dependOn(&run_metal_layout.step);
+    test_step.dependOn(&run_metal_layout.step);
+    test_step.dependOn(&run_host_fixture.step);
     const screen_sharing_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/sharing_accessibility.zig"),
@@ -2063,6 +2096,23 @@ pub fn build(b: *std.Build) void {
         const run_objc_returns = b.addRunArtifact(objc_return_tests);
         b.step("test-objc-runtime", "Test native Objective-C structure returns").dependOn(&run_objc_returns.step);
         test_step.dependOn(&run_objc_returns.step);
+        if (target.result.os.tag == .macos) {
+            const metal_surface_fixture = b.addExecutable(.{
+                .name = "craft-metal-surface-test",
+                .root_module = b.createModule(.{
+                    .root_source_file = b.path("test/metal_surface_test.zig"),
+                    .target = target,
+                    .optimize = optimize,
+                    .link_libc = true,
+                    .imports = &.{.{ .name = "craft", .module = craft_module }},
+                }),
+            });
+            metal_surface_fixture.root_module.linkFramework("Cocoa", .{});
+            applySdkPaths(b, metal_surface_fixture.root_module, macos_sdk);
+            const run_metal_surface = b.addRunArtifact(metal_surface_fixture);
+            metal_surface_step.dependOn(&run_metal_surface.step);
+            test_step.dependOn(&run_metal_surface.step);
+        }
     }
     test_step.dependOn(&run_ios_conformance_tests.step);
     test_step.dependOn(&run_jni_tests.step);

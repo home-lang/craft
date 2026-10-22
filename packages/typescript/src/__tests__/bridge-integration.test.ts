@@ -38,6 +38,8 @@ describe('Bridge Type Definitions', () => {
           version: '1.0.0',
           platform: 'macos',
         }),
+        setAppearance: async (_appearance: 'light' | 'dark' | 'system') => {},
+        getAppearance: async () => 'light',
       },
     }
 
@@ -91,6 +93,8 @@ describe('Bridge Type Definitions', () => {
         version: '1.0.0',
         platform: 'macos',
       }),
+      setAppearance: async (_appearance: 'light' | 'dark' | 'system') => {},
+      getAppearance: async () => 'light',
     }
 
     expect(typeof mockApp.hideDockIcon).toBe('function')
@@ -300,6 +304,8 @@ describe('Bridge API Method Signatures', () => {
         version: '1.0.0',
         platform: 'macos',
       }),
+      setAppearance: async (_appearance: 'light' | 'dark' | 'system') => {},
+      getAppearance: async () => 'light',
     }
 
     const info = await mockApp.getInfo()
@@ -343,6 +349,8 @@ describe('Window Global Type Augmentation', () => {
             version: '1.0.0',
             platform: 'macos',
           }),
+          setAppearance: async (_appearance: 'light' | 'dark' | 'system') => {},
+          getAppearance: async () => 'light',
         },
       } as CraftBridgeAPI,
     }

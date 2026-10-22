@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-22T17:30:03.416005+00:00",
+  "source": "29bff7366964f2d61ec9eaec74f4ac011ef50fde",
+  "compiler": "0.18.0-dev.146+35accc06e",
+  "nativeFixture": {
+    "platform": "macOS",
+    "nativeArm64Debug": "passed",
+    "nativeArm64ReleaseSafe": "passed",
+    "x86_64UnderRosetta": "passed",
+    "backingScale": 2,
+    "framesCompared": 61,
+    "pixelComparison": "Every pixel read back by Metal from the actual drawable texture",
+    "checks": [
+      "actual AppKit window and native layer",
+      "resize from 256x192 to 160x120 logical points",
+      "opaque frame admission",
+      "suspend and resume",
+      "wrong-thread refusal",
+      "bounded replacement allocation including live old buffers",
+      "previous frame retained after refused resize",
+      "child layer removed on disposal",
+      "post-disposal calls refused"
+    ]
+  },
+  "negativeControls": [
+    "The public fixture failed to compile before the API was exported.",
+    "Changing only the blue upload channel made the GPU pixel comparison fail. Original source was restored and the same fixture passed."
+  ],
+  "checks": {
+    "fullNative": {
+      "stepsSucceeded": 213,
+      "stepsTotal": 213,
+      "testsPassed": 5761,
+      "existingSkips": 24,
+      "failed": 0
+    },
+    "finalLinkingRun": {
+      "stepsSucceeded": 213,
+      "stepsTotal": 213,
+      "testsPassed": 170,
+      "otherStepsCached": true,
+      "failed": 0
+    },
+    "sdk": {
+      "passed": 777,
+      "existingSkips": 5,
+      "failed": 0
+    },
+    "releaseRehearsals": {
+      "passed": 71,
+      "failed": 0
+    },
+    "types": {
+      "exitCode": 0
+    },
+    "format": {
+      "exitCode": 0
+    },
+    "lint": {
+      "errors": 0,
+      "existingWarnings": 61
+    },
+    "npmPackageBuild": {
+      "exitCode": 0
+    },
+    "packageSurfaces": {
+      "checks": 43,
+      "exitCode": 0
+    }
+  },
+  "evidence": [
+    {
+      "path": "mutator-stop-fix/metal-public-api-red.log",
+      "bytes": 1958,
+      "sha256": "4183bea208d657ad55275e87aa35102a8e81c20f82beac5603167517b22e2a2e"
+    },
+    {
+      "path": "mutator-stop-fix/metal-color-negative-control.log",
+      "bytes": 1658,
+      "sha256": "c88fb0abaf43955917909aa86329749950a5b72005b4f44bdec89469af4d017a"
+    },
+    {
+      "path": "mutator-stop-fix/metal-after-color-control.log",
+      "bytes": 151,
+      "sha256": "d4e4062a1eab71925e689e3c32834b670547ed93b8b33a3932e3ef29f3e50beb"
+    },
+    {
+      "path": "mutator-stop-fix/metal-native-fixture-budget.log",
+      "bytes": 151,
+      "sha256": "d4e4062a1eab71925e689e3c32834b670547ed93b8b33a3932e3ef29f3e50beb"
+    },
+    {
+      "path": "mutator-stop-fix/metal-inherited-linking.log",
+      "bytes": 151,
+      "sha256": "d4e4062a1eab71925e689e3c32834b670547ed93b8b33a3932e3ef29f3e50beb"
+    },
+    {
+      "path": "mutator-stop-fix/metal-rosetta-final.log",
+      "bytes": 151,
+      "sha256": "d4e4062a1eab71925e689e3c32834b670547ed93b8b33a3932e3ef29f3e50beb"
+    },
+    {
+      "path": "mutator-stop-fix/metal-release-safe.log",
+      "bytes": 151,
+      "sha256": "d4e4062a1eab71925e689e3c32834b670547ed93b8b33a3932e3ef29f3e50beb"
+    },
+    {
+      "path": "mutator-stop-fix/metal-full-native.log",
+      "bytes": 54775,
+      "sha256": "03aa2ccb79d6f2376fa3b16e4265244a5582298d5af816d4483a0c641f0702fd"
+    },
+    {
+      "path": "mutator-stop-fix/metal-full-native-final.log",
+      "bytes": 9364,
+      "sha256": "35cc1891356faa950b88bb7824de652de58f862ec3722e7570b4583ddaacd9c0"
+    },
+    {
+      "path": "mutator-stop-fix/metal-sdk.log",
+      "bytes": 75406,
+      "sha256": "15ae2c694c3c20941aa8730f6d1088b847f747f1431632794c547d3716a8677b"
+    },
+    {
+      "path": "mutator-stop-fix/metal-release-tests.log",
+      "bytes": 7792,
+      "sha256": "84397ef097a46301a21bd5eeda16e4568ac6ac677c6c7f586207ca10161e3e44"
+    },
+    {
+      "path": "mutator-stop-fix/metal-types.log",
+      "bytes": 182,
+      "sha256": "f4bd3e5ffdf746a098a423d2a605f5f5ff1c6a7e2ba77cfb640cb4adf863432a"
+    },
+    {
+      "path": "mutator-stop-fix/metal-format.log",
+      "bytes": 254,
+      "sha256": "8bd57ffeec804fe61382854873dc73df4fbbe19ecba073847894129d5ed7d5da"
+    },
+    {
+      "path": "mutator-stop-fix/metal-lint.log",
+      "bytes": 9351,
+      "sha256": "2986fb40a0fdf5648a08714a9481e4ef010891d1c2c88c3c682e1f8a4126a4e1"
+    },
+    {
+      "path": "mutator-stop-fix/metal-package-build.log",
+      "bytes": 240,
+      "sha256": "98a0ab16a93984e7326dcf21eb0ca1ec2dffcb65ec171c4ad57a029a8eae748a"
+    },
+    {
+      "path": "mutator-stop-fix/metal-packages-verify.log",
+      "bytes": 80,
+      "sha256": "c0fada7aa6380f39ec91bbbcd2a8f67e1b80acb6537478e2d57eddae19cb7f95"
+    }
+  ],
+  "limits": [
+    "This is source execution evidence. No package release or installed-consumer adoption is established here.",
+    "Rosetta execution on this Mac does not establish Intel or AMD GPU hardware execution.",
+    "iOS native presentation requires its own actual host fixture and acceptance.",
+    "This does not demonstrate native game presentation, stx HUD integration, input clocks or original-game parity."
+  ]
+}

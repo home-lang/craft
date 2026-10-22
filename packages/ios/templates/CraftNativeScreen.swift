@@ -5545,6 +5545,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        CraftInterfaceStyleController.apply(to: self, config: config)
         navigationItem.title = routeName ?? config.appName
         view.backgroundColor = config.resolvedBackgroundColor
         rootStack.axis = .vertical
@@ -6250,6 +6251,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let secureGet: @convention(block) (String) -> String? = { key in
             config.enableSecureStorage ? CraftNativeActions.webSecureValue(forKey: key) : nil
         }
+        let setAppearance: @convention(block) (String) -> Bool = { value in
+            if Thread.isMainThread { return CraftInterfaceStyleController.set(value) }
+            var accepted = false
+            DispatchQueue.main.sync { accepted = CraftInterfaceStyleController.set(value) }
+            return accepted
+        }
+        let getAppearance: @convention(block) () -> String = {
+            if Thread.isMainThread { return CraftInterfaceStyleController.currentName() }
+            var value = "light"
+            DispatchQueue.main.sync { value = CraftInterfaceStyleController.currentName() }
+            return value
+        }
         let setOptions: @convention(block) (String) -> Void = { [weak self] json in
             guard let data = json.data(using: .utf8),
                   let options = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
@@ -6262,6 +6275,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         jsContext.setObject(snapshotSet, forKeyedSubscript: "craftNativeSnapshotSet" as NSString)
         jsContext.setObject(snapshotClear, forKeyedSubscript: "craftNativeSnapshotClear" as NSString)
         jsContext.setObject(secureGet, forKeyedSubscript: "craftNativeSecureGet" as NSString)
+        jsContext.setObject(setAppearance, forKeyedSubscript: "craftNativeSetAppearance" as NSString)
+        jsContext.setObject(getAppearance, forKeyedSubscript: "craftNativeGetAppearance" as NSString)
         jsContext.setObject(setOptions, forKeyedSubscript: "craftNativeSetOptions" as NSString)
         // Older native bundles call the page-shaped `craft.dialog` API
         // directly. Keep that API backed by the same capability protocol as
@@ -6503,6 +6518,19 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                         var value = craftNativeSecureGet(String(key));
                         return value === undefined ? null : value;
                     }
+                });
+                keep('app', {
+                    setAppearance: function(value) {
+                        value = String(value);
+                        if (value !== 'light' && value !== 'dark' && value !== 'system') {
+                            return Promise.reject(new TypeError('craft.app.setAppearance needs light, dark or system'));
+                        }
+                        if (!craftNativeSetAppearance(value)) {
+                            return Promise.reject(new Error('craft.app.setAppearance was rejected'));
+                        }
+                        return Promise.resolve();
+                    },
+                    getAppearance: function() { return Promise.resolve(craftNativeGetAppearance()); }
                 });
                 // The signed-in account (CraftSession): the token under
                 // `sessionTokenKey`, and each change of it, which the host

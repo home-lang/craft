@@ -380,7 +380,7 @@ final class CraftHybrid: NSObject {
         }
         startsNative = isEnabled && routes.match(startPath) != nil
         // The splash waits for a page; an all-native app's first screen draws itself.
-        CraftChrome.shared.configure(tabs: config.tabs ?? [], selected: tabIds(from: config.tabs ?? []).isEmpty ? nil : CraftHybridRoutes.tab(owning: startPath, among: tabIds(from: config.tabs ?? [])), splash: hasWeb && !startsNative)
+        CraftChrome.shared.configure(tabs: config.tabs ?? [], selected: tabIds(from: config.tabs ?? []).isEmpty ? nil : CraftHybridRoutes.tab(owning: startPath, among: tabIds(from: config.tabs ?? [])), splash: hasWeb && !startsNative, appearance: config.tabBar)
 
         let script = config.nativeApp.flatMap { $0.isEmpty ? nil : $0 }
         appScriptRoute = script != nil && Self.hasBundle && (isEnabled || !hasWeb) ? script : nil

@@ -1003,6 +1003,24 @@ test "webview delegate ownership ends with its webview" {
     try testing.expect(callsFunction(handler_body, "msgSendVoid0(handler, \"release\")"));
 }
 
+test "the UI delegate exposes the WebKit file-input panel" {
+    const setup_start = std.mem.indexOf(u8, macos_source, "pub fn setupUIDelegate(") orelse
+        return error.WebViewDelegateSetupNotFound;
+    const setup_body = enclosingFnBody(macos_source, setup_start);
+    try testing.expect(std.mem.indexOf(u8, setup_body, "webView:runOpenPanelWithParameters:initiatedByFrame:completionHandler:") != null);
+    try testing.expect(std.mem.indexOf(u8, setup_body, "v@:@@@?") != null);
+
+    const panel_start = std.mem.indexOf(u8, macos_source, "fn handleOpenPanel(") orelse
+        return error.OpenPanelHandlerNotFound;
+    const panel_body = enclosingFnBody(macos_source, panel_start);
+    try testing.expect(callsFunction(panel_body, "openPanel"));
+    try testing.expect(callsFunction(panel_body, "setAllowsMultipleSelection:"));
+    try testing.expect(callsFunction(panel_body, "setAllowedFileTypes:"));
+    try testing.expect(callsFunction(panel_body, "runModal"));
+    try testing.expect(std.mem.indexOf(u8, panel_body, "block.invoke(handler, urls)") != null);
+    try testing.expect(std.mem.indexOf(u8, panel_body, "else null") != null);
+}
+
 test "the scan can actually find the constructors it claims to check" {
     // Guards the guard: every test above depends on `enclosingFnBody` locating
     // real function bodies. If the file's formatting changes such that it

@@ -112,6 +112,13 @@ an error before changing the canvas.
 
 ## Hardware capability boundary
 
+The separate [`craft.metal_surface`](../guides/metal-surface.md) API presents
+completed opaque CPU frames through a native `CAMetalLayer`. Its macOS fixture
+compares actual drawable pixels, including resize and backing scale. This is a
+surface adapter, with separate error and memory contracts. It does not change
+the legacy GPU pipeline's capabilities below. iOS presentation and native game
+integration still require their own execution evidence.
+
 [`GPU.getRenderingCapabilities`](../../packages/zig/src/gpu.zig) describes
 implemented execution separately from requested backend settings and hardware
 discovery. Currently it reports RGBA8 offscreen clear, with hardware canvas, shader

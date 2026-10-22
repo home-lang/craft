@@ -629,14 +629,14 @@ class AppManager {
   // ==========================================================================
 
   /**
-   * Set app appearance (macOS)
+   * Set the app appearance on native hosts.
    */
   async setAppearance(appearance: 'light' | 'dark' | 'system'): Promise<void> {
     await this._call('setAppearance', { appearance })
   }
 
   /**
-   * Get current appearance
+   * Get the current effective Light/Dark appearance.
    */
   async getAppearance(): Promise<'light' | 'dark'> {
     return this._call('getAppearance')

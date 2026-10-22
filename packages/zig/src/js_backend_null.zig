@@ -1,9 +1,7 @@
 //! The JS backend used when craft is built without zig-js.
 //!
 //! Craft's own JavaScript — anything that is not the page's — should not need
-//! a browser engine. But the engine is a sibling checkout rather than a
-//! fetchable package (see js_runtime.zig), so a default build has to compile
-//! and run without it.
+//! a browser engine. `-Djs-runtime=false` explicitly builds without the engine.
 //!
 //! This reports its absence instead of pretending. `available` is comptime, so
 //! callers can refuse the work up front rather than discovering it at the point
@@ -12,6 +10,7 @@
 const std = @import("std");
 
 pub const available = false;
+pub const hosting = @import("js_host_null.zig");
 
 /// Matches the zig-js backend's error set, so `js_runtime` handles one shape.
 pub const Error = error{ OutOfMemory, Unavailable, Throw, Parse };
