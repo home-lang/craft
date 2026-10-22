@@ -16,12 +16,10 @@
 //!
 //! This is a home for the second kind, on a first-party engine.
 //!
-//! The backend is chosen at build time. With `-Djs-runtime` it is zig-js; by
-//! default it is a stub that reports its own absence, because zig-js resolves
-//! through a sibling checkout rather than a fetchable package — its own
-//! dependencies use relative paths, so it cannot be a `.url` dependency until
-//! those are published. A default build must still compile on CI and ship to
-//! npm, so the feature is opt-in until that changes rather than a hard break.
+//! The backend is chosen at build time. The default uses zig-js from the pinned
+//! first-party sibling checkouts. `-Djs-runtime=false` selects an unavailable
+//! backend. PersistentRuntime adds retained typed values and direct callbacks;
+//! Runtime and evalOnce keep the existing text-evaluation interface.
 
 const std = @import("std");
 const backend = @import("js_backend");
@@ -31,6 +29,8 @@ const backend = @import("js_backend");
 pub const available = backend.available;
 
 pub const Error = backend.Error;
+pub const hosting = backend.hosting;
+pub const PersistentRuntime = hosting.PersistentRuntime;
 
 /// Told to the user rather than logged: an unavailable runtime is a build
 /// choice, and the fix is a flag they can pass.
@@ -80,9 +80,8 @@ pub fn evalOnce(allocator: std.mem.Allocator, arena: std.mem.Allocator, source: 
 
 // -- tests -------------------------------------------------------------------
 //
-// These run in both configurations on purpose. Without the backend they pin
-// that the absence is reported cleanly rather than crashing, which is the
-// behaviour a default build actually ships.
+// These run in both configurations. Without the backend they pin that absence
+// is reported cleanly rather than crashing.
 
 const testing = std.testing;
 
