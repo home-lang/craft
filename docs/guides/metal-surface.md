@@ -47,7 +47,7 @@ change the legacy GPU renderer's capability flags or implement Vulkan.
 
 Run `zig build test-metal-surface` with Craft's pinned compiler. It runs portable
 layout and unsupported-platform checks everywhere and a real AppKit/Metal
-fixture on macOS. The native fixture compares every GPU pixel across 61 changing
+fixture on macOS. The native fixture compares every GPU pixel across 61 presented
 frames, a real resize and backing scale, suspension, main-thread enforcement,
 buffer-budget refusal and layer removal. It is included in `zig build test`.
 

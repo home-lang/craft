@@ -122,5 +122,5 @@ pub fn main() !void {
     send1(void, window, "setContentSize:", Size{ .width = 160, .height = 120 });
     pump();
     try bounded.present(pixels);
-    std.debug.print("Native Metal presentation passed: {d} changing frames, every GPU pixel compared, scale {d}, real resize, suspension, wrong-thread rejection and disposal.\n", .{ frames + 1, metrics.scale });
+    std.debug.print("Native Metal presentation passed: {d} frames compared, scale {d}, real resize, suspension, wrong-thread rejection and disposal.\n", .{ frames + 1, metrics.scale });
 }
