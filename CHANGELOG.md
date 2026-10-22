@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.294...v0.0.295)
+
+## 🧪 Tests
+
+- **ios**: wait for the keyboard inset refresh before checking it ([1206133](https://github.com/craft-native/craft/commit/1206133)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.293...v0.0.294)
 
 ## 🐛 Bug Fixes
