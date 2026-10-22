@@ -14,6 +14,7 @@ const std = @import("std");
 const js = @import("js");
 
 pub const available = true;
+pub const hosting = @import("js_host_zigjs.zig");
 
 pub const Error = error{ OutOfMemory, Unavailable, Throw, Parse };
 

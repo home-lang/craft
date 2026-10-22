@@ -667,6 +667,9 @@ export interface AppConfig {
  * Craft System Tray API (available as window.craft.tray in WebView)
  */
 export interface CraftTrayAPI {
+    /** Read the rendered macOS status item, including its decoded image. */
+    getState(): Promise<{ title: string, tooltip: string, visible: boolean, hasIcon: boolean, template: boolean, imageWidth: number, imageHeight: number, imagePosition: number }>
+
     /** SF Symbol name, image path, or base64 image data URL. */
     setIcon(icon: string): Promise<void>
     /**
