@@ -1127,13 +1127,15 @@ test "Zig validates every field of the nested types Swift decodes, the way Swift
                 "bool"
             else if (std.mem.eql(u8, base, "Double"))
                 "number"
+            else if (std.mem.eql(u8, base, "TabSelection"))
+                "object"
             else {
                 std.debug.print("CraftConfig.{s}.{s} is a {s}, which ios_config.zig has no Kind for.\n", .{ struct_name, member.name, base });
                 return error.NestedFieldKindUnknown;
             };
 
             var expected_buf: [256]u8 = undefined;
-            const expected = try std.fmt.bufPrint(&expected_buf, ".{{ .name = \"{s}\", .kind = .{s}, .required = {s} }},", .{
+            const expected = try std.fmt.bufPrint(&expected_buf, ".{{ .name = \"{s}\", .kind = .{s}, .required = {s}", .{
                 member.name, kind, if (optional) "false" else "true",
             });
             if (std.mem.indexOf(u8, zig_fields, expected) == null) {
