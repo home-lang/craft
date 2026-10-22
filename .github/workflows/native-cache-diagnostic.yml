@@ -25,7 +25,9 @@ jobs:
       - name: Restore the exact failed cache without replacing it
         uses: actions/cache/restore@v5
         with:
-          path: pantry
+          # Cache versions include the literal path. The Pantry action saves
+          # this absolute path, so a relative spelling cannot restore it.
+          path: ${{ github.workspace }}/pantry
           key: ${{ env.NATIVE_DIAGNOSTIC_CACHE_KEY }}
           fail-on-cache-miss: true
       - name: Inspect and replay the native resolver
