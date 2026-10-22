@@ -86,6 +86,11 @@ internal data class CraftNativeTab(
     val selectedSymbol: String? = null, val selectedIconTint: String? = null, val selectedIconPulse: Boolean? = null,
 )
 
+internal data class CraftNativeTabBarAppearance(
+    val selectionColor: String? = null,
+    val selectionCornerRadius: Float? = null,
+)
+
 internal data class CraftTabIconAppearance(val symbol: String, val tint: Int?, val pulse: Boolean)
 
 /** The app's paths (`nativeScreens`), its tabs and its site. */
@@ -121,6 +126,16 @@ internal class CraftNativeRoutes(config: JSONObject) {
                 if (tab.opt("selectedIconPulse") is Boolean) tab.optBoolean("selectedIconPulse") else null))
         }
     }
+
+    val tabBarAppearance: CraftNativeTabBarAppearance = config.optJSONObject("tabBar")
+        ?.optJSONObject("selection")
+        ?.let { selection ->
+            CraftNativeTabBarAppearance(
+                selection.optString("color").takeIf { it.isNotBlank() },
+                (selection.opt("cornerRadius") as? Number)?.toFloat()?.takeIf { it.isFinite() && it >= 0 },
+            )
+        }
+        ?: CraftNativeTabBarAppearance()
 
     /** The app's site (`devServerURL`): its origin answers paths no screen draws. */
     val site: Uri? = config.optString("devServerURL").takeIf { it.isNotBlank() }?.let(Uri::parse)
@@ -755,7 +770,11 @@ internal object CraftNativePrelude {
  * `craft.navigation.setOptions` (title, largeTitle, hidden, rightButtons,
  * tabAccessory, tabBarHidden); the tabs come from the app's `tabs`.
  */
-internal class CraftNativeChrome(context: Context, private val tabs: List<CraftNativeTab>) : LinearLayout(context) {
+internal class CraftNativeChrome(
+    context: Context,
+    private val tabs: List<CraftNativeTab>,
+    private val tabBarAppearance: CraftNativeTabBarAppearance = CraftNativeTabBarAppearance(),
+) : LinearLayout(context) {
     val content = FrameLayout(context)
     private val bar = LinearLayout(context)
     private val backButton = ImageView(context)
@@ -1099,6 +1118,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         accessorySpec?.let { accessoryIcon.setImageDrawable(CraftNativeIcons.drawable(context, null, it.optString("symbol"), text)) }
         tabViews.forEachIndexed { index, (icon, label) ->
             tabBar.getChildAt(index).isSelected = index == selectedTab
+            tabBar.getChildAt(index).background = tabCellBackground(index, dark)
             val color = if (index == selectedTab) accent else muted
             val id = tabs[index].id
             val number = tabIconText[id]
@@ -1187,6 +1207,17 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     }
 
     private fun accentColor(dark: Boolean): Int = if (dark) Color.parseColor("#0A84FF") else Color.parseColor("#007AFF")
+
+    private fun tabCellBackground(index: Int, dark: Boolean): android.graphics.drawable.Drawable? {
+        if (index != selectedTab || (tabBarAppearance.selectionColor == null && tabBarAppearance.selectionCornerRadius == null)) return rippleBackground()
+        val color = tabBarAppearance.selectionColor?.let { runCatching { Color.parseColor(it) }.getOrNull() }
+            ?: if (dark) Color.argb(42, 255, 255, 255) else Color.argb(23, 0, 0, 0)
+        val radius = tabBarAppearance.selectionCornerRadius?.let { (it * density).toInt().toFloat() } ?: dp(32).toFloat()
+        return GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = radius
+        }
+    }
 
     private fun rippleBackground(): android.graphics.drawable.Drawable? {
         val value = TypedValue()
