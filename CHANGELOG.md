@@ -1,5 +1,40 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.296...v0.0.297)
+
+## 🚀 Features
+
+- **graphics**: present bounded frames through native Metal surfaces ([29bff73](https://github.com/craft-native/craft/commit/29bff73)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **ios**: own native acceptance command groups ([f56d93f](https://github.com/craft-native/craft/commit/f56d93f)) _(by Chris)_
+- **build**: resolve each iOS archive against its complete SDK ([8437e35](https://github.com/craft-native/craft/commit/8437e35)) _(by Chris)_
+- **sharing**: detect Chrome capture while Meet is selected ([d675077](https://github.com/craft-native/craft/commit/d675077)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- **graphics**: retain verified UIKit Metal screen evidence ([99d87ff](https://github.com/craft-native/craft/commit/99d87ff)) _(by Chris)_
+- **graphics**: retain native Metal execution evidence ([44fac13](https://github.com/craft-native/craft/commit/44fac13)) _(by Chris)_
+
+## 🧪 Tests
+
+- **ios**: exercise Metal surfaces through native UIKit hosts ([c140991](https://github.com/craft-native/craft/commit/c140991)) _(by Chris)_
+- **android**: isolate software provisioning CPU diagnostics ([a301dfd](https://github.com/craft-native/craft/commit/a301dfd)) _(by Chris)_
+
+## 🤖 Continuous Integration
+
+- **ios**: require native Metal pixel and screen acceptance ([13b412c](https://github.com/craft-native/craft/commit/13b412c)) _(by Chris)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/hush-chrome-background-capture ([42b89d4](https://github.com/craft-native/craft/commit/42b89d4)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.295...v0.0.296)
 
 ## 🚀 Features
