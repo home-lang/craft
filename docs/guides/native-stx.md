@@ -1052,6 +1052,36 @@ all: no `WKWebView` is ever created.
   capabilities whenever `enableGeolocation` / `enableAppleMusic` are set. The
   single-screen native app (no `nativeScreens`) gets them as well.
 
+### Generated project customization
+
+Generated native sources are owned by Craft and may be replaced on the next
+build. Use typed configuration for common chrome changes, and declare a hook
+only for app-owned source changes that Craft does not model yet:
+
+```json
+{
+  "tabBar": {
+    "selection": { "cornerRadius": 8, "color": "#123456" }
+  },
+  "postGenerate": {
+    "command": "bun",
+    "args": ["run", "scripts/customize-native.ts"]
+  }
+}
+```
+
+The `tabBar.selection` option is shared by the iOS and Android builders. Its
+`cornerRadius` is in points on iOS and dp on Android; `color` is `#RRGGBB`.
+Omitted values preserve each host's default selection appearance.
+
+`postGenerate` runs after `craft ios build` or `craft android build` generates
+the native project. The command runs with the generated project as its working
+directory and is launched directly from `command` plus `args` (no shell
+interpolation). Craft provides `CRAFT_PROJECT_ROOT`, `CRAFT_PLATFORM`, and
+`CRAFT_GENERATE_PHASE=build`. Missing executables, malformed options, and
+non-zero exits fail the build and include the hook's stderr, so a source patch
+cannot silently stop applying after a template change.
+
 ### The app script (`nativeApp`)
 
 `nativeApp` names a bundle route that has no screen (Stacks names it `__app`).

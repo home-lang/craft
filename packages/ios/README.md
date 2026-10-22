@@ -391,6 +391,29 @@ Appearance and navigation:
 - `swipeNavigation`: an edge swipe goes back and forward through the page's
   history, pushState entries included.
 
+Native tab-bar selection styling is opt-in and lives in the generated config,
+so the generated Swift never needs to be patched:
+
+```json
+{
+  "tabBar": {
+    "selection": { "cornerRadius": 8, "color": "#123456" }
+  },
+  "postGenerate": {
+    "command": "bun",
+    "args": ["run", "scripts/customize-native.ts"]
+  }
+}
+```
+
+`cornerRadius` is measured in points and `color` is `#RRGGBB`; omit either to
+keep its host default. `postGenerate` runs after `craft ios build` has written
+the Xcode project, with the generated project as its working directory. Craft
+does not invoke a shell: `command` and `args` are passed directly. The hook
+receives `CRAFT_PROJECT_ROOT`, `CRAFT_PLATFORM=ios`, and
+`CRAFT_GENERATE_PHASE=build`. A missing executable, non-zero exit, or invalid
+configuration fails the build with the hook's stderr in the diagnostic.
+
 Debug builds let Safari's Develop menu inspect the webview, and relay the
 page's console, uncaught errors, rejected promises and failed script loads to
 the device log as `[craft page] …`, so a page that only breaks inside the app
