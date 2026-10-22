@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.293...v0.0.294)
+
+## 🐛 Bug Fixes
+
+- **ios**: keep keyboard insets and a growing input's caret current ([0c0fc17](https://github.com/craft-native/craft/commit/0c0fc17)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.292...v0.0.293)
 
 ## 🐛 Bug Fixes
