@@ -4198,7 +4198,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun installChrome() {
-        val bars = CraftNativeChrome(this, routes.tabs)
+        val bars = CraftNativeChrome(this, routes.tabs, routes.tabBarAppearance)
         bars.layoutParams = FrameLayout.LayoutParams(-1, -1)
         bars.onBack = { onBackPressedDispatcherCompat() }
         bars.onAccessory = { path -> navigateOpen(path) }

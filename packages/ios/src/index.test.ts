@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { afterAll, describe, expect, it } from 'bun:test'
 import { addSchemeBuildTargets, addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from '../scripts/insert-project-targets'
@@ -29,6 +29,7 @@ import {
   renderWatchEntitlements,
   resolveCraftVersion,
   restoreShell,
+  runPostGenerateHook,
   syncWebAssets,
   syncNativeFonts,
 } from './index'
@@ -38,6 +39,68 @@ import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
 afterAll(removeAllTempDirs)
 
 describe('Craft iOS builder', () => {
+  it('runs a declared postGenerate command from the project root with metadata', async () => {
+    const output = createTempDir('craft-ios-post-generate-')
+    await init({ name: 'Hook App', output, runtimeDir: null, config: {
+      postGenerate: { command: 'sh', args: ['-c', 'printf "%s|%s|%s" "$PWD" "$CRAFT_PLATFORM" "$CRAFT_GENERATE_PHASE" > hook.txt'] },
+    } })
+    const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
+    expect(config.postGenerate).toEqual({ command: 'sh', args: ['-c', 'printf "%s|%s|%s" "$PWD" "$CRAFT_PLATFORM" "$CRAFT_GENERATE_PHASE" > hook.txt'] })
+    runPostGenerateHook(config.postGenerate, output)
+    expect(readFileSync(join(output, 'hook.txt'), 'utf8')).toBe(`${realpathSync(output)}|ios|build`)
+  })
+
+  it('runs the postGenerate hook after the iOS builder generates its Xcode project', async () => {
+    const root = createTempDir('craft-ios-post-generate-build-')
+    const output = join(root, 'app')
+    const xcodegen = join(root, 'xcodegen')
+    writeFileSync(xcodegen, '#!/bin/sh\nmkdir -p HookBuild.xcodeproj\n')
+    chmodSync(xcodegen, 0o755)
+    const previousPath = process.env.PATH
+    process.env.PATH = `${root}:${previousPath ?? ''}`
+    try {
+      await init({ name: 'Hook Build', output, runtimeDir: null, config: {
+        postGenerate: { command: 'sh', args: ['-c', 'test -d HookBuild.xcodeproj && printf "%s" "$CRAFT_GENERATE_PHASE" > hook-phase.txt'] },
+      } })
+      await build({ output, runtimeDir: null })
+      expect(readFileSync(join(output, 'hook-phase.txt'), 'utf8')).toBe('build')
+    }
+    finally {
+      if (previousPath === undefined) delete process.env.PATH
+      else process.env.PATH = previousPath
+    }
+  })
+
+  it('reports invalid iOS postGenerate commands and non-zero exits', () => {
+    const output = createTempDir('craft-ios-post-generate-errors-')
+    expect(() => runPostGenerateHook({ command: '' }, output)).toThrow('postGenerate.command must be a non-empty executable')
+    expect(() => runPostGenerateHook({ command: join(output, 'missing-hook') }, output)).toThrow('postGenerate hook could not start')
+    expect(() => runPostGenerateHook({ command: 'sh', args: ['-c', 'printf "patch failed" >&2; exit 7'] }, output))
+      .toThrow('postGenerate hook failed')
+  })
+
+  it('generates static tab-bar selection appearance and validates its shape', async () => {
+    const output = createTempDir('craft-ios-tab-bar-appearance-')
+    await init({ name: 'Tab Bar', output, runtimeDir: null, config: {
+      tabBar: { selection: { cornerRadius: 8, color: '#123456' } },
+    } })
+    const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
+    const swift = readFileSync(join(output, 'Sources', 'TabBarApp.swift'), 'utf8')
+    const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
+    expect(config.tabBar).toEqual({ selection: { cornerRadius: 8, color: '#123456' } })
+    expect(swift).toContain('private(set) var tabSelectionColor: UIColor?')
+    expect(swift).toContain('appearance: CraftConfig.TabBar? = nil')
+    expect(swift).toContain('chrome.tabSelectionColor.map { Color($0) }')
+    expect(swift).toContain('@ObservedObject private var chrome = CraftChrome.shared')
+    expect(hybrid).toContain('appearance: config.tabBar')
+    await expect(init({ name: 'Invalid Tab Bar', output: join(output, 'invalid'), runtimeDir: null, config: {
+      tabBar: { selection: { cornerRadius: -1 } },
+    } })).rejects.toThrow('cornerRadius must be a finite non-negative number')
+    await expect(init({ name: 'Invalid Tab Color', output: join(output, 'invalid-color'), runtimeDir: null, config: {
+      tabBar: { selection: { color: 'red' } },
+    } })).rejects.toThrow('color must be a #RRGGBB color')
+  })
+
   it('restores the shell with the actual Xcode Cloud build identity without changing other resources', () => {
     const output = createTempDir('craft-cloud-identity-')
     const file = join(output, 'craft.config.json')
@@ -799,7 +862,7 @@ describe('Craft iOS builder', () => {
     const launch = JSON.parse(readFileSync(join(output, 'Assets.xcassets', 'LaunchBackground.colorset', 'Contents.json'), 'utf8'))
     expect(plist).toContain('<key>UIUserInterfaceStyle</key>\n    <string>Automatic</string>')
     expect(plist).toContain('<string>UIStatusBarStyleDefault</string>')
-    expect(swift).toContain('.preferredColorScheme(appState.config.colorScheme)')
+    expect(swift).toContain('.preferredColorScheme(appState.appearanceScheme)')
     expect(launch.colors).toHaveLength(2)
     expect(launch.colors[1].appearances).toEqual([{ appearance: 'luminosity', value: 'dark' }])
     expect(launch.colors[1].color.components.red).toBe('0.008')
@@ -828,6 +891,27 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('config.resolvedBackgroundColor')
     expect(source).toContain('mutationDocument.node("root")')
     expect(source).toContain('renderCommitted(document)')
+  })
+
+  it('lets native screens pin UIKit appearance at launch and at runtime', async () => {
+    const output = createTempDir('craft-ios-native-appearance-')
+    await init({
+      runtimeDir: null,
+      name: 'NativeAppearance',
+      bundleId: 'org.example.native-appearance',
+      output,
+      config: { renderer: 'native', appearance: 'system' },
+    })
+    const swift = readFileSync(join(output, 'Sources', 'NativeAppearanceApp.swift'), 'utf8')
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    expect(swift).toContain('CraftInterfaceStyleController.configure(config)')
+    expect(swift).toContain('CraftInterfaceStyleController.set(appearance)')
+    expect(swift).toContain('.preferredColorScheme(appState.appearanceScheme)')
+    expect(swift).toContain('CraftInterfaceStyleController.colorScheme(for: self.config)')
+    expect(swift).toContain('case "getAppearance":')
+    expect(screen).toContain('CraftInterfaceStyleController.apply(to: self, config: config)')
+    expect(screen).toContain('craftNativeSetAppearance')
+    expect(screen).toContain("keep('app', {")
   })
 
   it('emits native layout measurements only when a view changes frame', async () => {
@@ -2567,6 +2651,8 @@ describe('Craft iOS builder', () => {
     expect(watch).toContain('protocolVersion')
     expect(watch).toContain('requestId')
     expect(watch).toContain('stateVersion')
+    expect(watch).toContain('guard incomingVersion >= stateVersion else { return }')
+    expect(watch).toContain('stateVersion = incomingVersion')
     expect(watch).toContain('planned-session')
     expect(watch).toContain('craft.watch.state.v1')
     expect(watch).toContain('updateApplicationContext(state)')

@@ -102,6 +102,96 @@ enum CraftPageAppearance {
     }
 }
 
+/// The app-wide UIKit appearance override. SwiftUI's `preferredColorScheme`
+/// only controls the SwiftUI environment; native screen controllers need the
+/// UIKit override as well so their trait collection, controls and navigation
+/// chrome resolve the same way. A runtime choice is kept here so screens
+/// created after the choice inherit it instead of reverting to the bundle
+/// config.
+enum CraftInterfaceStyleController {
+    /// The app's bundled choice is the default for newly-created screens.
+    /// A runtime choice is separate: it is the only value that should
+    /// override a screen's own generated config.
+    private static var configured: UIUserInterfaceStyle = .unspecified
+    private static var runtimeSelection: UIUserInterfaceStyle?
+
+    static func configuredStyle(for config: CraftConfig) -> UIUserInterfaceStyle {
+        switch config.appearance {
+        case "system": return .unspecified
+        case "light": return .light
+        case "dark": return .dark
+        default: return config.darkMode ? .dark : .light
+        }
+    }
+
+    static func configure(_ config: CraftConfig) {
+        configured = configuredStyle(for: config)
+        runtimeSelection = nil
+        applyToWindows()
+    }
+
+    static func style(for config: CraftConfig) -> UIUserInterfaceStyle {
+        runtimeSelection ?? configuredStyle(for: config)
+    }
+
+    static func colorScheme(for config: CraftConfig) -> ColorScheme? {
+        switch style(for: config) {
+        case .light: return .light
+        case .dark: return .dark
+        default: return nil
+        }
+    }
+
+    /// Returns false rather than silently accepting a typo from JavaScript.
+    @discardableResult
+    static func set(_ value: String) -> Bool {
+        let style: UIUserInterfaceStyle
+        switch value {
+        case "system": style = .unspecified
+        case "light": style = .light
+        case "dark": style = .dark
+        default: return false
+        }
+        runtimeSelection = style
+        applyToWindows()
+        NotificationCenter.default.post(name: .craftColorSchemeChanged, object: nil)
+        return true
+    }
+
+    static func currentName() -> String {
+        let requested = runtimeSelection ?? UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow })?.traitCollection.userInterfaceStyle }
+            .first ?? .unspecified
+        let style = requested == .unspecified
+            ? (UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow })?.traitCollection.userInterfaceStyle }
+                .first { $0 != .unspecified } ?? UITraitCollection.current.userInterfaceStyle)
+            : requested
+        return style == .dark ? "dark" : "light"
+    }
+
+    static func apply(to controller: UIViewController, config: CraftConfig) {
+        controller.overrideUserInterfaceStyle = style(for: config)
+    }
+
+    private static func applyToWindows() {
+        let style = runtimeSelection ?? configured
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            for window in scene.windows {
+                window.overrideUserInterfaceStyle = style
+                apply(style, to: window.rootViewController)
+            }
+        }
+    }
+
+    private static func apply(_ style: UIUserInterfaceStyle, to controller: UIViewController?) {
+        guard let controller else { return }
+        controller.overrideUserInterfaceStyle = style
+        controller.children.forEach { apply(style, to: $0) }
+        if let presented = controller.presentedViewController { apply(style, to: presented) }
+    }
+}
+
 /// Tells the shell when SwiftUI's colour scheme changes: the one appearance
 /// setting with no notification of its own.
 struct CraftColorSchemeObserver: View {
@@ -195,6 +285,7 @@ struct CraftRecoveryBudget {
 final class CraftAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         let config = CraftConfig.bundled()
+        CraftInterfaceStyleController.configure(config)
         // First, so a crash anywhere in the rest of launch is reported too.
         CraftCrashReporter.shared.start(config)
         UNUserNotificationCenter.current().delegate = self
@@ -606,7 +697,7 @@ struct CraftApp: App {
                     .ignoresSafeArea(.keyboard, edges: .bottom)
                 }
             }
-                .preferredColorScheme(appState.config.colorScheme)
+                .preferredColorScheme(appState.appearanceScheme)
                 .environmentObject(appState)
                 .onOpenURL { url in
                     // Handle deep links and universal links
@@ -689,6 +780,10 @@ final class CraftChrome: ObservableObject {
     /// The selected tab highlight's corner radius. Nil preserves the default
     /// capsule, while a finite non-negative value opts into a rounded rect.
     private(set) var tabSelectionCornerRadius: CGFloat?
+    /// The configured static shape, retained when the page updates only its
+    /// tabs or selected item at runtime.
+    private var configuredTabSelectionCornerRadius: CGFloat?
+    private(set) var tabSelectionColor: UIColor?
 
     weak var webView: WKWebView?
     /// What the tab bar covers at the bottom of the screen, in points.
@@ -723,9 +818,13 @@ final class CraftChrome: ObservableObject {
     /// The tab bar from `tabs` in craft.config.json, there before the page
     /// loads; the page's own `tabBar` message replaces it later. `splash`
     /// false when the first screen is native and draws itself.
-    func configure(tabs configured: [CraftConfig.Tab], selected: String?, splash: Bool) {
+    func configure(tabs configured: [CraftConfig.Tab], selected: String?, splash: Bool, appearance: CraftConfig.TabBar? = nil) {
         splashVisible = splash
         tabSwipeEnabled = true
+        configuredTabSelectionCornerRadius = appearance?.selection?.cornerRadius
+            .flatMap { $0.isFinite && $0 >= 0 ? CGFloat($0) : nil }
+        tabSelectionCornerRadius = configuredTabSelectionCornerRadius
+        tabSelectionColor = appearance?.selection?.color.flatMap { UIColor(hex: $0) }
         guard !configured.isEmpty else { return }
         tabs = configured.map { Tab(id: $0.id, title: $0.title, symbol: $0.symbol ?? "circle", badge: nil, selectedSymbol: Tab.normalizedSelectedSymbol($0.selectedSymbol), selectedIconTint: $0.selectedIconTint, selectedIconPulse: $0.selectedIconPulse) }
         self.selected = selected ?? configured.first?.id
@@ -856,6 +955,7 @@ final class CraftChrome: ObservableObject {
                 tint = light.map { light in dark.map { dark in UIColor { $0.userInterfaceStyle == .dark ? dark : light } } ?? light }
             }
             if let swipeEnabled = body["swipeEnabled"] as? Bool { tabSwipeEnabled = swipeEnabled }
+            if !body.keys.contains("selection") { tabSelectionCornerRadius = configuredTabSelectionCornerRadius }
             withAnimation(Self.motion(.easeOut(duration: 0.2))) { tabBarVisible = !tabs.isEmpty && !hiddenByScreen }
             publishLayout()
         case "selectTab":
@@ -1312,6 +1412,7 @@ private struct CraftTabSelectionShape: Shape {
 }
 
 private struct CraftTabSelectionIndicator: View {
+    @ObservedObject private var chrome = CraftChrome.shared
     @ObservedObject private var progress = CraftChrome.shared.tabSwipeProgress
     let selected: Int?
     let count: Int
@@ -1323,7 +1424,7 @@ private struct CraftTabSelectionIndicator: View {
                 let width = geometry.size.width / CGFloat(max(1, count))
                 CraftTabSelectionShape(cornerRadius: cornerRadius)
                     .frame(width: width, height: geometry.size.height)
-                    .foregroundStyle(Color.primary.opacity(0.09))
+                    .foregroundStyle(chrome.tabSelectionColor.map { Color($0) } ?? Color.primary.opacity(0.09))
                     .offset(x: position * width)
             }
         }
@@ -1557,6 +1658,8 @@ class DeepLinkManager {
 // MARK: - App State
 class AppState: ObservableObject {
     @Published var config: CraftConfig
+    @Published private(set) var appearanceScheme: ColorScheme?
+    private var appearanceObserver: NSObjectProtocol?
 
     init() {
         if let configURL = Bundle.main.url(forResource: "craft.config", withExtension: "json"),
@@ -1565,10 +1668,25 @@ class AppState: ObservableObject {
         } else {
             self.config = CraftConfig()
         }
+        self.appearanceScheme = CraftInterfaceStyleController.colorScheme(for: config)
+        appearanceObserver = NotificationCenter.default.addObserver(
+            forName: .craftColorSchemeChanged,
+            object: nil,
+            queue: .main,
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.appearanceScheme = CraftInterfaceStyleController.colorScheme(for: self.config)
+        }
         // Before the first frame: the hybrid start screen, and the tab bar
         // from the config, are decided here, if the app delegate has not
         // already (it does at launch; the first call decides).
         CraftHybrid.shared.configure(config)
+    }
+
+    deinit {
+        if let appearanceObserver {
+            NotificationCenter.default.removeObserver(appearanceObserver)
+        }
     }
 }
 
@@ -1706,6 +1824,9 @@ struct CraftConfig: Codable {
     var nativeScreens: [String: String]? = nil
     /// The tab bar to show before the page describes its own.
     var tabs: [Tab]? = nil
+    /// Static styling for the selected tab indicator; the page may still
+    /// override its shape through `tabBar.set({ selection })`.
+    var tabBar: TabBar? = nil
     /// Hybrid: web-storage keys the page's own code writes, mirrored into the
     /// Keychain under another name for native screens (`{"auth_token": "auth.token"}`).
     var shareStorage: [String: String]? = nil
@@ -1731,6 +1852,15 @@ struct CraftConfig: Codable {
         var selectedSymbol: String? = nil
         var selectedIconTint: String? = nil
         var selectedIconPulse: Bool? = nil
+    }
+
+    struct TabBar: Codable {
+        var selection: TabSelection? = nil
+    }
+
+    struct TabSelection: Codable {
+        var cornerRadius: Double? = nil
+        var color: String? = nil
     }
 
     struct BackgroundRefresh: Codable {
@@ -2535,6 +2665,18 @@ struct CraftWebView: UIViewRepresentable {
                 resolveCallback(callbackId, result: CraftSymbols.image(named: body["name"] as? String ?? "", options: body) ?? NSNull())
             case "statusBarSetStyle":
                 resolveCallback(callbackId, result: CraftStatusBar.setStyle(body["style"] as? String ?? "default"))
+            case "setAppearance":
+                guard let appearance = body["appearance"] as? String else {
+                    rejectCallback(callbackId, error: "setAppearance needs light, dark or system", code: "INVALID_ARGUMENT")
+                    return
+                }
+                guard CraftInterfaceStyleController.set(appearance) else {
+                    rejectCallback(callbackId, error: "setAppearance needs light, dark or system", code: "INVALID_ARGUMENT")
+                    return
+                }
+                resolveCallback(callbackId, result: true)
+            case "getAppearance":
+                resolveCallback(callbackId, result: CraftInterfaceStyleController.currentName())
             case "chromeSetUnderPageColor":
                 // What shows past the page's edges when it rubber-bands.
                 if #available(iOS 15.0, *), let webView, let css = body["color"] as? String, let color = UIColor(css: css) {
@@ -5596,6 +5738,14 @@ struct CraftWebView: UIViewRepresentable {
                     getInfo: function() { return craft.getDeviceInfo(); },
                     getCapabilities: function() { return Promise.resolve(Object.assign({}, craft.capabilities)); }
                 };
+                craft.app = Object.assign(craft.app || {}, {
+                    setAppearance: function(appearance) {
+                        return craft._invoke('setAppearance', {appearance: appearance});
+                    },
+                    getAppearance: function() {
+                        return craft._invoke('getAppearance', {});
+                    }
+                });
                 // Feedback, as on Android and the web, where there is no
                 // motor to fire: an app that left enableHaptics off gets
                 // nothing played and a settled promise, so `await
