@@ -1,5 +1,23 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.287...v0.0.288)
+
+## 🐛 Bug Fixes
+
+- preflight permission before querying sharing window titles ([6969827](https://github.com/craft-native/craft/commit/6969827)) _(by Chris Breuer)_
+- **bridge**: restore bound reply and option payload variables ([d8657e8](https://github.com/craft-native/craft/commit/d8657e8)) _(by Chris Breuer)_
+- confirm native timer cancellation before settling ([8cb9dcb](https://github.com/craft-native/craft/commit/8cb9dcb)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/image-optimization-packaging ([b022ca1](https://github.com/craft-native/craft/commit/b022ca1)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/image-optimization-packaging ([d024e4d](https://github.com/craft-native/craft/commit/d024e4d)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into HEAD ([c0f8dde](https://github.com/craft-native/craft/commit/c0f8dde)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.286...v0.0.287)
 
 ## 🐛 Bug Fixes
