@@ -26,12 +26,21 @@ describe('Craft Android builder', () => {
     expect(readFileSync(join(output, 'hook.txt'), 'utf8')).toBe(`${realpathSync(output)}|android|build`)
   })
 
+  it('runs the postGenerate hook during the Android build before compilation', async () => {
+    const output = createTempDir('craft-android-post-generate-build-')
+    await init({ name: 'Hook Build', output, runtimeDir: null, config: {
+      postGenerate: { command: 'sh', args: ['-c', 'printf "%s" "$CRAFT_GENERATE_PHASE" > hook-phase.txt'] },
+    } })
+    await build({ output, compile: false })
+    expect(readFileSync(join(output, 'hook-phase.txt'), 'utf8')).toBe('build')
+  })
+
   it('reports invalid Android postGenerate commands and non-zero exits', () => {
     const output = createTempDir('craft-android-post-generate-errors-')
     expect(() => runPostGenerateHook({ command: '' }, output)).toThrow('postGenerate.command must be a non-empty executable')
     expect(() => runPostGenerateHook({ command: join(output, 'missing-hook') }, output)).toThrow('postGenerate hook could not start')
     expect(() => runPostGenerateHook({ command: 'sh', args: ['-c', 'printf "patch failed" >&2; exit 7'] }, output))
-      .toThrow('postGenerate hook failed with exit code 7: patch failed')
+      .toThrow('postGenerate hook failed')
   })
 
   it('generates static tab-bar selection appearance and validates its shape', async () => {

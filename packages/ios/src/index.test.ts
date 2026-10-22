@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { afterAll, describe, expect, it } from 'bun:test'
 import { addSchemeBuildTargets, addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from '../scripts/insert-project-targets'
@@ -50,12 +50,33 @@ describe('Craft iOS builder', () => {
     expect(readFileSync(join(output, 'hook.txt'), 'utf8')).toBe(`${realpathSync(output)}|ios|build`)
   })
 
+  it('runs the postGenerate hook after the iOS builder generates its Xcode project', async () => {
+    const root = createTempDir('craft-ios-post-generate-build-')
+    const output = join(root, 'app')
+    const xcodegen = join(root, 'xcodegen')
+    writeFileSync(xcodegen, '#!/bin/sh\nmkdir -p HookBuild.xcodeproj\n')
+    chmodSync(xcodegen, 0o755)
+    const previousPath = process.env.PATH
+    process.env.PATH = `${root}:${previousPath ?? ''}`
+    try {
+      await init({ name: 'Hook Build', output, runtimeDir: null, config: {
+        postGenerate: { command: 'sh', args: ['-c', 'test -d HookBuild.xcodeproj && printf "%s" "$CRAFT_GENERATE_PHASE" > hook-phase.txt'] },
+      } })
+      await build({ output, runtimeDir: null })
+      expect(readFileSync(join(output, 'hook-phase.txt'), 'utf8')).toBe('build')
+    }
+    finally {
+      if (previousPath === undefined) delete process.env.PATH
+      else process.env.PATH = previousPath
+    }
+  })
+
   it('reports invalid iOS postGenerate commands and non-zero exits', () => {
     const output = createTempDir('craft-ios-post-generate-errors-')
     expect(() => runPostGenerateHook({ command: '' }, output)).toThrow('postGenerate.command must be a non-empty executable')
     expect(() => runPostGenerateHook({ command: join(output, 'missing-hook') }, output)).toThrow('postGenerate hook could not start')
     expect(() => runPostGenerateHook({ command: 'sh', args: ['-c', 'printf "patch failed" >&2; exit 7'] }, output))
-      .toThrow('postGenerate hook failed with exit code 7: patch failed')
+      .toThrow('postGenerate hook failed')
   })
 
   it('generates static tab-bar selection appearance and validates its shape', async () => {

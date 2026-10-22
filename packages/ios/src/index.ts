@@ -686,11 +686,11 @@ export function runPostGenerateHook(
     })
   }
   catch (error) {
-    throw new Error(`iOS postGenerate hook could not start: ${hook.command}`, { cause: error })
+    throw new Error(`iOS postGenerate hook could not start in ${output}: ${hook.command}`, { cause: error })
   }
   if (result.exitCode !== 0) {
     const stderr = result.stderr?.toString().trim()
-    throw new Error(`iOS postGenerate hook failed with exit code ${result.exitCode}${stderr ? `: ${stderr}` : ''}`)
+    throw new Error(`iOS postGenerate hook failed in ${output} with exit code ${result.exitCode}${stderr ? `: ${stderr}` : ''}`)
   }
 }
 
