@@ -75,8 +75,22 @@ pub fn build(b: *std.Build) void {
         });
     };
 
-    // Create the craft module (library module — does not own build_options;
-    // each executable supplies build_options directly so there is no duplicate)
+    const host_fixture = b.addExecutable(.{
+        .name = "craft-js-hosting-test",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/js_host_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .imports = &.{.{ .name = "js_backend", .module = js_backend_module }},
+        }),
+    });
+    const run_host_fixture = b.addRunArtifact(host_fixture);
+    const host_fixture_step = b.step("test-js-hosting", "Exercise persistent typed JavaScript hosting through Craft's public API");
+    host_fixture_step.dependOn(&run_host_fixture.step);
+
+    // Create the craft module. Each executable supplies build_options directly
+    // so there is no duplicate module ownership.
     const craft_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .imports = &.{
@@ -2022,6 +2036,7 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all unit tests");
+    test_step.dependOn(&run_host_fixture.step);
     const screen_sharing_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/sharing_accessibility.zig"),

@@ -17,6 +17,24 @@ final class NativeLayoutUnitTests: XCTestCase {
         return controller
     }
 
+    func testNativeScreenUsesConfiguredUIKitAppearance() {
+        var config = CraftConfig()
+        config.appearance = "light"
+        let light = CraftNativeScreenController(config: config)
+        light.loadViewIfNeeded()
+        XCTAssertEqual(light.overrideUserInterfaceStyle, .light)
+
+        config.appearance = "dark"
+        let dark = CraftNativeScreenController(config: config)
+        dark.loadViewIfNeeded()
+        XCTAssertEqual(dark.overrideUserInterfaceStyle, .dark)
+
+        config.appearance = "system"
+        let system = CraftNativeScreenController(config: config)
+        system.loadViewIfNeeded()
+        XCTAssertEqual(system.overrideUserInterfaceStyle, .unspecified)
+    }
+
     func testReturningToAnUnchangedThemeRetainsTextAndScrollGeometry() throws {
         let rows: [[String: Any]] = (0..<100).map { index in
             ["id": "row-\(index)", "type": "Text", "props": ["testID": "row-\(index)"],

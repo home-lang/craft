@@ -201,12 +201,16 @@ const dispatch_end = "func webView(";
 /// and HKLiveWorkoutBuilder are owned by CraftHealth.swift, including their
 /// delegate callbacks and iOS 26 availability; the actions remain on the
 /// Swift shim until the Zig bridge has an equivalent lifecycle channel.
+/// 61 when native screens gained setAppearance and getAppearance. They update
+/// the app-wide UIKit style and remain on the Swift side until Zig owns that
+/// lifecycle as well; each new action increases the outstanding count, and no
+/// existing Zig action was removed.
 /// 59 when the spec gained getHealthSamples: glucose, insulin and carbs one
 /// sample at a time (bloodGlucose, insulinDelivery, dietaryCarbohydrates), an
 /// HKSampleQuery in CraftHealth.swift like the other health reads. It went
 /// into Swift first and falls through to the shim, which serves it. Not a
 /// regression: no action left Zig.
-const max_not_yet_migrated: usize = 59;
+const max_not_yet_migrated: usize = 61;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.
@@ -1123,13 +1127,15 @@ test "Zig validates every field of the nested types Swift decodes, the way Swift
                 "bool"
             else if (std.mem.eql(u8, base, "Double"))
                 "number"
+            else if (std.mem.eql(u8, base, "TabSelection"))
+                "object"
             else {
                 std.debug.print("CraftConfig.{s}.{s} is a {s}, which ios_config.zig has no Kind for.\n", .{ struct_name, member.name, base });
                 return error.NestedFieldKindUnknown;
             };
 
             var expected_buf: [256]u8 = undefined;
-            const expected = try std.fmt.bufPrint(&expected_buf, ".{{ .name = \"{s}\", .kind = .{s}, .required = {s} }},", .{
+            const expected = try std.fmt.bufPrint(&expected_buf, ".{{ .name = \"{s}\", .kind = .{s}, .required = {s}", .{
                 member.name, kind, if (optional) "false" else "true",
             });
             if (std.mem.indexOf(u8, zig_fields, expected) == null) {

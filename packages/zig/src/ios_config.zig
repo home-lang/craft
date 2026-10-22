@@ -185,7 +185,7 @@ const number_keys = [_][]const u8{ "splashMaxSeconds", "requestTimeoutSeconds" }
 /// value inside it throws; only a null at the top level is dropped.
 const optional_string_map_keys = [_][]const u8{ "nativeScreens", "shareStorage" };
 /// Swift `Codable` structs, whose fields are checked by `checkObject`.
-const optional_object_keys = [_]Nested{ .{ .key = "backgroundRefresh", .fields = &background_refresh_fields }, .{ .key = "crashReporting", .fields = &crash_reporting_fields } };
+const optional_object_keys = [_]Nested{ .{ .key = "backgroundRefresh", .fields = &background_refresh_fields }, .{ .key = "crashReporting", .fields = &crash_reporting_fields }, .{ .key = "tabBar", .fields = &tab_bar_fields } };
 /// Swift arrays of `Codable` structs. Every element is checked.
 const optional_array_of_object_keys = [_]Nested{ .{ .key = "tabs", .fields = &tab_fields }, .{ .key = "appShortcuts", .fields = &app_shortcut_fields } };
 
@@ -199,8 +199,8 @@ const Nested = struct { key: []const u8, fields: []const Field };
 /// ignores a property's initial value, so `BackgroundRefresh.enabled`, which
 /// defaults to false, still throws when it is missing or null. An optional
 /// field may be missing or null. Both checked against `swiftc`.
-const Field = struct { name: []const u8, kind: Kind, required: bool };
-const Kind = enum { string, bool, number, string_array };
+const Field = struct { name: []const u8, kind: Kind, required: bool, object_fields: []const Field = &.{} };
+const Kind = enum { string, bool, number, string_array, object };
 
 /// `CraftConfig.BackgroundRefresh`.
 const background_refresh_fields = [_]Field{
@@ -217,6 +217,15 @@ const crash_reporting_fields = [_]Field{
     .{ .name = "environment", .kind = .string, .required = false },
     .{ .name = "release", .kind = .string, .required = false },
     .{ .name = "sessions", .kind = .bool, .required = false },
+};
+
+/// `CraftConfig.TabBar` and its optional selected-indicator styling.
+const tab_selection_fields = [_]Field{
+    .{ .name = "cornerRadius", .kind = .number, .required = false },
+    .{ .name = "color", .kind = .string, .required = false },
+};
+const tab_bar_fields = [_]Field{
+    .{ .name = "selection", .kind = .object, .required = false, .object_fields = &tab_selection_fields },
 };
 
 /// `CraftConfig.Tab`.
@@ -260,6 +269,7 @@ fn isKind(v: std.json.Value, kind: Kind) bool {
         .bool => v == .bool,
         .number => isNumber(v),
         .string_array => isStringArray(v),
+        .object => v == .object,
     };
 }
 
@@ -277,6 +287,7 @@ fn checkObject(v: std.json.Value, fields: []const Field) bool {
             continue;
         }
         if (!isKind(present, field.kind)) return false;
+        if (field.kind == .object and !checkObject(present, field.object_fields)) return false;
     }
     return true;
 }
@@ -840,6 +851,9 @@ test "nested types decode field by field, defaults or not" {
         "\"tabs\":[{\"id\":\"health\",\"title\":\"Health\",\"selectedSymbol\":null,\"selectedIconTint\":null,\"selectedIconPulse\":null}]",
         "\"crashReporting\":{\"key\":\"bughq_k\"}",
         "\"crashReporting\":{\"key\":\"bughq_k\",\"host\":\"https://bughq.org\",\"environment\":null,\"sessions\":false}",
+        "\"tabBar\":{}",
+        "\"tabBar\":{\"selection\":{\"cornerRadius\":8,\"color\":\"#123456\"}}",
+        "\"tabBar\":{\"selection\":null}",
     }) |good| {
         const json = try completeConfig(testing.allocator, good);
         defer testing.allocator.free(json);
@@ -862,6 +876,9 @@ test "nested types decode field by field, defaults or not" {
         "\"tabs\":[{\"id\":\"a\",\"title\":\"A\",\"selectedIconPulse\":\"false\"}]",
         "\"tabs\":[null]",
         "\"tabs\":{}",
+        "\"tabBar\":[]",
+        "\"tabBar\":{\"selection\":{\"cornerRadius\":\"8\"}}",
+        "\"tabBar\":{\"selection\":{\"color\":42}}",
     }) |bad| {
         const json = try completeConfig(testing.allocator, bad);
         defer testing.allocator.free(json);

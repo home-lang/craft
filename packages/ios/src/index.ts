@@ -68,6 +68,21 @@ const CRAFT_VERSION = resolveCraftVersion()
 
 export type CraftAppearance = 'light' | 'dark' | 'system'
 
+/** A declared command Craft runs after the native project has been generated. */
+export interface CraftPostGenerateHook {
+  command: string
+  args?: string[]
+}
+
+export interface CraftTabBarConfig {
+  selection?: {
+    /** The selected tab indicator's corner radius in points; omitted keeps a capsule. */
+    cornerRadius?: number
+    /** The selected tab indicator fill as #RRGGBB. */
+    color?: string
+  }
+}
+
 export interface CraftConfig {
   appShortcuts?: CraftAppShortcut[]
   /** Bundled font files keyed by their PostScript font name, used as native fontFamily. */
@@ -86,6 +101,10 @@ export interface CraftConfig {
    * and `dark` pin one. Unset keeps the older `darkMode` switch.
    */
   appearance?: CraftAppearance
+  /** Static native tab-bar styling applied before the page's own tabBar.set call. */
+  tabBar?: CraftTabBarConfig
+  /** Runs from the generated project root after `craft ios build` writes it. */
+  postGenerate?: CraftPostGenerateHook
   backgroundColor?: string
   /** The launch and webview background while the phone is in Dark Mode. */
   backgroundColorDark?: string
@@ -637,6 +656,42 @@ export interface BuildOptions {
    * leaves whatever `init` installed exactly as it is.
    */
   runtimeDir?: string | null
+}
+
+/**
+ * Run the app's declared generator hook without invoking a shell.
+ *
+ * A hook gets the generated project as its cwd and explicit metadata so a
+ * patch can target the right platform and phase without guessing from paths.
+ */
+export function runPostGenerateHook(
+  hook: CraftPostGenerateHook | undefined,
+  output: string,
+  phase: 'build' = 'build',
+): void {
+  if (!hook) return
+  if (typeof hook.command !== 'string' || !hook.command.trim())
+    throw new Error('iOS postGenerate.command must be a non-empty executable')
+  if (hook.args !== undefined && (!Array.isArray(hook.args) || hook.args.some(argument => typeof argument !== 'string')))
+    throw new Error('iOS postGenerate.args must be an array of strings')
+
+  const command = [hook.command, ...(hook.args ?? [])]
+  let result: ReturnType<typeof Bun.spawnSync>
+  try {
+    result = Bun.spawnSync(command, {
+      cwd: output,
+      env: { ...process.env, CRAFT_PROJECT_ROOT: output, CRAFT_PLATFORM: 'ios', CRAFT_GENERATE_PHASE: phase },
+      stdout: 'inherit',
+      stderr: 'pipe',
+    })
+  }
+  catch (error) {
+    throw new Error(`iOS postGenerate hook could not start in ${output}: ${hook.command}`, { cause: error })
+  }
+  if (result.exitCode !== 0) {
+    const stderr = result.stderr?.toString().trim()
+    throw new Error(`iOS postGenerate hook failed in ${output} with exit code ${result.exitCode}${stderr ? `: ${stderr}` : ''}`)
+  }
 }
 
 export interface OpenOptions {
@@ -1502,6 +1557,11 @@ export async function init(options: InitOptions): Promise<void> {
   if (config.renderer !== 'web' && config.renderer !== 'native') {
     throw new Error(`Unknown iOS renderer: ${config.renderer}. Expected web or native.`)
   }
+  const selection = config.tabBar?.selection
+  if (selection?.cornerRadius !== undefined && (!Number.isFinite(selection.cornerRadius) || selection.cornerRadius < 0))
+    throw new Error('iOS tabBar.selection.cornerRadius must be a finite non-negative number')
+  if (selection?.color !== undefined && !/^#[0-9a-f]{6}$/i.test(selection.color))
+    throw new Error('iOS tabBar.selection.color must be a #RRGGBB color')
   if (config.enableBackgroundLocation) config.enableGeolocation = true
   const problems = hybridConfigProblems(config)
   if (problems.length) throw new Error(problems.join('\n'))
@@ -1754,6 +1814,8 @@ catch (error) {
       cause: error,
     })
   }
+
+  runPostGenerateHook(config.postGenerate, output)
 
   console.log('')
 }

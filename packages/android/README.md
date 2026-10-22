@@ -484,6 +484,29 @@ changes; the other two values pin the generated host. If it is omitted,
 `darkMode` remains the compatibility switch (`false` pins light, `true` pins
 dark).
 
+Native tab-bar selection styling is opt-in and lives in the generated config,
+so the generated Kotlin never needs to be patched:
+
+```json
+{
+  "tabBar": {
+    "selection": { "cornerRadius": 8, "color": "#123456" }
+  },
+  "postGenerate": {
+    "command": "bun",
+    "args": ["run", "scripts/customize-native.ts"]
+  }
+}
+```
+
+`cornerRadius` is measured in dp and `color` is `#RRGGBB`; omit either to keep
+its host default. `postGenerate` runs from the generated project root during
+`craft android build`, before Gradle compiles the app. Craft passes
+`command` and `args` directly without a shell, and supplies
+`CRAFT_PROJECT_ROOT`, `CRAFT_PLATFORM=android`, and
+`CRAFT_GENERATE_PHASE=build`. An invalid command or non-zero exit fails the
+build and includes the hook's stderr in the diagnostic.
+
 Remote app and trusted-origin URLs must use HTTPS. Local development may use
 HTTP with `localhost`, `127.0.0.1`, or the Android emulator host `10.0.2.2`.
 Origins are normalized before they are stored, and a configured development

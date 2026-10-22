@@ -9,6 +9,7 @@ complete native message surface, see the [Bridge API](../BRIDGE_API.md).
 
 - [Components API](./components.md) - Native component primitives
 - [Objective-C structure returns](./objc-runtime.md) - Shared Apple message ABI and native execution checks
+- [Persistent JavaScript hosting](../guides/persistent-javascript.md) - Retained native callbacks and copied typed buffers
 
 ## System APIs
 
