@@ -119,12 +119,36 @@ export function assertAdvisoryPolicy(report: unknown, retained: RetainedAdvisory
   return review
 }
 
+export function readAuditReport(audit: { exitCode: number, signalCode?: string | null, stdout: Uint8Array, stderr: Uint8Array }): unknown {
+  const decoder = new TextDecoder()
+  const text = decoder.decode(audit.stdout).trim()
+  const diagnostic = decoder.decode(audit.stderr).trim().slice(0, 2048)
+  const failed = (reason: string) => new Error(`bun audit failed: ${reason}${diagnostic ? `\n${diagnostic}` : ''}`)
+  if (audit.signalCode)
+    throw failed(`terminated by ${audit.signalCode}`)
+  // Bun exits 1 for reported findings as well as scanner failures. Only a
+  // nonempty, validated finding report distinguishes the former from the latter.
+  if (audit.exitCode !== 0 && audit.exitCode !== 1)
+    throw failed(`exit code ${audit.exitCode}`)
+  if (!text)
+    throw failed(`empty report (exit code ${audit.exitCode})`)
+  let report: unknown
+  try {
+    report = JSON.parse(text)
+  }
+  catch {
+    throw failed('invalid JSON report')
+  }
+  const advisories = collectAdvisories(report)
+  if (audit.exitCode !== 0 && advisories.length === 0)
+    throw failed(`exit code ${audit.exitCode} without findings`)
+  return report
+}
+
 if (import.meta.main) {
   const { retainedAdvisories } = await import('./retained-advisories')
-  const audit = Bun.spawnSync(['bun', 'audit', '--json'], { stdout: 'pipe', stderr: 'pipe' })
-  const text = audit.stdout.toString().trim()
-  // No advisories at all is a valid, empty report rather than a scanner failure.
-  const report: unknown = text.length ? JSON.parse(text) : {}
+  const audit = Bun.spawnSync([process.execPath, 'audit', '--json'], { stdout: 'pipe', stderr: 'pipe' })
+  const report = readAuditReport(audit)
   const today = new Date().toISOString().slice(0, 10)
   const review = assertAdvisoryPolicy(report, retainedAdvisories, today)
   console.log(`Advisory policy satisfied: ${review.retained.length} reviewed and unreachable, 0 unreviewed, 0 expired`)
