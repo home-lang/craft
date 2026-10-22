@@ -35,7 +35,7 @@ jobs:
           PANTRY_DIAGNOSTIC_CLI: ${{ steps.pantry.outputs.pantry-path }}
         run: |
           export PATH="$PWD/pantry/.bin:$PATH"
-          "$PWD/pantry/.bin/bun" scripts/diagnose-native-cache.ts "$PANTRY_DIAGNOSTIC_CLI"
+          "$PWD/pantry/.bin/bun" scripts/diagnose-native-cache.ts "$PANTRY_DIAGNOSTIC_CLI" artifacts/native-cache-diagnostic 100
       - name: Restore the original tree before the complete action replay
         uses: actions/cache/restore@v5
         with:

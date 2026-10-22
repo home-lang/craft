@@ -6,7 +6,10 @@ import { nativeFixtureCommand } from '../packages/ios/scripts/native-fixture-com
 const project = process.cwd()
 const cli = resolve(process.argv[2] || '')
 const output = resolve(process.argv[3] || 'artifacts/native-cache-diagnostic')
+const repetitions = Number(process.argv[4] || '1')
 if (!process.argv[2]) throw new Error('Expected the exact Pantry 0.11.113 executable')
+if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 100)
+  throw new Error('Expected between 1 and 100 native install repetitions')
 mkdirSync(output, { recursive: true })
 
 function snapshot() {
@@ -36,9 +39,20 @@ if (version.code !== 0 || !version.stdout.includes('0.11.113') || !version.stdou
 
 const before = snapshot()
 const git = await nativeFixtureCommand([join(project, 'pantry/git-scm.org/v2.53.0/bin/git'), '--version'], { cwd: project, timeoutMs: 10_000 })
-const logPath = join(output, 'native-install.log')
-const install = await nativeFixtureCommand([cli, 'install', 'git-scm.org@2.53.0', 'github.com/yonaskolb/XcodeGen@2.46.0', '--no-save', '--verbose'], { cwd: project, timeoutMs: 120_000, logPath })
-const log = readFileSync(logPath)
+const attempts = []
+for (let attempt = 1; attempt <= repetitions; attempt++) {
+  const logPath = join(output, `native-install-${attempt}.log`)
+  // A repeated replay uses the original command without verbose output,
+  // which can change the timing of the suspected intermittent collision.
+  const verbosity = repetitions === 1 ? ['--verbose'] : []
+  const result = await nativeFixtureCommand([cli, 'install', 'git-scm.org@2.53.0', 'github.com/yonaskolb/XcodeGen@2.46.0', '--no-save', ...verbosity], { cwd: project, timeoutMs: 120_000, logPath })
+  const log = readFileSync(logPath)
+  attempts.push({ attempt, result, logSha256: new Bun.CryptoHasher('sha256').update(log).digest('hex') })
+  // Keep completed evidence if the runner is interrupted later in the loop.
+  writeFileSync(join(output, 'attempts.json'), `${JSON.stringify(attempts, null, 2)}\n`)
+  if (result.code !== 0 || result.timedOut) break
+}
+const install = attempts.at(-1)!.result
 const receipt = {
   kind: 'provisioning-diagnostic-only',
   nativeAcceptance: false,
@@ -49,7 +63,7 @@ const receipt = {
   before,
   after: snapshot(),
   install,
-  logSha256: new Bun.CryptoHasher('sha256').update(log).digest('hex'),
+  attempts,
 }
 writeFileSync(join(output, 'receipt.json'), `${JSON.stringify(receipt, null, 2)}\n`)
 console.log(JSON.stringify(receipt, null, 2))
