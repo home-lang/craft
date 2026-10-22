@@ -8,6 +8,7 @@ complete native message surface, see the [Bridge API](../BRIDGE_API.md).
 ## Core APIs
 
 - [Components API](./components.md) - Native component primitives
+- [Objective-C structure returns](./objc-runtime.md) - Shared Apple message ABI and native execution checks
 
 ## System APIs
 

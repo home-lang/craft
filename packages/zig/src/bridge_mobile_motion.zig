@@ -104,12 +104,10 @@
 //! needs the caller-provided-pointer entry point `objc_msgSend_stret`.
 //! `build.zig:1860` builds an x86_64 iOS-simulator target, so both ship.
 //!
-//! `objc_runtime.msgSendStret` is **wrong for this**: it selects by `@sizeOf`
-//! alone and would reference `objc_msgSend_stret` on arm64, which arm64 libobjc
-//! does not export — an undefined symbol at app link. `acceleration_entry`
-//! below is the comptime `builtin.target.cpu.arch` choice
-//! `menubar_collapse.zig:117-128` already makes for `-frame`, and a test pins
-//! it. The doubles (`yaw`/`pitch`/`roll`) go through plain `objc_msgSend` on
+//! The shared `objc_runtime.msgSendStret` helper owns that architecture choice.
+//! Its native fixture dispatches independently compiled Objective-C methods
+//! returning geometry, a three-double aggregate and a large matrix on ARM64
+//! and x86_64. The doubles (`yaw`/`pitch`/`roll`) go through plain `objc_msgSend` on
 //! both arches; `objc_msgSend_fpret` is an x86_64 `long double` concern only
 //! and is not used.
 //!
@@ -603,25 +601,6 @@ fn motionHandler(_: *const anyopaque, motion: Id, err: Id) callconv(.c) void {
 /// coincidence is stated rather than assumed.
 const CMAcceleration = extern struct { x: f64, y: f64, z: f64 };
 
-/// The bare shape of an `objc_msgSend` symbol, before it is cast to the
-/// signature of the message being sent.
-const MsgSendEntry = *const fn () callconv(.c) void;
-
-/// The `objc_msgSend` entry point a 24-byte struct return needs on this arch.
-///
-/// x86_64 classes anything over 16 bytes as MEMORY and returns it through a
-/// caller-provided pointer, which is `objc_msgSend_stret`. arm64 routes every
-/// return shape through `objc_msgSend` and does not export the `_stret`
-/// variant at all — naming it there is an undefined symbol at app link, which
-/// is exactly why `objc_runtime.msgSendStret` (which selects on `@sizeOf`
-/// alone) must not be used for this.
-const acceleration_entry: MsgSendEntry = if (!is_darwin)
-    undefined
-else if (builtin.target.cpu.arch == .x86_64)
-    &objc.objc_msgSend_stret
-else
-    &objc.objc_msgSend;
-
 /// Read one `CMDeviceMotion` into plain doubles.
 ///
 /// `objc_msgSend_fpret` is not used and must not be: it is `long double`-only
@@ -637,17 +616,14 @@ fn readSample(motion: Id, sels: Sels) !MotionSample {
     const DoubleFn = *const fn (Id, Id) callconv(.c) f64;
     const send_double: DoubleFn = @ptrCast(&objc.objc_msgSend);
 
-    const VectorFn = *const fn (Id, Id) callconv(.c) CMAcceleration;
-    const send_vector: VectorFn = @ptrCast(acceleration_entry);
-
     // `attitude` is an object, and a nil one would make the three doubles
     // below `objc_msgSend` to nil — which returns 0.0 rather than crashing, so
     // an unguarded read would emit a flat, plausible, entirely invented
     // orientation.
     const attitude = send_id(motion, sels.attitude) orelse return error.NoAttitudeInSample;
 
-    const acceleration = send_vector(motion, sels.user_acceleration);
-    const gravity = send_vector(motion, sels.gravity);
+    const acceleration = objc.msgSendStret(CMAcceleration, motion, sels.user_acceleration);
+    const gravity = objc.msgSendStret(CMAcceleration, motion, sels.gravity);
 
     return .{
         .acceleration = .{ .x = acceleration.x, .y = acceleration.y, .z = acceleration.z },
@@ -1109,23 +1085,11 @@ test "the handler block is global, so Block_copy cannot heap-copy it" {
     try testing.expectEqual(@as(c_ulong, 0), motion_block.descriptor.reserved);
 }
 
-test "a 24-byte CMAcceleration goes through the entry point its ABI requires" {
-    // The trap `objc_runtime.msgSendStret` walks into: it picks
-    // `objc_msgSend_stret` for anything over 16 bytes, and arm64 libobjc does
-    // not export that symbol at all.
+test "CMAcceleration preserves its native size and field offsets" {
     try testing.expectEqual(@as(usize, 24), @sizeOf(CMAcceleration));
     try testing.expectEqual(@as(usize, 16), @offsetOf(CMAcceleration, "z"));
 
     if (!is_darwin) return error.SkipZigTest;
-    if (comptime builtin.target.cpu.arch == .x86_64) {
-        try testing.expectEqual(@as(MsgSendEntry, &objc.objc_msgSend_stret), acceleration_entry);
-    } else {
-        try testing.expectEqual(@as(MsgSendEntry, &objc.objc_msgSend), acceleration_entry);
-        // Deliberately no "and it is not objc_msgSend_stret" assertion here:
-        // writing that would *itself* reference the symbol arm64 libobjc does
-        // not export, and this test would be the undefined symbol it exists to
-        // prevent. The `expectEqual` above already pins the choice.
-    }
 }
 
 // -----------------------------------------------------------------------------
