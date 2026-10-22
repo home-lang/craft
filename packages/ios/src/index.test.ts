@@ -543,6 +543,15 @@ describe('Craft iOS builder', () => {
     expect(renderBackgroundModes(config)).toContain('<string>location</string>')
   })
 
+  it('tells a screen its width, at launch and whenever it changes, for width classes', () => {
+    const source = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    // stx applies sm:/md:/lg: classes for this width (an iPad, split view, Stage Manager).
+    expect(source).toContain('viewportWidth: \\(inputs.viewportWidth),')
+    expect(source).toContain('sendViewportIfChanged()')
+    expect(source).toContain('send(type: "VIEWPORT", payload: ["width": Double(width), "height": Double(view.bounds.height)])')
+    expect(source).toContain('guard width > 0, abs(width - reportedViewportWidth) >= 0.5 else { return }')
+  })
+
   it('advertises mounted-view focus and measurement in native screens', () => {
     const source = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
     const actions = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeActions.swift'), 'utf8')

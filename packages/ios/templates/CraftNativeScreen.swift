@@ -5801,6 +5801,27 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         super.viewDidLayoutSubviews()
         positionModals()
         emitLayoutEvents()
+        sendViewportIfChanged()
+    }
+
+    /// The width the bundle last heard, so a layout pass at the same size says nothing.
+    private var reportedViewportWidth: CGFloat = -1
+
+    /// The screen's own width once laid out, else its window's: what a web
+    /// page's media queries would measure.
+    private func currentViewportWidth() -> CGFloat {
+        let width = view.bounds.width > 0 ? view.bounds.width : (view.window ?? CraftPresenter.keyWindow())?.bounds.width ?? 0
+        reportedViewportWidth = width
+        return width
+    }
+
+    /// A rotation, iPad split view or a resized Stage Manager window: the
+    /// bundle's width classes (`md:`, `lg:`) follow the screen's new width.
+    private func sendViewportIfChanged() {
+        let width = view.bounds.width
+        guard width > 0, abs(width - reportedViewportWidth) >= 0.5 else { return }
+        reportedViewportWidth = width
+        send(type: "VIEWPORT", payload: ["width": Double(width), "height": Double(view.bounds.height)])
     }
 
     /// Modals cover the screen; their content starts below its bars (the
@@ -5885,6 +5906,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let appearanceJSON: String
         let sessionTokenKey: String
         let focused: Bool?
+        /// The screen's width in points, for the bundle's `sm:`/`md:`/`lg:` classes.
+        let viewportWidth: Double
     }
 
     private func scriptInputs() -> ScriptInputs {
@@ -5896,7 +5919,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             colorScheme: colorScheme,
             appearanceJSON: appearanceJSON(),
             sessionTokenKey: Self.jsonString(CraftSession.tokenKey(config)),
-            focused: reportedVisible
+            focused: reportedVisible,
+            viewportWidth: Double(currentViewportWidth())
         )
     }
 
@@ -5998,6 +6022,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 capabilities: \(capabilityJSON),
                 initialAppState: "\(inputs.appState)",
                 colorScheme: "\(inputs.colorScheme)",
+                viewportWidth: \(inputs.viewportWidth),
                 appearance: \(inputs.appearanceJSON),
                 appURL: \(appURL),
                 appVersion: \(appVersion),

@@ -4661,6 +4661,7 @@ class MainActivity : AppCompatActivity() {
             capabilities: ${capabilityNames()},
             initialAppState: ${JSONObject.quote(nativeAppState)},
             colorScheme: ${JSONObject.quote(colorScheme())},
+            viewportWidth: ${resources.configuration.screenWidthDp},
             appearance: ${appearance()},
             appURL: ${JSONObject.quote(config.optString("devServerURL"))},
             appVersion: ${JSONObject.quote(appVersion().first)},
@@ -4909,6 +4910,21 @@ class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         publishAppearance()
+        publishViewport(newConfig)
+    }
+
+    /// The width the screens last heard, in dp (a web page's CSS pixels).
+    private var reportedViewportWidth = -1
+
+    /// Rotation, split screen or a resized window: the bundle's width classes
+    /// (`md:`, `lg:`) follow the window's new width.
+    private fun publishViewport(config: Configuration) {
+        val width = config.screenWidthDp
+        if (width <= 0 || width == reportedViewportWidth) return
+        reportedViewportWidth = width
+        if (!::root.isInitialized) return
+        val payload = JSONObject().put("width", width).put("height", config.screenHeightDp)
+        allScreens().forEach { screen -> if (!screen.headless) send(screen, "VIEWPORT", payload) }
     }
 
     private fun publishAppearance() {
