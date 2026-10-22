@@ -5446,13 +5446,8 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
             std.debug.print("[Bridge] Setting tray handle on bridge: {*}\n", .{handle});
         global_tray_bridge.?.setTrayHandle(handle);
 
-        // Auto-initialize menubar collapse system for tray apps
-        const menubar_collapse = @import("menubar_collapse.zig");
-        if (!menubar_collapse.isInitialized()) {
-            if (comptime std.ascii.eqlIgnoreCase(@tagName(builtin.mode), "debug"))
-                std.debug.print("[Bridge] Auto-initializing menubar collapse for tray app\n", .{});
-            menubar_collapse.init();
-        }
+        // Menu-bar management is opt-in through craft.menubar.init().
+        // An ordinary tray app must never insert a divider or displace other apps.
     } else {
         if (comptime std.ascii.eqlIgnoreCase(@tagName(builtin.mode), "debug"))
             std.debug.print("[Bridge] WARNING: No tray handle available!\n", .{});
