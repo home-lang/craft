@@ -2498,7 +2498,7 @@ pub fn build(b: *std.Build) void {
             .flags = &.{ "-DSQLITE_THREADSAFE=1", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_ENABLE_JSON1" },
         });
         ios_device_lib.root_module.addIncludePath(b.path("vendor/sqlite"));
-        ios_device_lib.root_module.addSystemIncludePath(.{ .cwd_relative = b.fmt("{s}/usr/include", .{sdk_path}) });
+        applySdkPaths(b, ios_device_lib.root_module, sdk_path);
     } else {
         // No xcrun: the archive ships without sqlite and the db actions
         // resolve as undefined symbols at app link — loud, not silent.
@@ -2542,7 +2542,7 @@ pub fn build(b: *std.Build) void {
             .flags = &.{ "-DSQLITE_THREADSAFE=1", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_ENABLE_JSON1" },
         });
         ios_sim_arm64_lib.root_module.addIncludePath(b.path("vendor/sqlite"));
-        ios_sim_arm64_lib.root_module.addSystemIncludePath(.{ .cwd_relative = b.fmt("{s}/usr/include", .{sdk_path}) });
+        applySdkPaths(b, ios_sim_arm64_lib.root_module, sdk_path);
     } else {
         // No xcrun: the archive ships without sqlite and the db actions
         // resolve as undefined symbols at app link — loud, not silent.
@@ -2585,7 +2585,7 @@ pub fn build(b: *std.Build) void {
             .flags = &.{ "-DSQLITE_THREADSAFE=1", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_ENABLE_JSON1" },
         });
         ios_sim_x64_lib.root_module.addIncludePath(b.path("vendor/sqlite"));
-        ios_sim_x64_lib.root_module.addSystemIncludePath(.{ .cwd_relative = b.fmt("{s}/usr/include", .{sdk_path}) });
+        applySdkPaths(b, ios_sim_x64_lib.root_module, sdk_path);
     } else {
         // No xcrun: the archive ships without sqlite and the db actions
         // resolve as undefined symbols at app link — loud, not silent.

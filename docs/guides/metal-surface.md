@@ -54,3 +54,9 @@ buffer-budget refusal and layer removal. It is included in `zig build test`.
 The current execution evidence covers macOS. iOS requires its native host fixture
 and actual device or simulator acceptance before claiming iOS presentation.
 Native game input, frame clocks and the stx HUD remain separate integrations.
+
+The iOS archive targets resolve framework, library and header paths from their
+own SDK together. Device builds use `iphoneos`; both simulator architectures
+use `iphonesimulator`. Verify all three with `zig build build-ios-all` using the
+pinned compiler. Frameworks are linked by the consuming Xcode app; transitive
+framework declarations still require SDK search paths during archive creation.
