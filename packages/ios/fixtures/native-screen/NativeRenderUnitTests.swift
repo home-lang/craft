@@ -2439,6 +2439,16 @@ final class NativeRenderUnitTests: XCTestCase {
         return window
     }
 
+    /// Runs the main queue past everything already on it. A screen keeps a
+    /// caret in view on the next turn of the run loop, and a fixed wait can
+    /// end before that turn while a loaded simulator brings its keyboard up:
+    /// the test then measured a text view not yet laid out for its new text.
+    private func drainMainQueue() {
+        let drained = expectation(description: "the main queue reached this block")
+        DispatchQueue.main.async { drained.fulfill() }
+        wait(for: [drained], timeout: 5)
+    }
+
     func testImagesLoadOverHttpOnlyFromThisMachine() {
         for address in ["https://example.com/a.png", "http://localhost:3130/assets/a.png", "http://127.0.0.1:3130/a.png", "http://[::1]:3130/a.png", "http://hq.localhost/a.png"] {
             XCTAssertTrue(CraftNativeScreenController.loadsImage(from: URL(string: address)!), address)
@@ -2580,6 +2590,7 @@ final class NativeRenderUnitTests: XCTestCase {
         input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
         input.delegate?.textViewDidChange?(input)
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        drainMainQueue()
         let end = try XCTUnwrap(input.selectedTextRange?.end)
         let caret = input.convert(input.caretRect(for: end), to: form)
         let visible = form.bounds.inset(by: form.adjustedContentInset)
@@ -2631,6 +2642,7 @@ final class NativeRenderUnitTests: XCTestCase {
         ])
         controller.view.layoutIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        drainMainQueue()
         XCTAssertTrue(window.bounds.intersects(currentKeyboard), "the observed keyboard covers part of this window")
         XCTAssertGreaterThan(input.bounds.height, currentKeyboard.minY - window.safeAreaInsets.top, "taller than the part the keyboard leaves")
         func caret() throws -> CGRect {
@@ -2645,6 +2657,7 @@ final class NativeRenderUnitTests: XCTestCase {
         input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
         input.delegate?.textViewDidChange?(input)
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        drainMainQueue()
         shown = try caret()
         XCTAssertLessThanOrEqual(shown.maxY, currentKeyboard.minY + 0.5, "typed: caret \(shown) above the keyboard at \(currentKeyboard.minY)")
         XCTAssertGreaterThanOrEqual(shown.minY, window.safeAreaInsets.top - 0.5, "typed: caret \(shown) on screen")
@@ -2656,6 +2669,7 @@ final class NativeRenderUnitTests: XCTestCase {
         input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
         input.delegate?.textViewDidChange?(input)
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        drainMainQueue()
         shown = try caret()
         XCTAssertTrue(window.bounds.intersects(currentKeyboard))
         XCTAssertLessThanOrEqual(shown.maxY, currentKeyboard.minY + 0.5, "continued: caret \(shown) above the keyboard at \(currentKeyboard.minY)")
@@ -2824,6 +2838,58 @@ final class NativeRenderUnitTests: XCTestCase {
             UIResponder.keyboardAnimationCurveUserInfoKey: 0,
         ])
         XCTAssertEqual(scroll.contentInset.bottom, 0)
+    }
+
+    /// A scroll view the keyboard covers the end of keeps its keyboard inset
+    /// as a layout moves it: a footer under a form shrank while the keyboard
+    /// was up, the form grew down under the keyboard, and the inset measured
+    /// where it used to end left its last fields there with nothing to scroll.
+    func testAScrollViewKeepsItsKeyboardInsetAsALayoutMovesIt() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        // The inset follows a layout once its pass is over, on the main
+        // queue: each check drains it first.
+        func screen(footer: CGFloat) -> [[String: Any]] {
+            [["type": "KeyboardAvoidingView", "props": ["key": "avoid", "keyboardVerticalOffset": 100], "style": ["flex": 1], "children": [
+                ["type": "ScrollView", "props": ["key": "form"], "style": ["flex": 1], "children": [
+                    ["type": "View", "props": ["key": "fields"], "style": ["height": 900]],
+                ]],
+                ["type": "View", "props": ["key": "footer"], "style": ["height": footer]],
+            ]]]
+        }
+        controller.render(document(screen(footer: 120)))
+        controller.view.layoutIfNeeded()
+        let form = try XCTUnwrap(find(UIScrollView.self, key: "form", below: controller.view))
+        // Nothing has focus, so no keyboard of UIKit's own replaces this one.
+        let keyboard = CGRect(x: 0, y: window.bounds.height - 336, width: window.bounds.width, height: 336)
+        NotificationCenter.default.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
+            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: window.convert(keyboard, to: nil)),
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0,
+            UIResponder.keyboardAnimationCurveUserInfoKey: 0,
+        ])
+        controller.view.layoutIfNeeded()
+        drainMainQueue()
+        func covered() -> CGFloat { max(0, form.convert(form.bounds, to: window).maxY - keyboard.minY) }
+        XCTAssertEqual(form.contentInset.bottom, covered(), accuracy: 0.5, "inset for what the keyboard covers")
+
+        controller.render(document(screen(footer: 0)))
+        controller.view.layoutIfNeeded()
+        drainMainQueue()
+        XCTAssertGreaterThan(covered(), 50, "the form now ends under the keyboard")
+        XCTAssertEqual(form.contentInset.bottom, covered(), accuracy: 0.5, "the inset follows the form to where it ends now")
+        XCTAssertEqual(form.verticalScrollIndicatorInsets.bottom, covered(), accuracy: 0.5)
+
+        NotificationCenter.default.post(name: UIResponder.keyboardWillHideNotification, object: nil, userInfo: [
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0,
+            UIResponder.keyboardAnimationCurveUserInfoKey: 0,
+        ])
+        controller.render(document(screen(footer: 120)))
+        controller.view.layoutIfNeeded()
+        drainMainQueue()
+        XCTAssertEqual(form.contentInset.bottom, 0, "no keyboard, no inset")
     }
 
     func testFlatListContentInsetsRejectBooleanNumbers() {

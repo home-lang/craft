@@ -2983,7 +2983,10 @@ private class CraftNativeFlowView: UIStackView {
             // The screen reports onLayout from its own layout pass, which a
             // change deep in a scroll view's content never runs: a view that
             // went from 240 to 180 wide kept saying 240.
-            if moved { craftScreenController?.scheduleLayoutEvents() }
+            if moved {
+                craftScreenController?.scheduleLayoutEvents()
+                craftScreenController?.scheduleKeyboardInsets()
+            }
         }
         for (child, frame) in result.frames {
             var viewportFrame = frame
@@ -5112,6 +5115,11 @@ private final class CraftNativeTextView: UITextView {
             isScrollEnabled = overflows
             if overflows, isFirstResponder { scrollRangeToVisible(selectedRange) }
         }
+        // Showing all its text, it has nothing to scroll. An offset left from
+        // UIKit keeping the caret in view while the view was a layout short
+        // of its text moved every line down inside it, and the caret of a
+        // growing comment sat below the part of the screen it was kept in.
+        if !isScrollEnabled, contentOffset != .zero { contentOffset = .zero }
         let inset = textContainerInset
         let padding = textContainer.lineFragmentPadding
         placeholderLabel.frame = CGRect(
@@ -5492,6 +5500,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var keyboardSafeAreaInset: CGFloat = 0
     /// Where the keyboard is on the screen while it is up, in screen coordinates.
     private var keyboardScreenFrame: CGRect?
+    private var keyboardInsetsScheduled = false
     /// The hybrid shell (CraftHybrid.swift), when this screen is one of a web
     /// app's native screens: told of the first frame, of a first frame that
     /// could not be drawn, and of `craft.navigation.open(path)`.
@@ -5802,6 +5811,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         positionModals()
         emitLayoutEvents()
         sendViewportIfChanged()
+        scheduleKeyboardInsets()
     }
 
     /// The width the bundle last heard, so a layout pass at the same size says nothing.
@@ -7148,6 +7158,22 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
+    /// A layout moved a view while the keyboard is up: once that pass is
+    /// over, each scroll view's keyboard inset is measured again where the
+    /// scroll view now ends. Measured only when the keyboard moved, a form
+    /// that grew down under the keyboard (a footer below it shrank, a
+    /// banner above it went away) kept the inset of where it used to end,
+    /// and its last lines stayed under the keyboard.
+    fileprivate func scheduleKeyboardInsets() {
+        guard keyboardScreenFrame != nil, !keyboardInsetsScheduled else { return }
+        keyboardInsetsScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.keyboardInsetsScheduled = false
+            if self.keyboardScreenFrame != nil { self.insetScrollViewsForKeyboard() }
+        }
+    }
+
     /// The focused field, scrolled into the part of its scroll view the
     /// keyboard leaves, with a little room around it.
     func scrollFocusedInputIntoView(animated: Bool) {
@@ -7159,6 +7185,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// Internal for XCTest.
     func scrollIntoView(_ input: UIView, animated: Bool) {
         guard let scroll = enclosingVerticalScroll(of: input) else { return }
+        // Measured against the keyboard where the scroll view is now.
+        if keyboardScreenFrame != nil { insetScrollViewsForKeyboard() }
         var rect = input.convert(input.bounds, to: scroll).insetBy(dx: 0, dy: -16)
         // A field taller than the part the keyboard leaves (a long comment
         // with no max height) shows its caret rather than its top: scrolled
@@ -9951,6 +9979,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             textView.invalidateIntrinsicContentSize()
             CraftNativeFlexLayout.invalidateAncestors(of: textView)
             self.view.layoutIfNeeded()
+            // That layout can move the scroll view: its keyboard inset is
+            // measured where it now ends before the caret is.
+            if self.keyboardScreenFrame != nil { self.insetScrollViewsForKeyboard() }
             guard let scroll = self.enclosingVerticalScroll(of: textView),
                   let rect = self.caretRect(of: textView, in: scroll) else { return }
             let visible = scroll.bounds.inset(by: scroll.adjustedContentInset)

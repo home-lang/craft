@@ -243,6 +243,10 @@ const MIN_TRAVEL: f64 = 80.0;
 /// anything is tucked away.
 const MARKER_GLYPH = "|";
 
+// NSText.h uses TARGET_ABI_USES_IOS_VALUES: Apple Silicon macOS uses 2,
+// while Intel macOS uses AppKit's original value 1 for right alignment.
+const NSTextAlignmentRight: usize = if (builtin.target.cpu.arch == .x86_64) 1 else 2;
+
 /// NSEvent types and masks. A status button reports left clicks only unless it
 /// is told otherwise, so a right click would never reach `toggleClicked:`.
 const NSEventTypeLeftMouseUp: usize = 2;
@@ -504,7 +508,7 @@ fn drawMarker(item: objc.id, widened: bool) void {
     const button = msgSend0(item, "button");
     if (button == null) return;
     const label = if (widened) "Show menu bar items" else "Hide menu bar items";
-    msgSendVoid1(button, "setAlignment:", @as(usize, 2)); // NSTextAlignmentRight
+    msgSendVoid1(button, "setAlignment:", NSTextAlignmentRight);
     msgSendVoid1(button, "setTitle:", createNSString(if (widened) "›" else if (separator_hidden) "" else MARKER_GLYPH));
     msgSendVoid1(button, "setToolTip:", createNSString(label));
     msgSendVoid1(button, "setAccessibilityLabel:", createNSString(label));
