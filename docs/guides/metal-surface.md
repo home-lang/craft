@@ -51,8 +51,11 @@ fixture on macOS. The native fixture compares every GPU pixel across 61 presente
 frames, a real resize and backing scale, suspension, main-thread enforcement,
 buffer-budget refusal and layer removal. It is included in `zig build test`.
 
-The current execution evidence covers macOS. iOS requires its native host fixture
-and actual device or simulator acceptance before claiming iOS presentation.
+The [UIKit fixture](../../packages/ios/fixtures/metal-surface/README.md) checks
+the same surface through an actual native view. Local iOS 27 unit execution
+passed its GPU pixel, geometry, suspension and ownership cases. Complete iOS
+visual acceptance remains unverified until its UI case also passes on the
+required toolchain. The mobile workflow requires that complete result.
 Native game input, frame clocks and the stx HUD remain separate integrations.
 
 The iOS archive targets resolve framework, library and header paths from their
