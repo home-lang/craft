@@ -1135,7 +1135,7 @@ test "Zig validates every field of the nested types Swift decodes, the way Swift
             };
 
             var expected_buf: [256]u8 = undefined;
-            const expected = try std.fmt.bufPrint(&expected_buf, ".{{ .name = \"{s}\", .kind = .{s}, .required = {s} }},", .{
+            const expected = try std.fmt.bufPrint(&expected_buf, ".{{ .name = \"{s}\", .kind = .{s}, .required = {s}", .{
                 member.name, kind, if (optional) "false" else "true",
             });
             if (std.mem.indexOf(u8, zig_fields, expected) == null) {
