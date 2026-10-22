@@ -910,6 +910,14 @@ describe('native renderer component contract', () => {
     expect(iosNativeUnitTests).toContain('func testTheCaretStaysInViewAsAnInputGrows()')
     expect(ios).toContain('if rect.height > visible.height, let caret = caretRect(of: input, in: scroll) { rect = caret }')
     expect(iosNativeUnitTests).toContain('func testALongInputWithoutAMaxHeightKeepsItsCaretAboveTheKeyboard()')
+    // A layout that moves a scroll view while the keyboard is up measures
+    // its keyboard inset again, and the caret is measured against that.
+    expect(ios).toContain('craftScreenController?.scheduleKeyboardInsets()')
+    expect(ios).toContain('fileprivate func scheduleKeyboardInsets()')
+    expect(ios).toContain('if self.keyboardScreenFrame != nil { self.insetScrollViewsForKeyboard() }')
+    expect(iosNativeUnitTests).toContain('func testAScrollViewKeepsItsKeyboardInsetAsALayoutMovesIt()')
+    // A text view showing all its text keeps no scroll offset inside it.
+    expect(ios).toContain('if !isScrollEnabled, contentOffset != .zero { contentOffset = .zero }')
   })
 
   it('puts a bar a screen asks for before it appears in place without sliding it in', () => {
