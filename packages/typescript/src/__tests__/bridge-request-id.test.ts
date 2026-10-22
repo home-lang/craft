@@ -431,18 +431,24 @@ describe('native background deadlines', () => {
     expect(order).toEqual(['fast', 'slow'])
   })
 
-  it('cancels exactly its native timer and rejects with AbortError', async () => {
+  it('confirms native cancellation before rejecting and releases both requests', async () => {
     const h = loadBridge()
     const controller = new AbortController()
     const waiting = h.craft.timers.sleep(60000, { signal: controller.signal })
+    let rejected = false
+    void waiting.catch(() => { rejected = true })
     controller.abort()
-    await expect(waiting).rejects.toHaveProperty('name', 'AbortError')
+    await settle()
+    expect(rejected).toBe(false)
     const sleep = h.sent.find(m => m.a === 'sleep')!
     const cancel = h.sent.find(m => m.a === 'cancel')!
     expect(JSON.parse(cancel.d!).timerId).toBe(JSON.parse(sleep.d!).timerId)
-    h.reply('sleep', { fired: false }, sleep.i!)
+    // WebKit can deliver the acknowledgements in either order.
     h.reply('cancel', { cancelled: true }, cancel.i!)
     await settle()
+    expect(rejected).toBe(false)
+    h.reply('sleep', { fired: false }, sleep.i!)
+    await expect(waiting).rejects.toHaveProperty('name', 'AbortError')
     expect(Object.keys(h.win.__craftBridgeById)).toHaveLength(0)
   })
 
