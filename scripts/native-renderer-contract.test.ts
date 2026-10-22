@@ -91,6 +91,7 @@ const COMPONENTS: Array<[string, string, string]> = [
   ['Slider', 'case "Slider":', '"Slider" ->'],
   ['TextInput', 'case "TextInput":', '"TextInput" ->'],
   ['Picker', 'case "Picker":', '"Picker" ->'],
+  ['SegmentedControl', 'case "SegmentedControl":', '"SegmentedControl" ->'],
   ['DatePicker', 'case "DatePicker":', '"DatePicker" ->'],
   ['Modal', 'case "Modal":', '"Modal" ->'],
   ['ActivityIndicator', 'case "ActivityIndicator":', '"ActivityIndicator" ->'],
@@ -1460,7 +1461,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('thumbTintList = craftNativeOptionalString(props.opt("thumbTintColor"))')
     expect(androidNavigationTest).toContain('slider minimum tint was not applied')
     expect(android).toContain('craftNativeOptionalString(props.opt("color"))')
-    expect(android).toContain('indeterminateTintList = craftNativeOptionalString(props.opt("color"))')
+    expect(android).toContain('indeterminateTintList = (craftNativeOptionalString(props.opt("color")) ?: craftNativeOptionalString(style.opt("color")))')
     expect(guide).toContain('`Slider` accepts `minimumTrackTintColor`')
   })
 
@@ -1784,7 +1785,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"visible-password" -> base or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD')
     expect(android).toContain('if (craftNativeBoolean(props.opt("autoFocus")) && !isFocused) post')
     expect(android).toContain('if (!isFocused) {\n                        requestFocus()')
-    expect(android).toContain('reusableInput ?: EditText(this)')
+    expect(android).toContain('reusableInput ?: CraftNativeTextField(this)')
     expect(android).toContain('setTextPreservingSelection(this, controlledValue)')
     expect(android).toContain('val controlledValue = props.opt("value") as? String')
     expect(android).toContain('(props.opt("defaultValue") as? String)?.let(::setText)')
@@ -2406,7 +2407,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps native iOS badges permission-free and capability-advertised', () => {
-    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation"]')
+    expect(iosActions).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation", "nativePlatformControls"]')
     expect(iosActions).toContain('case ("Badge", "set"):')
     expect(iosActions).toContain('case ("Badge", "clear"):')
     expect(iosActions).toContain('without requesting notification authorization')
@@ -3020,7 +3021,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('isIndeterminate = animating')
     expect(android).toContain('craftNativeBoolean(props.opt("hidesWhenStopped"), true)')
     expect(android).toContain('if (craftNativeOptionalString(style.opt("display")) == "none" || (!animating && hidesWhenStopped))')
-    expect(android).toContain('indeterminateTintList = craftNativeOptionalString(props.opt("color"))')
+    expect(android).toContain('indeterminateTintList = (craftNativeOptionalString(props.opt("color")) ?: craftNativeOptionalString(style.opt("color")))')
     expect(androidNavigationTest).toContain('authored activity-indicator color was not applied')
   })
 
@@ -3091,7 +3092,7 @@ describe('native renderer component contract', () => {
   })
 
   it('restores generic Android pressables when accessibility disabled clears', () => {
-    expect(android).toContain('if (type !in setOf("Button", "Link", "Checkbox", "TextInput", "Picker", "DatePicker", "Modal", "Switch", "Slider", "ActivityIndicator")) {\n            view.isEnabled = !disabled')
+    expect(android).toContain('if (type !in setOf("Button", "Link", "Checkbox", "TextInput", "Picker", "SegmentedControl", "DatePicker", "Modal", "Switch", "Slider", "ActivityIndicator")) {\n            view.isEnabled = !disabled')
   })
 
   it('dismisses the keyboard from native scroll containers on drag', () => {
@@ -3783,7 +3784,7 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('Invalid checkbox color should restore the native default')
     expect(androidNavigationTest).toContain('Invalid activity-indicator color should restore the native default')
     expect(android).toContain('buttonTintList = checkboxColor')
-    expect(android).toContain('indeterminateTintList = craftNativeOptionalString(props.opt("color"))')
+    expect(android).toContain('indeterminateTintList = (craftNativeOptionalString(props.opt("color")) ?: craftNativeOptionalString(style.opt("color")))')
   })
 
   it('restores native Android switch colors when authored values are malformed', () => {
