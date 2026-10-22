@@ -1,5 +1,24 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.290...v0.0.291)
+
+## 🚀 Features
+
+- **health**: read glucose, insulin and carbs one sample at a time ([127d69d](https://github.com/craft-native/craft/commit/127d69d)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **apple**: dispatch structure returns through the native ABI ([3672635](https://github.com/craft-native/craft/commit/3672635)) _(by Chris)_
+
+## ♻️ Code Refactoring
+
+- **apple**: share native geometry and motion dispatch ([1b25bd9](https://github.com/craft-native/craft/commit/1b25bd9)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.289...v0.0.290)
 
 ## 🚀 Features
