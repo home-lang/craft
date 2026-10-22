@@ -1,5 +1,20 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.292...v0.0.293)
+
+## 🐛 Bug Fixes
+
+- **macos**: align the reveal control on both native ABIs ([a8864f6](https://github.com/craft-native/craft/commit/a8864f6)) _(by Chris Breuer)_
+- **macos**: retain tray popover presentation when reopening ([f6c8086](https://github.com/craft-native/craft/commit/f6c8086)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into HEAD ([00e4b56](https://github.com/craft-native/craft/commit/00e4b56)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.291...v0.0.292)
 
 ## 🐛 Bug Fixes
