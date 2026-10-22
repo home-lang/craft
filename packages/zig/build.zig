@@ -1214,6 +1214,14 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const menubar_layout_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/menubar_layout.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
     // The reload budget that brings a window back after WebKit's content
     // process dies. Pure, and takes its clock as an argument, so a crash loop
     // is testable without crashing anything.
@@ -1924,6 +1932,7 @@ pub fn build(b: *std.Build) void {
     const run_cli_unit_tests = b.addRunArtifact(cli_unit_tests);
     const run_lifecycle_policy_tests = b.addRunArtifact(lifecycle_policy_tests);
     const run_popover_geometry_tests = b.addRunArtifact(popover_geometry_tests);
+    const run_menubar_layout_tests = b.addRunArtifact(menubar_layout_tests);
     const run_prefs_tests = b.addRunArtifact(prefs_tests);
     const run_prefs_macos_tests = b.addRunArtifact(prefs_macos_tests);
     const run_key_codes_tests = b.addRunArtifact(key_codes_tests);
@@ -2115,6 +2124,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_cli_unit_tests.step);
     test_step.dependOn(&run_lifecycle_policy_tests.step);
     test_step.dependOn(&run_popover_geometry_tests.step);
+    test_step.dependOn(&run_menubar_layout_tests.step);
     // macOS only: the registry describes the dispatch chain in macos.zig, and
     // compiling it elsewhere drags the whole native graph into a test binary
     // for a platform it does not describe.

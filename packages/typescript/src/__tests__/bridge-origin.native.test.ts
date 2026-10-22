@@ -69,3 +69,35 @@ nativeTest('app-directed inline HTML retains access to its native bridge', async
     await rm(dir, { recursive: true, force: true })
   }
 }, 20000)
+
+
+nativeTest('a normal tray app does not manage other menu bar items until explicitly enabled', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'craft-tray-opt-in-'))
+  const marker = join(dir, 'state.json')
+  const html = `<script>(async () => {
+    const before = await craft.menubar.getState();
+    await craft.menubar.init();
+    const after = await craft.menubar.getState();
+    await craft.fs.writeFile(${JSON.stringify(marker)}, JSON.stringify({before, after}));
+    craft.app.quit();
+  })();</script>`
+  const proc = Bun.spawn([process.env.CRAFT_NATIVE_TEST_BIN!, '--headless', '--system-tray', '--html', html], { stdout: 'ignore', stderr: 'pipe' })
+  const stderr = new Response(proc.stderr).text()
+  const timeout = setTimeout(() => proc.kill(), 15000)
+  try {
+    expect(await proc.exited).toBe(0)
+    const result = JSON.parse(await readFile(marker, 'utf8'))
+    expect(result.before.initialized).toBe(false)
+    expect(result.before.collapsed).toBe(false)
+    expect(result.after.initialized).toBe(true)
+    expect(result.after.collapsed).toBe(false)
+  }
+  finally {
+    clearTimeout(timeout)
+    if (proc.exitCode === null) proc.kill()
+    await proc.exited
+    const output = await stderr
+    if (proc.exitCode !== 0) console.error(output)
+    await rm(dir, { recursive: true, force: true })
+  }
+}, 20000)

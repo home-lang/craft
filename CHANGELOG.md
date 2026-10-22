@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.291...v0.0.292)
+
+## 🐛 Bug Fixes
+
+- **macos**: preserve app menus when grouped icons overflow ([f63983f](https://github.com/craft-native/craft/commit/f63983f)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.290...v0.0.291)
 
 ## 🚀 Features

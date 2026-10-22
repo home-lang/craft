@@ -1,49 +1,13 @@
-//! Tucking menu bar items away, in the manner of Hidden Bar.
-//!
-//! macOS gives no API for hiding another app's menu bar item, so the trick is
-//! to take up the room instead: a status item that grows very wide shoves the
-//! items to its left off the front of the bar.
-//!
-//!   |    the marker: the boundary, and the item that grows
-//!   ☕️   the app's own tray icon
-//!
-//!   expanded:  [items to hide] [|] [☕️]
-//!   collapsed: [······················] [☕️]
-//!
-//! The user decides what gets hidden by cmd-dragging icons to the left of `|`.
-//! Collapsed, the marker covers the space it just cleared, so clicking anywhere
-//! in the emptied stretch brings the icons back. That is deliberately the only
-//! affordance: a separate always-visible toggle button would be one more item
-//! in a bar the user is trying to empty, and — being just another status item —
-//! could itself end up left of the boundary and vanish with everything else.
-//!
-//! Three things about the growing are easy to get wrong, and each of them looks
-//! like the feature doing nothing at all:
-//!
-//!   - A status item may only grow into the stretch of bar that is actually
-//!     free, and an ask longer than that is refused outright rather than
-//!     trimmed down to fit. The ports of this trick ask for a flat 10,000pt,
-//!     which is over that everywhere, so nothing ever moves. Since the size of
-//!     that stretch is not knowable up front, `collapse` asks for the whole
-//!     distance and `settleCollapse` comes down until the bar really moves.
-//!
-//!     Coming down costs nothing, because the free stretch is precisely the gap
-//!     the hidden icons have to cross — they sit immediately to its right — so
-//!     the widest ask the system accepts is also exactly the one that clears
-//!     them off. One marker is therefore always enough, and a chain of them
-//!     buys nothing: extra status items only make the bar overflow, which macOS
-//!     answers with a `«` of its own.
-//!
-//!   - The width has to be set before the button's title, or AppKit lays the
-//!     button out against the old width and the growth is lost.
-//!
-//!   - Reading a frame back straight after setting a width still reports the
-//!     old geometry, because the system resizes status windows asynchronously.
-//!     Anything checking its own work has to wait a turn of the run loop.
+//! Opt-in native menu-bar grouping. A divider grows to tuck items to its left
+//! away. Its native button draws its reveal affordance at the trailing edge.
+//! Empty space does not toggle the group. AppKit owns Cmd-drag routing.
+//! If the system reflows the divider into its overflow, restore its compact
+//! width so opening native overflow cannot expose a blank slab over app menus.
 
 const std = @import("std");
 const builtin = @import("builtin");
 const logging = @import("logging.zig");
+const layout = @import("menubar_layout.zig");
 
 const log = logging.menu;
 
@@ -168,12 +132,14 @@ var class_registered: bool = false;
 var native_timer: objc.id = null;
 
 var separator_hidden: bool = false;
+var reflow_started_ns: ?u64 = null;
 
 /// A marker being widened, and the bookkeeping needed to find out how far it
 /// was allowed to go.
 const Widening = struct {
     /// Where the marker stood before it started growing.
     origin: f64 = 0,
+    anchor_gap: f64 = 0,
     /// What is currently being asked for. Comes down until it is granted.
     ask: f64 = 0,
     /// Cleared once the ask has been granted, or given up on.
@@ -183,9 +149,12 @@ const Widening = struct {
     /// Ask for the whole distance to the front of the bar. Whether that is
     /// allowed is not knowable up front, so `settle` finds out.
     fn begin(self: *Widening, item: objc.id) void {
-        const origin = markerOriginX(item) orelse return;
+        const frame = markerFrame(item) orelse return;
+        const origin = frame.origin.x;
+        const tray = markerFrame(tray_item) orelse return;
         self.* = .{
             .origin = origin,
+            .anchor_gap = tray.origin.x - (frame.origin.x + frame.size.width),
             .ask = origin + SEPARATOR_LENGTH,
             .settled = false,
             .started_ns = nanoTimestamp(),
@@ -357,7 +326,6 @@ pub fn init() void {
     msgSendVoid1(separator_item, "setAutosaveName:", createNSString(MARKER_AUTOSAVE_NAME));
     drawMarker(separator_item, false);
     routeClicks(msgSend0(separator_item, "button"));
-    suppressHighlight(separator_item);
 
     // Native run-loop scheduling keeps collapse independent of hidden WebKit timers.
     const NSTimer = getClass("NSTimer");
@@ -382,11 +350,6 @@ pub fn collapse() void {
     if (is_collapsed) return;
     if (separator_item == null) return;
 
-    // Carry the chain off the front of the bar; everything to its left travels
-    // with it. No single item can stretch that far — past some width the system
-    // ignores the request rather than trimming it down — so the distance is
-    // split evenly between the links, which keeps each ask as small as it can
-    // be and so as likely as possible to be honoured.
     const boundary = markerOriginX(separator_item) orelse return;
 
     // The `|` marks what gets hidden: everything to its left. If it has been
@@ -422,6 +385,7 @@ pub fn expand() void {
 
     // Shrink the marker back, which brings the hidden icons along with it.
     collapse_widening.reset();
+    reflow_started_ns = null;
     setMarkerWidth(separator_item, SEPARATOR_LENGTH);
 
     is_collapsed = false;
@@ -453,7 +417,7 @@ pub fn cleanup() void {
 }
 
 pub fn isCollapsed() bool {
-    return is_collapsed;
+    return is_collapsed and collapse_widening.settled;
 }
 
 pub fn isInitialized() bool {
@@ -476,6 +440,7 @@ fn collapseTimer(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
 
 pub fn checkAutoCollapse() void {
     settleCollapse();
+    restoreOnSystemReflow();
 
     if (toggle_debounce_active) {
         if (toggle_debounce_ns) |start| {
@@ -532,37 +497,21 @@ fn routeClicks(button: objc.id) void {
     msgSendVoid1(button, "sendActionOn:", NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp);
 }
 
-/// The divider the user arranges icons around: whatever ends up to its left is
-/// what a collapse tucks away.
-///
-/// Only drawn at its resting size. A widened marker covers the stretch it just
-/// cleared, and AppKit draws no title on a status button that wide anyway.
+/// Keep the affordance beside the visible icons, rather than centering it in
+/// the reserved space. Use the system status button for native drag and AX.
 fn drawMarker(item: objc.id, widened: bool) void {
     if (item == null) return;
     const button = msgSend0(item, "button");
     if (button == null) return;
-
-    const visible = !widened and !separator_hidden;
-    msgSendVoid1(button, "setTitle:", createNSString(if (visible) MARKER_GLYPH else ""));
+    const label = if (widened) "Show menu bar items" else "Hide menu bar items";
+    msgSendVoid1(button, "setAlignment:", @as(usize, 2)); // NSTextAlignmentRight
+    msgSendVoid1(button, "setTitle:", createNSString(if (widened) "›" else if (separator_hidden) "" else MARKER_GLYPH));
+    msgSendVoid1(button, "setToolTip:", createNSString(label));
+    msgSendVoid1(button, "setAccessibilityLabel:", createNSString(label));
     clearHighlight(button);
 }
 
-/// Widen a marker as far as the system will let it, pushing the items to its
-/// left off the end of the menu bar — or restore it to its normal width.
-///
-/// macOS caps how wide a status item may become, and a `setLength:` past that
-/// cap is not clamped to the maximum: the item degenerates to nothing and the
-/// bar lays out as if the marker were not there at all. Ports of the original
-/// Hidden Bar trick ask for a flat 10,000pt, which lands past the cap on every
-/// display this was measured on and so hides nothing.
-///
-/// Set a marker's width, and draw its `|` only at its resting size — a widened
-/// marker spans most of the bar, so a dot centred in it would float somewhere
-/// out in the empty space.
-///
-/// The width goes on before the title: a status button sizes itself to its own
-/// content, so touching the title first makes AppKit lay the button out against
-/// the width it had before, and the change is lost.
+/// AppKit applies status-item widths asynchronously. Set width before content.
 fn setMarkerWidth(item: objc.id, width: f64) void {
     if (item == null) return;
     msgSendVoid1(item, "setLength:", width);
@@ -573,46 +522,68 @@ fn trayOriginX() f64 {
     return markerOriginX(tray_item) orelse screenWidth();
 }
 
-/// Confirm the widening actually moved the bar, and undo it if it did not.
-///
-/// The system resizes status item windows asynchronously, so this has to run a
-/// turn of the run loop after the widths were set — never straight after them,
-/// where the frames still read as they did before. It may take a few turns, so
-/// a short run of quiet checks is normal; only a persistent shortfall means the
-/// widths were refused outright.
+/// A failed collapse must not reschedule itself forever.
+fn restoreCompactLayout() void {
+    expand();
+    auto_collapse_timer_active = false;
+}
+
 fn settleCollapse() void {
-    if (is_collapsed and !collapse_widening.settle(separator_item)) {
-        // Nothing worth doing fits. Half a collapse strands icons in the middle
-        // of the bar, which is worse than not collapsing at all.
+    if (!is_collapsed) return;
+    const was_settled = collapse_widening.settled;
+    if (!collapse_widening.settle(separator_item)) {
         log.debug("menu bar collapse: no room to tuck anything away — restoring", .{});
-        expand();
+        restoreCompactLayout();
+        return;
+    }
+    if (!was_settled and collapse_widening.settled) {
+        const marker = markerFrame(separator_item) orelse return;
+        const tray = markerFrame(tray_item) orelse return;
+        if (layout.anchorDisplaced(collapse_widening.anchor_gap, marker.origin.x, marker.size.width, tray.origin.x)) {
+            restoreCompactLayout();
+        } else {
+            notifyJS();
+        }
     }
 }
 
-/// The x of the marker's own status window. Read before widening: the system
-/// resizes status item windows asynchronously, so a frame read straight after a
-/// `setLength:` still reports the old geometry.
-fn markerOriginX(item: objc.id) ?f64 {
+/// The system's overflow can move the spacer away from the items it anchors.
+/// Leave native overflow tracking to AppKit and release the reserved space.
+/// A short grace period ignores intermediate frames during native relayout.
+fn restoreOnSystemReflow() void {
+    if (!is_collapsed or !collapse_widening.settled) return;
+    const marker = markerFrame(separator_item) orelse return;
+    const tray = markerFrame(tray_item) orelse return;
+    if (!layout.anchorDisplaced(collapse_widening.anchor_gap, marker.origin.x, marker.size.width, tray.origin.x)) {
+        reflow_started_ns = null;
+        return;
+    }
+    const now = nanoTimestamp() orelse return;
+    const start = reflow_started_ns orelse {
+        reflow_started_ns = now;
+        return;
+    };
+    if (now - start >= 200 * std.time.ns_per_ms) restoreCompactLayout();
+}
+
+fn markerFrame(item: objc.id) ?CGRect {
     if (item == null) return null;
-    const button = msgSend0(item, "button");
-    if (button == null) return null;
-    const window = msgSend0(button, "window");
+    const view = msgSend0(item, "button");
+    if (view == null) return null;
+    const window = msgSend0(view, "window");
     if (window == null) return null;
-    return msgSendRect(window, "frame").origin.x;
+    return msgSendRect(window, "frame");
+}
+
+fn markerOriginX(item: objc.id) ?f64 {
+    const frame = markerFrame(item) orelse return null;
+    return frame.origin.x;
 }
 
 fn screenWidth() f64 {
     const screen = msgSend0(getClass("NSScreen"), "mainScreen");
     if (screen == null) return 0;
     return msgSendRect(screen, "frame").size.width;
-}
-
-/// A status button flashes a highlight behind itself while pressed. Across a
-/// widened marker that is a slab of colour over half the menu bar, so the
-/// markers opt out of it and stay invisible whether or not they are being
-/// clicked.
-fn suppressHighlight(item: objc.id) void {
-    clearHighlight(msgSend0(item, "button"));
 }
 
 /// Take the pressed look back off a status button.
@@ -667,7 +638,7 @@ fn notifyJS() void {
     const macos = @import("macos.zig");
     var buf: [320]u8 = undefined;
     const js = std.fmt.bufPrint(&buf, "window.dispatchEvent(new CustomEvent('craft:menubar:stateChange',{{detail:{{collapsed:{s},separatorHidden:{s}}}}}));", .{
-        if (is_collapsed) "true" else "false",
+        if (isCollapsed()) "true" else "false",
         if (separator_hidden) "true" else "false",
     }) catch return;
     macos.tryEvalJS(js) catch |err| {
@@ -681,6 +652,17 @@ fn toggleClicked(_: objc.id, _: objc.SEL, sender: objc.id) callconv(.c) void {
 
     const NSApp = msgSend0(getClass("NSApplication"), "sharedApplication");
     const event = msgSend0(NSApp, "currentEvent");
+    // Mouse clicks only toggle at the trailing affordance. Accessibility and
+    // keyboard actions have no mouse-up event and retain the normal action.
+    if (is_collapsed and sender != null and event != null and msgSendUsize(event, "type") == NSEventTypeLeftMouseUp) {
+        const point_fn = @as(*const fn (objc.id, objc.SEL) callconv(.c) CGPoint, @ptrCast(&objc.objc_msgSend));
+        const point = point_fn(event, objc.sel_registerName("locationInWindow"));
+        const bounds = msgSendRect(sender, "bounds");
+        if (point.x < bounds.size.width - SEPARATOR_LENGTH) {
+            clearHighlight(sender);
+            return;
+        }
+    }
     if (wantsMenu(event)) {
         if (sender != null) showTrayMenu(sender);
         clearHighlight(sender);
