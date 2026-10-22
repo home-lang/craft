@@ -3977,8 +3977,55 @@ private final class CraftNativeImageBackgroundView: UIImageView {
     }
 }
 
+private final class CraftNativeSegmentElement: UIAccessibilityElement {
+    weak var control: CraftNativeSegmentedControl?
+    let index: Int
+    init(control: CraftNativeSegmentedControl, index: Int) {
+        self.control = control
+        self.index = index
+        super.init(accessibilityContainer: control)
+    }
+    override func accessibilityActivate() -> Bool {
+        guard let control, control.isEnabled, control.values.indices.contains(index), control.isEnabledForSegment(at: index) else { return false }
+        if control.selectedSegmentIndex != index {
+            control.selectedSegmentIndex = index
+            control.sendActions(for: .valueChanged)
+        }
+        return true
+    }
+}
+
 private final class CraftNativeSegmentedControl: UISegmentedControl {
     var values: [String] = []
+    private var segments: [CraftNativeSegmentElement] = []
+    override var accessibilityElements: [Any]? {
+        get { segments }
+        set { /* The native segments, not the labelled group, own activation. */ }
+    }
+    func configureAccessibility(items: [[String: Any]]) {
+        if segments.count != items.count { segments = items.indices.map { CraftNativeSegmentElement(control: self, index: $0) } }
+        for (index, item) in items.enumerated() {
+            segments[index].accessibilityLabel = item["spoken"] as? String ?? item["label"] as? String ?? values[index]
+        }
+        refreshAccessibilityState()
+        setNeedsLayout()
+    }
+    func refreshAccessibilityState() {
+        for (index, segment) in segments.enumerated() {
+            segment.accessibilityTraits = [.button]
+            if selectedSegmentIndex == index { segment.accessibilityTraits.insert(.selected) }
+            if !isEnabled || !isEnabledForSegment(at: index) { segment.accessibilityTraits.insert(.notEnabled) }
+        }
+    }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard !segments.isEmpty else { return }
+        let width = bounds.width / CGFloat(segments.count)
+        for (index, segment) in segments.enumerated() {
+            let visualIndex = effectiveUserInterfaceLayoutDirection == .rightToLeft ? segments.count - index - 1 : index
+            segment.accessibilityFrameInContainerSpace = CGRect(x: CGFloat(visualIndex) * width, y: 0, width: width, height: bounds.height)
+        }
+    }
 }
 
 private final class CraftNativeSheetController: UIViewController {
@@ -8098,16 +8145,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 control.removeAllSegments()
                 for (index, label) in labels.enumerated() { control.insertSegment(withTitle: label, at: index, animated: false) }
             }
-            control.values = items.map { craftNativePickerValue($0["value"]) ?? "" }
+            control.values = items.map { $0["value"] as? String ?? craftNativePickerValue($0["value"]) ?? "" }
             for (index, item) in items.enumerated() { control.setEnabled(item["disabled"] as? Bool != true, forSegmentAt: index) }
-            let selected = craftNativePickerValue(props["value"]) ?? craftNativePickerValue(props["selectedValue"])
+            let selected = props["value"] as? String ?? craftNativePickerValue(props["value"]) ?? props["selectedValue"] as? String ?? craftNativePickerValue(props["selectedValue"])
             control.selectedSegmentIndex = control.values.firstIndex(where: { $0 == selected }) ?? UISegmentedControl.noSegment
             control.isEnabled = props["disabled"] as? Bool != true
             control.selectedSegmentTintColor = color(props["tintColor"])
-            if let foreground = color(style["color"]) {
-                control.setTitleTextAttributes([.foregroundColor: foreground], for: .normal)
-                control.setTitleTextAttributes([.foregroundColor: foreground], for: .selected)
-            }
+            let titleAttributes: [NSAttributedString.Key: Any]? = color(style["color"]).map { [.foregroundColor: $0] }
+            control.setTitleTextAttributes(titleAttributes, for: .normal)
+            control.setTitleTextAttributes(titleAttributes, for: .selected)
+            control.configureAccessibility(items: items)
             updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: control)
         case "Picker":
             let picker = result as! UIPickerView
@@ -9969,7 +10016,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let controlledVideo = type == "Video" && (props["controls"] as? Bool) == true
         // UIPickerView exposes adjustable component wheels. Making the
         // picker itself a leaf hides those wheels and their selected values.
-        let container = ["ScrollView", "FlatList", "SectionList", "Picker"].contains(type)
+        let container = ["ScrollView", "FlatList", "SectionList", "Picker", "SegmentedControl"].contains(type)
             || ["tablist", "radiogroup", "list", "menu", "menubar", "toolbar"].contains(role ?? "")
             || controlledVideo
         view.isAccessibilityElement = !container && role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "DatePicker", "Switch", "Slider"].contains(type))
@@ -10199,6 +10246,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let index = sender.selectedSegmentIndex
         guard sender.isEnabled, sender.values.indices.contains(index), sender.isEnabledForSegment(at: index),
               let handler = handlers[ObjectIdentifier(sender)] else { return }
+        sender.refreshAccessibilityState()
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": sender.values[index], "index": index]])
     }
 

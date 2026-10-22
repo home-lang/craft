@@ -1755,7 +1755,7 @@ describe('Craft iOS builder', () => {
     // A tour pager labelled for VoiceOver became one element and hid its pages.
     const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
     const a11y = swift.slice(swift.indexOf('private func applyAccessibility(_ props: [String: Any], type: String, to view: UIView)'))
-    expect(a11y).toContain('let container = ["ScrollView", "FlatList", "SectionList", "Picker"].contains(type)')
+    expect(a11y).toContain('let container = ["ScrollView", "FlatList", "SectionList", "Picker", "SegmentedControl"].contains(type)')
     expect(a11y).toContain('view.isAccessibilityElement = !container && role != "none"')
     expect(a11y).toContain('view.accessibilityContainerType = container && (view.accessibilityLabel != nil || controlledVideo) ? .semanticGroup : .none')
     expect(a11y).toContain('case "tablist": traits.insert(.tabBar)')

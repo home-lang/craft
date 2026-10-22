@@ -5685,7 +5685,7 @@ class MainActivity : AppCompatActivity() {
                     getChildAt(index)?.tag != craftNativePickerValue(items.optJSONObject(index)?.opt("value")).orEmpty()
                 }
                 if (valuesChanged) removeAllViews()
-                val requested = craftNativePickerValue(props.opt("value")) ?: craftNativePickerValue(props.opt("selectedValue"))
+                val requested = props.opt("value") as? String ?: craftNativePickerValue(props.opt("value")) ?: props.opt("selectedValue") as? String ?: craftNativePickerValue(props.opt("selectedValue"))
                 val disabled = craftNativeBoolean(props.opt("disabled"))
                 val foreground = color(craftNativeOptionalString(style.opt("color")).orEmpty(), Color.BLACK)
                 val values = mutableMapOf<Int, Pair<String, Int>>()

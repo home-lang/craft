@@ -3629,9 +3629,9 @@ final class NativePlatformControlTests: XCTestCase {
         screen.loadViewIfNeeded()
         screen.evaluateScript("globalThis.changes = []; globalThis.__stxNativeCallback = function(json) { const m = JSON.parse(json); if (m.type === 'EVENT') changes.push(m.payload.nativeEvent.value); };")
         func document(_ value: String, _ items: [[String: Any]]) -> [String: Any] {
-            ["type": "SegmentedControl", "props": ["key": "period", "value": value, "items": items], "events": ["onValueChange": "selected"], "style": ["height": 32, "color": "#123456"]]
+            ["type": "SegmentedControl", "props": ["key": "period", "accessibilityLabel": "Period", "value": value, "items": items], "events": ["onValueChange": "selected"], "style": ["height": 32, "color": "#123456"]]
         }
-        let items: [[String: Any]] = [["value": "day", "label": "Day"], ["value": "week", "label": "Week"], ["value": "month", "label": "Month", "disabled": true]]
+        let items: [[String: Any]] = [["value": "day", "label": "Day"], ["value": "week", "label": "Week", "spoken": "This week, seven days"], ["value": "month", "label": "Month", "disabled": true]]
         screen.render(document("day", items))
         let control = try XCTUnwrap(find(UISegmentedControl.self, below: screen.view))
         XCTAssertEqual(control.numberOfSegments, 3)
@@ -3639,8 +3639,15 @@ final class NativePlatformControlTests: XCTestCase {
         XCTAssertFalse(control.isEnabledForSegment(at: 2))
         XCTAssertTrue(control.isUserInteractionEnabled)
         XCTAssertEqual(screen.evaluateScript("changes.length")?.toInt32(), 0)
-        control.selectedSegmentIndex = 1
-        control.sendActions(for: .valueChanged)
+        XCTAssertFalse(control.isAccessibilityElement, "A labelled group must not hide its individual segments")
+        let accessible = try XCTUnwrap(control.accessibilityElements as? [UIAccessibilityElement])
+        XCTAssertEqual(accessible[1].accessibilityLabel, "This week, seven days")
+        XCTAssertTrue(accessible[0].accessibilityTraits.contains(.selected))
+        XCTAssertTrue(accessible[2].accessibilityTraits.contains(.notEnabled))
+        XCTAssertFalse(accessible[2].accessibilityActivate())
+        XCTAssertTrue(accessible[1].accessibilityActivate())
+        XCTAssertTrue(accessible[1].accessibilityTraits.contains(.selected))
+        XCTAssertFalse(accessible[0].accessibilityTraits.contains(.selected))
         XCTAssertEqual(screen.evaluateScript("changes.join('|')")?.toString(), "week")
         screen.render(document("week", [["value": "week", "label": "This week"], ["value": "all", "label": "All time"]]))
         XCTAssertTrue(control === find(UISegmentedControl.self, below: screen.view))
@@ -3648,6 +3655,8 @@ final class NativePlatformControlTests: XCTestCase {
         XCTAssertEqual(control.titleForSegment(at: 0), "This week")
         XCTAssertEqual(control.selectedSegmentIndex, 0)
         XCTAssertEqual(screen.evaluateScript("changes.length")?.toInt32(), 1)
+        screen.render(document("", [["value": "", "label": "Any day"], ["value": "week", "label": "Week"]]))
+        XCTAssertEqual(control.selectedSegmentIndex, 0, "An empty string is a valid shared option value")
     }
 
     func testNativeClearEditsTheFieldExactlyOnce() throws {
