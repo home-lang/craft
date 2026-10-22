@@ -169,6 +169,19 @@ pub fn setWebMaterialCornerRadius(window: objc.id, radius: f64) void {
     msgSendVoid1(image, "setCapInsets:", EdgeInsets{ .top = radius, .left = radius, .bottom = radius, .right = radius });
     msgSendVoid1(image, "setResizingMode:", @as(c_long, 1)); // NSImageResizingModeStretch
     _ = msgSend1(view, "setMaskImage:", image);
+    msgSendVoid0(image, "release");
+}
+
+/// Clip the page independently of the vibrancy backdrop. An opaque page must
+/// not paint square corners over a rounded native popover; masking the whole
+/// material container would instead disable its behind-window blending.
+pub fn setWebContentCornerRadius(window: objc.id, radius: f64) void {
+    const webview = findWebView(msgSend0(window, "contentView")) orelse return;
+    msgSendVoid1(webview, "setWantsLayer:", true);
+    const layer = msgSend0(webview, "layer");
+    if (layer == null) return;
+    msgSendVoid1(layer, "setCornerRadius:", radius);
+    msgSendVoid1(layer, "setMasksToBounds:", true);
 }
 
 fn forgetWebMaterial(window: objc.id) void {
@@ -8018,6 +8031,7 @@ fn appShouldHandleReopen(_: objc.id, _: objc.SEL, app: objc.id, has_visible: boo
     );
     const count = countFn(windows, sel("count"));
 
+    var reopened_ordinary_window = false;
     var i: c_ulong = 0;
     while (i < count) : (i += 1) {
         const window = msgSend1(windows, "objectAtIndex:", i);
@@ -8025,12 +8039,17 @@ fn appShouldHandleReopen(_: objc.id, _: objc.SEL, app: objc.id, has_visible: boo
         // keeps for menus and tooltips. Ordering one of those front puts an
         // empty frame on screen, so only windows craft made are reopened.
         if (!isCraftWindow(window)) continue;
+        if (tray_popover.owns(window)) {
+            tray_popover.show();
+            continue;
+        }
         _ = msgSend1(window, "makeKeyAndOrderFront:", @as(objc.id, null));
+        reopened_ordinary_window = true;
     }
 
     // Reopening without activating leaves the window behind whatever the user
     // clicked away to, which is not what clicking a Dock icon means.
-    _ = msgSend1(app, "activateIgnoringOtherApps:", true);
+    if (reopened_ordinary_window) _ = msgSend1(app, "activateIgnoringOtherApps:", true);
     return true;
 }
 
