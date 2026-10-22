@@ -37,6 +37,7 @@ const declared_sources = [_]struct {
     .{ .namespace = "app", .path = "src/bridge_app.zig", .source = @embedFile("src/bridge_app.zig") },
     .{ .namespace = "screen", .path = "src/bridge_screen.zig", .source = @embedFile("src/bridge_screen.zig") },
     .{ .namespace = "haptics", .path = "src/bridge_haptics.zig", .source = @embedFile("src/bridge_haptics.zig") },
+    .{ .namespace = "timers", .path = "src/bridge_timers.zig", .source = @embedFile("src/bridge_timers.zig") },
     .{
         .namespace = "capabilities",
         .path = "src/bridge_capabilities.zig",

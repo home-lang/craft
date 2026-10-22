@@ -479,6 +479,20 @@ describe('health reads', () => {
     })
   })
 
+  it('reads glucose, insulin and carbs one sample at a time, passing the type and range on', async () => {
+    const calls: unknown[][] = []
+    const dose = { id: 'HK-ins-1', value: 1.5, unit: 'IU', startDate: 1000, endDate: 1000, sourceName: 'Loop', sourceBundleId: 'com.loopkit.Loop', ownApp: false, insulinReason: 'bolus' }
+    await withWindow({ craft: { health: { getSamples: async (type: unknown, options: unknown) => { calls.push([type, options]); return [dose] } } } }, async () => {
+      expect(health.supports('getSamples')).toBe(true)
+      expect(await health.getSamples('insulinDelivery', { startDate: 0, endDate: 5000, limit: 50 })).toEqual([dose as any])
+      expect(calls).toEqual([['insulinDelivery', { startDate: 0, endDate: 5000, limit: 50 }]])
+    })
+    await withWindow({ craft: { health: {} } }, async () => {
+      expect(health.supports('getSamples')).toBe(false)
+      await expect(health.getSamples('bloodGlucose')).rejects.toThrow('unavailable')
+    })
+  })
+
   it('saves and reads mindful sessions through the bridge', async () => {
     const calls: unknown[][] = []
     const sample = { id: 'HK-1', startDate: 0, endDate: 300000, durationSeconds: 300, sourceName: 'HQ', sourceBundleId: 'training.hq.app', ownApp: true, externalId: 'hq-1' }

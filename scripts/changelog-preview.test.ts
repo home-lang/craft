@@ -153,6 +153,12 @@ function nativeWorkspace(directory: string, git: (...args: string[]) => string):
 
 // Each real CLI rehearsal needs its own bounded subprocess budget; Bun's
 // five-second default can kill a successful Git/Bumpx/changelog run early.
+function fixtureReleaseEnvironment(git: (...args: string[]) => string): NodeJS.ProcessEnv {
+  // The caller's source pin belongs to its real checkout. Rehearsals keep the
+  // same guard enabled, bound to the temporary repository they actually bump.
+  return { ...process.env, BUMPX_EXPECTED_SOURCE: git('rev-parse', 'HEAD').trim() }
+}
+
 for (const release of ['1.0.2', 'patch']) {
   test(`the real ${release} release versions every workspace and native manifest before tagging`, () => {
     fixture((directory, git) => {
@@ -168,7 +174,7 @@ for (const release of ['1.0.2', 'patch']) {
       const result = Bun.spawnSync([
         process.execPath, bumpx, '--recursive', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
         '--execute', `${shellQuote(process.execPath)} scripts/release-version.ts --pending && ${shellQuote(process.execPath)} ${shellQuote(generator)} && git add CHANGELOG.md`, release,
-      ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
+      ], { cwd: directory, env: fixtureReleaseEnvironment(git), stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
       expect(result.exitCode, result.stderr.toString()).toBe(0)
       expect(git('tag', '--list', 'v1.0.2')).toBe('v1.0.2\n')
       for (const path of paths) expect(git('show', `HEAD:${path}`)).toContain('1.0.2')
@@ -184,11 +190,14 @@ test('the published release tool restores all workspace and native versions on a
     const head = git('rev-parse', 'HEAD')
     const before = paths.map(path => readFileSync(join(directory, path), 'utf8'))
     const bumpx = Bun.resolveSync('@stacksjs/bumpx/bin/cli.js', import.meta.dir)
+    const marker = join(createTempDir('craft-release-rollback-'), 'version.json')
+    const hook = "const fs = require('node:fs'); fs.writeFileSync(process.env.CRAFT_REHEARSAL_VERSION, fs.readFileSync('package.json')); process.exit(23)"
     const result = Bun.spawnSync([
       process.execPath, bumpx, 'patch', '--recursive', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
-      '--execute', 'bun -e "process.exit(23)"',
-    ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
+      '--execute', `${shellQuote(process.execPath)} -e ${shellQuote(hook)}`,
+    ], { cwd: directory, env: { ...fixtureReleaseEnvironment(git), CRAFT_REHEARSAL_VERSION: marker }, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
     expect(result.exitCode).not.toBe(0)
+    expect(JSON.parse(readFileSync(marker, 'utf8')).version).toBe('1.0.2')
     expect(paths.map(path => readFileSync(join(directory, path), 'utf8'))).toEqual(before)
     expect(git('rev-parse', 'HEAD')).toBe(head)
     expect(git('tag', '--list', 'v1.0.2')).toBe('')
@@ -209,7 +218,7 @@ test('pending validation rejects an incomplete workspace before a tag or commit 
     const result = Bun.spawnSync([
       process.execPath, bumpx, '1.0.2', '--files', 'package.json', '--commit', '--tag', '--no-push', '--yes', '--no-changelog',
       '--execute', `${shellQuote(process.execPath)} scripts/release-version.ts --pending`,
-    ], { cwd: directory, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
+    ], { cwd: directory, env: fixtureReleaseEnvironment(git), stdout: 'pipe', stderr: 'pipe', timeout: 30_000 })
     expect(result.exitCode).not.toBe(0)
     expect(`${result.stdout.toString()}${result.stderr.toString()}`).toContain('packages/sdk/package.json')
     expect(paths.map(path => readFileSync(join(directory, path), 'utf8'))).toEqual(before)

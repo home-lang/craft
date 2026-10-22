@@ -13,12 +13,13 @@ independent signals are combined:
 | --- | --- | --- |
 | `systemScreenShare` | `CGSessionCopyCurrentDictionary()` → `CGSSessionScreenIsShared` | macOS Screen Sharing / Apple Remote Desktop has the session |
 | `remoteSession` | the same dictionary's `kCGSSessionOnConsoleKey` | the session is driven from somewhere other than this console |
-| `conferenceSharing` | on-screen window list | a conferencing app is showing its live sharing control |
+| `conferenceSharing` | on-screen window list and authorized native Accessibility indicators | a conferencing app is showing its live sharing control |
 | `screenRecording` | on-screen window list | a recorder is capturing the screen |
 
 The two window-list signals match the **sharing indicator** — the floating
 control an app shows *only while a share is live* — never the application
-itself. This distinction is the whole design: "Zoom is running" or "Chrome is
+itself. Only on-screen windows count; retained hidden sharing windows after
+**Stop sharing** must not keep a meeting active. This distinction is the whole design: "Zoom is running" or "Chrome is
 frontmost" describes most of a working day, and an app that acts on it silences
 notifications permanently.
 
@@ -32,11 +33,42 @@ const state = await window.craft.screenSharing.getState()
 // }
 ```
 
+### Accessibility sharing controls
+
+Chrome and Dia tab-only capture may have no separate CoreGraphics sharing
+window. With the user's Accessibility grant, Craft reads Chrome's browser-owned
+window-title suffix or Dia's native sharing banner. Dia remains detectable when
+the user switches from the shared tab to the meeting tab. Its paired native
+controls must occur on the same surface; webpage accessibility subtrees are
+excluded. Merely displaying matching words on a website cannot activate this
+reader. Dia sources use `app: 'Dia'`, `window: 'Browser tab sharing'`.
+
+Discord and Slack may also share without a separate indicator window. Craft
+uses Electron’s documented `AXManualAccessibility` interface, then matches
+Discord’s **Stop Streaming** button inside its **User status and settings**
+panel or Slack’s **Stop sharing screen** control inside its **Huddles actions**
+toolbar. Message lists, outlines and editors are excluded. Sources identify
+`Discord` or `Slack` with `window: 'Screen sharing controls'`.
+
+Compact Slack huddles expose a separate app-owned **Slack** window instead.
+Craft recognizes its floating toolbar only when both **Stop sharing your
+screen** and **Draw on your own screen** are real controls on that toolbar.
+The huddle can remain compact and its More menu can stay closed; matching text
+in a message cannot satisfy the paired-control check.
+
+Use `craft.permissions.check('accessibility')` to check the grant and
+`craft.permissions.request('accessibility')` only in response to an explicit
+setup action. Screen Recording access is separately required for window titles.
+
 ### Watching for changes
 
 None of the signals has a system notification, so detection polls. `watch()`
-runs an `NSTimer` on the main run loop and evaluates the signals each tick, but
-only touches the webview when the resolved state actually differs — a share
+runs an `NSTimer` in the main run loop's common modes and gathers signals on a
+worker, with only one poll in flight. While watching, a scoped Foundation
+`NSActivityUserInitiatedAllowingIdleSystemSleep` activity keeps App Nap from
+suspending background monitoring and event delivery. `unwatch()` releases it;
+normal system and display sleep remain enabled. Results return to the main thread and
+only touch the webview when the resolved state actually differs — a share
 that stays up for an hour costs one window-list walk per interval and zero
 JavaScript evaluations.
 
@@ -53,9 +85,14 @@ await window.craft.screenSharing.unwatch()
 off()
 ```
 
-Each tick is one `CGWindowListCopyWindowInfo` call — a window-server round trip
-on the order of a millisecond. The default 2s cadence is effectively free;
-raise it if you would rather trade detection latency for even less work.
+Each tick includes one `CGWindowListCopyWindowInfo` call and, when authorized,
+a bounded native Accessibility walk. Application IPC has a 50ms per-element
+timeout and a 750ms budget per trusted application, with node and depth limits
+for native controls. A browser with many windows cannot starve another app's
+reader. Each app contributes at most one matching sharing source, and Slack's
+floating capture toolbar is inspected before its workspace. These queries do
+not block the UI thread. The default cadence is 2s;
+raise it to trade detection latency for less work.
 
 ## Focus / Do Not Disturb
 

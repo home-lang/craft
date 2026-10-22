@@ -1,5 +1,448 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.293...v0.0.294)
+
+## 🐛 Bug Fixes
+
+- **ios**: keep keyboard insets and a growing input's caret current ([0c0fc17](https://github.com/craft-native/craft/commit/0c0fc17)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.292...v0.0.293)
+
+## 🐛 Bug Fixes
+
+- **macos**: align the reveal control on both native ABIs ([a8864f6](https://github.com/craft-native/craft/commit/a8864f6)) _(by Chris Breuer)_
+- **macos**: retain tray popover presentation when reopening ([f6c8086](https://github.com/craft-native/craft/commit/f6c8086)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into HEAD ([00e4b56](https://github.com/craft-native/craft/commit/00e4b56)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.291...v0.0.292)
+
+## 🐛 Bug Fixes
+
+- **macos**: preserve app menus when grouped icons overflow ([f63983f](https://github.com/craft-native/craft/commit/f63983f)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.290...v0.0.291)
+
+## 🚀 Features
+
+- **health**: read glucose, insulin and carbs one sample at a time ([127d69d](https://github.com/craft-native/craft/commit/127d69d)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **apple**: dispatch structure returns through the native ABI ([3672635](https://github.com/craft-native/craft/commit/3672635)) _(by Chris)_
+
+## ♻️ Code Refactoring
+
+- **apple**: share native geometry and motion dispatch ([1b25bd9](https://github.com/craft-native/craft/commit/1b25bd9)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.289...v0.0.290)
+
+## 🚀 Features
+
+- **native**: tell a screen its width for width classes ([78ad661](https://github.com/craft-native/craft/commit/78ad661)) _(by Chris Breuer)_
+- **android**: configure owned emulator guest memory ([b714154](https://github.com/craft-native/craft/commit/b714154)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **ci**: reject failed advisory scanner results ([7c4a1cc](https://github.com/craft-native/craft/commit/7c4a1cc)) _(by Chris)_
+- detect compact Slack sharing without starving other apps ([80cd889](https://github.com/craft-native/craft/commit/80cd889)) _(by Chris Breuer)_
+- **ci**: keep create-craft smoke installs production-only ([da72db4](https://github.com/craft-native/craft/commit/da72db4)) _(by glennmichael123)_
+- **android**: scale software emulator guest CPUs ([3083dc4](https://github.com/craft-native/craft/commit/3083dc4)) _(by glennmichael123)_
+- **ci**: align release pantry pin with main ([67bcaaa](https://github.com/craft-native/craft/commit/67bcaaa)) _(by glennmichael123)_
+- **ios**: ignore invalid accessibility frames ([66f61f6](https://github.com/craft-native/craft/commit/66f61f6)) _(by glennmichael123)_
+- **android**: generate compatible live health projects ([3c67096](https://github.com/craft-native/craft/commit/3c67096)) _(by Chris Breuer)_
+- **android**: deduplicate shared location permissions ([de6c0e9](https://github.com/craft-native/craft/commit/de6c0e9)) _(by Chris Breuer)_
+- **ci**: resolve the public align-content compiler revision ([92dd53d](https://github.com/craft-native/craft/commit/92dd53d)) _(by Chris Breuer)_
+- **ci**: pin the exact public native compiler commit ([6e12f92](https://github.com/craft-native/craft/commit/6e12f92)) _(by Chris Breuer)_
+- **android**: retain popup viewport and ordering during updates ([881f33c](https://github.com/craft-native/craft/commit/881f33c)) _(by Chris Breuer)_
+- **android**: wait for complete native startup handoff ([48e54c6](https://github.com/craft-native/craft/commit/48e54c6)) _(by Chris Breuer)_
+- **test**: account for compiled screen wrappers in popup assertions ([cfda4f3](https://github.com/craft-native/craft/commit/cfda4f3)) _(by Chris Breuer)_
+- **test**: synchronize native UIKit layout and input acknowledgement ([78db7dc](https://github.com/craft-native/craft/commit/78db7dc)) _(by Chris Breuer)_
+- **test**: dispatch popup touches through the native viewport ([a8ea254](https://github.com/craft-native/craft/commit/a8ea254)) _(by Chris Breuer)_
+- **test**: avoid duplicate Android popup root declaration ([8eb3a6a](https://github.com/craft-native/craft/commit/8eb3a6a)) _(by Chris Breuer)_
+- **build**: pin source-preserving Pantry installer ([8af6d3e](https://github.com/craft-native/craft/commit/8af6d3e)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: follow current keyboard geometry in caret checks ([56af35d](https://github.com/craft-native/craft/commit/56af35d)) _(by Chris)_
+- bind release source pins to rehearsal checkouts ([1c1b334](https://github.com/craft-native/craft/commit/1c1b334)) _(by Chris)_
+- **ios**: harden native and notification waits ([4c1fa41](https://github.com/craft-native/craft/commit/4c1fa41)) _(by glennmichael123)_
+- **ios**: track native control status nodes ([f3da00f](https://github.com/craft-native/craft/commit/f3da00f)) _(by glennmichael123)_
+- **ios**: expose native control state assertions ([aa723c4](https://github.com/craft-native/craft/commit/aa723c4)) _(by glennmichael123)_
+- **android**: follow modal overlay ordering contract ([6e5fb7f](https://github.com/craft-native/craft/commit/6e5fb7f)) _(by glennmichael123)_
+- **ci**: match workflow pantry pins ([b4b7993](https://github.com/craft-native/craft/commit/b4b7993)) _(by glennmichael123)_
+- **native**: ignore Markdown wrapping in capability docs ([66f65e3](https://github.com/craft-native/craft/commit/66f65e3)) _(by Chris Breuer)_
+- **ios**: compile switch fixture and retain timeout evidence ([4aab134](https://github.com/craft-native/craft/commit/4aab134)) _(by Chris Breuer)_
+- **ios**: track modal exclusion in ordered flow ([4b0e338](https://github.com/craft-native/craft/commit/4b0e338)) _(by Chris Breuer)_
+- **ios**: snapshot scroll geometry once per gesture ([e6a8700](https://github.com/craft-native/craft/commit/e6a8700)) _(by Chris Breuer)_
+- **android**: await native popup presentation before outside touches ([f8869b6](https://github.com/craft-native/craft/commit/f8869b6)) _(by Chris Breuer)_
+- **android**: compare popup offsets in physical pixels ([bb2b5ef](https://github.com/craft-native/craft/commit/bb2b5ef)) _(by Chris Breuer)_
+- **android**: keep native carousel scrolling on the UI thread ([1a9e557](https://github.com/craft-native/craft/commit/1a9e557)) _(by Chris Breuer)_
+- **native**: exercise primitive checked control change flows ([16d76dd](https://github.com/craft-native/craft/commit/16d76dd)) _(by Chris Breuer)_
+- **windows**: guard tracked sources during workspace relinking ([811da8a](https://github.com/craft-native/craft/commit/811da8a)) _(by Chris Breuer)_
+- isolate Windows workspace source removal ([c506363](https://github.com/craft-native/craft/commit/c506363)) _(by Chris Breuer)_
+- **build**: reproduce the release reusable source workflow ([23ff8a8](https://github.com/craft-native/craft/commit/23ff8a8)) _(by Chris Breuer)_
+- **build**: keep source inspection after the original cold build ([fdb007b](https://github.com/craft-native/craft/commit/fdb007b)) _(by Chris Breuer)_
+- **build**: inspect tracked source immediately after compilation ([ceb6cfb](https://github.com/craft-native/craft/commit/ceb6cfb)) _(by Chris Breuer)_
+- **build**: trace tracked source presence across Windows setup ([a4061e7](https://github.com/craft-native/craft/commit/a4061e7)) _(by Chris Breuer)_
+- **build**: expose native Windows source cache failures ([8aa8936](https://github.com/craft-native/craft/commit/8aa8936)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- integrate current Craft source ([fae1f50](https://github.com/craft-native/craft/commit/fae1f50)) _(by Chris)_
+- integrate current Craft source ([f58e9bc](https://github.com/craft-native/craft/commit/f58e9bc)) _(by Chris)_
+- integrate current Craft source ([2592d86](https://github.com/craft-native/craft/commit/2592d86)) _(by Chris Breuer)_
+- integrate current Craft source ([a8824f7](https://github.com/craft-native/craft/commit/a8824f7)) _(by Chris)_
+- **ci**: align managed installer source and public CLI ([4f60d39](https://github.com/craft-native/craft/commit/4f60d39)) _(by Chris Breuer)_
+- **build**: remove completed Windows source diagnostics ([b0fe069](https://github.com/craft-native/craft/commit/b0fe069)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge pull request #384 from craft-native/codex/windows-zig-cache-diagnostics ([9025327](https://github.com/craft-native/craft/commit/9025327)) _(by Glenn Michael Torregosa)_ ([#384](https://github.com/craft-native/craft/issues/384))
+- Merge remote-tracking branch 'origin/main' into HEAD ([8d2a820](https://github.com/craft-native/craft/commit/8d2a820)) _(by glennmichael123)_
+- Merge commit '604ff804cceb5b05a7b453d9387f468ddda6a8c2' into codex/windows-zig-cache-diagnostics ([d1f5b6f](https://github.com/craft-native/craft/commit/d1f5b6f)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([49a56e2](https://github.com/craft-native/craft/commit/49a56e2)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([d9bc764](https://github.com/craft-native/craft/commit/d9bc764)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([4d89a6a](https://github.com/craft-native/craft/commit/4d89a6a)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([9053cc6](https://github.com/craft-native/craft/commit/9053cc6)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([386c562](https://github.com/craft-native/craft/commit/386c562)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([1e5d996](https://github.com/craft-native/craft/commit/1e5d996)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([13784a8](https://github.com/craft-native/craft/commit/13784a8)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([6d861d9](https://github.com/craft-native/craft/commit/6d861d9)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([3a28bdb](https://github.com/craft-native/craft/commit/3a28bdb)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([709e99d](https://github.com/craft-native/craft/commit/709e99d)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([208c0e4](https://github.com/craft-native/craft/commit/208c0e4)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/windows-zig-cache-diagnostics ([255a226](https://github.com/craft-native/craft/commit/255a226)) _(by Chris Breuer)_
+
+## merge
+
+- sync main into pr384 ([7e9dcbe](https://github.com/craft-native/craft/commit/7e9dcbe)) _(by glennmichael123)_
+- sync main into pr384 ([72a3b42](https://github.com/craft-native/craft/commit/72a3b42)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+- _Glenn Michael Torregosa_
+- _glennmichael123_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.288...v0.0.289)
+
+## 🐛 Bug Fixes
+
+- **zig**: declare the timers bridge namespace ([38db64a](https://github.com/craft-native/craft/commit/38db64a)) _(by Chris)_
+- declare native timer capabilities from dispatch actions ([548a4d0](https://github.com/craft-native/craft/commit/548a4d0)) _(by Chris)_
+
+## ⏪ Reverts
+
+- duplicate timers declaration ([3897525](https://github.com/craft-native/craft/commit/3897525)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/settlers-gold-hybrid-ci ([2b5cceb](https://github.com/craft-native/craft/commit/2b5cceb)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.287...v0.0.288)
+
+## 🐛 Bug Fixes
+
+- preflight permission before querying sharing window titles ([6969827](https://github.com/craft-native/craft/commit/6969827)) _(by Chris Breuer)_
+- **bridge**: restore bound reply and option payload variables ([d8657e8](https://github.com/craft-native/craft/commit/d8657e8)) _(by Chris Breuer)_
+- confirm native timer cancellation before settling ([8cb9dcb](https://github.com/craft-native/craft/commit/8cb9dcb)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/image-optimization-packaging ([b022ca1](https://github.com/craft-native/craft/commit/b022ca1)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/image-optimization-packaging ([d024e4d](https://github.com/craft-native/craft/commit/d024e4d)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into HEAD ([c0f8dde](https://github.com/craft-native/craft/commit/c0f8dde)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.286...v0.0.287)
+
+## 🐛 Bug Fixes
+
+- **ios**: the Me tab arrives cleanly on its first visit ([1623462](https://github.com/craft-native/craft/commit/1623462)) _(by Chris Breuer)_
+- **ios**: put a navigation bar asked for before a screen appears in place ([e7f37fe](https://github.com/craft-native/craft/commit/e7f37fe)) _(by Chris Breuer)_
+- **ios**: let a long multiline TextInput be edited to its last line ([52fe715](https://github.com/craft-native/craft/commit/52fe715)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.285...v0.0.286)
+
+## 🐛 Bug Fixes
+
+- **release**: keep version validation standalone and rehearse automation ([71b0214](https://github.com/craft-native/craft/commit/71b0214)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.284...v0.0.285)
+
+## 🚀 Features
+
+- expose cancellable native deadlines through the bridge ([5ae324b](https://github.com/craft-native/craft/commit/5ae324b)) _(by Chris Breuer)_
+- schedule hidden app deadlines on the native run loop ([9ef142d](https://github.com/craft-native/craft/commit/9ef142d)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **release**: require pinned Zig formatting before tagging ([65b0db6](https://github.com/craft-native/craft/commit/65b0db6)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- explain native background deadlines and lifecycle ([b6405dd](https://github.com/craft-native/craft/commit/b6405dd)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into HEAD ([393fafb](https://github.com/craft-native/craft/commit/393fafb)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into HEAD ([2a42d46](https://github.com/craft-native/craft/commit/2a42d46)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.283...v0.0.284)
+
+## 🐛 Bug Fixes
+
+- **android**: await committed grid snapshots in native acceptance ([c66ef04](https://github.com/craft-native/craft/commit/c66ef04)) _(by Chris Breuer)_
+- **security**: restrict native bridge access to trusted main documents ([63afeaa](https://github.com/craft-native/craft/commit/63afeaa)) _(by Chris Breuer)_
+- **macos**: keep requested sharing monitoring active in the background ([bb199b5](https://github.com/craft-native/craft/commit/bb199b5)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **security**: verify native bridge origin policy on macOS ([7f43423](https://github.com/craft-native/craft/commit/7f43423)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/native-bridge-origin-policy ([86fbd5a](https://github.com/craft-native/craft/commit/86fbd5a)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into HEAD ([648530d](https://github.com/craft-native/craft/commit/648530d)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.281...v0.0.283)
+
+## 🚀 Features
+
+- **graphics**: render bounded textured scenes and bitmap text ([7a357cf](https://github.com/craft-native/craft/commit/7a357cf)) _(by Chris)_
+- **macos**: detect Discord and Slack native sharing controls ([ee69d61](https://github.com/craft-native/craft/commit/ee69d61)) _(by Chris Breuer)_
+- **macos**: detect Dia native tab sharing across tab switches ([e7df4ab](https://github.com/craft-native/craft/commit/e7df4ab)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **ios**: synchronize native fixture completion and loopback binding ([a18a8ae](https://github.com/craft-native/craft/commit/a18a8ae)) _(by Chris Breuer)_
+- **graphics**: account shared scene asset views once ([614c555](https://github.com/craft-native/craft/commit/614c555)) _(by Chris Breuer)_
+- **macos**: ignore hidden sharing windows after capture stops ([189980c](https://github.com/craft-native/craft/commit/189980c)) _(by Chris Breuer)_
+- **macos**: preserve duplicate native sharing indicators in watcher digests ([8e3c4cc](https://github.com/craft-native/craft/commit/8e3c4cc)) _(by Chris Breuer)_
+- **cli**: report the actual Zig compiler version ([7a86114](https://github.com/craft-native/craft/commit/7a86114)) _(by Chris)_
+- **ci**: give hybrid iOS acceptance an independent budget ([a5f4e3e](https://github.com/craft-native/craft/commit/a5f4e3e)) _(by Chris Breuer)_
+- **gpu**: preserve offscreen storage across allocation failures ([06e0cec](https://github.com/craft-native/craft/commit/06e0cec)) _(by Chris)_
+- **gpu**: reject unavailable graphics execution paths ([a2d0fee](https://github.com/craft-native/craft/commit/a2d0fee)) _(by Chris)_
+- **graphics**: extract a bounded standalone raster core ([9d9f331](https://github.com/craft-native/craft/commit/9d9f331)) _(by Chris)_
+- **android**: preserve confirmed checkpoints on replacement failure ([5b899b0](https://github.com/craft-native/craft/commit/5b899b0)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+- **browser**: cancel queued checkpoint calls before persistence ([00751a4](https://github.com/craft-native/craft/commit/00751a4)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+
+## 📚 Documentation
+
+- **graphics**: document CPU scene contracts and budgets ([4bbbcc7](https://github.com/craft-native/craft/commit/4bbbcc7)) _(by Chris)_
+
+## 🧪 Tests
+
+- **android**: verify rejected checkpoint rollback across isolates ([7697c30](https://github.com/craft-native/craft/commit/7697c30)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+
+## 🧹 Chores
+
+- release v0.0.282 ([7c5602d](https://github.com/craft-native/craft/commit/7c5602d)) _(by Chris)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/image-optimization-packaging ([29b0405](https://github.com/craft-native/craft/commit/29b0405)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-gold-textured-graphics ([94fe67f](https://github.com/craft-native/craft/commit/94fe67f)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' ([c4f4c32](https://github.com/craft-native/craft/commit/c4f4c32)) _(by Chris Breuer)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-gold-graphics-core ([f76a1ca](https://github.com/craft-native/craft/commit/f76a1ca)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-render-truth ([907f92d](https://github.com/craft-native/craft/commit/907f92d)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.281...v0.0.282)
+
+## 🚀 Features
+
+- **macos**: detect Dia native tab sharing across tab switches ([e7df4ab](https://github.com/craft-native/craft/commit/e7df4ab)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **cli**: report the actual Zig compiler version ([7a86114](https://github.com/craft-native/craft/commit/7a86114)) _(by Chris)_
+- **ci**: give hybrid iOS acceptance an independent budget ([a5f4e3e](https://github.com/craft-native/craft/commit/a5f4e3e)) _(by Chris Breuer)_
+- **gpu**: preserve offscreen storage across allocation failures ([06e0cec](https://github.com/craft-native/craft/commit/06e0cec)) _(by Chris)_
+- **gpu**: reject unavailable graphics execution paths ([a2d0fee](https://github.com/craft-native/craft/commit/a2d0fee)) _(by Chris)_
+- **graphics**: extract a bounded standalone raster core ([9d9f331](https://github.com/craft-native/craft/commit/9d9f331)) _(by Chris)_
+- **android**: preserve confirmed checkpoints on replacement failure ([5b899b0](https://github.com/craft-native/craft/commit/5b899b0)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+- **browser**: cancel queued checkpoint calls before persistence ([00751a4](https://github.com/craft-native/craft/commit/00751a4)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+
+## 🧪 Tests
+
+- **android**: verify rejected checkpoint rollback across isolates ([7697c30](https://github.com/craft-native/craft/commit/7697c30)) _(by Chris)_ ([#396](https://github.com/craft-native/craft/issues/396))
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/settlers-gold-graphics-core ([f76a1ca](https://github.com/craft-native/craft/commit/f76a1ca)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-render-truth ([907f92d](https://github.com/craft-native/craft/commit/907f92d)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.280...v0.0.281)
+
+## 🚀 Features
+
+- **macos**: detect Chrome tab sharing through authorized native accessibility ([bfbf7ba](https://github.com/craft-native/craft/commit/bfbf7ba)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **packaging**: make embedded provisioning profiles readable after installation ([13fa3b6](https://github.com/craft-native/craft/commit/13fa3b6)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **macos**: include native sharing indicators in the core CI suite ([04d2d45](https://github.com/craft-native/craft/commit/04d2d45)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/hush-sharing-timer ([2379be3](https://github.com/craft-native/craft/commit/2379be3)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.279...v0.0.280)
+
+## 🐛 Bug Fixes
+
+- **packaging**: edit metadata only in prebuilt macOS bundles ([b319d25](https://github.com/craft-native/craft/commit/b319d25)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.278...v0.0.279)
+
+## 🚀 Features
+
+- **app**: report the native sandbox state ([1cacada](https://github.com/craft-native/craft/commit/1cacada)) _(by Chris Breuer)_
+- **macos**: host bundled backends behind the native application ([78a81a7](https://github.com/craft-native/craft/commit/78a81a7)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **packaging**: sign sandbox helpers separately and preserve store assets ([0908699](https://github.com/craft-native/craft/commit/0908699)) _(by Chris Breuer)_
+- **build**: retain native threading in WebKit-only runtimes ([d7b71bb](https://github.com/craft-native/craft/commit/d7b71bb)) _(by Chris Breuer)_
+- **macos**: handle Focus asynchronously and report screen capture access ([8f52a11](https://github.com/craft-native/craft/commit/8f52a11)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **packaging**: make invalid macOS bundle fixture portable ([81e0361](https://github.com/craft-native/craft/commit/81e0361)) _(by Chris Breuer)_
+- **ios**: snapshot manual-scroll blocker geometry ([2a500ff](https://github.com/craft-native/craft/commit/2a500ff)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/hush-sharing-timer ([79c91cb](https://github.com/craft-native/craft/commit/79c91cb)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.277...v0.0.278)
+
+## 🚀 Features
+
+- **packaging**: preserve prebuilt apps and support notarization API keys ([46ba751](https://github.com/craft-native/craft/commit/46ba751)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **build**: link macOS logger tests to their native dependencies ([1eae66d](https://github.com/craft-native/craft/commit/1eae66d)) _(by Chris)_
+- **graphics**: reject unsupported drawing and composite atlas sprites ([86daaf5](https://github.com/craft-native/craft/commit/86daaf5)) _(by Chris)_
+- **app**: pass the sender when terminating a macOS app ([b1f3a0e](https://github.com/craft-native/craft/commit/b1f3a0e)) _(by Chris Breuer)_
+- **macos**: keep packaged tray popovers alive and detection running ([1c4c147](https://github.com/craft-native/craft/commit/1c4c147)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/settlers-render-truth ([f8ccf93](https://github.com/craft-native/craft/commit/f8ccf93)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' into codex/settlers-render-truth ([ba2a7ee](https://github.com/craft-native/craft/commit/ba2a7ee)) _(by Chris)_
+- Merge remote-tracking branch 'origin/main' into codex/hush-sharing-timer ([1bbd382](https://github.com/craft-native/craft/commit/1bbd382)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.276...v0.0.277)
+
+## 🚀 Features
+
+- **tray**: render embedded image data without temporary files ([fbe4352](https://github.com/craft-native/craft/commit/fbe4352)) _(by Chris Breuer)_
+- **mobile**: expose typed file picker ([d7a68cd](https://github.com/craft-native/craft/commit/d7a68cd)) _(by glennmichael123)_
+- **ios**: add general native file picker ([a3d4b5b](https://github.com/craft-native/craft/commit/a3d4b5b)) _(by glennmichael123)_
+- **ios**: run watch workouts through HealthKit ([4fe0406](https://github.com/craft-native/craft/commit/4fe0406)) _(by glennmichael123)_
+- **ios**: persist watch workout handoff state ([b7b5744](https://github.com/craft-native/craft/commit/b7b5744)) _(by glennmichael123)_
+- **native**: add atomic list child snapshots ([05688c6](https://github.com/craft-native/craft/commit/05688c6)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **menubar**: schedule collapse on the native run loop ([12143cc](https://github.com/craft-native/craft/commit/12143cc)) _(by Chris Breuer)_
+- **power**: release native activities on replacement stop and teardown ([4867f9f](https://github.com/craft-native/craft/commit/4867f9f)) _(by Chris Breuer)_
+- **android**: wait for Google SDK setup to release HOME ([cfde9ae](https://github.com/craft-native/craft/commit/cfde9ae)) _(by Chris Breuer)_
+- **ios**: preserve document MIME types ([f6f1818](https://github.com/craft-native/craft/commit/f6f1818)) _(by glennmichael123)_
+- **native**: discard rows removed from list snapshots ([89d4449](https://github.com/craft-native/craft/commit/89d4449)) _(by glennmichael123)_
+- **security**: update electron benchmark dependency ([1339fdb](https://github.com/craft-native/craft/commit/1339fdb)) _(by glennmichael123)_
+
+## 📚 Documentation
+
+- **ios**: document live workout sessions ([2b1d715](https://github.com/craft-native/craft/commit/2b1d715)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **ios**: await complete native input accessibility values ([5f0b0d0](https://github.com/craft-native/craft/commit/5f0b0d0)) _(by Chris Breuer)_
+- **ios**: wait for a typed label's echo, check the typed value at once ([c322032](https://github.com/craft-native/craft/commit/c322032)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.275...v0.0.276)
 
 ## 🐛 Bug Fixes

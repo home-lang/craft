@@ -153,14 +153,15 @@ pub const Digest = struct {
     value: u64 = 0,
 
     pub fn add(self: *Digest, kind: Kind, app: []const u8, window: []const u8) void {
-        // FNV-1a per entry, XOR-combined so poll-to-poll window reordering
-        // (which CGWindowList does freely) doesn't look like a state change.
+        // Sum per-entry FNV-1a hashes so window order does not matter, while
+        // repeated native indicators retain their multiplicity. XOR would
+        // cancel two identical sharing surfaces to the idle digest.
         var h: u64 = 0xcbf29ce484222325;
         h = mix(h, @backingInt(kind));
         for (app) |c| h = mix(h, lower(c));
         h = mix(h, 0x1f);
         for (window) |c| h = mix(h, lower(c));
-        self.value ^= h;
+        self.value +%= h;
     }
 
     fn mix(h: u64, byte: u8) u64 {
@@ -220,4 +221,21 @@ test "digest is order independent but content sensitive" {
     var c: Digest = .{};
     c.add(.conference, "zoom.us", "as_toolbar");
     try std.testing.expect(c.value != a.value);
+}
+
+test "duplicate sharing surfaces cannot cancel to idle" {
+    const idle = Digest{};
+    var one = Digest{};
+    one.add(.conference, "Dia", "Browser tab sharing");
+    var two = one;
+    two.add(.conference, "Dia", "Browser tab sharing");
+    try std.testing.expect(two.value != idle.value);
+    try std.testing.expect(two.value != one.value);
+    var reordered = Digest{};
+    reordered.add(.conference, "Dia", "Browser tab sharing");
+    reordered.add(.recording, "Loom", "recording controls");
+    reordered.add(.conference, "Dia", "Browser tab sharing");
+    var grouped = two;
+    grouped.add(.recording, "Loom", "recording controls");
+    try std.testing.expectEqual(grouped.value, reordered.value);
 }

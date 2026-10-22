@@ -107,28 +107,18 @@ Build native menubar/system tray apps with full platform support:
 - Linux: AppIndicator/StatusNotifier
 - Windows: System tray via Shell_NotifyIcon
 
-### 🎮 Advanced GPU Rendering
+### 🎮 Standalone Graphics
 
-#### Rendering Pipeline
+- Window-independent CPU pixels for primitives, transformed atlas sprites, textured triangles and bitmap-font text
+- Masked player tint, clipped affine geometry, ordered frames and checked asset/work budgets
+- Explicit buffer ownership and allocation-free borrowed scene commands
+- Hardware discovery and CPU-backed offscreen GPU resource types
+- Explicit errors for unavailable shader compilation, GPU drawing, compute, post-processing, video decoding and ray tracing
 
-- Multi-backend support (Vulkan, Metal, Direct3D)
-- Shader management (vertex, fragment, compute)
-- Buffer management (vertex, index, uniform, storage)
-- Texture and render target support
-- Mesh rendering with vertex data
-
-#### Effects & Post-Processing
-
-- 10 built-in effects: Bloom, Blur, Sharpen, Vignette
-- Chromatic Aberration, Film Grain, Color Grading
-- Tone Mapping, Anti-Aliasing, Ambient Occlusion
-
-#### Advanced Features
-
-- Compute shader support
-- Ray tracing with acceleration structures
-- Multi-GPU support
-- GPU profiling and performance monitoring
+The standalone graphics API does not yet present frames through Metal, Vulkan
+or Direct3D. Hardware discovery and requested configuration do not establish
+rendering support. Read [graphics capabilities](docs/api/graphics.md) before
+selecting a rendering path.
 
 ### 🖥️ System Integration
 
@@ -597,46 +587,30 @@ pub fn main() !void {
 }
 ```
 
-### GPU Rendering
+### Offscreen Raster Drawing
 
 ```zig
-const gpu = @import("gpu.zig");
+const std = @import("std");
+const graphics = @import("graphics.zig");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-
-    // Initialize GPU context
-    var ctx = try gpu.Context.init(allocator, .vulkan);
-    defer ctx.deinit();
-
-    // Create render pipeline
-    var pipeline = try gpu.RenderPipeline.init(allocator, &ctx);
-    defer pipeline.deinit();
-
-    // Create shader
-    const vertex_shader = try pipeline.createShader(.{
-        .vertex = "path/to/vertex.glsl",
-    });
-
-    // Create mesh
-    const vertices = [_]f32{ /_ vertex data _/ };
-    var mesh = try gpu.Mesh.init(allocator, &vertices, null);
-    defer mesh.deinit();
-
-    // Apply post-processing
-    var post_processor = try gpu.PostProcessor.init(allocator, &ctx);
-    defer post_processor.deinit();
-
-    try post_processor.addEffect(.bloom, .{ .intensity = 0.5 });
-    try post_processor.addEffect(.anti_aliasing, .{ .samples = 4 });
-
-    // Render
-    try pipeline.render(&[_]gpu.RenderCommand{
-        .{ .draw_mesh = mesh },
-    });
+pub fn drawFrame(allocator: std.mem.Allocator) !void {
+    var canvas = try graphics.Canvas.init(allocator, 320, 200);
+    defer canvas.deinit();
+    canvas.clear(graphics.Color.rgb(0, 0, 0));
+    canvas.drawRect(.{ .x = 10, .y = 10, .width = 20, .height = 20 }, graphics.Color.rgb(0, 255, 0));
+    const sprite = [_]u8{ 255, 0, 0, 128 };
+    try canvas.drawBitmap(
+        .{ .width = 1, .height = 1, .pixels = &sprite },
+        .{ .x = 0, .y = 0, .width = 1, .height = 1 },
+        .{ .x = 10, .y = 10 },
+    );
+    // Canvas owns these CPU pixels until deinit. No native window is created.
+    std.debug.print("Composited pixel: {x}\n", .{canvas.pixels[10 * canvas.width + 10]});
 }
 ```
+
+See [graphics capabilities](docs/api/graphics.md) for limits, alpha semantics,
+unsupported operations and the retained pixel tests.
 
 ### CLI Usage
 
@@ -935,7 +909,8 @@ src/
 ├── mobile.zig       # iOS & Android platform support
 ├── menubar.zig      # Menubar/system tray apps
 ├── components.zig   # native UI components
-├── gpu.zig          # Advanced GPU rendering
+├── gpu.zig          # Hardware discovery and offscreen resource contracts
+├── graphics.zig     # Bounded standalone CPU raster core
 ├── system.zig       # System integration (notifications, clipboard, etc.)
 ├── window.zig       # Window management
 ├── ipc.zig          # Inter-process communication

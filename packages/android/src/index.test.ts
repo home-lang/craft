@@ -448,6 +448,10 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('private fun refreshInputDefaultsForTraitChange()')
       expect(nativeActivity).toContain('val probe = EditText(this)')
       expect(nativeActivity).toContain('if (screen.active) send(screen, "APPEARANCE", appearance)')
+      // stx applies sm:/md:/lg: classes for the window's width in dp, at launch and on every change.
+      expect(nativeActivity).toContain('viewportWidth: ${resources.configuration.screenWidthDp},')
+      expect(nativeActivity).toContain('publishViewport(newConfig)')
+      expect(nativeActivity).toContain('allScreens().forEach { screen -> if (!screen.headless) send(screen, "VIEWPORT", payload) }')
       expect(nativeActivity).toContain('private fun appearance(): JSONObject')
       expect(nativeActivity).toContain('.put("fontScale", (scale * 1000).roundToInt() / 1000.0)')
       expect(nativeActivity).toContain('import android.animation.ValueAnimator')
@@ -2628,6 +2632,21 @@ it('emits native Bluetooth GATT support and versioned permissions only when enab
     expect(renderAndroidPermissions({ appName: 'Off', packageName: 'dev.craft.off' })).not.toContain('BLUETOOTH')
   }
   finally { rmSync(output, { recursive: true, force: true }) }
+})
+
+it('declares location once when Bluetooth overlaps unrestricted location capabilities', () => {
+  for (const bluetooth of ['enableBluetooth', 'enableHeartRate'] as const) {
+    for (const location of ['enableGeolocation', 'enableBackgroundLocation', 'enableHealthServices'] as const) {
+      const permissions = renderAndroidPermissions({
+        appName: 'Combined capabilities',
+        packageName: 'dev.craft.combined',
+        [bluetooth]: true,
+        [location]: true,
+      })
+      const fineLocation = permissions.split('\n').filter(line => line.includes('"android.permission.ACCESS_FINE_LOCATION"'))
+      expect(fineLocation).toEqual(['    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />'])
+    }
+  }
 })
 
 it('reads a heart-rate strap on the page and on native screens alike, declared only when enabled', async () => {

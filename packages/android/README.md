@@ -90,6 +90,7 @@ const device = await createAndroidEmulator({
   avdmanager: '/ci/pantry/.bin/avdmanager',
   image: 'system-images;android-35;google_apis_playstore;x86_64',
   acceleration: 'software',
+  memoryMb: 4096,
   artifactsDirectory: '/ci/artifacts/android',
   acceptLicenses: true,
 })
@@ -106,13 +107,23 @@ the Android emulator's explicit `-accel off` mode on x86_64 hosts; it provides
 functional test evidence, with no claim about hardware performance. The public
 helper defaults to a ten-minute boot budget, and hardware mode cannot exceed
 it. Software callers may explicitly set `bootTimeoutMs` up to twenty minutes.
+`memoryMb` selects the requested guest RAM, defaulting to 2048 MB. It accepts
+the emulator's documented [1536–8192 MB range](https://developer.android.com/studio/run/emulator-commandline#startup-options).
+`virtualCpus` selects the guest CPU count, defaulting to 2 and accepting values
+from 1 through 8. The stock Play software verifier requests four guest CPUs:
+the four-thread Intel runners used for this acceptance profile otherwise starve
+SystemUI during TCG startup and surface a real platform ANR.
+The stock Play software verifier requests 4096 MB after retained cold boots
+showed low-memory/process-death churn and a SystemUI ANR. It keeps the same
+image, readiness checks and twenty-minute deadline.
 The stock Play software CI verifier uses that cold-provisioning profile: the
 API 35 image took 943,520 ms in the retained diagnostic run
 [39113277828](https://github.com/craft-native/craft/actions/runs/39113277828).
 This is OS provisioning before app installation; app and performance budgets
-are unchanged. Both modes require a readable event-log stream, SettingsProvider,
+are unchanged. Both modes require a complete event-history read, SettingsProvider,
 the package manager and System UI to be ready, with HOME resolved beyond the
-automatic Android SDK setup activity. Logs record the budget, actual
+automatic Android SDK setup activity and its launcher package owning the current
+input-focus window. Logs record the budget, actual
 boot duration, host CPU interval, selected image, acceleration
 probe, process identity and boot result. Disposal reaps only the owned process
 and deletes only its disposable AVD; the managed SDK and other devices remain
@@ -357,7 +368,7 @@ rejected before a project is generated.
   vectors in place of Android's glyphs.
 
 Health is Health Connect with the HealthKit contract (`getWorkouts`,
-`getDailyStatistics`, `getHeartRateSamples`, `getSleepIntervals`,
+`getDailyStatistics`, `getHeartRateSamples`, `getSamples`, `getSleepIntervals`,
 `saveWorkout`, `saveMindfulSession`...), plus `availability`, `grantedTypes`
 and `openSettings` (`healthAvailability`). `healthConnect: { read, write,
 background, history }` lists the types the manifest declares; Play reviews
@@ -375,6 +386,13 @@ Unsupported devices or types emit a typed `error` event and leave the Health
 Connect fallback untouched.
 `bun scripts/test-native-health.ts` runs the Health Connect contract against
 an Android 14+ emulator.
+
+`getSamples('bloodGlucose' | 'dietaryCarbohydrates', { startDate, endDate, limit })`
+reads Health Connect's `BloodGlucoseRecord` (mg/dL, with the meal relation and
+specimen) and nutrition carbs one record at a time, each with its record id.
+Health Connect has no insulin record: `insulinDelivery` is accepted and answers
+an empty list, and requesting it adds no permission. List `bloodGlucose` under
+`healthConnect.read` so the manifest declares `READ_BLOOD_GLUCOSE`.
 
 ### Google Wallet
 

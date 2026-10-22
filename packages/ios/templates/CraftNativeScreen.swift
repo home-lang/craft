@@ -2983,7 +2983,10 @@ private class CraftNativeFlowView: UIStackView {
             // The screen reports onLayout from its own layout pass, which a
             // change deep in a scroll view's content never runs: a view that
             // went from 240 to 180 wide kept saying 240.
-            if moved { craftScreenController?.scheduleLayoutEvents() }
+            if moved {
+                craftScreenController?.scheduleLayoutEvents()
+                craftScreenController?.scheduleKeyboardInsets()
+            }
         }
         for (child, frame) in result.frames {
             var viewportFrame = frame
@@ -5101,6 +5104,22 @@ private final class CraftNativeTextView: UITextView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        // A multiline input grows with its text up to its `maxHeight`, then
+        // scrolls inside itself. Never scrolling, the text past that height
+        // was cut off and could not be reached (a long workout comment).
+        // With scrolling off, contentSize is the view's own height: measure
+        // the text itself.
+        let needed = isEditable ? sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height : 0
+        let overflows = isEditable && bounds.height > 0 && needed > bounds.height + 1
+        if isScrollEnabled != overflows {
+            isScrollEnabled = overflows
+            if overflows, isFirstResponder { scrollRangeToVisible(selectedRange) }
+        }
+        // Showing all its text, it has nothing to scroll. An offset left from
+        // UIKit keeping the caret in view while the view was a layout short
+        // of its text moved every line down inside it, and the caret of a
+        // growing comment sat below the part of the screen it was kept in.
+        if !isScrollEnabled, contentOffset != .zero { contentOffset = .zero }
         let inset = textContainerInset
         let padding = textContainer.lineFragmentPadding
         placeholderLabel.frame = CGRect(
@@ -5117,6 +5136,7 @@ private final class CraftNativeTextView: UITextView {
     }
 
     private func configurePlaceholder() {
+        isScrollEnabled = false
         placeholderLabel.numberOfLines = 0
         placeholderLabel.font = font
         placeholderLabel.textColor = .placeholderText
@@ -5480,6 +5500,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var keyboardSafeAreaInset: CGFloat = 0
     /// Where the keyboard is on the screen while it is up, in screen coordinates.
     private var keyboardScreenFrame: CGRect?
+    private var keyboardInsetsScheduled = false
     /// The hybrid shell (CraftHybrid.swift), when this screen is one of a web
     /// app's native screens: told of the first frame, of a first frame that
     /// could not be drawn, and of `craft.navigation.open(path)`.
@@ -5624,6 +5645,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // A tab prepared in a hidden stack "appears" to UIKit as well; the
         // shell says when it really shows (screenVisibilityChanged).
         if isShownOnScreen {
+            hasAppeared = true
             screenVisibilityChanged(true)
             // A navigation breadcrumb for the crash reporter: the trail a
             // crash report carries is the screens that led to it.
@@ -5695,6 +5717,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // preview also restores a screen that never lost focus, so restore its
         // chrome even when no new SCREEN_FOCUS event is needed.
         if visible { restoreShellChrome() }
+        // A prepared tab the shell now shows has appeared once its frame is
+        // drawn; what its script asks for until then is there from the start.
+        if visible, !hasAppeared {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isViewLoaded, self.isShownOnScreen else { return }
+                self.hasAppeared = true
+            }
+        }
         if visible, frameWanted { CraftNativeFrameClock.shared.request(self) { [weak self] in self?.fireFrame() } }
         if !visible { CraftNativeFrameClock.shared.cancel(self) }
         guard visible != reportedVisible else { return }
@@ -5781,6 +5811,28 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         super.viewDidLayoutSubviews()
         positionModals()
         emitLayoutEvents()
+        sendViewportIfChanged()
+        scheduleKeyboardInsets()
+    }
+
+    /// The width the bundle last heard, so a layout pass at the same size says nothing.
+    private var reportedViewportWidth: CGFloat = -1
+
+    /// The screen's own width once laid out, else its window's: what a web
+    /// page's media queries would measure.
+    private func currentViewportWidth() -> CGFloat {
+        let width = view.bounds.width > 0 ? view.bounds.width : (view.window ?? CraftPresenter.keyWindow())?.bounds.width ?? 0
+        reportedViewportWidth = width
+        return width
+    }
+
+    /// A rotation, iPad split view or a resized Stage Manager window: the
+    /// bundle's width classes (`md:`, `lg:`) follow the screen's new width.
+    private func sendViewportIfChanged() {
+        let width = view.bounds.width
+        guard width > 0, abs(width - reportedViewportWidth) >= 0.5 else { return }
+        reportedViewportWidth = width
+        send(type: "VIEWPORT", payload: ["width": Double(width), "height": Double(view.bounds.height)])
     }
 
     /// Modals cover the screen; their content starts below its bars (the
@@ -5865,6 +5917,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let appearanceJSON: String
         let sessionTokenKey: String
         let focused: Bool?
+        /// The screen's width in points, for the bundle's `sm:`/`md:`/`lg:` classes.
+        let viewportWidth: Double
     }
 
     private func scriptInputs() -> ScriptInputs {
@@ -5876,7 +5930,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             colorScheme: colorScheme,
             appearanceJSON: appearanceJSON(),
             sessionTokenKey: Self.jsonString(CraftSession.tokenKey(config)),
-            focused: reportedVisible
+            focused: reportedVisible,
+            viewportWidth: Double(currentViewportWidth())
         )
     }
 
@@ -5978,6 +6033,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 capabilities: \(capabilityJSON),
                 initialAppState: "\(inputs.appState)",
                 colorScheme: "\(inputs.colorScheme)",
+                viewportWidth: \(inputs.viewportWidth),
                 appearance: \(inputs.appearanceJSON),
                 appURL: \(appURL),
                 appVersion: \(appVersion),
@@ -6574,6 +6630,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// own horizontal pager or chart gesture.
     private(set) var tabSwipeEnabled = true
     private var prefersLargeTitle: Bool?
+    /// Whether the screen has been on screen. Until then, a bar its script
+    /// asks for is simply there in its first frame: a tab opened for the
+    /// first time (HQ's Me) mounts in the window, and its bar and large title
+    /// slid in from the side as the screen appeared.
+    private var hasAppeared = false
+    /// A bar shown or hidden after the screen has appeared animates; before,
+    /// it is in place from the start.
+    var animatesNavigationBarChanges: Bool { hasAppeared && view.window != nil }
     /// Whether this screen opts into an opaque navigation bar filled with its
     /// own background colour. The default keeps UIKit's material appearance.
     private var navigationBarSolid = false
@@ -6652,7 +6716,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if let hidden = options["hidden"] as? Bool {
             navigationBarHidden = hidden
             if navigationController?.topViewController === self {
-                navigationController?.setNavigationBarHidden(hidden, animated: view.window != nil)
+                navigationController?.setNavigationBarHidden(hidden, animated: animatesNavigationBarChanges)
             }
         }
         if options.keys.contains("leftButtons") {
@@ -6670,7 +6734,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         // Asked for after the bar was hidden for a bare root screen.
         if navigationBarHidden == nil, wantsNavigationBar, navigationController?.topViewController === self,
            navigationController?.isNavigationBarHidden == true {
-            navigationController?.setNavigationBarHidden(false, animated: view.window != nil)
+            navigationController?.setNavigationBarHidden(false, animated: animatesNavigationBarChanges)
         }
     }
 
@@ -7122,6 +7186,22 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
+    /// A layout moved a view while the keyboard is up: once that pass is
+    /// over, each scroll view's keyboard inset is measured again where the
+    /// scroll view now ends. Measured only when the keyboard moved, a form
+    /// that grew down under the keyboard (a footer below it shrank, a
+    /// banner above it went away) kept the inset of where it used to end,
+    /// and its last lines stayed under the keyboard.
+    fileprivate func scheduleKeyboardInsets() {
+        guard keyboardScreenFrame != nil, !keyboardInsetsScheduled else { return }
+        keyboardInsetsScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.keyboardInsetsScheduled = false
+            if self.keyboardScreenFrame != nil { self.insetScrollViewsForKeyboard() }
+        }
+    }
+
     /// The focused field, scrolled into the part of its scroll view the
     /// keyboard leaves, with a little room around it.
     func scrollFocusedInputIntoView(animated: Bool) {
@@ -7132,11 +7212,39 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// `input`, scrolled into the visible part of the scroll view it is in.
     /// Internal for XCTest.
     func scrollIntoView(_ input: UIView, animated: Bool) {
-        var ancestor = input.superview
-        while let current = ancestor, !(current is CraftNativeScrollView) { ancestor = current.superview }
-        guard let scroll = ancestor as? CraftNativeScrollView, scroll.isVertical else { return }
-        let rect = input.convert(input.bounds, to: scroll).insetBy(dx: 0, dy: -16)
+        guard let scroll = enclosingVerticalScroll(of: input) else { return }
+        // Measured against the keyboard where the scroll view is now.
+        if keyboardScreenFrame != nil { insetScrollViewsForKeyboard() }
+        var rect = input.convert(input.bounds, to: scroll).insetBy(dx: 0, dy: -16)
+        // A field taller than the part the keyboard leaves (a long comment
+        // with no max height) shows its caret rather than its top: scrolled
+        // to its top, the caret at the end of the text stayed under the
+        // keyboard with no way to scroll it out.
+        let visible = scroll.bounds.inset(by: scroll.adjustedContentInset)
+        if rect.height > visible.height, let caret = caretRect(of: input, in: scroll) { rect = caret }
         scroll.scrollRectToVisible(rect, animated: animated)
+    }
+
+    /// The vertical scroll view `view` sits in, if any.
+    private func enclosingVerticalScroll(of view: UIView) -> CraftNativeScrollView? {
+        var ancestor = view.superview
+        while let current = ancestor, !(current is CraftNativeScrollView) { ancestor = current.superview }
+        guard let scroll = ancestor as? CraftNativeScrollView, scroll.isVertical else { return nil }
+        return scroll
+    }
+
+    /// A focused input's caret in `scroll`'s coordinates, with a little room
+    /// around it, kept within the input (one scrolling inside itself has its
+    /// caret beyond its own frame until it scrolls to it).
+    private func caretRect(of input: UIView, in scroll: UIScrollView) -> CGRect? {
+        guard input.isFirstResponder, let text = input as? UITextInput,
+              let end = text.selectedTextRange?.end else { return nil }
+        let caret = text.caretRect(for: end)
+        guard caret.minY.isFinite, caret.height > 0 else { return nil }
+        let frame = input.convert(input.bounds, to: scroll)
+        var rect = input.convert(caret, to: scroll)
+        rect.origin.y = min(max(rect.minY, frame.minY), max(frame.minY, frame.maxY - rect.height))
+        return rect.insetBy(dx: 0, dy: -16)
     }
 
     private func sendAppState(_ state: String) {
@@ -9005,7 +9113,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if textView.textContainerInset != padding { textView.textContainerInset = padding }
             textView.textContainer.lineFragmentPadding = 0
         }
-        textView.isScrollEnabled = false
+        // An input's own scrolling follows its height (CraftNativeTextView).
+        if !(textView is CraftNativeTextView) { textView.isScrollEnabled = false }
         let numberOfLines = Int(number(props["numberOfLines"]) ?? 0)
         if numberOfLines > 0 {
             textView.textContainer.maximumNumberOfLines = numberOfLines
@@ -9874,9 +9983,39 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let id = ObjectIdentifier(textView)
         inputIdentities[id].map { inputDrafts[$0] = textView.text ?? "" }
         (textView as? CraftNativeTextView)?.refreshPlaceholder()
+        keepCaretVisible(in: textView)
         guard let handler = handlers[id] else { return }
         noteSentText(textView.text ?? "", for: textView)
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": textView.text ?? ""]])
+    }
+
+    func textViewDidChangeSelection(_ textView: UITextView) {
+        guard textView.isFirstResponder else { return }
+        keepCaretVisible(in: textView)
+    }
+
+    /// The caret, kept where it can be seen as a multiline input grows or the
+    /// caret moves: in the part of the screen's scroll view the keyboard
+    /// leaves. Only the field was scrolled into view, when editing began, so
+    /// a long comment typed at the bottom of a screen went under the keyboard.
+    private func keepCaretVisible(in textView: UITextView) {
+        DispatchQueue.main.async { [weak self, weak textView] in
+            guard let self, let textView, textView.isFirstResponder else { return }
+            // The input grows with its text first: a text view's new lines
+            // are news to the flex layout around it, which sized the scroll
+            // view's content to the old height.
+            textView.invalidateIntrinsicContentSize()
+            CraftNativeFlexLayout.invalidateAncestors(of: textView)
+            self.view.layoutIfNeeded()
+            // That layout can move the scroll view: its keyboard inset is
+            // measured where it now ends before the caret is.
+            if self.keyboardScreenFrame != nil { self.insetScrollViewsForKeyboard() }
+            guard let scroll = self.enclosingVerticalScroll(of: textView),
+                  let rect = self.caretRect(of: textView, in: scroll) else { return }
+            let visible = scroll.bounds.inset(by: scroll.adjustedContentInset)
+            guard !visible.contains(rect) else { return }
+            scroll.scrollRectToVisible(rect, animated: false)
+        }
     }
 
     func textViewDidBeginEditing(_ textView: UITextView) {

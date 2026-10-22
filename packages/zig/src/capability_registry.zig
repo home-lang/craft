@@ -23,6 +23,7 @@ const bridge_capabilities = @import("bridge_capabilities.zig");
 const bridge_clipboard = @import("bridge_clipboard.zig");
 const bridge_haptics = @import("bridge_haptics.zig");
 const bridge_screen = @import("bridge_screen.zig");
+const bridge_timers = @import("bridge_timers.zig");
 const bridge_tray = @import("bridge_tray.zig");
 
 pub const registry = [_]capabilities.NamespaceDecl{
@@ -90,6 +91,7 @@ pub const registry = [_]capabilities.NamespaceDecl{
     .{ .name = "spotlight", .status = .undeclared },
     .{ .name = "system", .status = .undeclared },
     .{ .name = "tags", .status = .undeclared },
+    .{ .name = "timers", .status = .declared, .actions = &bridge_timers.capability_actions },
     .{ .name = "touchbar", .status = .undeclared },
     .{ .name = "tray", .status = .declared, .actions = &bridge_tray.capability_actions },
     .{ .name = "updater", .status = .unavailable, .reason = "the Sparkle framework is not linked into this build, so every updater call reaches a null SUUpdater" },

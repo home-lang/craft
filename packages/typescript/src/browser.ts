@@ -24,6 +24,7 @@ export interface BrowserPlatformOptions {
 export interface BrowserPlatform {
   craft: Record<string, unknown>
   capabilities: string[]
+  /** Queued storage calls abort without writing; cancellation cannot undo an already committed synchronous write. */
   call: (module: string, method: string, args: unknown[], signal: AbortSignal) => Promise<unknown>
   navigate: (path: string, replace?: boolean) => void
   emit: (listener: (type: string, payload: unknown) => void) => () => void
@@ -208,7 +209,7 @@ export async function createBrowserPlatform(options: BrowserPlatformOptions = {}
       const first = object(args[0])
       if (module === 'Storage' || module === 'SecureStorage') {
         const before = persistence.craft.secureStorage.getSync(sessionTokenKey)
-        const answer = await persistence.call(module, method, args)
+        const answer = await persistence.call(module, method, args, signal)
         if (before !== persistence.craft.secureStorage.getSync(sessionTokenKey)) await resetAccount()
         return answer
       }

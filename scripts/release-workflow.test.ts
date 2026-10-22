@@ -117,7 +117,7 @@ test('mobile device jobs use the same released stx compiler version', () => {
 
 test('native compiler jobs use a supported Bun and preserve its frozen lockfile', () => {
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
-  for (const name of ['ios-native', 'ios-simulator', 'android-emulator', 'android-navigation']) {
+  for (const name of ['ios-native', 'ios-hybrid', 'android-emulator', 'android-navigation']) {
     const job = workflow.jobs[name]
     const jobSteps = job.steps ?? []
     const tool = jobSteps.findIndex(step => step.uses === 'oven-sh/setup-bun@v2' && step.with?.['bun-version'] === '1.4.3')
@@ -133,19 +133,26 @@ test('native iOS suites and protocol checks have independent required jobs', () 
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
   const native = workflow.jobs['ios-native']
   const protocol = workflow.jobs['ios-simulator']
+  const hybrid = workflow.jobs['ios-hybrid']
   expect(needs(native)).toEqual([])
   expect(needs(protocol)).toEqual([])
   expect(steps(native)).toContain('test-native-render.ts')
   expect(steps(native)).toContain('test-native-navigation.ts')
-  expect(steps(protocol)).toContain('test-hybrid-navigation.ts')
+  expect(needs(hybrid)).toEqual([])
+  expect(steps(hybrid)).toContain('test-hybrid-navigation.ts')
+  expect(steps(hybrid)).not.toContain('zig build')
+  expect(steps(protocol)).not.toContain('test-hybrid-navigation.ts')
+  expect(steps(protocol)).not.toContain('.stx-compiler')
   expect(steps(protocol)).toContain('scripts/mobile-e2e.ts --platform ios')
   expect(steps(protocol)).not.toContain('test-native-render.ts')
   expect(steps(protocol)).not.toContain('test-native-navigation.ts')
   const summary = workflow.jobs['mobile-summary']
   expect(needs(summary)).toContain('ios-native')
   expect(needs(summary)).toContain('ios-simulator')
+  expect(needs(summary)).toContain('ios-hybrid')
+  expect(summary.steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-hybrid.result')
   expect(summary.steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-native.result')
-  for (const name of ['ios-native', 'ios-simulator', 'ios-zig-slice'])
+  for (const name of ['ios-native', 'ios-hybrid', 'ios-simulator', 'ios-zig-slice'])
     expect(workflow.jobs[name].env?.DEVELOPER_DIR).toBe('/Applications/Xcode_26.2.app/Contents/Developer')
 })
 
@@ -203,11 +210,19 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
     for (const [name, job] of Object.entries(workflow.jobs)) {
       for (const step of job.steps ?? []) {
         if (step.uses?.startsWith('pantry-pm/pantry/packages/action@')) {
-          // Windows needs the published fix that removes workspace links
-          // without following them into the tracked source checkout.
-          const preservesWindowsSources = file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
-          const version = preservesWindowsSources ? '0.11.109' : '0.11.101'
-          const source = preservesWindowsSources ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9' : 'ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf'
+          // Keep each workflow on the released Pantry version it declares.
+          // Windows uses the newer workspace-link fix; the native acceptance
+          // workflows intentionally stay on their current toolchain pin.
+          const version = file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
+            ? '0.11.109'
+            : ['mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml'].includes(file)
+              ? '0.11.106'
+              : '0.11.101'
+          const source = version === '0.11.109'
+            ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9'
+            : version === '0.11.106'
+              ? 'e62755c21d946ed0f8dc8e4af39f6ea5f084537a'
+              : 'ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf'
           expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe(version)
           expect(step.uses, `${file} ${name} must pin the matching action source`).toBe(`pantry-pm/pantry/packages/action@${source}`)
         }

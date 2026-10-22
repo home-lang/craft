@@ -17,8 +17,30 @@ const metal = if (builtin.os.tag == .macos) struct {
     }
 };
 
-/// GPU Acceleration Module
-/// Provides hardware-accelerated rendering capabilities
+/// Operations the standalone rendering API can execute. Detecting a hardware
+/// device does not mean this module has a draw or shader backend.
+pub const RenderingCapabilities = struct {
+    offscreen_clear: bool = true,
+    hardware_canvas: bool = false,
+    shader_compilation: bool = false,
+    draw: bool = false,
+    compute: bool = false,
+    presentation: bool = false,
+    hardware_video_decode: bool = false,
+    post_processing: bool = false,
+    ray_tracing: bool = false,
+    multi_gpu_discovery: bool = false,
+};
+
+pub const RenderError = error{
+    UnsupportedOperation,
+    MissingRenderTarget,
+    ShaderNotReady,
+    InvalidColor,
+};
+
+/// Hardware discovery and offscreen resources. Check rendering capabilities
+/// separately before relying on native drawing or presentation.
 pub const GPUBackend = enum {
     auto,
     metal, // macOS
@@ -74,6 +96,11 @@ pub const GPU = struct {
             .frame_count = 0,
             .current_fps = 0.0,
         };
+    }
+
+    pub fn getRenderingCapabilities(self: *const GPU) RenderingCapabilities {
+        _ = self;
+        return .{};
     }
 
     pub fn deinit(self: *GPU) void {
@@ -457,15 +484,14 @@ pub const VideoDecoder = struct {
     pub fn init(gpu: *GPU) VideoDecoder {
         return VideoDecoder{
             .gpu = gpu,
-            .hardware_enabled = gpu.config.hardware_decode,
+            .hardware_enabled = gpu.config.hardware_decode and gpu.getRenderingCapabilities().hardware_video_decode,
         };
     }
 
     pub fn decode(self: *VideoDecoder, data: []const u8) ![]u8 {
         _ = self;
         _ = data;
-        // Would decode video using GPU
-        return &[_]u8{};
+        return error.UnsupportedOperation;
     }
 
     pub fn isHardwareAccelerated(self: VideoDecoder) bool {
@@ -481,30 +507,30 @@ pub const CanvasAccelerator = struct {
     pub fn init(gpu: *GPU) CanvasAccelerator {
         return CanvasAccelerator{
             .gpu = gpu,
-            .enabled = gpu.config.canvas_acceleration,
+            .enabled = gpu.config.canvas_acceleration and gpu.getRenderingCapabilities().hardware_canvas,
         };
     }
 
-    pub fn drawRect(self: *CanvasAccelerator, x: i32, y: i32, width: u32, height: u32) void {
+    pub fn drawRect(self: *CanvasAccelerator, x: i32, y: i32, width: u32, height: u32) RenderError!void {
         _ = self;
         _ = x;
         _ = y;
         _ = width;
         _ = height;
-        // Hardware-accelerated rectangle drawing
+        return error.UnsupportedOperation;
     }
 
-    pub fn drawCircle(self: *CanvasAccelerator, x: i32, y: i32, radius: u32) void {
+    pub fn drawCircle(self: *CanvasAccelerator, x: i32, y: i32, radius: u32) RenderError!void {
         _ = self;
         _ = x;
         _ = y;
         _ = radius;
-        // Hardware-accelerated circle drawing
+        return error.UnsupportedOperation;
     }
 
-    pub fn clear(self: *CanvasAccelerator) void {
+    pub fn clear(self: *CanvasAccelerator) RenderError!void {
         _ = self;
-        // Hardware-accelerated clear
+        return error.UnsupportedOperation;
     }
 };
 
@@ -569,11 +595,11 @@ pub const RenderPipeline = struct {
     pub fn init(allocator: std.mem.Allocator, gpu: *GPU) RenderPipeline {
         return RenderPipeline{
             .gpu = gpu,
-            .shaders = .{},
-            .render_targets = .{},
+            .shaders = .empty,
+            .render_targets = .empty,
             .allocator = allocator,
             .state = .{},
-            .command_buffer = .{},
+            .command_buffer = .empty,
             .statistics = .{},
         };
     }
@@ -598,7 +624,8 @@ pub const RenderPipeline = struct {
     }
 
     pub fn createRenderTarget(self: *RenderPipeline, width: u32, height: u32, format: TextureFormat) !*RenderTarget {
-        const target = try RenderTarget.init(self.allocator, width, height, format);
+        var target = try RenderTarget.init(self.allocator, width, height, format);
+        errdefer target.deinit();
         try self.render_targets.append(self.allocator, target);
         return &self.render_targets.items[self.render_targets.items.len - 1];
     }
@@ -622,38 +649,24 @@ pub const RenderPipeline = struct {
 
     /// Execute queued command buffer
     pub fn flush(self: *RenderPipeline) !void {
+        // A failed batch may already have executed its prefix. Do not replay it
+        // when the caller submits a corrected batch after the error.
+        defer self.command_buffer.clearRetainingCapacity();
         for (self.command_buffer.items) |command| {
             try self.executeCommand(command);
         }
-        self.command_buffer.clearRetainingCapacity();
     }
 
     /// Execute a single render command
     fn executeCommand(self: *RenderPipeline, command: RenderCommand) !void {
-        self.statistics.commands_executed += 1;
-
         switch (command) {
             .clear => |clear_cmd| {
-                if (self.state.current_render_target) |target| {
-                    target.clear(clear_cmd.color);
-                }
+                const target = self.state.current_render_target orelse return error.MissingRenderTarget;
+                try target.clear(clear_cmd.color);
             },
-            .draw => |draw_cmd| {
-                self.statistics.draw_calls += 1;
-                self.statistics.vertices_processed += draw_cmd.vertex_count * draw_cmd.instance_count;
-                self.statistics.triangles_drawn += (draw_cmd.vertex_count / 3) * draw_cmd.instance_count;
-                // Software rasterization would go here
-            },
-            .draw_indexed => |draw_cmd| {
-                self.statistics.draw_calls += 1;
-                self.statistics.vertices_processed += draw_cmd.index_count * draw_cmd.instance_count;
-                self.statistics.triangles_drawn += (draw_cmd.index_count / 3) * draw_cmd.instance_count;
-                // Software rasterization would go here
-            },
-            .dispatch_compute => {
-                // Compute shader dispatch
-            },
+            .draw, .draw_indexed, .dispatch_compute => return error.UnsupportedOperation,
             .set_shader => |shader| {
+                if (!shader.isReady()) return error.ShaderNotReady;
                 self.state.current_shader = shader;
             },
             .set_render_target => |target| {
@@ -667,6 +680,7 @@ pub const RenderPipeline = struct {
                 self.state.scissor_enabled = true;
             },
         }
+        self.statistics.commands_executed += 1;
     }
 
     /// Begin a new frame
@@ -675,7 +689,7 @@ pub const RenderPipeline = struct {
         self.clearCommands();
     }
 
-    /// End frame and present
+    /// Flush the offscreen frame. This does not present a native surface.
     pub fn endFrame(self: *RenderPipeline) !void {
         try self.flush();
     }
@@ -737,6 +751,7 @@ pub const ShaderError = error{
     InvalidSource,
     UnsupportedShaderType,
     ValidationFailed,
+    ShaderCompilationUnavailable,
     OutOfMemory,
 };
 
@@ -799,7 +814,7 @@ pub const Shader = struct {
             .compiled = false,
             .allocator = allocator,
             .shader_id = shader_id,
-            .uniforms = .{},
+            .uniforms = .empty,
             .compile_log = null,
             .validated = false,
         };
@@ -812,80 +827,12 @@ pub const Shader = struct {
         }
     }
 
-    /// Compile shader (validates source and parses uniforms)
+    /// No shader compiler is connected to this standalone API yet. Source
+    /// presence and invented uniform locations cannot establish a GPU program.
     pub fn compile(self: *Shader) ShaderError!void {
-        if (self.compiled) return;
-
-        // Validate shader source
-        if (!self.validateSource()) {
-            return ShaderError.ValidationFailed;
-        }
-
-        // Parse uniforms from source
-        try self.parseUniforms();
-
-        self.compiled = true;
-        self.validated = true;
-    }
-
-    /// Validate shader source has required structure
-    fn validateSource(self: *Shader) bool {
-        if (self.source.len == 0) return false;
-
-        // Check for entry point function
-        const entry_pattern = self.entry_point;
-        var found_entry = false;
-        var i: usize = 0;
-        while (i < self.source.len) : (i += 1) {
-            if (i + entry_pattern.len <= self.source.len) {
-                if (std.mem.eql(u8, self.source[i..][0..entry_pattern.len], entry_pattern)) {
-                    found_entry = true;
-                    break;
-                }
-            }
-        }
-
-        return found_entry or self.source.len > 0; // Be lenient for now
-    }
-
-    /// Parse uniform declarations from shader source
-    fn parseUniforms(self: *Shader) !void {
-        // Simple uniform parsing - looks for "uniform <type> <name>"
-        const keywords = [_][]const u8{ "uniform ", "layout(" };
-        _ = keywords;
-
-        // For now, add common uniforms based on shader type
-        switch (self.type) {
-            .vertex => {
-                try self.uniforms.append(self.allocator, .{
-                    .name = "modelViewProjection",
-                    .location = 0,
-                    .uniform_type = .mat4,
-                    .size = ShaderUniform.getSize(.mat4),
-                });
-                try self.uniforms.append(self.allocator, .{
-                    .name = "model",
-                    .location = 1,
-                    .uniform_type = .mat4,
-                    .size = ShaderUniform.getSize(.mat4),
-                });
-            },
-            .fragment => {
-                try self.uniforms.append(self.allocator, .{
-                    .name = "color",
-                    .location = 0,
-                    .uniform_type = .vec4,
-                    .size = ShaderUniform.getSize(.vec4),
-                });
-                try self.uniforms.append(self.allocator, .{
-                    .name = "texture0",
-                    .location = 1,
-                    .uniform_type = .sampler2d,
-                    .size = ShaderUniform.getSize(.sampler2d),
-                });
-            },
-            .compute, .geometry => {},
-        }
+        if (self.source.len == 0 or self.entry_point.len == 0)
+            return error.ValidationFailed;
+        return error.ShaderCompilationUnavailable;
     }
 
     /// Get uniform by name
@@ -942,6 +889,7 @@ pub const TextureFormat = enum {
 pub const TextureError = error{
     InvalidDimensions,
     AllocationFailed,
+    AllocationLimitExceeded,
     OutOfMemory,
 };
 
@@ -954,6 +902,19 @@ pub const Texture = struct {
     data: ?[]u8,
     mip_levels: u32,
     sampler_state: SamplerState,
+    limits: Limits,
+
+    pub const Limits = struct {
+        max_bytes: usize = 64 * 1024 * 1024,
+    };
+
+    fn byteLength(width: u32, height: u32, format: TextureFormat, limits: Limits) TextureError!usize {
+        if (width == 0 or height == 0) return error.InvalidDimensions;
+        const count = std.math.mul(usize, width, height) catch return error.InvalidDimensions;
+        const bytes = std.math.mul(usize, count, format.getBytesPerPixel()) catch return error.InvalidDimensions;
+        if (bytes > limits.max_bytes) return error.AllocationLimitExceeded;
+        return bytes;
+    }
 
     pub const SamplerState = struct {
         min_filter: FilterMode = .linear,
@@ -969,12 +930,15 @@ pub const Texture = struct {
     var next_texture_id: u32 = 1;
 
     pub fn init(allocator: std.mem.Allocator, width: u32, height: u32, format: TextureFormat) !Texture {
-        if (width == 0 or height == 0) return TextureError.InvalidDimensions;
+        return initWithLimits(allocator, width, height, format, .{});
+    }
+
+    pub fn initWithLimits(allocator: std.mem.Allocator, width: u32, height: u32, format: TextureFormat, limits: Limits) !Texture {
+        const data_size = try byteLength(width, height, format, limits);
 
         const texture_id = next_texture_id;
         next_texture_id += 1;
 
-        const data_size = width * height * format.getBytesPerPixel();
         const data = try allocator.alloc(u8, data_size);
         @memset(data, 0);
 
@@ -987,6 +951,7 @@ pub const Texture = struct {
             .data = data,
             .mip_levels = 1,
             .sampler_state = .{},
+            .limits = limits,
         };
     }
 
@@ -999,21 +964,22 @@ pub const Texture = struct {
 
     pub fn upload(self: *Texture, pixels: []const u8) TextureError!void {
         if (self.data == null) return TextureError.AllocationFailed;
-        const expected_size = self.width * self.height * self.format.getBytesPerPixel();
+        const expected_size = self.data.?.len;
         if (pixels.len != expected_size) return TextureError.InvalidDimensions;
-        @memcpy(self.data.?, pixels);
+        @memmove(self.data.?, pixels);
     }
 
     pub fn download(self: *const Texture, dest: []u8) TextureError!void {
         if (self.data == null) return TextureError.AllocationFailed;
-        @memcpy(dest, self.data.?);
+        if (dest.len != self.data.?.len) return TextureError.InvalidDimensions;
+        @memmove(dest, self.data.?);
     }
 
     pub fn setPixel(self: *Texture, x: u32, y: u32, color: [4]u8) void {
         if (x >= self.width or y >= self.height) return;
         if (self.data == null) return;
         const bpp = self.format.getBytesPerPixel();
-        const offset = (y * self.width + x) * bpp;
+        const offset = (@as(usize, y) * self.width + x) * bpp;
         const data = self.data.?;
         const copy_len = @min(bpp, 4);
         @memcpy(data[offset..][0..copy_len], color[0..copy_len]);
@@ -1023,7 +989,7 @@ pub const Texture = struct {
         if (x >= self.width or y >= self.height) return null;
         if (self.data == null) return null;
         const bpp = self.format.getBytesPerPixel();
-        const offset = (y * self.width + x) * bpp;
+        const offset = (@as(usize, y) * self.width + x) * bpp;
         var result: [4]u8 = .{ 0, 0, 0, 255 };
         const copy_len = @min(bpp, 4);
         @memcpy(result[0..copy_len], self.data.?[offset..][0..copy_len]);
@@ -1031,13 +997,23 @@ pub const Texture = struct {
     }
 
     pub fn resize(self: *Texture, new_width: u32, new_height: u32) !void {
-        if (new_width == 0 or new_height == 0) return TextureError.InvalidDimensions;
+        const new_data = try self.resizedStorage(new_width, new_height);
+        self.replaceStorage(new_width, new_height, new_data);
+    }
+
+    fn resizedStorage(self: *const Texture, new_width: u32, new_height: u32) ![]u8 {
+        if (self.data == null) return error.AllocationFailed;
+        const new_size = try byteLength(new_width, new_height, self.format, self.limits);
+        const new_data = try self.allocator.alloc(u8, new_size);
+        @memset(new_data, 0);
+        return new_data;
+    }
+
+    fn replaceStorage(self: *Texture, new_width: u32, new_height: u32, new_data: []u8) void {
         if (self.data) |old_data| {
             self.allocator.free(old_data);
         }
-        const new_size = new_width * new_height * self.format.getBytesPerPixel();
-        self.data = try self.allocator.alloc(u8, new_size);
-        @memset(self.data.?, 0);
+        self.data = new_data;
         self.width = new_width;
         self.height = new_height;
     }
@@ -1065,7 +1041,8 @@ pub const RenderTarget = struct {
         next_framebuffer_id += 1;
 
         // Create color texture
-        const color_texture = try Texture.init(allocator, width, height, format);
+        var color_texture = try Texture.init(allocator, width, height, format);
+        errdefer color_texture.deinit();
 
         // Create depth texture if not a depth format
         var depth_texture: ?Texture = null;
@@ -1096,43 +1073,42 @@ pub const RenderTarget = struct {
     }
 
     pub fn resize(self: *RenderTarget, width: u32, height: u32) !void {
-        if (self.color_texture) |*tex| {
-            try tex.resize(width, height);
-        }
-        if (self.depth_texture) |*tex| {
-            try tex.resize(width, height);
-        }
+        const color_data = if (self.color_texture) |*tex| try tex.resizedStorage(width, height) else null;
+        errdefer if (color_data) |data| self.color_texture.?.allocator.free(data);
+        const depth_data = if (self.depth_texture) |*tex| try tex.resizedStorage(width, height) else null;
+        if (color_data) |data| self.color_texture.?.replaceStorage(width, height, data);
+        if (depth_data) |data| self.depth_texture.?.replaceStorage(width, height, data);
         self.width = width;
         self.height = height;
     }
 
-    pub fn clear(self: *RenderTarget, color: [4]f32) void {
+    /// The CPU clear path currently implements RGBA8. Validate all inputs
+    /// before touching either attachment or reporting a successful command.
+    pub fn clear(self: *RenderTarget, color: [4]f32) RenderError!void {
+        if (self.format != .rgba8) return error.UnsupportedOperation;
+        const texture = self.getColorTexture() orelse return error.MissingRenderTarget;
+        const data = texture.data orelse return error.MissingRenderTarget;
+        if (self.depth_texture) |*depth| {
+            if (depth.data == null) return error.MissingRenderTarget;
+        }
+        for (color) |channel| {
+            if (!std.math.isFinite(channel) or channel < 0 or channel > 1)
+                return error.InvalidColor;
+        }
+        const pixel: [4]u8 = .{
+            @intFromFloat(color[0] * 255.0),
+            @intFromFloat(color[1] * 255.0),
+            @intFromFloat(color[2] * 255.0),
+            @intFromFloat(color[3] * 255.0),
+        };
+        var i: usize = 0;
+        while (i < data.len) : (i += 4) {
+            @memcpy(data[i..][0..4], &pixel);
+        }
+        if (self.depth_texture) |*depth| {
+            @memset(depth.data.?, 0xFF);
+        }
         self.clear_color = color;
-
-        // Clear color texture
-        if (self.color_texture) |*tex| {
-            if (tex.data) |data| {
-                const pixel: [4]u8 = .{
-                    @intFromFloat(color[0] * 255.0),
-                    @intFromFloat(color[1] * 255.0),
-                    @intFromFloat(color[2] * 255.0),
-                    @intFromFloat(color[3] * 255.0),
-                };
-                var i: usize = 0;
-                while (i < data.len) : (i += 4) {
-                    if (i + 4 <= data.len) {
-                        @memcpy(data[i..][0..4], &pixel);
-                    }
-                }
-            }
-        }
-
-        // Clear depth texture to 1.0
-        if (self.depth_texture) |*tex| {
-            if (tex.data) |data| {
-                @memset(data, 0xFF);
-            }
-        }
     }
 
     pub fn setClearColor(self: *RenderTarget, color: [4]f32) void {
@@ -1415,7 +1391,7 @@ pub const Mesh = struct {
 
     pub fn draw(self: *Mesh) !void {
         _ = self;
-        // Draw mesh
+        return error.UnsupportedOperation;
     }
 };
 
@@ -1428,27 +1404,24 @@ pub const PostProcessor = struct {
     pub fn init(allocator: std.mem.Allocator, pipeline: *RenderPipeline) PostProcessor {
         return PostProcessor{
             .pipeline = pipeline,
-            .effects = std.ArrayList(Effect).init(allocator),
+            .effects = .empty,
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *PostProcessor) void {
-        self.effects.deinit();
+        self.effects.deinit(self.allocator);
     }
 
     pub fn addEffect(self: *PostProcessor, effect: Effect) !void {
-        try self.effects.append(effect);
+        try self.effects.append(self.allocator, effect);
     }
 
     pub fn process(self: *PostProcessor, input: *RenderTarget, output: *RenderTarget) !void {
+        _ = self;
         _ = input;
         _ = output;
-
-        for (self.effects.items) |effect| {
-            _ = effect;
-            // Apply effect
-        }
+        return error.UnsupportedOperation;
     }
 };
 
@@ -1546,7 +1519,7 @@ pub const ComputeShader = struct {
         _ = groups_x;
         _ = groups_y;
         _ = groups_z;
-        // Dispatch compute shader
+        return error.UnsupportedOperation;
     }
 };
 
@@ -1571,14 +1544,14 @@ pub const RayTracer = struct {
     pub fn buildAccelerationStructure(self: *RayTracer, meshes: []const Mesh) !void {
         _ = self;
         _ = meshes;
-        // Build BVH acceleration structure
+        return error.UnsupportedOperation;
     }
 
     pub fn trace(self: *RayTracer, ray_origin: [3]f32, ray_direction: [3]f32) !?Hit {
         _ = self;
         _ = ray_origin;
         _ = ray_direction;
-        return null;
+        return error.UnsupportedOperation;
     }
 
     pub const Hit = struct {
@@ -1609,7 +1582,7 @@ pub const MultiGPU = struct {
 
     pub fn detectGPUs(self: *MultiGPU) !void {
         _ = self;
-        // Detect all available GPUs
+        return error.UnsupportedOperation;
     }
 
     pub fn setPrimaryGPU(self: *MultiGPU, index: usize) !void {
@@ -1736,9 +1709,9 @@ test "shader creation and compilation" {
     try std.testing.expect(!shader.compiled);
     try std.testing.expect(shader.shader_id > 0);
 
-    try shader.compile();
-    try std.testing.expect(shader.compiled);
-    try std.testing.expect(shader.validated);
+    try std.testing.expectError(error.ShaderCompilationUnavailable, shader.compile());
+    try std.testing.expect(!shader.compiled);
+    try std.testing.expect(!shader.validated);
 }
 
 test "shader uniforms" {
@@ -1749,12 +1722,8 @@ test "shader uniforms" {
     });
     defer shader.deinit();
 
-    try shader.compile();
-
-    // Vertex shaders should have model/projection uniforms
-    const mvp = shader.getUniform("modelViewProjection");
-    try std.testing.expect(mvp != null);
-    try std.testing.expectEqual(ShaderUniform.UniformType.mat4, mvp.?.uniform_type);
+    try std.testing.expectError(error.ShaderCompilationUnavailable, shader.compile());
+    try std.testing.expect(shader.getUniform("modelViewProjection") == null);
 }
 
 test "texture creation" {
@@ -1800,7 +1769,7 @@ test "render target clear" {
     var target = try RenderTarget.init(allocator, 4, 4, .rgba8);
     defer target.deinit();
 
-    target.clear(.{ 1.0, 0.0, 0.0, 1.0 });
+    try target.clear(.{ 1.0, 0.0, 0.0, 1.0 });
 
     // Check that color texture was cleared to red
     if (target.color_texture) |*tex| {
@@ -1839,11 +1808,11 @@ test "render pipeline command execution" {
     try pipeline.submit(.{ .draw = .{ .vertex_count = 6 } });
 
     // Execute
-    try pipeline.flush();
+    try std.testing.expectError(error.UnsupportedOperation, pipeline.flush());
 
-    try std.testing.expectEqual(@as(u32, 3), pipeline.statistics.commands_executed);
-    try std.testing.expectEqual(@as(u32, 1), pipeline.statistics.draw_calls);
-    try std.testing.expectEqual(@as(u32, 6), pipeline.statistics.vertices_processed);
+    try std.testing.expectEqual(@as(u32, 2), pipeline.statistics.commands_executed);
+    try std.testing.expectEqual(@as(u32, 0), pipeline.statistics.draw_calls);
+    try std.testing.expectEqual(@as(u32, 0), pipeline.statistics.vertices_processed);
 }
 
 test "render pipeline state management" {

@@ -3280,12 +3280,52 @@ export type HealthDataType =
   | 'dietaryFat'
   /** Mindful minutes (meditation, breathing): read with getMindfulSessions, written with saveMindfulSession. */
   | 'mindful'
+  /** Blood glucose from a CGM or meter, in mg/dL: read with getSamples. Read only. */
+  | 'bloodGlucose'
+  /**
+   * Insulin from a pump, pen or closed loop, in international units, each
+   * marked basal or bolus: read with getSamples. Read only. HealthKit only:
+   * Health Connect has no insulin type, so Android answers none.
+   */
+  | 'insulinDelivery'
 
 /** The types with one value per day. `sleep` is hours asleep, counted on the day you woke. */
-export type HealthDailyType = Exclude<HealthDataType, 'workouts' | 'mindful'>
+export type HealthDailyType = Exclude<HealthDataType, 'workouts' | 'mindful' | 'bloodGlucose' | 'insulinDelivery'>
 
 /** Quantity types that can be written with `health.saveData()`. */
-export type HealthQuantityType = Exclude<HealthDataType, 'workouts' | 'sleep' | 'mindful'>
+export type HealthQuantityType = Exclude<HealthDataType, 'workouts' | 'sleep' | 'mindful' | 'bloodGlucose' | 'insulinDelivery'>
+
+/** The types `health.getSamples()` reads one sample at a time: glucose, insulin and carbs, as a diabetes app needs them. */
+export type HealthSampleType = 'bloodGlucose' | 'insulinDelivery' | 'dietaryCarbohydrates'
+
+export interface HealthSamplesQuery extends HealthSampleQuery {
+  /** At most this many, oldest first. Defaults to 10000, capped at 50000. Start defaults to 7 days ago. */
+  limit?: number
+}
+
+/** One glucose reading, insulin dose or carb entry as the writing app saved it. */
+export interface HealthQuantitySample {
+  /** HealthKit's UUID or Health Connect's record id: stable across reads. */
+  id: string
+  /** In `unit`: mg/dL for glucose, IU for insulin, g for carbs. */
+  value: number
+  unit: 'mg/dL' | 'IU' | 'g'
+  /** Epoch milliseconds. */
+  startDate: number
+  /** Epoch milliseconds; the same as `startDate` for an instant reading. A basal delivery spans its segment. */
+  endDate: number
+  sourceName: string
+  sourceBundleId: string
+  /** True when this app wrote it. */
+  ownApp: boolean
+  deviceName?: string
+  /** Insulin only: what the dose was for. */
+  insulinReason?: 'basal' | 'bolus'
+  /** Glucose only: when it was taken relative to a meal, when the source said. */
+  mealTime?: 'beforeMeal' | 'afterMeal' | 'fasting' | 'general'
+  /** Glucose only (Health Connect): what was sampled, when the source said. */
+  specimen?: 'capillaryBlood' | 'interstitialFluid' | 'plasma' | 'serum' | 'tears' | 'wholeBlood'
+}
 
 export interface HealthAuthorizationOptions {
   /** `false` asks to read only. Default: also allowed to save workouts. */
@@ -3505,7 +3545,7 @@ export interface HealthLiveWorkoutEvent {
 }
 
 /** The health reads and writes a host may or may not have, depending on the app build it runs in. */
-export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSleepIntervals' | 'saveData' | 'saveMindfulSession' | 'getMindfulSessions' | 'startHeartRateUpdates' | 'stopHeartRateUpdates' | 'startWorkout' | 'pauseWorkout' | 'resumeWorkout' | 'endWorkout'
+export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSamples' | 'getSleepIntervals' | 'saveData' | 'saveMindfulSession' | 'getMindfulSessions' | 'startHeartRateUpdates' | 'stopHeartRateUpdates' | 'startWorkout' | 'pauseWorkout' | 'resumeWorkout' | 'endWorkout'
 
 /** The samples of one `craftHealthHeartRate` event that look like heart-rate samples. */
 function healthHeartRateSamples(detail: unknown): HealthHeartRateSample[] {
@@ -3568,6 +3608,17 @@ export const health = {
     const craft = getCraftRoot()
     if (!craft?.health?.getHeartRateSamples) throw new Error('Reading heart-rate samples is unavailable')
     return craft.health.getHeartRateSamples(options)
+  },
+  /**
+   * Every glucose reading, insulin dose or carb entry between two instants,
+   * oldest first, each with its own id so a sync can store it once. Needs
+   * the type's read grant. Health Connect has no insulin, so Android answers
+   * an empty list for `insulinDelivery`.
+   */
+  async getSamples(type: HealthSampleType, options: HealthSamplesQuery = {}): Promise<HealthQuantitySample[]> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.getSamples) throw new Error('Reading health samples is unavailable')
+    return craft.health.getSamples(type, options)
   },
   /** Sleep between two instants, oldest first: time in bed and each asleep or awake stage. iOS only for now. */
   async getSleepIntervals(options: HealthSampleQuery = {}): Promise<HealthSleepInterval[]> {
@@ -3889,6 +3940,7 @@ interface CraftMobileBridge {
     getWorkouts?(options: HealthWorkoutQuery): Promise<HealthWorkoutSample[]>
     getDailyStatistics?(type: HealthDailyType, options: HealthDataOptions): Promise<HealthDailyValue[]>
     getHeartRateSamples?(options: HealthHeartRateQuery): Promise<HealthHeartRateSample[]>
+    getSamples?(type: HealthSampleType, options: HealthSamplesQuery): Promise<HealthQuantitySample[]>
     getSleepIntervals?(options: HealthSampleQuery): Promise<HealthSleepInterval[]>
     saveMindfulSession?(session: HealthMindfulSession): Promise<HealthMindfulSessionResult>
     getMindfulSessions?(options: HealthMindfulSessionQuery): Promise<HealthMindfulSample[]>

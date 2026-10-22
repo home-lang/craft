@@ -8,6 +8,7 @@ complete native message surface, see the [Bridge API](../BRIDGE_API.md).
 ## Core APIs
 
 - [Components API](./components.md) - Native component primitives
+- [Objective-C structure returns](./objc-runtime.md) - Shared Apple message ABI and native execution checks
 
 ## System APIs
 
@@ -47,3 +48,5 @@ complete native message surface, see the [Bridge API](../BRIDGE_API.md).
 ## Configuration
 
 - [craft.config.ts](./config.md) - Application configuration
+
+- [Background deadlines](./timers.md) - Cancellable native macOS timers for hidden pages

@@ -104,6 +104,7 @@ pub fn adopt(window: objc.id) void {
     // mask, and the shadow AppKit derives from the window's alpha follows.
     macos.setWebMaterial(window, popover_material);
     macos.setWebMaterialCornerRadius(window, corner_radius);
+    macos.setWebContentCornerRadius(window, corner_radius);
 
     log.debug("tray popover adopted its window", .{});
 }

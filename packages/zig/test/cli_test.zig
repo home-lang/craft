@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const testing = std.testing;
 const cli = @import("../src/cli.zig");
 
@@ -73,14 +74,13 @@ test "CliError - error types exist" {
     try testing.expectEqual(cli.CliError.InvalidNumber, err3);
 }
 
-test "version output includes the release and platform" {
+test "version output includes the release, actual compiler and platform" {
     var buffer: [128]u8 = undefined;
     const output = try cli.formatVersion(&buffer, "1.2.3", "macOS");
 
-    try testing.expectEqualStrings(
-        "craft version 1.2.3\nBuilt with Zig 0.17.0-dev\nPlatform: macOS\n\n",
-        output,
-    );
+    try testing.expect(std.mem.startsWith(u8, output, "craft version 1.2.3\nBuilt with Zig "));
+    try testing.expect(std.mem.indexOf(u8, output, builtin.zig_version_string) != null);
+    try testing.expect(std.mem.endsWith(u8, output, "\nPlatform: macOS\n\n"));
 }
 
 test "WindowOptions - position coordinates" {

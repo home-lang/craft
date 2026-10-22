@@ -667,6 +667,8 @@ export interface AppConfig {
  * Craft System Tray API (available as window.craft.tray in WebView)
  */
 export interface CraftTrayAPI {
+    /** SF Symbol name, image path, or base64 image data URL. */
+    setIcon(icon: string): Promise<void>
     /**
      * Update the system tray title/text
      * Updates in real-time (60fps max)
@@ -855,6 +857,12 @@ export interface AppInfo {
      * Platform (macos, linux, windows)
      */
     platform: string
+    /** Whether platform file access is restricted to explicit user grants. */
+    sandboxed?: boolean
+    bundleId?: string
+    bundlePath?: string
+    executablePath?: string
+
 }
 
 /**
@@ -1369,6 +1377,18 @@ export interface CraftBridgeAPI {
    */
   tray?: CraftTrayAPI
 
+  /** Native status-item arrangement and collapse controls (macOS). */
+  menubar?: {
+    init(): Promise<void>
+    collapse(): Promise<void>
+    expand(): Promise<void>
+    toggle(): Promise<void>
+    getState(): Promise<{ collapsed: boolean; initialized: boolean; separatorHidden: boolean }>
+    setAutoCollapse(seconds: number): Promise<void>
+    setSeparatorHidden(hidden: boolean): Promise<void>
+    onStateChange(callback: (state: { collapsed: boolean }) => void): () => void
+  }
+
   /**
    * Window control (desktop)
    */
@@ -1423,6 +1443,7 @@ export interface CraftBridgeAPI {
   /**
    * Screen-sharing and screen-recording detection (macOS)
    */
+  timers?: CraftTimersAPI
   screenSharing?: CraftScreenSharingAPI
 
   /**
@@ -2585,4 +2606,10 @@ declare global {
      */
     craft?: CraftBridgeAPI & CraftEventEmitter
   }
+}
+
+/** Native background deadlines, independent of hidden WebKit DOM timers. */
+export interface CraftTimersAPI {
+  /** Wait up to one day. Aborting rejects with AbortError and releases native resources. */
+  sleep(delayMs: number, options?: { signal?: AbortSignal }): Promise<void>
 }

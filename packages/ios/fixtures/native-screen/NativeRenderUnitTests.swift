@@ -1876,6 +1876,29 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(moving.isAnimating, "out of the window, no frames")
     }
 
+    /// A tab opened for the first time mounts in the window. The bar its
+    /// script asks for before it has appeared (HQ's Me: a title, a large
+    /// title) is in place from the first frame; once the screen has appeared,
+    /// a change to the bar animates as before.
+    func testABarAskedForBeforeTheScreenAppearsDoesNotSlideIn() throws {
+        let window = try hostWindow()
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        let stack = UINavigationController(rootViewController: screen)
+        stack.setNavigationBarHidden(true, animated: false)
+        window.rootViewController = stack
+        defer { window.isHidden = true }
+        screen.loadViewIfNeeded()
+        window.makeKeyAndVisible()
+        stack.view.layoutIfNeeded()
+        if screen.view.window != nil, !screen.animatesNavigationBarChanges {
+            screen.evaluateScript("craftNativePostMessage(JSON.stringify({ type: 'NAVIGATION_SET_OPTIONS', payload: { title: 'Me', largeTitle: true } }))")
+            XCTAssertFalse(stack.isNavigationBarHidden, "the bar it asked for")
+            XCTAssertTrue(stack.navigationBar.layer.animationKeys()?.isEmpty ?? true, "there, not sliding in")
+        }
+        screen.viewDidAppear(false)
+        XCTAssertTrue(screen.animatesNavigationBarChanges, "after appearing, a change animates")
+    }
+
     func testFlatListScrollIndicatorsAndBounceAxesFollowProps() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
@@ -2416,6 +2439,16 @@ final class NativeRenderUnitTests: XCTestCase {
         return window
     }
 
+    /// Runs the main queue past everything already on it. A screen keeps a
+    /// caret in view on the next turn of the run loop, and a fixed wait can
+    /// end before that turn while a loaded simulator brings its keyboard up:
+    /// the test then measured a text view not yet laid out for its new text.
+    private func drainMainQueue() {
+        let drained = expectation(description: "the main queue reached this block")
+        DispatchQueue.main.async { drained.fulfill() }
+        wait(for: [drained], timeout: 5)
+    }
+
     func testImagesLoadOverHttpOnlyFromThisMachine() {
         for address in ["https://example.com/a.png", "http://localhost:3130/assets/a.png", "http://127.0.0.1:3130/a.png", "http://[::1]:3130/a.png", "http://hq.localhost/a.png"] {
             XCTAssertTrue(CraftNativeScreenController.loadsImage(from: URL(string: address)!), address)
@@ -2503,6 +2536,145 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertFalse(form.touchesShouldCancel(in: try XCTUnwrap(find(UISlider.self, key: "position", below: controller.view))))
         XCTAssertFalse(form.touchesShouldCancel(in: try XCTUnwrap(find(UISwitch.self, key: "toggle", below: controller.view))))
         XCTAssertTrue(form.touchesShouldCancel(in: try XCTUnwrap(find(UITextField.self, key: "draft", below: controller.view))))
+    }
+
+    /// A multiline input grows up to its `maxHeight` and then scrolls inside
+    /// itself: HQ's long workout comment was cut off with no way to reach the
+    /// rest. A short one still sizes to its text, without scrolling.
+    func testAMultilineInputScrollsInsideItselfPastItsMaxHeight() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        let long = (1...14).map { "\($0)) an answer to the coach's question" }.joined(separator: "\n")
+        controller.render(document([
+            ["type": "ScrollView", "props": ["key": "form"], "style": ["flex": 1], "children": [
+                ["type": "TextInput", "props": ["key": "long", "multiline": true, "value": long], "style": ["maxHeight": 140, "fontSize": 17]],
+                ["type": "TextInput", "props": ["key": "short", "multiline": true, "value": "Fine"], "style": ["maxHeight": 140, "fontSize": 17]],
+            ]],
+        ]))
+        controller.view.layoutIfNeeded()
+        let longInput = try XCTUnwrap(find(UITextView.self, key: "long", below: controller.view))
+        let shortInput = try XCTUnwrap(find(UITextView.self, key: "short", below: controller.view))
+        longInput.layoutIfNeeded()
+        shortInput.layoutIfNeeded()
+        XCTAssertLessThanOrEqual(longInput.bounds.height, 140.5)
+        XCTAssertTrue(longInput.isScrollEnabled, "the rest of the text is reachable")
+        longInput.layoutIfNeeded()
+        XCTAssertGreaterThan(longInput.contentSize.height, longInput.bounds.height, "scrolling, it reaches the last line")
+        XCTAssertFalse(shortInput.isScrollEnabled)
+        XCTAssertLessThan(shortInput.bounds.height, 140)
+    }
+
+    /// The caret stays where it can be seen as an input at the bottom of a
+    /// screen grows: only the field was scrolled into view, when editing
+    /// began, so the words typed after that went under the keyboard.
+    func testTheCaretStaysInViewAsAnInputGrows() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["type": "ScrollView", "props": ["key": "form"], "style": ["height": 400], "children": [
+                ["type": "View", "props": ["key": "above"], "style": ["height": 360]],
+                ["type": "TextInput", "props": ["key": "comment", "multiline": true], "style": ["fontSize": 17]],
+            ]],
+        ]))
+        controller.view.layoutIfNeeded()
+        let form = try XCTUnwrap(find(UIScrollView.self, key: "form", below: controller.view))
+        let input = try XCTUnwrap(find(UITextView.self, key: "comment", below: controller.view))
+        XCTAssertTrue(input.becomeFirstResponder())
+        input.text = (1...10).map { "line \($0)" }.joined(separator: "\n")
+        input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
+        input.delegate?.textViewDidChange?(input)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        drainMainQueue()
+        let end = try XCTUnwrap(input.selectedTextRange?.end)
+        let caret = input.convert(input.caretRect(for: end), to: form)
+        let visible = form.bounds.inset(by: form.adjustedContentInset)
+        XCTAssertTrue(visible.contains(caret), "caret \(caret) in \(visible)")
+    }
+
+    /// HQ's "Editing your comment": a long multiline input with no max
+    /// height in the screen's scroll view, focused with the caret at the end
+    /// of its text. Taller than the part the keyboard leaves, only its top
+    /// was scrolled into view, so its last lines and the caret stayed under
+    /// the keyboard. The caret is above the keyboard when it comes up, and
+    /// after a line is typed.
+    func testALongInputWithoutAMaxHeightKeepsItsCaretAboveTheKeyboard() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        let long = (1...30).map { "\($0)) an answer to the coach's question" }.joined(separator: "\n")
+        controller.render(document([
+            ["type": "ScrollView", "props": ["key": "workout"], "style": ["flex": 1], "children": [
+                ["type": "View", "props": ["key": "above"], "style": ["height": 240]],
+                ["type": "TextInput", "props": ["key": "comment", "multiline": true, "value": long], "style": ["fontSize": 17]],
+                ["type": "View", "props": ["key": "below"], "style": ["height": 120]],
+            ]],
+        ]))
+        controller.view.layoutIfNeeded()
+        let input = try XCTUnwrap(find(UITextView.self, key: "comment", below: controller.view))
+        XCTAssertFalse(input.isScrollEnabled, "with no max height it grows with its text")
+        let form = try XCTUnwrap(find(UIScrollView.self, key: "workout", below: controller.view))
+        let keyboard = CGRect(x: 0, y: window.bounds.height - 336, width: window.bounds.width, height: 336)
+        var currentKeyboard = keyboard
+        // Becoming first responder also schedules UIKit's real keyboard. Its
+        // later frame can replace the synthetic one while this test yields.
+        // Observe that frame independently of Craft's layout, in window space.
+        let keyboardObserver = NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main
+        ) { notification in
+            guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue else { return }
+            currentKeyboard = window.convert(frame.cgRectValue, from: nil)
+        }
+        defer { NotificationCenter.default.removeObserver(keyboardObserver) }
+        XCTAssertTrue(input.becomeFirstResponder())
+        input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
+        NotificationCenter.default.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
+            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: window.convert(keyboard, to: nil)),
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0,
+            UIResponder.keyboardAnimationCurveUserInfoKey: 0,
+        ])
+        controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        drainMainQueue()
+        XCTAssertTrue(window.bounds.intersects(currentKeyboard), "the observed keyboard covers part of this window")
+        XCTAssertGreaterThan(input.bounds.height, currentKeyboard.minY - window.safeAreaInsets.top, "taller than the part the keyboard leaves")
+        func caret() throws -> CGRect {
+            let end = try XCTUnwrap(input.selectedTextRange?.end)
+            return input.convert(input.caretRect(for: end), to: window)
+        }
+        var shown = try caret()
+        XCTAssertLessThanOrEqual(shown.maxY, currentKeyboard.minY + 0.5, "caret \(shown) above the keyboard at \(currentKeyboard.minY)")
+        XCTAssertGreaterThanOrEqual(shown.minY, window.safeAreaInsets.top - 0.5, "caret \(shown) on screen")
+
+        input.text = long + "\n31) and one more line"
+        input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
+        input.delegate?.textViewDidChange?(input)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        drainMainQueue()
+        shown = try caret()
+        XCTAssertLessThanOrEqual(shown.maxY, currentKeyboard.minY + 0.5, "typed: caret \(shown) above the keyboard at \(currentKeyboard.minY)")
+        XCTAssertGreaterThanOrEqual(shown.minY, window.safeAreaInsets.top - 0.5, "typed: caret \(shown) on screen")
+
+        // A larger edit must reveal the caret again, even if a keyboard
+        // frame change made the viewport taller during the first edit.
+        let offsetBeforeTyping = form.contentOffset.y
+        input.text += "\n" + (32...41).map { "\($0)) continuing the answer" }.joined(separator: "\n")
+        input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
+        input.delegate?.textViewDidChange?(input)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        drainMainQueue()
+        shown = try caret()
+        XCTAssertTrue(window.bounds.intersects(currentKeyboard))
+        XCTAssertLessThanOrEqual(shown.maxY, currentKeyboard.minY + 0.5, "continued: caret \(shown) above the keyboard at \(currentKeyboard.minY)")
+        XCTAssertGreaterThanOrEqual(shown.minY, window.safeAreaInsets.top - 0.5, "continued: caret \(shown) on screen")
+        XCTAssertGreaterThan(form.contentOffset.y, offsetBeforeTyping + 0.5, "typing beyond the viewport actually scrolls the caret into view")
     }
 
     func testScrollKeyboardTapPreservesTextAreaFocusAndSelectionButDismissesBackground() throws {
@@ -2666,6 +2838,56 @@ final class NativeRenderUnitTests: XCTestCase {
             UIResponder.keyboardAnimationCurveUserInfoKey: 0,
         ])
         XCTAssertEqual(scroll.contentInset.bottom, 0)
+    }
+
+    /// A scroll view the keyboard covers the end of keeps its keyboard inset
+    /// as a layout moves it: a footer under a form shrank while the keyboard
+    /// was up, the form grew down under the keyboard, and the inset measured
+    /// where it used to end left its last fields there with nothing to scroll.
+    func testAScrollViewKeepsItsKeyboardInsetAsALayoutMovesIt() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        func screen(footer: CGFloat) -> [[String: Any]] {
+            [["type": "KeyboardAvoidingView", "props": ["key": "avoid", "keyboardVerticalOffset": 100], "style": ["flex": 1], "children": [
+                ["type": "ScrollView", "props": ["key": "form"], "style": ["flex": 1], "children": [
+                    ["type": "View", "props": ["key": "fields"], "style": ["height": 900]],
+                ]],
+                ["type": "View", "props": ["key": "footer"], "style": ["height": footer]],
+            ]]]
+        }
+        controller.render(document(screen(footer: 120)))
+        controller.view.layoutIfNeeded()
+        let form = try XCTUnwrap(find(UIScrollView.self, key: "form", below: controller.view))
+        // Nothing has focus, so no keyboard of UIKit's own replaces this one.
+        let keyboard = CGRect(x: 0, y: window.bounds.height - 336, width: window.bounds.width, height: 336)
+        NotificationCenter.default.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
+            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: window.convert(keyboard, to: nil)),
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0,
+            UIResponder.keyboardAnimationCurveUserInfoKey: 0,
+        ])
+        controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        func covered() -> CGFloat { max(0, form.convert(form.bounds, to: window).maxY - keyboard.minY) }
+        XCTAssertEqual(form.contentInset.bottom, covered(), accuracy: 0.5, "inset for what the keyboard covers")
+
+        controller.render(document(screen(footer: 0)))
+        controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertGreaterThan(covered(), 50, "the form now ends under the keyboard")
+        XCTAssertEqual(form.contentInset.bottom, covered(), accuracy: 0.5, "the inset follows the form to where it ends now")
+        XCTAssertEqual(form.verticalScrollIndicatorInsets.bottom, covered(), accuracy: 0.5)
+
+        NotificationCenter.default.post(name: UIResponder.keyboardWillHideNotification, object: nil, userInfo: [
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0,
+            UIResponder.keyboardAnimationCurveUserInfoKey: 0,
+        ])
+        controller.render(document(screen(footer: 120)))
+        controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertEqual(form.contentInset.bottom, 0, "no keyboard, no inset")
     }
 
     func testFlatListContentInsetsRejectBooleanNumbers() {

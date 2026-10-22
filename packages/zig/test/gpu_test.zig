@@ -2,6 +2,230 @@ const std = @import("std");
 const testing = std.testing;
 const gpu = @import("../src/gpu.zig");
 
+test "offscreen texture allocation rejects overflow and caller budget excess" {
+    try testing.expectError(error.AllocationLimitExceeded, gpu.Texture.initWithLimits(testing.allocator, 2, 1, .rgba8, .{ .max_bytes = 7 }));
+    try testing.expectError(error.InvalidDimensions, gpu.Texture.init(testing.allocator, std.math.maxInt(u32), std.math.maxInt(u32), .rgba8));
+    try testing.expectError(error.AllocationLimitExceeded, gpu.Texture.init(testing.allocator, 65536, 65536, .rgba8));
+    var texture = try gpu.Texture.initWithLimits(testing.allocator, 2, 1, .rgba8, .{ .max_bytes = 8 });
+    defer texture.deinit();
+    try testing.expectError(error.AllocationLimitExceeded, texture.resize(3, 1));
+    try testing.expectEqual(@as(u32, 2), texture.width);
+    try testing.expectEqual(@as(usize, 8), texture.data.?.len);
+}
+
+test "texture resize allocation failure retains its complete original storage" {
+    var failing = testing.FailingAllocator.init(testing.allocator, .{ .fail_index = 1 });
+    var texture = try gpu.Texture.init(failing.allocator(), 1, 1, .rgba8);
+    defer texture.deinit();
+    texture.setPixel(0, 0, .{ 10, 20, 30, 40 });
+    try testing.expectError(error.OutOfMemory, texture.resize(2, 2));
+    try testing.expectEqual(@as(usize, 0), failing.freed_bytes);
+    try testing.expectEqual(@as(u32, 1), texture.width);
+    try testing.expectEqual([4]u8{ 10, 20, 30, 40 }, texture.getPixel(0, 0).?);
+}
+
+test "render target resize commits color and depth storage together" {
+    var failing = testing.FailingAllocator.init(testing.allocator, .{ .fail_index = 3 });
+    var target = try gpu.RenderTarget.init(failing.allocator(), 1, 1, .rgba8);
+    defer target.deinit();
+    target.getColorTexture().?.setPixel(0, 0, .{ 10, 20, 30, 40 });
+    target.getDepthTexture().?.setPixel(0, 0, .{ 1, 2, 3, 4 });
+    try testing.expectError(error.OutOfMemory, target.resize(2, 2));
+    try testing.expectEqual(@as(u32, 1), target.width);
+    try testing.expectEqual(@as(u32, 1), target.getColorTexture().?.width);
+    try testing.expectEqual(@as(u32, 1), target.getDepthTexture().?.width);
+    try testing.expectEqual([4]u8{ 10, 20, 30, 40 }, target.getColorTexture().?.getPixel(0, 0).?);
+    try testing.expectEqual([4]u8{ 1, 2, 3, 4 }, target.getDepthTexture().?.getPixel(0, 0).?);
+    try testing.expectEqual(@as(usize, 16), failing.freed_bytes);
+}
+
+test "texture downloads reject mismatched destinations before writing" {
+    var texture = try gpu.Texture.init(testing.allocator, 1, 1, .rgba8);
+    defer texture.deinit();
+    texture.setPixel(0, 0, .{ 10, 20, 30, 40 });
+    var short = [_]u8{ 99, 99 };
+    try testing.expectError(error.InvalidDimensions, texture.download(&short));
+    try testing.expectEqualSlices(u8, &.{ 99, 99 }, &short);
+    var oversized = [_]u8{ 99, 99, 99, 99, 99 };
+    try testing.expectError(error.InvalidDimensions, texture.download(&oversized));
+    try testing.expectEqualSlices(u8, &.{ 99, 99, 99, 99, 99 }, &oversized);
+    var exact: [4]u8 = undefined;
+    try texture.download(&exact);
+    try testing.expectEqual([4]u8{ 10, 20, 30, 40 }, exact);
+}
+
+test "offscreen clear validates color and format before changing any storage" {
+    var target = try gpu.RenderTarget.init(testing.allocator, 1, 1, .rgba8);
+    defer target.deinit();
+    target.getColorTexture().?.setPixel(0, 0, .{ 10, 20, 30, 40 });
+    try testing.expectError(error.InvalidColor, target.clear(.{ std.math.nan(f32), 0, 0, 1 }));
+    try testing.expectError(error.InvalidColor, target.clear(.{ 0, 0, 0, 2 }));
+    try testing.expectEqual([4]u8{ 10, 20, 30, 40 }, target.getColorTexture().?.getPixel(0, 0).?);
+    var unsupported = try gpu.RenderTarget.init(testing.allocator, 1, 1, .r8);
+    defer unsupported.deinit();
+    try testing.expectError(error.UnsupportedOperation, unsupported.clear(.{ 1, 0, 0, 1 }));
+    try testing.expectEqual([4]u8{ 0, 0, 0, 255 }, unsupported.getColorTexture().?.getPixel(0, 0).?);
+}
+
+fn resizeOffscreenTarget(allocator: std.mem.Allocator) !void {
+    var target = try gpu.RenderTarget.init(allocator, 1, 1, .rgba8);
+    defer target.deinit();
+    try target.resize(2, 2);
+}
+
+test "offscreen resize releases temporary allocations at every failure point" {
+    try testing.checkAllAllocationFailures(testing.allocator, resizeOffscreenTarget, .{});
+}
+
+test "hardware video decode refuses bytes without a maintained decoder" {
+    var owner = try gpu.GPU.init(testing.allocator, .{ .hardware_decode = true });
+    defer owner.deinit();
+    var decoder = gpu.VideoDecoder.init(&owner);
+    try testing.expect(!decoder.hardware_enabled);
+    try testing.expect(!decoder.isHardwareAccelerated());
+    try testing.expectError(error.UnsupportedOperation, decoder.decode("video"));
+}
+
+test "post-processing reports unsupported work and preserves output pixels" {
+    var owner = try gpu.GPU.init(testing.allocator, .{});
+    defer owner.deinit();
+    var pipeline = gpu.RenderPipeline.init(testing.allocator, &owner);
+    defer pipeline.deinit();
+    var processor = gpu.PostProcessor.init(testing.allocator, &pipeline);
+    defer processor.deinit();
+    var input = try gpu.RenderTarget.init(testing.allocator, 1, 1, .rgba8);
+    defer input.deinit();
+    var output = try gpu.RenderTarget.init(testing.allocator, 1, 1, .rgba8);
+    defer output.deinit();
+    try output.clear(.{ 0, 0, 1, 1 });
+    try processor.addEffect(.blur);
+    try testing.expectError(error.UnsupportedOperation, processor.process(&input, &output));
+    try testing.expectEqual([4]u8{ 0, 0, 255, 255 }, output.getColorTexture().?.getPixel(0, 0).?);
+    try testing.expect(!owner.getRenderingCapabilities().post_processing);
+}
+
+test "ray tracing cannot report a successful build or an unexecuted miss" {
+    var owner = try gpu.GPU.init(testing.allocator, .{});
+    defer owner.deinit();
+    var tracer = try gpu.RayTracer.init(testing.allocator, &owner);
+    defer tracer.deinit();
+    try testing.expectError(error.UnsupportedOperation, tracer.buildAccelerationStructure(&.{}));
+    try testing.expectError(error.UnsupportedOperation, tracer.trace(.{ 0, 0, 0 }, .{ 1, 0, 0 }));
+    try testing.expect(tracer.acceleration_structure == null);
+    try testing.expect(!owner.getRenderingCapabilities().ray_tracing);
+}
+
+test "GPU discovery reports unavailable enumeration instead of an empty success" {
+    var owner = try gpu.GPU.init(testing.allocator, .{});
+    defer owner.deinit();
+    var multiple = gpu.MultiGPU.init(testing.allocator);
+    defer multiple.deinit();
+    try testing.expectError(error.UnsupportedOperation, multiple.detectGPUs());
+    try testing.expectEqual(@as(usize, 0), multiple.getGPUCount());
+    try testing.expect(!owner.getRenderingCapabilities().multi_gpu_discovery);
+}
+
+test "shader source is not a compiled program without a compiler backend" {
+    var shader = try gpu.Shader.init(testing.allocator, .{
+        .type = .vertex,
+        .code = "void main() { gl_Position = vec4(0.0); }",
+    });
+    defer shader.deinit();
+
+    try testing.expectError(error.ShaderCompilationUnavailable, shader.compile());
+    try testing.expect(!shader.isReady());
+    try testing.expect(!shader.compiled);
+    try testing.expect(!shader.validated);
+    try testing.expectEqual(@as(usize, 0), shader.uniforms.items.len);
+}
+
+test "rendering support is distinct from a requested hardware backend" {
+    var g = try gpu.GPU.init(testing.allocator, .{ .backend = .metal });
+    defer g.deinit();
+    const capabilities = g.getRenderingCapabilities();
+    try testing.expect(capabilities.offscreen_clear);
+    try testing.expect(!capabilities.hardware_canvas);
+    try testing.expect(!capabilities.shader_compilation);
+    try testing.expect(!capabilities.draw);
+    try testing.expect(!capabilities.compute);
+    try testing.expect(!capabilities.presentation);
+}
+
+test "hardware canvas calls refuse work without a drawing backend" {
+    var g = try gpu.GPU.init(testing.allocator, .{});
+    defer g.deinit();
+    var accelerator = gpu.CanvasAccelerator.init(&g);
+    try testing.expect(!accelerator.enabled);
+    try testing.expectError(error.UnsupportedOperation, accelerator.drawRect(0, 0, 2, 2));
+    try testing.expectError(error.UnsupportedOperation, accelerator.drawCircle(1, 1, 2));
+    try testing.expectError(error.UnsupportedOperation, accelerator.clear());
+}
+
+test "offscreen pipeline clear changes pixels and unsupported work is not counted" {
+    var g = try gpu.GPU.init(testing.allocator, .{});
+    defer g.deinit();
+    var pipeline = gpu.RenderPipeline.init(testing.allocator, &g);
+    defer pipeline.deinit();
+    const target = try pipeline.createRenderTarget(2, 2, .rgba8);
+    try pipeline.submit(.{ .set_render_target = target });
+    try pipeline.submit(.{ .clear = .{ .color = .{ 1, 0, 0, 1 } } });
+    try pipeline.submit(.{ .draw = .{ .vertex_count = 3 } });
+    try testing.expectError(error.UnsupportedOperation, pipeline.flush());
+    try testing.expectEqual([4]u8{ 255, 0, 0, 255 }, target.getColorTexture().?.getPixel(1, 1).?);
+    try testing.expectEqual(@as(u32, 2), pipeline.getStatistics().commands_executed);
+    try testing.expectEqual(@as(u32, 0), pipeline.getStatistics().draw_calls);
+    try testing.expectEqual(@as(u32, 0), pipeline.getStatistics().vertices_processed);
+    try testing.expectEqual(@as(usize, 0), pipeline.command_buffer.items.len);
+    try pipeline.flush();
+    try testing.expectEqual(@as(u32, 2), pipeline.getStatistics().commands_executed);
+}
+
+test "indexed and compute commands refuse work without recording success" {
+    var g = try gpu.GPU.init(testing.allocator, .{});
+    defer g.deinit();
+    var pipeline = gpu.RenderPipeline.init(testing.allocator, &g);
+    defer pipeline.deinit();
+    const indexed = [_]gpu.RenderCommand{.{ .draw_indexed = .{ .index_count = 3 } }};
+    try testing.expectError(error.UnsupportedOperation, pipeline.render(&indexed));
+    const compute = [_]gpu.RenderCommand{.{ .dispatch_compute = .{ .groups_x = 1, .groups_y = 1, .groups_z = 1 } }};
+    try testing.expectError(error.UnsupportedOperation, pipeline.render(&compute));
+    try testing.expectEqual(@as(u32, 0), pipeline.getStatistics().commands_executed);
+    try testing.expectEqual(@as(u32, 0), pipeline.getStatistics().triangles_drawn);
+}
+
+test "clear without a target and uncompiled shader cannot report success" {
+    var g = try gpu.GPU.init(testing.allocator, .{});
+    defer g.deinit();
+    var pipeline = gpu.RenderPipeline.init(testing.allocator, &g);
+    defer pipeline.deinit();
+    const clear = [_]gpu.RenderCommand{.{ .clear = .{ .color = .{ 1, 0, 0, 1 } } }};
+    try testing.expectError(error.MissingRenderTarget, pipeline.render(&clear));
+    var shader = try gpu.Shader.init(testing.allocator, .{ .type = .vertex, .code = "void main() {}" });
+    defer shader.deinit();
+    const set_shader = [_]gpu.RenderCommand{.{ .set_shader = &shader }};
+    try testing.expectError(error.ShaderNotReady, pipeline.render(&set_shader));
+    try testing.expectEqual(@as(u32, 0), pipeline.getStatistics().commands_executed);
+    try testing.expect(pipeline.getState().current_shader == null);
+}
+
+test "compute shader dispatch does not pretend to execute" {
+    var shader = try gpu.ComputeShader.init(testing.allocator, "void main() {}", .{ 1, 1, 1 });
+    defer shader.deinit();
+    try testing.expectError(error.UnsupportedOperation, shader.dispatch(1, 1, 1));
+}
+
+fn createOffscreenTarget(allocator: std.mem.Allocator) !void {
+    var g = try gpu.GPU.init(allocator, .{});
+    defer g.deinit();
+    var pipeline = gpu.RenderPipeline.init(allocator, &g);
+    defer pipeline.deinit();
+    _ = try pipeline.createRenderTarget(2, 2, .rgba8);
+}
+
+test "offscreen target creation releases every allocation on failure" {
+    try testing.checkAllAllocationFailures(testing.allocator, createOffscreenTarget, .{});
+}
+
 test "GPUBackend enum" {
     try testing.expectEqual(gpu.GPUBackend.vulkan, .vulkan);
     try testing.expectEqual(gpu.GPUBackend.metal, .metal);

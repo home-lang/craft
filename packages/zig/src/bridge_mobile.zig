@@ -206,16 +206,10 @@ fn batteryStateName(raw: isize) []const u8 {
 
 /// A zero-argument selector returning `CGRect`.
 ///
-/// A plain `objc_msgSend` cast, deliberately — **not**
-/// `objc_runtime.msgSendStret`, which picks `objc_msgSend_stret` for anything
-/// over 16 bytes. `CGRect` is 32, and `objc_msgSend_stret` does not exist on
-/// arm64: the struct return travels in x8 through ordinary `objc_msgSend`.
-/// `bridge_mobile_motion.zig:124` records the same trap, and `macos.zig`'s
-/// `msgSendRect` is the shape this copies.
+/// The shared runtime helper selects the architecture's structure-return ABI.
 fn msgSendRect(target: objc.id, comptime selector: [:0]const u8) !objc.CGRect {
     const sel = objc.sel_registerName(selector) orelse return error.SelectorNotFound;
-    const func: *const fn (objc.id, objc.SEL) callconv(.c) objc.CGRect = @ptrCast(&objc.objc_msgSend);
-    return func(target, sel);
+    return objc.msgSendStret(objc.CGRect, target, sel);
 }
 
 /// A zero-argument selector returning `CGFloat` (`double` on 64-bit).

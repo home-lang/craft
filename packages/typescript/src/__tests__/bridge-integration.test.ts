@@ -11,7 +11,8 @@ describe('Bridge Type Definitions', () => {
     // This is a compile-time test - if it compiles, the types are correct
     const mockBridge: CraftBridgeAPI = {
       tray: {
-        setTitle: async (_title: string) => {},
+        setIcon: async (_icon: string) => {},
+      setTitle: async (_title: string) => {},
         setTooltip: async (_tooltip: string) => {},
         onClick: (_callback: (event: any) => void) => () => {},
         onClickToggleWindow: () => () => {},
@@ -46,6 +47,7 @@ describe('Bridge Type Definitions', () => {
 
   test('should have correct CraftTrayAPI methods', () => {
     const mockTray: CraftTrayAPI = {
+      setIcon: async (_icon: string) => {},
       setTitle: async (_title: string) => {},
       setTooltip: async (_tooltip: string) => {},
       onClick: (_callback: (event: any) => void) => () => {},
@@ -194,6 +196,7 @@ describe('TrayClickEvent Type Definition', () => {
 describe('Bridge API Method Signatures', () => {
   test('tray.setTitle should accept string parameter', async () => {
     const mockTray: CraftTrayAPI = {
+      setIcon: async (_icon: string) => {},
       setTitle: async (title: string) => {
         expect(typeof title).toBe('string')
       },
@@ -208,6 +211,7 @@ describe('Bridge API Method Signatures', () => {
 
   test('tray.setTooltip should accept string parameter', async () => {
     const mockTray: CraftTrayAPI = {
+      setIcon: async (_icon: string) => {},
       setTitle: async (_title: string) => {},
       setTooltip: async (tooltip: string) => {
         expect(typeof tooltip).toBe('string')
@@ -224,6 +228,7 @@ describe('Bridge API Method Signatures', () => {
     let callbackCalled = false
 
     const mockTray: CraftTrayAPI = {
+      setIcon: async (_icon: string) => {},
       setTitle: async (_title: string) => {},
       setTooltip: async (_tooltip: string) => {},
       onClick: (callback: (event: any) => void) => {
@@ -246,6 +251,7 @@ describe('Bridge API Method Signatures', () => {
 
   test('tray.setMenu should accept MenuItem array', async () => {
     const mockTray: CraftTrayAPI = {
+      setIcon: async (_icon: string) => {},
       setTitle: async (_title: string) => {},
       setTooltip: async (_tooltip: string) => {},
       onClick: (_callback: (event: any) => void) => () => {},
@@ -310,7 +316,8 @@ describe('Window Global Type Augmentation', () => {
     const mockWindow = {
       craft: {
         tray: {
-          setTitle: async (_title: string) => {},
+          setIcon: async (_icon: string) => {},
+      setTitle: async (_title: string) => {},
           setTooltip: async (_tooltip: string) => {},
           onClick: (_callback: (event: any) => void) => () => {},
           onClickToggleWindow: () => () => {},
@@ -349,6 +356,7 @@ describe('Window Global Type Augmentation', () => {
 describe('Error Handling', () => {
   test('should handle API errors gracefully', async () => {
     const mockTray: CraftTrayAPI = {
+      setIcon: async (_icon: string) => {},
       setTitle: async (_title: string) => {
         throw new Error('Native error')
       },
@@ -363,6 +371,7 @@ describe('Error Handling', () => {
 
   test('should handle callback errors gracefully', () => {
     const mockTray: CraftTrayAPI = {
+      setIcon: async (_icon: string) => {},
       setTitle: async (_title: string) => {},
       setTooltip: async (_tooltip: string) => {},
       onClick: (callback: (event: any) => void) => {

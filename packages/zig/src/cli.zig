@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 pub const WindowOptions = struct {
+    backend_executable: ?[]const u8 = null,
     url: ?[]const u8 = null,
     /// URL handed to this installed app by its registered protocol handler.
     /// It is page data, not the document Craft should navigate to.
@@ -104,6 +105,7 @@ fn debugPrint(comptime fmt: []const u8, args: anytype) void {
 /// Release every string inside `options` that was allocated by `parseArgs`.
 /// `title` defaults to a string literal, so only free it if it was replaced.
 pub fn freeOptionStrings(allocator: std.mem.Allocator, options: *WindowOptions) void {
+    if (options.backend_executable) |s| allocator.free(s);
     if (options.url) |s| allocator.free(s);
     if (options.deep_link) |s| allocator.free(s);
     if (options.html) |s| allocator.free(s);
@@ -177,6 +179,7 @@ pub fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]const u8
 /// With this, craft *is* the executable. It reads the manifest sitting beside
 /// it and configures itself, so the bundle contains exactly one program.
 const BundleConfig = struct {
+    backend: ?struct { executable: []const u8 } = null,
     /// Document to load, relative to `Resources/` (or absolute).
     html: ?[]const u8 = null,
     url: ?[]const u8 = null,
@@ -196,6 +199,7 @@ const BundleConfig = struct {
     systemTray: ?bool = null,
     hideDockIcon: ?bool = null,
     menubarOnly: ?bool = null,
+    trayPopover: ?bool = null,
     titlebarHidden: ?bool = null,
     headless: ?bool = null,
     keepRunning: ?bool = null,
@@ -209,7 +213,7 @@ const BundleConfig = struct {
 /// `std` has no self-exe helper in this Zig version, so this goes straight to
 /// the platform call. macOS-only for now: it is the only platform with a bundle
 /// layout to resolve against.
-fn selfExeDir(allocator: std.mem.Allocator) ?[]const u8 {
+pub fn selfExeDir(allocator: std.mem.Allocator) ?[]const u8 {
     if (comptime builtin.os.tag != .macos) return null;
 
     var size: u32 = 0;
@@ -272,6 +276,7 @@ fn loadBundleConfig(allocator: std.mem.Allocator) ?WindowOptions {
             break :blk null;
         };
     }
+    if (cfg.backend) |backend| options.backend_executable = allocator.dupe(u8, backend.executable) catch return null;
     if (cfg.url) |v| options.url = allocator.dupe(u8, v) catch null;
     if (cfg.title) |v| options.title = allocator.dupe(u8, v) catch options.title;
     if (cfg.appName) |v| options.app_name = allocator.dupe(u8, v) catch null;
@@ -314,6 +319,29 @@ fn applyScalarConfig(cfg: BundleConfig, options: *WindowOptions) void {
             options.hide_dock_icon = true;
         }
     }
+    if (cfg.trayPopover == true) applyTrayPopover(options);
+}
+
+fn applyTrayPopover(options: *WindowOptions) void {
+    options.tray_popover = true;
+    options.menubar_only = false;
+    options.system_tray = true;
+    options.hide_dock_icon = true;
+    options.frameless = true;
+    options.resizable = false;
+    options.web_window_material = true;
+    options.web_chrome_controls = false;
+    options.headless = true;
+}
+
+test "trayPopover manifest retains a live page behind a hidden status-item window" {
+    var options = WindowOptions{};
+    applyScalarConfig(.{ .trayPopover = true, .menubarOnly = true }, &options);
+    try std.testing.expect(options.tray_popover);
+    try std.testing.expect(options.system_tray and options.hide_dock_icon);
+    try std.testing.expect(options.headless and options.frameless);
+    try std.testing.expect(!options.menubar_only and !options.resizable);
+    try std.testing.expect(options.web_window_material and !options.web_chrome_controls);
 }
 
 test "applyScalarConfig leaves untouched fields at their defaults" {
@@ -420,6 +448,12 @@ test "unknown manifest keys are ignored rather than failing the launch" {
 }
 
 pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !WindowOptions {
+    for (args) |arg| {
+        if (std.mem.eql(u8, arg, "--capabilities")) {
+            std.debug.print("{{\"bundleBackend\":{s}}}\n", .{if (builtin.os.tag == .macos) "true" else "false"});
+            std.process.exit(0);
+        }
+    }
     // First pass: check for --debug flag
     for (args) |arg| {
         if (std.mem.eql(u8, arg, "--debug")) {
@@ -563,16 +597,7 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
             // Everything a popover is, so one flag asks for it: a status item,
             // no titlebar or Dock icon, a fixed size, the material behind the
             // page, and hidden until the item is clicked.
-            options.tray_popover = true;
-            options.system_tray = true;
-            options.hide_dock_icon = true;
-            options.frameless = true;
-            options.resizable = false;
-            options.web_window_material = true;
-            // Craft's sidebar toggle and history arrows belong to a window
-            // with a titlebar, not a popover.
-            options.web_chrome_controls = false;
-            options.headless = true;
+            applyTrayPopover(&options);
         } else if (std.mem.eql(u8, arg, "--native-sidebar")) {
             options.native_sidebar = true;
         } else if (std.mem.eql(u8, arg, "--web-sidebar-material")) {
@@ -809,8 +834,8 @@ fn writeStdout(comptime format: []const u8, args: anytype) void {
 pub fn formatVersion(buffer: []u8, version: []const u8, platform_name: []const u8) ![]const u8 {
     return std.fmt.bufPrint(
         buffer,
-        "craft version {s}\nBuilt with Zig 0.17.0-dev\nPlatform: {s}\n\n",
-        .{ version, platform_name },
+        "craft version {s}\nBuilt with Zig {s}\nPlatform: {s}\n\n",
+        .{ version, builtin.zig_version_string, platform_name },
     );
 }
 

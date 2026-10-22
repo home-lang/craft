@@ -1,8 +1,8 @@
 import { afterAll, afterEach, describe, expect, it } from 'bun:test'
-import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, statSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { candleArguments, codesignArguments, DEFAULT_DEB_DEPENDENCIES, dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, linuxDesktopEntry, macOSInfoPlist, notarytoolArguments, packageApp, pkgbuildArguments, pkgbuildComponentPlist, productbuildArguments, renderWixSource, shouldRetryHdiutil, urlTypesEntry, WINDOWS_NOTIFICATION_ID_FILE, windowsArchitecture, windowsExecutableName, windowsNotificationAppId } from './package.js'
-import { createTempDir, removeAllTempDirs } from './temp-dir'
+import { createTempDir, removeAllTempDirs, removeTempDir } from './temp-dir'
 
 // Every scratch directory this file made goes when the file is done (#357).
 afterAll(removeAllTempDirs)
@@ -264,14 +264,16 @@ describe('macOS app bundle assembly', () => {
       bundleId: 'org.stacksjs.barista',
       outDir: join(dir, 'out'),
       platforms: ['macos'],
-      macos: { dmg: false, menuBarOnly: true, additionalExecutables: [helperPath] },
+      macos: { dmg: false, menuBarOnly: true, buildNumber: '42', additionalExecutables: [helperPath] },
     })
 
     const app = results.find(result => result.format === 'app')
     expect(app?.success).toBe(true)
     const bundled = join(app!.outputPath!, 'Contents', 'MacOS', 'craft')
     expect(existsSync(bundled)).toBe(true)
-    expect(readFileSync(join(app!.outputPath!, 'Contents', 'Info.plist'), 'utf8')).toContain('LSUIElement')
+    const metadata = readFileSync(join(app!.outputPath!, 'Contents', 'Info.plist'), 'utf8')
+    expect(metadata).toContain('LSUIElement')
+    expect(metadata).toMatch(/<key>CFBundleVersion<\/key>\s*<string>42<\/string>/)
   })
 
   it('writes the declared URL schemes into the bundle it produces', async () => {
@@ -457,4 +459,77 @@ describe('macOS signing and delivery arguments', () => {
       '--wait',
     ])
   })
+})
+
+it('uses keychain and API key notarization without passwords in process arguments', () => {
+  expect(notarytoolArguments({ artifactPath: '/tmp/App.dmg', keychainProfile: 'release' }))
+    .toEqual(['notarytool', 'submit', '/tmp/App.dmg', '--wait', '--keychain-profile', 'release'])
+  expect(notarytoolArguments({ artifactPath: '/tmp/App.dmg', apiKey: { path: '/tmp/key.p8', keyId: 'KEY', issuer: 'ISSUER' } }))
+    .toEqual(['notarytool', 'submit', '/tmp/App.dmg', '--wait', '--key', '/tmp/key.p8', '--key-id', 'KEY', '--issuer', 'ISSUER'])
+  expect(() => notarytoolArguments({ artifactPath: '/tmp/App.dmg' })).toThrow('credentials')
+})
+
+it('preserves the resources and metadata of a prebuilt macOS app', async () => {
+  const root = createTempDir('prebuilt-package')
+  try {
+    const { mkdirSync } = await import('node:fs')
+    const source = join(root, 'source', 'App.app')
+    mkdirSync(join(source, 'Contents', 'MacOS'), { recursive: true })
+    mkdirSync(join(source, 'Contents', 'Resources'), { recursive: true })
+    writeFileSync(join(source, 'Contents', 'Info.plist'), '<plist>app-owned-metadata</plist>')
+    writeFileSync(join(source, 'Contents', 'MacOS', 'App'), 'app-executable')
+    writeFileSync(join(source, 'Contents', 'Resources', 'index.html'), 'embedded-ui')
+    const result = await packageApp({ name: 'App', version: '1.0.0', binaryPath: join(source, 'Contents', 'MacOS', 'App'), outDir: join(root, 'out'), platforms: ['macos'], macos: { appBundlePath: source, dmg: false } })
+    expect(result[0].success).toBe(true)
+    expect(readFileSync(join(result[0].outputPath!, 'Contents', 'Resources', 'index.html'), 'utf8')).toBe('embedded-ui')
+    expect(readFileSync(join(result[0].outputPath!, 'Contents', 'Info.plist'), 'utf8')).toBe('<plist>app-owned-metadata</plist>')
+    const invalid = await packageApp({ name: 'Invalid', version: '1.0.0', binaryPath: join(source, 'Contents', 'MacOS', 'App'), outDir: join(root, 'invalid'), platforms: ['macos'], macos: { appBundlePath: root, dmg: false } })
+    expect(invalid[0].success).toBe(false)
+    expect(invalid[0].error).toBe(`Invalid prebuilt macOS application: ${root}`)
+  }
+  finally { removeTempDir(root) }
+})
+
+it.skipIf(process.platform !== 'darwin')('signs prebuilt app helpers with inheritance and applies store metadata before signing', async () => {
+  const root = createTempDir('prebuilt-sandbox-sign')
+  try {
+    const { mkdirSync, copyFileSync } = await import('node:fs')
+    const source = join(root, 'source', 'App.app')
+    const contents = join(source, 'Contents')
+    mkdirSync(join(contents, 'MacOS'), { recursive: true })
+    mkdirSync(join(contents, 'Resources'), { recursive: true })
+    writeFileSync(join(contents, 'Info.plist'), macOSInfoPlist({ name: 'App', version: '1.0.0', bundleId: 'dev.craft.sign-test' }))
+    copyFileSync('/usr/bin/true', join(contents, 'MacOS', 'App'))
+    copyFileSync('/usr/bin/true', join(contents, 'MacOS', 'backend'))
+    const entitlements = join(root, 'main.plist')
+    writeFileSync(entitlements, '<?xml version="1.0"?><plist version="1.0"><dict><key>com.apple.security.app-sandbox</key><true/><key>com.apple.security.files.user-selected.read-write</key><true/></dict></plist>')
+    const profile = join(root, 'profile')
+    const privacy = join(root, 'PrivacyInfo.xcprivacy')
+    writeFileSync(profile, 'test-profile', { mode: 0o600 })
+    writeFileSync(privacy, '<plist version="1.0"><dict/></plist>')
+    const results = await packageApp({
+      name: 'App', version: '1.0.0', bundleId: 'dev.craft.sign-test',
+      binaryPath: join(contents, 'MacOS', 'App'), outDir: join(root, 'out'), platforms: ['macos'],
+      macos: { appBundlePath: source, dmg: false, appStore: true, signIdentity: '-', entitlements, provisioningProfile: profile, privacyManifest: privacy, buildNumber: '42' },
+    })
+    expect(results[0].success).toBe(true)
+    const app = results[0].outputPath!
+    expect(readFileSync(join(app, 'Contents', 'embedded.provisionprofile'), 'utf8')).toBe('test-profile')
+    expect(statSync(join(app, 'Contents', 'embedded.provisionprofile')).mode & 0o777).toBe(0o644)
+    expect(readFileSync(join(app, 'Contents', 'Resources', 'PrivacyInfo.xcprivacy'), 'utf8')).toContain('<dict/>')
+    const metadata = Bun.spawnSync(['plutil', '-extract', 'CFBundleVersion', 'raw', '-o', '-', join(app, 'Contents', 'Info.plist')])
+    expect(metadata.stdout.toString().trim()).toBe('42')
+    const signedEntitlements = (path: string) => {
+      const result = Bun.spawnSync(['codesign', '-d', '--entitlements', ':-', path])
+      expect(result.exitCode).toBe(0)
+      return result.stdout.toString()
+    }
+    expect(signedEntitlements(app)).toContain('com.apple.security.files.user-selected.read-write')
+    const helper = signedEntitlements(join(app, 'Contents', 'MacOS', 'backend'))
+    expect(helper).toContain('com.apple.security.inherit')
+    expect(helper).not.toContain('com.apple.security.files.user-selected.read-write')
+    expect(Bun.spawnSync(['codesign', '--verify', '--deep', '--strict', app]).exitCode).toBe(0)
+    expect(results[1].error).toContain('installerIdentity')
+  }
+  finally { removeTempDir(root) }
 })

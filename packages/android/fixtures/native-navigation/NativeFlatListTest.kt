@@ -17,6 +17,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.json.JSONArray
@@ -99,12 +100,16 @@ class NativeFlatListTest {
         .put("props", JSONObject().put("listRole", role))
         .put("children", JSONArray().put(role))
 
-    private fun awaitCount(list: CraftNativeFlatList, expected: Int) {
+    private fun awaitCount(list: CraftNativeFlatList, expected: Int, committed: () -> Boolean = { true }) {
         repeat(100) {
-            if (list.adapter?.itemCount == expected) return
+            val ready = AtomicBoolean()
+            instrumentation.runOnMainSync {
+                ready.set(list.adapter?.itemCount == expected && committed())
+            }
+            if (ready.get()) return
             SystemClock.sleep(50)
         }
-        throw AssertionError("Timed out waiting for $expected FlatList cells; found ${list.adapter?.itemCount}")
+        throw AssertionError("Timed out waiting for $expected committed FlatList cells; found ${list.adapter?.itemCount}")
     }
 
     private fun attach(list: CraftNativeFlatList) {
@@ -237,12 +242,18 @@ class NativeFlatListTest {
             instrumentation.runOnMainSync {
                 list.apply(nodes, false, 3, false, 0.1, renderer(context, renders), { _ -> }, { _ -> }, null)
             }
-            awaitCount(list, 9)
-            SystemClock.sleep(200)
-            val grid = list.layoutManager as GridLayoutManager
-            assertEquals(3, grid.spanCount)
-            assertEquals(3, grid.spanSizeLookup.getSpanSize(0))
-            assertEquals(1, grid.spanSizeLookup.getSpanSize(1))
+            // Both snapshots contain nine cells, so count alone can still
+            // describe the previous inverted snapshot. Wait for the header
+            // to occupy its committed grid position within the same budget.
+            awaitCount(list, 9) {
+                (list.layoutManager as? GridLayoutManager)?.spanSizeLookup?.getSpanSize(0) == 3
+            }
+            instrumentation.runOnMainSync {
+                val grid = list.layoutManager as GridLayoutManager
+                assertEquals(3, grid.spanCount)
+                assertEquals(3, grid.spanSizeLookup.getSpanSize(0))
+                assertEquals(1, grid.spanSizeLookup.getSpanSize(1))
+            }
 
             val updated = listOf(chrome("header", "header"), row(0).put("children", JSONArray().put("Updated"))) +
                 (1 until 8).map(::row)

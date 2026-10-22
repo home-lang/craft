@@ -251,23 +251,23 @@ final class NativeLayoutUnitTests: XCTestCase {
         // screen so safe-area and large-title changes reach its scroll views.
         // Diffable snapshots finish on the main queue and may coalesce another
         // render. Release the main actor between the existing four passes,
-        // then fulfill only after actual ancestor/screen layout completes.
-        // Retain the original one-second bound, without an artificial delay.
+        // then resume only after actual ancestor/screen layout completes.
+        // This is a completion barrier, not a timer-latency measurement.
         for _ in 0..<4 {
-            let completed = expectation(description: "layout completed")
-            DispatchQueue.main.async {
-                UIView.performWithoutAnimation {
-                    controller.view.window?.setNeedsLayout()
-                    controller.view.window?.layoutIfNeeded()
-                    controller.navigationController?.view.setNeedsLayout()
-                    controller.navigationController?.view.layoutIfNeeded()
-                    controller.view.setNeedsLayout()
-                    controller.view.layoutIfNeeded()
-                    CATransaction.flush()
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                DispatchQueue.main.async {
+                    UIView.performWithoutAnimation {
+                        controller.view.window?.setNeedsLayout()
+                        controller.view.window?.layoutIfNeeded()
+                        controller.navigationController?.view.setNeedsLayout()
+                        controller.navigationController?.view.layoutIfNeeded()
+                        controller.view.setNeedsLayout()
+                        controller.view.layoutIfNeeded()
+                        CATransaction.flush()
+                    }
+                    continuation.resume()
                 }
-                completed.fulfill()
             }
-            await fulfillment(of: [completed], timeout: 1)
         }
     }
 

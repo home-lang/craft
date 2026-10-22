@@ -137,6 +137,26 @@ SIMCTL_CHILD_NSUnbufferedIO=YES xcrun simctl launch --terminate-running-process 
 
 gather_log() { cat "$STDOUT_LOG" "$STDERR_LOG" > "$LOG" 2>/dev/null || true; }
 
+collect_failure_diagnostics() {
+    # Read-only evidence from this simulator, bounded independently of the
+    # unchanged assertion deadline. Never dismiss alerts or change permissions.
+    python3 - "$UDID" "$OUT" <<'PY'
+import pathlib, subprocess, sys
+device, output = sys.argv[1], pathlib.Path(sys.argv[2])
+commands = [
+    ("failure-screenshot.log", ["xcrun", "simctl", "io", device, "screenshot", str(output / "failure.png")]),
+    ("failure-location.log", ["xcrun", "simctl", "spawn", device, "log", "show", "--style", "compact", "--last", "20m", "--predicate", 'process == "locationd" OR process == "tccd"']),
+]
+for name, command in commands:
+    with (output / name).open("w") as evidence:
+        try:
+            result = subprocess.run(command, stdout=evidence, stderr=subprocess.STDOUT, timeout=10)
+            evidence.write(f"\nDiagnostic exit: {result.returncode}\n")
+        except (OSError, subprocess.TimeoutExpired) as error:
+            evidence.write(f"\nDiagnostic unavailable: {error}\n")
+PY
+}
+
 # The round trip is fast, but a cold simulator is not. Poll rather than sleep a
 # fixed amount, so a slow boot does not read as a failure.
 #
@@ -179,7 +199,7 @@ while :; do
         cat "$LOG" || true
         echo "FAIL: timed out after ${SLICE_TIMEOUT}s waiting for:$MISSING"
         echo "      The app never got that far — this is a timeout, not a wrong answer."
-        echo "      Raise CRAFT_SLICE_TIMEOUT if the machine is simply slow."
+        collect_failure_diagnostics
         xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
         exit 1
     fi

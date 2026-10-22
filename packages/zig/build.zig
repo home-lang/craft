@@ -121,11 +121,10 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/minimal.zig"),
             .target = target,
             .optimize = optimize,
-            // Single-threaded by default: craft's CLI has no use for threads
-            // and it keeps the binary small. zig-js does spawn them, so the
-            // constraint is relaxed only for builds that include the JS
-            // runtime, rather than giving it up for everyone.
-            .single_threaded = !js_runtime_enabled,
+            // WebKit-only apps still use background native operations and
+            // permission callbacks. Removing the separate JS interpreter
+            // does not make the application single-threaded.
+            .single_threaded = false,
             .strip = if (!debug_build) true else null,
             // Never `.none` on Windows. The x64 ABI requires unwind data for
             // non-leaf functions, and zig passes this module option down into
@@ -253,6 +252,9 @@ pub fn build(b: *std.Build) void {
 
     const renderer_module = b.createModule(.{
         .root_source_file = b.path("src/renderer.zig"),
+    });
+    const graphics_module = b.createModule(.{
+        .root_source_file = b.path("src/graphics.zig"),
     });
 
     const log_module = b.createModule(.{
@@ -564,6 +566,20 @@ pub fn build(b: *std.Build) void {
     // conformance gate: it embeds three files and is about what `window.craft`
     // offers rather than about iOS, and the iOS gate is already the largest
     // test in the tree.
+    const power_tests = b.addTest(.{
+        .filters = &.{"native power"},
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/bridge_power.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "js_backend", .module = js_backend_module }},
+        }),
+    });
+    linkPlatformLibraries(b, power_tests.root_module, target_os, macos_sdk);
+    const run_power_tests = b.addRunArtifact(power_tests);
+    const power_step = b.step("test:power", "Run native power activity lifecycle tests");
+    power_step.dependOn(&run_power_tests.step);
+
     const bridge_surface_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("test/bridge_surface_test.zig"),
@@ -963,6 +979,16 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    const graphics_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/graphics_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/graphics.zig", .module = graphics_module },
+            },
+        }),
+    });
 
     const log_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -1149,6 +1175,15 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const bridge_origin_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/bridge_origin.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_bridge_origin_tests = b.addRunArtifact(bridge_origin_tests);
+
     // Where a link that asks for a new window is allowed to go. Pure policy,
     // so the whole drop list is provable without a browser.
     const external_link_tests = b.addTest(.{
@@ -1174,6 +1209,14 @@ pub fn build(b: *std.Build) void {
     const popover_geometry_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/popover_geometry.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    const menubar_layout_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/menubar_layout.zig"),
             .target = target,
             .optimize = optimize,
         }),
@@ -1440,6 +1483,15 @@ pub fn build(b: *std.Build) void {
     });
     bridge_log_tests.root_module.link_libc = true;
 
+    // Both logger roots reach global_state through io_context. The native
+    // power bridge it retains now owns AppKit activities, so imported tests
+    // reach the same macOS dispatch graph as other native bridge roots.
+    // Name those libraries instead of depending on another test's linkage.
+    if (target_os == .macos) {
+        linkPlatformLibraries(b, log_unit_tests.root_module, target_os, macos_sdk);
+        linkPlatformLibraries(b, bridge_log_tests.root_module, target_os, macos_sdk);
+    }
+
     // The blocking primitives every other lock in craft is built on. They
     // spun without yielding until now, so this is the first time they have
     // been exercised at all.
@@ -1477,6 +1529,7 @@ pub fn build(b: *std.Build) void {
         "src/bridge_app.zig",
         "src/bridge_screen.zig",
         "src/bridge_haptics.zig",
+        "src/bridge_timers.zig",
         "src/bridge_capabilities.zig",
         "src/bridge_capabilities_actions.zig",
         "src/js/craft-bridge.js",
@@ -1842,6 +1895,7 @@ pub fn build(b: *std.Build) void {
     const run_bridge_tests = b.addRunArtifact(bridge_tests);
     const run_devmode_tests = b.addRunArtifact(devmode_tests);
     const run_renderer_tests = b.addRunArtifact(renderer_tests);
+    const run_graphics_tests = b.addRunArtifact(graphics_tests);
     const run_log_tests = b.addRunArtifact(log_tests);
     const run_theme_tests = b.addRunArtifact(theme_tests);
     const run_animation_tests = b.addRunArtifact(animation_tests);
@@ -1878,6 +1932,7 @@ pub fn build(b: *std.Build) void {
     const run_cli_unit_tests = b.addRunArtifact(cli_unit_tests);
     const run_lifecycle_policy_tests = b.addRunArtifact(lifecycle_policy_tests);
     const run_popover_geometry_tests = b.addRunArtifact(popover_geometry_tests);
+    const run_menubar_layout_tests = b.addRunArtifact(menubar_layout_tests);
     const run_prefs_tests = b.addRunArtifact(prefs_tests);
     const run_prefs_macos_tests = b.addRunArtifact(prefs_macos_tests);
     const run_key_codes_tests = b.addRunArtifact(key_codes_tests);
@@ -1967,6 +2022,16 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all unit tests");
+    const screen_sharing_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/sharing_accessibility.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_screen_sharing_tests = b.addRunArtifact(screen_sharing_tests);
+    b.step("test:screen-sharing", "Test native sharing indicator matching").dependOn(&run_screen_sharing_tests.step);
+    test_step.dependOn(&run_screen_sharing_tests.step);
     test_step.dependOn(&run_lib_unit_tests.step);
     if (js_test_run) |run| test_step.dependOn(&run.step);
     test_step.dependOn(&run_api_tests.step);
@@ -1982,10 +2047,27 @@ pub fn build(b: *std.Build) void {
     if (target.result.os.tag.isDarwin()) {
         test_step.dependOn(&run_ios_surface_tests.step);
         test_step.dependOn(&run_ios_module_tests.step);
+        const objc_return_tests = b.addTest(.{
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("test/objc_struct_return_test.zig"),
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+        objc_return_tests.root_module.addAnonymousImport("objc_runtime", .{ .root_source_file = b.path("src/objc_runtime.zig") });
+        objc_return_tests.root_module.addCSourceFile(.{ .file = b.path("test/fixtures/objc_struct_return.m"), .flags = &.{"-fno-objc-arc"} });
+        objc_return_tests.root_module.linkFramework("Foundation", .{});
+        objc_return_tests.root_module.linkFramework("CoreGraphics", .{});
+        applySdkPaths(b, objc_return_tests.root_module, macos_sdk);
+        const run_objc_returns = b.addRunArtifact(objc_return_tests);
+        b.step("test-objc-runtime", "Test native Objective-C structure returns").dependOn(&run_objc_returns.step);
+        test_step.dependOn(&run_objc_returns.step);
     }
     test_step.dependOn(&run_ios_conformance_tests.step);
     test_step.dependOn(&run_jni_tests.step);
     test_step.dependOn(&run_bridge_surface_tests.step);
+    test_step.dependOn(&run_power_tests.step);
     test_step.dependOn(&run_android_conformance_tests.step);
     test_step.dependOn(&run_android_bridge_tests.step);
     test_step.dependOn(&run_android_escaping_tests.step);
@@ -2004,6 +2086,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_bridge_tests.step);
     test_step.dependOn(&run_devmode_tests.step);
     test_step.dependOn(&run_renderer_tests.step);
+    test_step.dependOn(&run_graphics_tests.step);
     test_step.dependOn(&run_log_tests.step);
     test_step.dependOn(&run_theme_tests.step);
     test_step.dependOn(&run_animation_tests.step);
@@ -2034,12 +2117,14 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_desktop_window_reads_tests.step);
     test_step.dependOn(&run_desktop_script_encoding_tests.step);
     test_step.dependOn(&run_external_link_tests.step);
+    test_step.dependOn(&run_bridge_origin_tests.step);
     test_step.dependOn(&run_webview_recovery_tests.step);
     test_step.dependOn(&run_request_context_tests.step);
     test_step.dependOn(&run_notification_actions_tests.step);
     test_step.dependOn(&run_cli_unit_tests.step);
     test_step.dependOn(&run_lifecycle_policy_tests.step);
     test_step.dependOn(&run_popover_geometry_tests.step);
+    test_step.dependOn(&run_menubar_layout_tests.step);
     // macOS only: the registry describes the dispatch chain in macos.zig, and
     // compiling it elsewhere drags the whole native graph into a test binary
     // for a platform it does not describe.
@@ -2132,6 +2217,8 @@ pub fn build(b: *std.Build) void {
 
     const test_renderer_step = b.step("test:renderer", "Run Renderer tests");
     test_renderer_step.dependOn(&run_renderer_tests.step);
+    const test_graphics_step = b.step("test:graphics", "Run standalone raster core tests");
+    test_graphics_step.dependOn(&run_graphics_tests.step);
 
     const test_log_step = b.step("test:log", "Run Log tests");
     test_log_step.dependOn(&run_log_tests.step);
@@ -2999,6 +3086,7 @@ fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: st
             // is why the hand-linked executables below resolve it too; named
             // here so nothing depends on that chain.
             module.linkFramework("CoreServices", .{});
+            module.linkFramework("ApplicationServices", .{});
             // Carbon for `macos_hotkey.zig`: `RegisterEventHotKey` is the only
             // route to a global hotkey that neither needs an Objective-C block
             // (which Zig cannot write) nor Accessibility permission (which a

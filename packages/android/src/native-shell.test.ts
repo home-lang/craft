@@ -90,6 +90,16 @@ describe('the native shell prelude (JavaScriptSandbox has no synchronous host ca
     await kept
   })
 
+  it('rejects a failed snapshot after restoring the confirmed value from the host', async () => {
+    const app = isolate({ snapshots: { campaign: '{"tick":24}' } })
+    const kept = app.context.craft.snapshots.set('campaign', { tick: 25 })
+    const write = app.posted.find(message => message.type === 'SYNC_WRITE')!
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'snapshots', key: 'campaign', value: '{"tick":24}' } })
+    app.deliver({ type: 'SYNC_RESULT', payload: { id: write.payload.id, ok: false } })
+    await expect(kept).rejects.toThrow('craft.snapshots.set could not be written')
+    expect(app.context.craft.snapshots.get('campaign')).toEqual({ tick: 24 })
+  })
+
   it('follows another isolate\'s writes and tells the screen a snapshot changed', () => {
     const app = isolate({ snapshots: { header: '{"userId":1}' } })
     app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'snapshots', key: 'header', value: '{"userId":2}' } })
@@ -209,6 +219,11 @@ describe('the native app shell in a generated project', () => {
     expect(permissions).toContain('android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND')
     expect(permissions).not.toContain('android.permission.health.WRITE_EXERCISE')
     expect(permissions).not.toContain('android.permission.health.READ_STEPS')
+    // Glucose is a read of its own; Health Connect has no insulin, so asking for it adds nothing.
+    const diabetes = healthConnectPermissions({ healthConnect: { read: ['bloodGlucose', 'insulinDelivery', 'dietaryCarbohydrates'], write: [] } })
+    expect(diabetes).toContain('android.permission.health.READ_BLOOD_GLUCOSE')
+    expect(diabetes).toContain('android.permission.health.READ_NUTRITION')
+    expect(diabetes.filter(p => p.includes('INSULIN'))).toEqual([])
     // Without a list, the original set.
     expect(healthConnectPermissions({})).toContain('android.permission.health.WRITE_EXERCISE')
     expect(() => healthConnectPermissions({ healthConnect: { read: ['oxygen' as never] } })).toThrow(/Unknown Health Connect type/)
@@ -242,7 +257,7 @@ describe('the native app shell in a generated project', () => {
         },
       })
       const java = join(output, 'app/src/main/java/dev/craft/shell')
-      for (const file of ['CraftNativeShell.kt', 'CraftNativeServices.kt', 'CraftNativeBackground.kt', 'CraftNativeHealth.kt', 'CraftNativeMessagingService.kt', 'CraftHealthServices.kt', 'CraftHealthServicesService.kt'])
+      for (const file of ['CraftNativeShell.kt', 'CraftSnapshotFile.kt', 'CraftNativeServices.kt', 'CraftNativeBackground.kt', 'CraftNativeHealth.kt', 'CraftNativeMessagingService.kt', 'CraftHealthServices.kt', 'CraftHealthServicesService.kt'])
         expect(existsSync(join(java, file))).toBe(true)
       expect(readFileSync(join(java, 'CraftNativeHealth.kt'), 'utf8')).toContain('HealthConnectClient')
       expect(readFileSync(join(java, 'CraftHealthServicesService.kt'), 'utf8')).toContain('HealthServices.getClient(this).exerciseClient')

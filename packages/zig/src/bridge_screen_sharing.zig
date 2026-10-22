@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
 const detect = @import("screen_sharing.zig");
+const pending = @import("ios_async.zig");
 
 const BridgeError = bridge_error.BridgeError;
 
@@ -60,9 +61,25 @@ pub const ScreenSharingBridge = struct {
     }
 
     fn getState(self: *Self) !void {
-        const json = try buildStateJson(self.allocator, null);
-        defer self.allocator.free(json);
-        bridge_error.sendResultToJS(self.allocator, "getState", json);
+        if (comptime builtin.os.tag != .macos) {
+            const json = try buildStateJson(self.allocator, null);
+            defer self.allocator.free(json);
+            bridge_error.sendResultToJS(self.allocator, "getState", json);
+            return;
+        }
+        const ticket = pending.acquire("getState") orelse return BridgeError.Busy;
+        const allocator = std.heap.c_allocator;
+        const work = allocator.create(CaptureWork) catch {
+            pending.abandon(ticket);
+            return error.OutOfMemory;
+        };
+        work.* = .{ .ticket = ticket };
+        const thread = std.Thread.spawn(.{}, captureState, .{work}) catch {
+            allocator.destroy(work);
+            pending.abandon(ticket);
+            return BridgeError.NativeCallFailed;
+        };
+        thread.detach();
     }
 
     fn watch(self: *Self, data: []const u8) !void {
@@ -119,9 +136,21 @@ fn evaluate(allocator: std.mem.Allocator, sources: ?*std.ArrayListUnmanaged(u8))
     if (state.system) state.digest.add(.system, "CGSession", "screenIsShared");
     if (state.remote) state.digest.add(.remote, "CGSession", "offConsole");
 
+    try readWindowSignals(allocator, &state, sources);
+    var context = AccessibilityContext{ .allocator = allocator, .state = &state, .sources = sources };
+    try @import("sharing_accessibility.zig").visit(&context, noteAccessibility);
+    return state;
+}
+
+// A status check must never keep querying protected window metadata after
+// macOS rejects the app's grant. Session signals and independently authorized
+// Accessibility indicators remain available without Screen Recording access.
+fn readWindowSignals(allocator: std.mem.Allocator, state: *State, sources: ?*std.ArrayListUnmanaged(u8)) !void {
+    if (!CGPreflightScreenCaptureAccess()) return;
     const macos = @import("macos.zig");
-    // kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements
-    const list = CGWindowListCopyWindowInfo(0x10, 0) orelse return state;
+    // kCGWindowListOptionOnScreenOnly (1) | kCGWindowListExcludeDesktopElements (16).
+    // Conferencing clients retain hidden sharing windows after Stop Sharing.
+    const list = CGWindowListCopyWindowInfo(0x11, 0) orelse return;
     defer CFRelease(list);
 
     const CountFn = *const fn (?*anyopaque, macos.objc.SEL) callconv(.c) c_ulong;
@@ -131,7 +160,6 @@ fn evaluate(allocator: std.mem.Allocator, sources: ?*std.ArrayListUnmanaged(u8))
     const owner_key = macos.createNSString("kCGWindowOwnerName");
     const name_key = macos.createNSString("kCGWindowName");
 
-    var first = sources == null or sources.?.items.len == 0;
     var i: c_ulong = 0;
     while (i < count) : (i += 1) {
         const dict = macos.msgSend1(@as(macos.objc.id, @ptrCast(@constCast(list))), "objectAtIndex:", i);
@@ -141,23 +169,55 @@ fn evaluate(allocator: std.mem.Allocator, sources: ?*std.ArrayListUnmanaged(u8))
         const window = nsStringSlice(macos.msgSend1(dict, "objectForKey:", name_key)) orelse "";
 
         const kind = detect.matchWindow(&detect.default_indicators, owner, window) orelse continue;
-        state.note(kind);
-        state.digest.add(kind, owner, window);
-
-        if (sources) |out| {
-            if (!first) try out.append(allocator, ',');
-            first = false;
-            try out.appendSlice(allocator, "{\"app\":\"");
-            try bridge_error.appendJsonEscaped(allocator, out, owner);
-            try out.appendSlice(allocator, "\",\"window\":\"");
-            try bridge_error.appendJsonEscaped(allocator, out, window);
-            try out.appendSlice(allocator, "\",\"kind\":\"");
-            try out.appendSlice(allocator, kind.name());
-            try out.appendSlice(allocator, "\"}");
-        }
+        try noteSource(allocator, state, sources, kind, owner, window);
     }
+}
 
-    return state;
+const AccessibilityContext = struct {
+    allocator: std.mem.Allocator,
+    state: *State,
+    sources: ?*std.ArrayListUnmanaged(u8),
+};
+
+fn noteAccessibility(context: *AccessibilityContext, app: []const u8, window: []const u8) !void {
+    try noteSource(context.allocator, context.state, context.sources, .conference, app, window);
+}
+
+fn noteSource(allocator: std.mem.Allocator, state: *State, sources: ?*std.ArrayListUnmanaged(u8), kind: detect.Kind, app: []const u8, window: []const u8) !void {
+    state.note(kind);
+    state.digest.add(kind, app, window);
+    if (sources) |out| {
+        if (out.items.len > 0) try out.append(allocator, ',');
+        try out.appendSlice(allocator, "{\"app\":\"");
+        try bridge_error.appendJsonEscaped(allocator, out, app);
+        try out.appendSlice(allocator, "\",\"window\":\"");
+        try bridge_error.appendJsonEscaped(allocator, out, window);
+        try out.appendSlice(allocator, "\",\"kind\":\"");
+        try out.appendSlice(allocator, kind.name());
+        try out.appendSlice(allocator, "\"}");
+    }
+}
+
+const CaptureWork = struct {
+    ticket: ?pending.Ticket = null,
+    generation: u64 = 0,
+    state: State = .{},
+    json: ?[]u8 = null,
+};
+
+fn captureState(work: *CaptureWork) void {
+    const allocator = std.heap.c_allocator;
+    const macos = @import("macos.zig");
+    const pool = macos.msgSend0(macos.msgSend0(macos.getClass("NSAutoreleasePool"), "alloc"), "init");
+    defer _ = macos.msgSend0(pool, "drain");
+    work.json = buildStateJson(allocator, &work.state) catch null;
+    if (work.ticket) |ticket| {
+        defer allocator.destroy(work);
+        if (work.json) |json| {
+            defer allocator.free(json);
+            pending.deliverJson(ticket, json);
+        } else pending.deliverErrorCode(ticket, BridgeError.NativeCallFailed);
+    } else dispatch_async_f(&_dispatch_main_q, work, deliverWatch);
 }
 
 /// `CGSSessionScreenIsShared` only appears in the session dictionary while the
@@ -232,8 +292,11 @@ fn buildStateJson(allocator: std.mem.Allocator, out_state: ?*State) ![]u8 {
 
 var watcher_instance: @import("macos.zig").objc.id = null;
 var watcher_timer: @import("macos.zig").objc.id = null;
+var watcher_activity: @import("macos.zig").objc.id = null;
 var last_digest: u64 = 0;
 var have_last_digest = false;
+var watcher_generation: u64 = 0;
+var watcher_busy = false;
 
 fn startWatching(interval_ms: u32) void {
     if (comptime builtin.os.tag != .macos) return;
@@ -256,6 +319,11 @@ fn startWatching(interval_ms: u32) void {
         if (@intFromPtr(watcher_instance) == 0) return;
     }
 
+    // Monitoring is explicitly requested work that must continue while a tray
+    // popover is hidden. Allow normal system/display sleep, but keep App Nap
+    // from suspending the native watcher and its WebKit event consumer.
+    watcher_activity = @import("background_activity.zig").begin("Monitor screen sharing requested by the application");
+
     // Emit the current state immediately so a subscriber never has to wait a
     // full interval to learn where things stand.
     have_last_digest = false;
@@ -266,13 +334,17 @@ fn startWatching(interval_ms: u32) void {
     const f: Fn = @ptrCast(&objc.objc_msgSend);
     watcher_timer = f(
         NSTimer,
-        macos.sel("scheduledTimerWithTimeInterval:target:selector:userInfo:repeats:"),
+        macos.sel("timerWithTimeInterval:target:selector:userInfo:repeats:"),
         @as(f64, @floatFromInt(interval_ms)) / 1000.0,
         watcher_instance,
         macos.sel("onScreenSharingTick:"),
         @as(objc.id, null),
         true,
     );
+    // Menu tracking switches AppKit's run-loop mode. Sharing detection must
+    // continue while a menubar menu is open or a window is being dragged.
+    const run_loop = macos.msgSend0(macos.getClass("NSRunLoop"), "mainRunLoop");
+    _ = macos.msgSend2(run_loop, "addTimer:forMode:", watcher_timer, macos.createNSString("kCFRunLoopCommonModes"));
 }
 
 fn stopWatching() void {
@@ -282,7 +354,10 @@ fn stopWatching() void {
         _ = macos.msgSend0(watcher_timer, "invalidate");
         watcher_timer = null;
     }
+    @import("background_activity.zig").end(watcher_activity);
+    watcher_activity = null;
     have_last_digest = false;
+    watcher_generation +%= 1;
 }
 
 export fn handleWatchTick(
@@ -298,13 +373,28 @@ export fn handleWatchTick(
 /// interval and zero JS evaluations.
 fn emitIfChanged() void {
     if (comptime builtin.os.tag != .macos) return;
+    if (watcher_busy) return;
     const allocator = std.heap.c_allocator;
+    const work = allocator.create(CaptureWork) catch return;
+    work.* = .{ .generation = watcher_generation };
+    watcher_busy = true;
+    const thread = std.Thread.spawn(.{}, captureState, .{work}) catch {
+        watcher_busy = false;
+        allocator.destroy(work);
+        return;
+    };
+    thread.detach();
+}
 
-    var state: State = .{};
-    const json = buildStateJson(allocator, &state) catch return;
-    defer allocator.free(json);
-
-    const digest = state.digest.value;
+fn deliverWatch(raw: ?*anyopaque) callconv(.c) void {
+    const work: *CaptureWork = @ptrCast(@alignCast(raw orelse return));
+    const allocator = std.heap.c_allocator;
+    defer allocator.destroy(work);
+    defer if (work.json) |json| allocator.free(json);
+    watcher_busy = false;
+    if (work.generation != watcher_generation or watcher_timer == null) return;
+    const json = work.json orelse return;
+    const digest = work.state.digest.value;
     if (have_last_digest and digest == last_digest) return;
     last_digest = digest;
     have_last_digest = true;
@@ -328,9 +418,12 @@ fn emitIfChanged() void {
 // CoreGraphics
 // =============================================================================
 
+extern "c" fn CGPreflightScreenCaptureAccess() bool;
 extern "c" fn CGWindowListCopyWindowInfo(options: u32, relative_to: u32) ?*anyopaque;
 extern "c" fn CGSessionCopyCurrentDictionary() ?*anyopaque;
 extern "c" fn CFRelease(cf: ?*anyopaque) void;
+extern "c" fn dispatch_async_f(queue: *anyopaque, context: ?*anyopaque, work: *const fn (?*anyopaque) callconv(.c) void) void;
+extern var _dispatch_main_q: anyopaque;
 
 // =============================================================================
 // Tests

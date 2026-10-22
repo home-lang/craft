@@ -17,6 +17,7 @@ import androidx.health.connect.client.aggregate.AggregationResult
 import androidx.health.connect.client.feature.ExperimentalMindfulnessSessionApi
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.BloodGlucoseRecord
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ElevationGainedRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
@@ -162,6 +163,10 @@ internal class CraftNativeHealth(
                 getDailyStatistics(type, options(1))
             }
             "getHeartRateSamples" -> answer(completion) { getHeartRateSamples(options(0)) }
+            "getSamples" -> answer(completion) {
+                val type = args.opt(0) as? String ?: throw invalid("getSamples needs a type")
+                getSamples(type, options(1))
+            }
             "getSleepIntervals" -> answer(completion) { getSleepIntervals(options(0)) }
             "saveMindfulSession" -> answer(completion) { saveMindfulSession(options(0)) }
             "getMindfulSessions" -> answer(completion) { getMindfulSessions(options(0)) }
@@ -438,7 +443,8 @@ internal class CraftNativeHealth(
     /** The types whose every read permission is granted, in the order of TYPES. */
     private suspend fun grantedTypes(): Any {
         val granted = client().permissionController.getGrantedPermissions()
-        return JSONArray(TYPES.filter { type -> granted.containsAll(readPermissions(type)) })
+        // A type Health Connect cannot hold (insulin) is never granted.
+        return JSONArray(TYPES.filter { type -> readPermissions(type).let { it.isNotEmpty() && granted.containsAll(it) } })
     }
 
     /**
@@ -784,6 +790,53 @@ internal class CraftNativeHealth(
     }
 
     /**
+     * Every glucose reading or carb entry between two instants, oldest first,
+     * as the writing app saved it: its record id (so a sync stores it once),
+     * value, source and device. Glucose comes in mg/dL with its meal relation
+     * and specimen when the source said. Health Connect has no insulin type,
+     * so `insulinDelivery` answers an empty list rather than failing a sync
+     * that asks for all three.
+     */
+    private suspend fun getSamples(type: String, options: JSONObject): Any {
+        if (type !in SAMPLE_TYPES) throw invalid("getSamples reads bloodGlucose, insulinDelivery or dietaryCarbohydrates")
+        val end = options.instant("endDate") ?: Instant.now()
+        val start = options.instant("startDate") ?: end.minus(Duration.ofDays(7))
+        val cap = (options.int("limit") ?: 10_000).coerceIn(1, 50_000)
+        val rows = JSONArray()
+        if (type == "insulinDelivery") return rows
+        val client = client()
+        fun row(id: String, value: Double, unit: String, from: Instant, to: Instant, metadata: Metadata): JSONObject {
+            val origin = metadata.dataOrigin.packageName
+            val item = JSONObject()
+                .put("id", id)
+                .put("value", value)
+                .put("unit", unit)
+                .put("startDate", from.ms())
+                .put("endDate", to.ms())
+                .put("sourceName", sourceName(origin))
+                .put("sourceBundleId", origin)
+                .put("ownApp", origin == context.packageName)
+            putDevice(item, metadata.device, withModel = false)
+            return item
+        }
+        if (type == "bloodGlucose") {
+            for (record in readAll(client, BloodGlucoseRecord::class, range(start, end), cap = cap)) {
+                val item = row(record.metadata.id, record.level.inMilligramsPerDeciliter, "mg/dL", record.time, record.time, record.metadata)
+                mealTimeName(record.relationToMeal)?.let { item.put("mealTime", it) }
+                specimenName(record.specimenSource)?.let { item.put("specimen", it) }
+                rows.put(item)
+            }
+            return rows
+        }
+        for (record in readAll(client, NutritionRecord::class, range(start, end), cap = cap)) {
+            val grams = record.totalCarbohydrate?.inGrams ?: continue
+            if (grams <= 0) continue
+            rows.put(row(record.metadata.id, grams, "g", record.startTime, record.endTime, record.metadata))
+        }
+        return rows
+    }
+
+    /**
      * Sleep between two instants, oldest first, as the sources wrote it: each
      * stage with its name and whether it counts as asleep. A session with no
      * stages is one asleep stretch.
@@ -996,7 +1049,28 @@ internal class CraftNativeHealth(
             "steps", "heartRate", "activeEnergy", "distance", "workouts", "restingHeartRate",
             "heartRateVariability", "bodyMass", "sleep", "mindful",
             "dietaryEnergy", "dietaryProtein", "dietaryCarbohydrates", "dietaryFat",
+            "bloodGlucose", "insulinDelivery",
         )
+        /** What `getSamples` reads one record at a time. */
+        private val SAMPLE_TYPES = setOf("bloodGlucose", "insulinDelivery", "dietaryCarbohydrates")
+
+        private fun mealTimeName(relation: Int): String? = when (relation) {
+            BloodGlucoseRecord.RELATION_TO_MEAL_BEFORE_MEAL -> "beforeMeal"
+            BloodGlucoseRecord.RELATION_TO_MEAL_AFTER_MEAL -> "afterMeal"
+            BloodGlucoseRecord.RELATION_TO_MEAL_FASTING -> "fasting"
+            BloodGlucoseRecord.RELATION_TO_MEAL_GENERAL -> "general"
+            else -> null
+        }
+
+        private fun specimenName(source: Int): String? = when (source) {
+            BloodGlucoseRecord.SPECIMEN_SOURCE_CAPILLARY_BLOOD -> "capillaryBlood"
+            BloodGlucoseRecord.SPECIMEN_SOURCE_INTERSTITIAL_FLUID -> "interstitialFluid"
+            BloodGlucoseRecord.SPECIMEN_SOURCE_PLASMA -> "plasma"
+            BloodGlucoseRecord.SPECIMEN_SOURCE_SERUM -> "serum"
+            BloodGlucoseRecord.SPECIMEN_SOURCE_TEARS -> "tears"
+            BloodGlucoseRecord.SPECIMEN_SOURCE_WHOLE_BLOOD -> "wholeBlood"
+            else -> null
+        }
         private val DIETARY_TYPES = setOf("dietaryEnergy", "dietaryProtein", "dietaryCarbohydrates", "dietaryFat")
 
         private val AWAKE_STAGES = setOf(
@@ -1142,6 +1216,8 @@ internal class CraftNativeHealth(
             "sleep" -> setOf(HealthPermission.getReadPermission(SleepSessionRecord::class))
             "mindful" -> setOf(HealthPermission.getReadPermission(MindfulnessSessionRecord::class))
             in DIETARY_TYPES -> setOf(HealthPermission.getReadPermission(NutritionRecord::class))
+            "bloodGlucose" -> setOf(HealthPermission.getReadPermission(BloodGlucoseRecord::class))
+            // Health Connect has no insulin record: nothing to ask for.
             else -> emptySet()
         }
 

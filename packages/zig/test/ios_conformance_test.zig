@@ -204,6 +204,11 @@ const dispatch_end = "func webView(";
 /// 60 when native screens gained setAppearance and getAppearance. They update
 /// the app-wide UIKit style and remain on the Swift side until Zig owns that
 /// lifecycle as well; no existing Zig action was removed.
+/// 59 when the spec gained getHealthSamples: glucose, insulin and carbs one
+/// sample at a time (bloodGlucose, insulinDelivery, dietaryCarbohydrates), an
+/// HKSampleQuery in CraftHealth.swift like the other health reads. It went
+/// into Swift first and falls through to the shim, which serves it. Not a
+/// regression: no action left Zig.
 const max_not_yet_migrated: usize = 60;
 
 fn dispatcherRegion() []const u8 {

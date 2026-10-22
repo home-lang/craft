@@ -3,6 +3,13 @@ const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
 const capabilities = @import("capabilities.zig");
 
+extern "c" fn getenv(name: [*:0]const u8) ?[*:0]const u8;
+
+fn isSandboxed() bool {
+    if (comptime builtin.os.tag != .macos) return false;
+    return getenv("APP_SANDBOX_CONTAINER_ID") != null;
+}
+
 /// The action names this bridge dispatches on.
 ///
 /// Declared once, here, and referenced by both the dispatch chain below and the
@@ -113,7 +120,7 @@ pub const AppBridge = struct {
             const macos = @import("macos.zig");
             const NSApplication = macos.getClass("NSApplication");
             const app = macos.msgSend0(NSApplication, "sharedApplication");
-            macos.msgSendVoid0(app, "terminate:");
+            _ = macos.msgSend1(app, "terminate:", @as(macos.objc.id, null));
         } else {
             std.process.exit(0);
         }
@@ -124,7 +131,7 @@ pub const AppBridge = struct {
         // debug line — JS callers got nothing back, ever. Read the
         // real bundle metadata via [NSBundle mainBundle].
         if (builtin.os.tag != .macos) {
-            bridge_error.sendResultToJS(self.allocator, "getInfo", "{\"name\":\"\",\"version\":\"\",\"bundleId\":\"\",\"bundlePath\":\"\",\"executablePath\":\"\"}");
+            bridge_error.sendResultToJS(self.allocator, "getInfo", "{\"name\":\"\",\"version\":\"\",\"bundleId\":\"\",\"bundlePath\":\"\",\"executablePath\":\"\",\"sandboxed\":false}");
             return;
         }
         const macos = @import("macos.zig");
@@ -154,7 +161,7 @@ pub const AppBridge = struct {
         try appendStrField(self.allocator, &buf, "bundleId", bundle_id, false);
         try appendStrField(self.allocator, &buf, "bundlePath", bundle_path, false);
         try appendStrField(self.allocator, &buf, "executablePath", executable_path, false);
-        try buf.appendSlice(self.allocator, "}");
+        try buf.appendSlice(self.allocator, if (isSandboxed()) ",\"sandboxed\":true}" else ",\"sandboxed\":false}");
 
         const owned = try buf.toOwnedSlice(self.allocator);
         defer self.allocator.free(owned);

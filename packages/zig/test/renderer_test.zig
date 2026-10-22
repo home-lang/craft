@@ -2,6 +2,119 @@ const std = @import("std");
 const testing = std.testing;
 const renderer = @import("../src/renderer.zig");
 
+test "Renderer - a second canvas cannot orphan the owned allocation" {
+    var owner = renderer.Renderer.init(testing.allocator, .native);
+    defer owner.deinit();
+    const original = try owner.createCanvas(1, 1);
+    original.clear(renderer.Color.rgb(10, 20, 30));
+    try testing.expectError(error.CanvasAlreadyExists, owner.createCanvas(2, 2));
+    try testing.expectEqual(original, owner.canvas.?);
+    try testing.expectEqual(@as(u32, 0xFF0A141E), original.pixels[0]);
+}
+
+fn createOwnedCanvas(allocator: std.mem.Allocator) !void {
+    var owner = renderer.Renderer.init(allocator, .native);
+    defer owner.deinit();
+    _ = try owner.createCanvas(2, 2);
+}
+
+test "Renderer - every canvas allocation failure releases owned memory" {
+    try testing.checkAllAllocationFailures(testing.allocator, createOwnedCanvas, .{});
+}
+
+test "Canvas - rectangle clips before iterating extreme coordinates" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 2, 2);
+    defer canvas.deinit();
+    canvas.clear(renderer.Color.rgb(0, 0, 0));
+    canvas.drawRect(.{ .x = std.math.maxInt(i32), .y = std.math.maxInt(i32), .width = std.math.maxInt(u32), .height = std.math.maxInt(u32) }, renderer.Color.rgb(255, 0, 0));
+    try testing.expectEqualSlices(u32, &.{ 0xFF000000, 0xFF000000, 0xFF000000, 0xFF000000 }, canvas.pixels);
+    canvas.drawRect(.{ .x = std.math.minInt(i32), .y = std.math.minInt(i32), .width = std.math.maxInt(u32), .height = std.math.maxInt(u32) }, renderer.Color.rgb(255, 0, 0));
+    try testing.expectEqualSlices(u32, &.{ 0xFFFF0000, 0xFFFF0000, 0xFFFF0000, 0xFFFF0000 }, canvas.pixels);
+}
+
+test "Canvas - extreme circles clip and use overflow-safe distances" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 2, 2);
+    defer canvas.deinit();
+    canvas.clear(renderer.Color.rgb(0, 0, 0));
+    canvas.drawCircle(.{ .x = std.math.maxInt(i32), .y = std.math.maxInt(i32) }, std.math.maxInt(u32), renderer.Color.rgb(0, 255, 0));
+    try testing.expectEqualSlices(u32, &.{ 0xFF00FF00, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00 }, canvas.pixels);
+    canvas.drawCircle(.{ .x = std.math.minInt(i32), .y = std.math.minInt(i32) }, 0, renderer.Color.rgb(255, 0, 0));
+    try testing.expectEqualSlices(u32, &.{ 0xFF00FF00, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00 }, canvas.pixels);
+}
+
+test "Canvas - extreme lines visit only the clipped canvas" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 3, 3);
+    defer canvas.deinit();
+    canvas.clear(renderer.Color.rgb(0, 0, 0));
+    canvas.drawLine(.{ .x = std.math.minInt(i32), .y = std.math.minInt(i32) }, .{ .x = std.math.maxInt(i32), .y = std.math.maxInt(i32) }, renderer.Color.rgb(0, 0, 255));
+    try testing.expectEqualSlices(u32, &.{ 0xFF0000FF, 0xFF000000, 0xFF000000, 0xFF000000, 0xFF0000FF, 0xFF000000, 0xFF000000, 0xFF000000, 0xFF0000FF }, canvas.pixels);
+    canvas.drawLine(.{ .x = std.math.maxInt(i32), .y = std.math.minInt(i32) }, .{ .x = std.math.minInt(i32), .y = std.math.minInt(i32) }, renderer.Color.rgb(255, 0, 0));
+    try testing.expectEqual(@as(u32, 0xFF0000FF), canvas.pixels[0]);
+}
+
+test "Canvas - text without a font backend fails rather than disappearing" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 2, 2);
+    defer canvas.deinit();
+    try testing.expectError(error.TextRenderingUnavailable, canvas.drawText("visible", .{ .x = 0, .y = 0 }, .{ .family = "system", .size = 14 }, renderer.Color.rgb(0, 0, 0)));
+}
+
+test "Canvas - atlas sprite clips at the destination without shifting source pixels" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 2, 2);
+    defer canvas.deinit();
+    canvas.clear(renderer.Color.rgb(0, 0, 0));
+    const atlas = [_]u8{
+        255, 0,   0, 255, 0, 255, 0,   255, 0,   0, 255, 255,
+        255, 255, 0, 255, 0, 255, 255, 255, 255, 0, 255, 255,
+    };
+    try canvas.drawBitmap(.{ .width = 3, .height = 2, .pixels = &atlas }, .{ .x = 1, .y = 0, .width = 2, .height = 2 }, .{ .x = -1, .y = 0 });
+    try testing.expectEqual(@as(u32, 0xFF0000FF), canvas.pixels[0]);
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[1]);
+    try testing.expectEqual(@as(u32, 0xFFFF00FF), canvas.pixels[2]);
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[3]);
+}
+
+test "Canvas - sprite compositing preserves transparent pixels and straight alpha" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 2, 1);
+    defer canvas.deinit();
+    canvas.clear(renderer.Color.rgb(0, 0, 255));
+    const pixels = [_]u8{ 255, 0, 0, 128, 255, 255, 255, 0 };
+    const source = renderer.Rect{ .x = 0, .y = 0, .width = 2, .height = 1 };
+    try canvas.drawBitmap(.{ .width = 2, .height = 1, .pixels = &pixels }, source, .{ .x = 0, .y = 0 });
+    try testing.expectEqual(@as(u32, 0xFF80007F), canvas.pixels[0]);
+    try testing.expectEqual(@as(u32, 0xFF0000FF), canvas.pixels[1]);
+
+    canvas.clear(renderer.Color.rgba(0, 0, 0, 0));
+    try canvas.drawBitmap(.{ .width = 2, .height = 1, .pixels = &pixels }, source, .{ .x = 0, .y = 0 });
+    try testing.expectEqual(@as(u32, 0x80FF0000), canvas.pixels[0]);
+    try testing.expectEqual(@as(u32, 0), canvas.pixels[1]);
+}
+
+test "Canvas - malformed sprites fail before changing the destination" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 1, 1);
+    defer canvas.deinit();
+    canvas.clear(renderer.Color.rgb(10, 20, 30));
+    const pixel = [_]u8{ 255, 0, 0, 255 };
+    const source = renderer.Rect{ .x = 0, .y = 0, .width = 1, .height = 1 };
+    try testing.expectError(error.InvalidBitmap, canvas.drawBitmap(.{ .width = 2, .height = 1, .pixels = &pixel }, source, .{ .x = 0, .y = 0 }));
+    try testing.expectError(error.InvalidBitmap, canvas.drawBitmap(.{ .width = std.math.maxInt(u32), .height = std.math.maxInt(u32), .pixels = &pixel }, source, .{ .x = 0, .y = 0 }));
+    try testing.expectError(error.InvalidSourceRect, canvas.drawBitmap(.{ .width = 1, .height = 1, .pixels = &pixel }, .{ .x = 1, .y = 0, .width = 1, .height = 1 }, .{ .x = 0, .y = 0 }));
+    try testing.expectEqual(@as(u32, 0xFF0A141E), canvas.pixels[0]);
+}
+
+test "Canvas - extreme offscreen sprite positions do not overflow or draw" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 1, 1);
+    defer canvas.deinit();
+    canvas.clear(renderer.Color.rgb(0, 0, 0));
+    const pixel = [_]u8{ 255, 0, 0, 255 };
+    const bitmap = renderer.Bitmap{ .width = 1, .height = 1, .pixels = &pixel };
+    const source = renderer.Rect{ .x = 0, .y = 0, .width = 1, .height = 1 };
+    try canvas.drawBitmap(bitmap, source, .{ .x = std.math.maxInt(i32), .y = 0 });
+    try canvas.drawBitmap(bitmap, source, .{ .x = std.math.minInt(i32), .y = 0 });
+    try testing.expectEqual(@as(u32, 0xFF000000), canvas.pixels[0]);
+    try testing.expectError(error.InvalidDimensions, renderer.Canvas.init(testing.allocator, 0, 1));
+    try testing.expectError(error.InvalidDimensions, renderer.Canvas.init(testing.allocator, std.math.maxInt(u32), 1));
+}
+
 test "Color - rgb creation" {
     const color = renderer.Color.rgb(255, 128, 64);
 

@@ -263,7 +263,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('else if (requestedChecked is Boolean)')
     expect(guide).toContain('`checked` is a compatibility alias')
     expect(guide).toContain('`value` is null, and `value` takes precedence')
-    expect(navigationHome).toContain('<Switch testID="switch-value-precedence" :value="false" :checked="true" @value-change="toggleSwitch($event)" />')
+    expect(navigationHome).toContain('<Switch testID="switch-value-precedence" :value="false" :checked="true" @value-change="togglePrecedenceSwitch($event)" />')
+    expect(navigationHome).toContain('testID="switch-precedence-status"')
     expect(navigationHome).toContain('<Switch testID="uncontrolled-switch" />')
     expect(androidNavigationTest).toContain('non-null switch value should take precedence over checked')
     expect(androidNavigationTest).toContain('uncontrolled switch should keep its native toggle')
@@ -274,7 +275,8 @@ describe('native renderer component contract', () => {
     expect(componentTypes).toContain('checked?: boolean')
     expect(ios).toContain('props["checked"] as? Bool) ?? (props["value"] as? Bool) ?? false')
     expect(android).toContain('checkboxChecked is Boolean -> checkboxChecked')
-    expect(navigationHome).toContain('<Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" @value-change="chooseCheckbox($event)" />')
+    expect(navigationHome).toContain('<Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" @value-change="choosePrecedenceCheckbox($event)" />')
+    expect(navigationHome).toContain('testID="checkbox-precedence-status"')
     expect(androidNavigationTest).toContain('checked should take precedence over value')
     expect(iosNavigationTest).toContain('let uncheckedCheckbox = app.buttons["checkbox-checked-precedence"]')
     expect(iosNavigationTest).toContain('XCTAssertFalse(uncheckedCheckbox.isSelected)')
@@ -436,7 +438,7 @@ describe('native renderer component contract', () => {
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
-    expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(17)
+    expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(18)
   })
 
   it('types the live HealthKit workout event emitted by the iOS host', () => {
@@ -898,6 +900,44 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('let options = itemOptions.isEmpty')
     expect(android).toContain('val itemOptions = props.optJSONArray("items")')
     expect(android).toContain('val options = if (itemOptions.isNotEmpty()) itemOptions else')
+  })
+
+  it('lets a long multiline input scroll inside itself and keeps its caret in view', () => {
+    expect(ios).toContain('let overflows = isEditable && bounds.height > 0 && needed > bounds.height + 1')
+    expect(ios).toContain('private func keepCaretVisible(in textView: UITextView)')
+    expect(ios).toContain('func textViewDidChangeSelection(_ textView: UITextView)')
+    expect(iosNativeUnitTests).toContain('func testAMultilineInputScrollsInsideItselfPastItsMaxHeight()')
+    expect(iosNativeUnitTests).toContain('func testTheCaretStaysInViewAsAnInputGrows()')
+    expect(ios).toContain('if rect.height > visible.height, let caret = caretRect(of: input, in: scroll) { rect = caret }')
+    expect(iosNativeUnitTests).toContain('func testALongInputWithoutAMaxHeightKeepsItsCaretAboveTheKeyboard()')
+    // A layout that moves a scroll view while the keyboard is up measures
+    // its keyboard inset again, and the caret is measured against that.
+    expect(ios).toContain('craftScreenController?.scheduleKeyboardInsets()')
+    expect(ios).toContain('fileprivate func scheduleKeyboardInsets()')
+    expect(ios).toContain('if self.keyboardScreenFrame != nil { self.insetScrollViewsForKeyboard() }')
+    expect(iosNativeUnitTests).toContain('func testAScrollViewKeepsItsKeyboardInsetAsALayoutMovesIt()')
+    // A text view showing all its text keeps no scroll offset inside it.
+    expect(ios).toContain('if !isScrollEnabled, contentOffset != .zero { contentOffset = .zero }')
+  })
+
+  it('puts a bar a screen asks for before it appears in place without sliding it in', () => {
+    expect(ios).toContain('var animatesNavigationBarChanges: Bool { hasAppeared && view.window != nil }')
+    expect(ios).not.toContain('setNavigationBarHidden(false, animated: view.window != nil)')
+    expect(iosNativeUnitTests).toContain('func testABarAskedForBeforeTheScreenAppearsDoesNotSlideIn()')
+  })
+
+  it('keeps a tab picture once loaded and never animates its arrival', () => {
+    const app = readFileSync(join(root, 'packages/ios/templates/CraftApp.swift'), 'utf8')
+    expect(app).toContain('private struct CraftTabPicture: View')
+    expect(app).toContain('.transaction { $0.animation = nil }')
+    expect(app).not.toContain('AsyncImage(url: url)')
+  })
+
+  it('makes a tab not prepared yet before the bar selection moves', () => {
+    const app = readFileSync(join(root, 'packages/ios/templates/CraftApp.swift'), 'utf8')
+    const hybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
+    expect(app).toContain('CraftHybrid.shared.mountTabBeforeSelecting(tab.id)')
+    expect(hybrid).toContain('func mountTabBeforeSelecting(_ id: String)')
   })
 
   it('keeps SVG stroke semantics aligned across hosts', () => {
@@ -4118,7 +4158,7 @@ describe('native renderer component contract', () => {
 
 describe('mobile acceptance scopes', () => {
   const workflow = readFileSync(join(root, '.github/workflows/mobile-e2e.yml'), 'utf8')
-  const legs = ['harness', 'ios-native', 'ios-simulator', 'android-emulator', 'ios-zig-slice', 'android-navigation', 'media-cache']
+  const legs = ['harness', 'ios-native', 'ios-hybrid', 'ios-simulator', 'android-emulator', 'ios-zig-slice', 'android-navigation', 'media-cache']
   const selected: Record<string, string[]> = {
     '': legs,
     'all': legs,

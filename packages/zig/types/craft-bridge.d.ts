@@ -715,7 +715,12 @@ export type AppPath =
 // Main Craft Bridge Interface
 // ============================================
 
+export interface TimersBridge {
+  sleep(delayMs: number, options?: { signal?: AbortSignal }): Promise<void>;
+}
+
 export interface CraftBridge {
+  timers: TimersBridge;
   window: WindowBridge;
   dialog: DialogBridge;
   clipboard: ClipboardBridge;

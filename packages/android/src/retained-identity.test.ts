@@ -74,3 +74,104 @@ fun main() {
 }
 `)
 }, 180_000)
+
+test('preserves modal viewport promotion and ordering across targeted reconciliation', async () => {
+  const template = await Bun.file(new URL('../templates/MainActivityNative.kt.template', import.meta.url)).text()
+  const promote = template.match(/    private fun promoteModalOverlays\(screen: Screen\) \{[\s\S]*?\n    \}/)?.[0]
+  const targeted = template.match(/    private fun applyTargetedUpdates\(screen: Screen, ids: List<String>\): Boolean \{[\s\S]*?\n    \}/)?.[0]
+  if (!promote || !targeted) throw new Error('Native modal reconciliation implementation is missing')
+  await runKotlinFixture(`
+import kotlin.math.min
+
+open class View {
+    var parent: ViewGroup? = null
+    fun bringToFront() { val group = parent ?: return; group.children.remove(this); group.children.add(this) }
+}
+open class ViewGroup : View() {
+    val children = mutableListOf<View>()
+    val childStyles = mutableMapOf<View, JSONObject>()
+    val childCount: Int get() = children.size
+    fun getChildAt(index: Int): View = children[index]
+    fun removeView(view: View) { children.remove(view); childStyles.remove(view); view.parent = null }
+    fun setChildStyle(view: View, style: JSONObject, density: Float) { childStyles[view] = style }
+    fun addView(view: View) { view.parent?.removeView(view); children.add(view); view.parent = this }
+}
+class CraftNativeModalView : ViewGroup() {
+    val content = ViewGroup().also(::addView)
+    var viewportStyle = JSONObject("popup-frame")
+    var declarationPath = ""
+}
+class DisplayMetrics { val density = 1f }
+class Resources { val displayMetrics = DisplayMetrics() }
+val resources = Resources()
+class JSONObject(val id: String = "") { fun optJSONObject(name: String): JSONObject? = null }
+class MutationDocument(val parents: Map<String, String>) {
+    fun parentId(id: String): String? = parents[id]
+    fun node(id: String): JSONObject = JSONObject(id)
+}
+class Screen {
+    val view = ViewGroup()
+    val controls = linkedMapOf<String, View>()
+    val nodeViews = mutableMapOf<String, View>()
+    val nodePaths = mutableMapOf<String, String>()
+    val protocolIds = mutableMapOf<View, String>()
+    val lastLayoutBounds = mutableMapOf<View, String>()
+    val modalVisibility = mutableMapOf<View, Boolean>()
+    val mutations = MutationDocument(mapOf("parent" to "root", "nested" to "parent", "standalone" to "root"))
+    var layoutEvents = 0
+}
+fun drawnTarget(screen: Screen, id: String): String = id
+fun makeView(screen: Screen, document: JSONObject, path: String, controls: MutableMap<String, View>) {
+    // Targeted parent reconciliation restores its logical child before promotion.
+    if (document.id == "parent") (screen.nodeViews.getValue("parent") as CraftNativeModalView).content.addView(screen.nodeViews.getValue("nested"))
+}
+fun updateParentLayoutStyle(view: View, style: JSONObject): Boolean = true
+fun scheduleLayoutEvents(screen: Screen) { screen.layoutEvents++ }
+${promote}
+${targeted}
+fun main() {
+    val screen = Screen()
+    val root = ViewGroup()
+    val parent = CraftNativeModalView()
+    val nested = CraftNativeModalView()
+    val standalone = CraftNativeModalView()
+    screen.view.addView(root)
+    root.addView(parent)
+    parent.content.addView(nested)
+    root.addView(standalone)
+    for (modal in listOf(parent, nested, standalone)) screen.view.setChildStyle(modal, modal.viewportStyle, 1f)
+    parent.declarationPath = "0"
+    nested.declarationPath = "0.0"
+    standalone.declarationPath = "1"
+    for ((id, view) in listOf("root" to root, "nested" to nested, "parent" to parent, "standalone" to standalone)) {
+        screen.nodeViews[id] = view
+        screen.nodePaths[id] = id
+        screen.protocolIds[view] = id
+        screen.controls[id] = view
+        screen.controls["id:" + id] = view
+        if (view is CraftNativeModalView) screen.modalVisibility[view] = true
+    }
+    fun verify() {
+        check(parent.parent === screen.view && nested.parent === screen.view && standalone.parent === screen.view) { "An overlay escaped its viewport" }
+        for (modal in listOf(parent, nested, standalone)) check(screen.view.childStyles[modal] === modal.viewportStyle) { "A promoted overlay lost its viewport layout style" }
+        val children = screen.view.children
+        check(children.indexOf(parent) < children.indexOf(nested)) { "The parent scrim covered its nested popup" }
+        check(children.indexOf(nested) < children.indexOf(standalone)) { "Sibling overlay order changed" }
+    }
+    promoteModalOverlays(screen)
+    verify()
+    check(applyTargetedUpdates(screen, listOf("parent")))
+    verify()
+    check(screen.layoutEvents == 1)
+    check(applyTargetedUpdates(screen, listOf("standalone")))
+    verify()
+    root.addView(parent)
+    parent.content.addView(nested)
+    root.addView(standalone)
+    screen.protocolIds.clear()
+    promoteModalOverlays(screen)
+    verify()
+    println("PASS modal viewport, nested scrim ordering, sibling ordering, targeted updates and legacy renders")
+}
+`)
+}, 180_000)

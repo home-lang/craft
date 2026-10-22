@@ -270,7 +270,12 @@ internal object CraftNativeStorage {
 
 }
 
-internal class CraftNativeStores private constructor(context: Context, private val secureEnabled: Boolean) {
+internal class CraftNativeStores private constructor(
+    context: Context,
+    private val secureEnabled: Boolean,
+    private val snapshotFiles: CraftSnapshotFile,
+) {
+    private constructor(context: Context, secureEnabled: Boolean) : this(context, secureEnabled, CraftSnapshotFile())
     private val appContext = context.applicationContext
     private val storage: SharedPreferences = appContext.getSharedPreferences("craft-native-storage", Context.MODE_PRIVATE)
     private val snapshotsDir = File(appContext.filesDir, "craft-snapshots").apply { mkdirs() }
@@ -355,20 +360,22 @@ internal class CraftNativeStores private constructor(context: Context, private v
     fun setSnapshot(name: String, json: String?, from: String?, done: (Boolean) -> Unit) {
         writer.execute {
             val file = snapshotFile(name)
+            val previous = snapshotCache[name]
             val ok = runCatching {
                 if (json == null) {
                     !file.exists() || file.delete()
                 } else {
-                    val temporary = File(file.parentFile, "${file.name}.tmp")
-                    temporary.writeText(json)
-                    temporary.renameTo(file) || run { file.writeText(json); temporary.delete(); true }
+                    snapshotFiles.set(file, json)
+                    true
                 }
             }.getOrDefault(false)
             if (ok) {
                 if (json == null) snapshotCache.remove(name) else snapshotCache[name] = json
             }
             main.post {
-                if (ok) changed("snapshots", name, json, null)
+                // Isolates optimistically display their write. Restore the
+                // confirmed value before rejecting an unsuccessful checkpoint.
+                changed("snapshots", name, if (ok) json else previous, null)
                 done(ok)
             }
         }

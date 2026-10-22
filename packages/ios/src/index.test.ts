@@ -543,6 +543,15 @@ describe('Craft iOS builder', () => {
     expect(renderBackgroundModes(config)).toContain('<string>location</string>')
   })
 
+  it('tells a screen its width, at launch and whenever it changes, for width classes', () => {
+    const source = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    // stx applies sm:/md:/lg: classes for this width (an iPad, split view, Stage Manager).
+    expect(source).toContain('viewportWidth: \\(inputs.viewportWidth),')
+    expect(source).toContain('sendViewportIfChanged()')
+    expect(source).toContain('send(type: "VIEWPORT", payload: ["width": Double(width), "height": Double(view.bounds.height)])')
+    expect(source).toContain('guard width > 0, abs(width - reportedViewportWidth) >= 0.5 else { return }')
+  })
+
   it('advertises mounted-view focus and measurement in native screens', () => {
     const source = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
     const actions = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeActions.swift'), 'utf8')
@@ -990,6 +999,25 @@ describe('Craft iOS builder', () => {
     expect(swift).toMatch(/case "sleep":\n\s+if let sleepType = HKObjectType\.categoryType\(forIdentifier: \.sleepAnalysis\)/)
   })
 
+  it('reads glucose, insulin and carbs one sample at a time, with the dose\'s reason', async () => {
+    const output = createTempDir('craft-ios-glucose-')
+    await init({ runtimeDir: null, name: 'Sugar', bundleId: 'com.example.sugar', output, config: { enableHealthKit: true } })
+    const swift = readFileSync(join(output, 'Sources', 'SugarApp.swift'), 'utf8') + readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')
+
+    expect(swift).toContain('getSamples: function(type, options) {')
+    expect(swift).toContain("craft._invoke('getHealthSamples', {type: type, startDate: options.startDate, endDate: options.endDate, limit: options.limit})")
+    expect(swift).toContain('case "getHealthSamples":')
+    // Asked for read only: HQ never writes glucose or insulin back.
+    expect(swift).toMatch(/case "bloodGlucose", "insulinDelivery":\n(\s+\/\/.*\n)*\s+if let diabetesType = Self\.healthQuantity\(type\)\?\.type \{\n\s+readTypes\.insert\(diabetesType\)\n\s+\}/)
+    expect(swift).toContain('case "bloodGlucose": return (HKQuantityType.quantityType(forIdentifier: .bloodGlucose), HKUnit(from: "mg/dL"), .discreteAverage)')
+    expect(swift).toContain('case "insulinDelivery": return (HKQuantityType.quantityType(forIdentifier: .insulinDelivery), .internationalUnit(), .cumulativeSum)')
+    // Each sample keeps its UUID, and a dose says basal or bolus.
+    expect(swift).toContain('"id": sample.uuid.uuidString,')
+    expect(swift).toContain('sample.metadata?[HKMetadataKeyInsulinDeliveryReason] as? NSNumber')
+    expect(swift).toContain('case .basal: item["insulinReason"] = "basal"')
+    expect(swift).toContain('sample.metadata?[HKMetadataKeyBloodGlucoseMealTime] as? NSNumber')
+  })
+
   it('writes and reads mindful sessions, keeping one sample per session', async () => {
     const output = createTempDir('craft-ios-mindful-')
     await init({ runtimeDir: null, name: 'Calm', bundleId: 'com.example.calm', output, config: { enableHealthKit: true } })
@@ -1063,7 +1091,7 @@ describe('Craft iOS builder', () => {
 
     // One HealthKit store and one implementation, shared by both callers.
     expect(health).toContain('static let shared = CraftHealth()')
-    for (const method of ['requestAuthorization', 'getData', 'saveData', 'saveWorkout', 'getWorkouts', 'getDailyStatistics', 'getHeartRateSamples', 'getSleepIntervals', 'saveMindfulSession', 'getMindfulSessions', 'startHeartRateUpdates', 'stopHeartRateUpdates'])
+    for (const method of ['requestAuthorization', 'getData', 'saveData', 'saveWorkout', 'getWorkouts', 'getDailyStatistics', 'getHeartRateSamples', 'getSamples', 'getSleepIntervals', 'saveMindfulSession', 'getMindfulSessions', 'startHeartRateUpdates', 'stopHeartRateUpdates'])
       expect(health).toContain(`case "${method}":`)
     expect(app).toContain('CraftHealth.shared.getWorkouts(')
     expect(app).not.toContain('HKHealthStore()')
@@ -1077,7 +1105,7 @@ describe('Craft iOS builder', () => {
     // native-screen JavaScript can resume safely after the sheet/query ends.
     expect(health).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(health).toContain('DispatchQueue.main.async { completion(result) }')
-    expect(health.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(17)
+    expect(health.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(18)
   })
 
   it('gates native Apple Wallet passes behind the app config', async () => {

@@ -780,6 +780,25 @@ final class NativeNavigationUnitTests: XCTestCase {
         XCTAssertEqual(CraftChrome.shared.tabAccessory, previous, "an unvisited tab's preview must not leave its accessory on the restored screen")
     }
 
+    /// A tab tapped before the shell prepared it is made first, hidden, and
+    /// the tap then shows that one: mounted after the selection began, it
+    /// held the main thread while the bar's pill should have been moving.
+    func testATabNotPreparedYetIsMadeBeforeItsSelectionMoves() async throws {
+        guard stack("/third") == nil else { throw XCTSkip("the shell prepared /third already") }
+        shell.mountTabBeforeSelecting("/third")
+        let made = try XCTUnwrap(stack("/third"))
+        XCTAssertTrue(made.view.isHidden, "made out of sight")
+        XCTAssertEqual(CraftChrome.shared.selected, "/")
+        XCTAssertFalse(try XCTUnwrap(stack("/")).view.isHidden)
+        // Made already: asking again changes nothing.
+        shell.mountTabBeforeSelecting("/third")
+        XCTAssertTrue(stack("/third") === made)
+        _ = shell.tabTapped("/third", reselect: false)
+        await renderFrames()
+        XCTAssertTrue(stack("/third") === made, "the tap shows the one made")
+        XCTAssertFalse(made.view.isHidden)
+    }
+
     func testDeferredPageSelectionCannotOverrideANewerNativeTabTap() async throws {
         mountDetails()
         // A page reports its tab while a native stack owns the screen. The

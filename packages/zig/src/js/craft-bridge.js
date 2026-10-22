@@ -225,7 +225,7 @@
       q.push(entry)
       window.__craftBridgeById[id] = entry
 
-      const timeout = (typeof window.__craftBridgeRequestTimeoutMs === 'number')
+      const timeout = timeoutMs === 0 ? 0 : (typeof window.__craftBridgeRequestTimeoutMs === 'number')
         ? window.__craftBridgeRequestTimeoutMs
         : (typeof timeoutMs === 'number' ? timeoutMs : DEFAULT_TIMEOUT_MS)
       const timer = (timeout > 0)
@@ -1404,6 +1404,48 @@
   }
 
   // -------------------------------------------------------------------------
+  // Native deadlines continue while a tray popover's WebKit page is hidden.
+  window.craft.timers = {
+    sleep: function (delayMs, options) {
+      if (!Number.isInteger(delayMs) || delayMs < 0 || delayMs > 86400000)
+        return Promise.reject(new RangeError('delayMs must be an integer between 0 and 86400000'))
+      const signal = options && options.signal
+      function aborted() { return new DOMException('Background delay aborted', 'AbortError') }
+      if (signal && signal.aborted) return Promise.reject(aborted())
+      const timerId = _nextId()
+      return new Promise(function (resolve, reject) {
+        let settled = false
+        let cancelling = false
+        let nativeDelay
+        function complete(error) {
+          if (settled) return
+          settled = true
+          if (signal) signal.removeEventListener('abort', cancel)
+          if (error) reject(error)
+          else resolve()
+        }
+        function cancel() {
+          if (cancelling || settled) return
+          cancelling = true
+          const cancellation = _req('timers', 'cancel', _stringify({ timerId: timerId }))
+          // Settle only after native has released the deadline and both RPC
+          // replies have been consumed. Rapid aborts must not accumulate work.
+          Promise.allSettled([nativeDelay, cancellation]).then(function (results) {
+            complete(results[1].status === 'rejected' ? results[1].reason : aborted())
+          })
+        }
+        if (signal) signal.addEventListener('abort', cancel, { once: true })
+        // The native timer owns this bounded deadline; a DOM timeout would
+        // itself be suspended by hidden-page throttling.
+        nativeDelay = _req('timers', 'sleep', _stringify({ timerId: timerId, delayMs: delayMs }), 0)
+        nativeDelay.then(function (result) {
+          if (!cancelling) complete(result && result.fired ? null : aborted())
+        }, function (error) { if (!cancelling) complete(error) })
+      })
+    },
+  }
+  window.addEventListener('pagehide', function () { _post('timers', 'cancelAll') })
+
   // screenSharing — is the screen being shared or recorded right now?
   // -------------------------------------------------------------------------
   window.craft.screenSharing = {
@@ -1702,6 +1744,5 @@
   // until we have a proper native→JS push channel for these channels.
   if (window.__craftEnableTrayPolling) {
     setInterval(function () { _post('tray', 'pollActions', '') }, 100)
-    setInterval(function () { _post('menubarCollapse', 'poll', '') }, 1000)
   }
 })()

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { createAndroidEmulator } from '../../../android/src/emulator'
 import type { AndroidEmulatorOptions } from '../../../android/src/emulator'
 
-function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false, delayedHome = false, connection: 'normal' | 'stale' | 'offline' = 'normal', bootstrapHome = 'com.android.sdksetup/.DefaultActivity', playStore: 'ready' | 'delayed' | 'missing' = 'ready'): { root: string, options: AndroidEmulatorOptions } {
+function fixture(hardware: boolean, delayedSettings = false, delayedEvents = false, delayedHome = false, connection: 'normal' | 'stale' | 'offline' = 'normal', bootstrapHome = 'com.android.sdksetup/.DefaultActivity', playStore: 'ready' | 'delayed' | 'missing' = 'ready', homeFocus: 'ready' | 'delayed' | 'foreign' = 'ready'): { root: string, options: AndroidEmulatorOptions } {
   const root = mkdtempSync(join(tmpdir(), 'craft emulator fixture '))
   const sdk = join(root, 'managed sdk')
   for (const directory of ['bin', 'platform-tools', 'emulator']) mkdirSync(join(sdk, directory), { recursive: true })
@@ -56,9 +56,20 @@ else
       else
         printf 'com.android.launcher3/.Launcher\\n'
       fi ;;
-    *'logcat -b events -d -t 1')
+    *'dumpsys window')
+      if [ '${homeFocus}' = foreign ]; then
+        printf 'mCurrentFocus=Window{abc u0 com.android.settings/com.android.settings.FallbackHome}\\nmFocusedApp=ActivityRecord{com.android.launcher3/.Launcher}\\n'
+      elif [ '${homeFocus}' = delayed ] && [ ! -f "$ANDROID_HOME/home-focused" ]; then
+        touch "$ANDROID_HOME/home-focused"
+        printf 'mCurrentFocus=null\\n'
+      else
+        printf 'mCurrentFocus=Window{abc u0 com.android.launcher3/com.android.launcher3.Launcher}\\n'
+      fi ;;
+    *'logcat -b events -d -t 1') printf 'latest event ready\\n' ;;
+    *'logcat -b events -d -v threadtime')
       if [ '${delayedEvents ? 'yes' : 'no'}' = yes ] && [ ! -f "$ANDROID_HOME/events-ready" ]; then
         touch "$ANDROID_HOME/events-ready"
+        printf 'partial boot history\\n'
         exit 255
       fi
       printf 'event stream ready\\n' ;;
@@ -126,6 +137,31 @@ test('an offline guest that never connected still fails its deadline and is disp
   finally { rmSync(root, { recursive: true, force: true }) }
 }, 10_000)
 
+test('explicit guest memory reaches the emulator process and its retained identity', async () => {
+  const { root, options } = fixture(true)
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator({ ...options, memoryMb: 4096 })
+    expect(readFileSync(join(options.sdkRoot, 'calls'), 'utf8')).toContain('-memory 4096')
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(identity.memoryMb).toBe(4096)
+    expect(identity.virtualCpus).toBe(2)
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
+test('explicit guest CPU count reaches the emulator process and its retained identity', async () => {
+  const { root, options } = fixture(true)
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator({ ...options, virtualCpus: 4 })
+    expect(readFileSync(join(options.sdkRoot, 'calls'), 'utf8')).toContain('-cores 4')
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(identity.virtualCpus).toBe(4)
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
 test('invalid boot budgets fail before starting tools or creating owned device data', async () => {
   const { root, options } = fixture(true)
   try {
@@ -137,6 +173,30 @@ test('invalid boot budgets fail before starting tools or creating owned device d
         expect(existsSync(join(options.sdkRoot, 'calls'))).toBe(false)
         expect(existsSync(options.temporaryDirectory!)).toBe(false)
       }
+    }
+  }
+  finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test('invalid guest memory fails before starting tools or creating owned device data', async () => {
+  const { root, options } = fixture(true)
+  try {
+    for (const memoryMb of [NaN, Infinity, -Infinity, 0, 1535, 8193, 4096.5]) {
+      await expect(createAndroidEmulator({ ...options, memoryMb })).rejects.toThrow('memoryMb')
+      expect(existsSync(join(options.sdkRoot, 'calls'))).toBe(false)
+      expect(existsSync(options.temporaryDirectory!)).toBe(false)
+    }
+  }
+  finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test('invalid guest CPU counts fail before starting tools or creating owned device data', async () => {
+  const { root, options } = fixture(true)
+  try {
+    for (const virtualCpus of [NaN, Infinity, -Infinity, 0, 0.5, 9, 8.5]) {
+      await expect(createAndroidEmulator({ ...options, virtualCpus })).rejects.toThrow('virtualCpus')
+      expect(existsSync(join(options.sdkRoot, 'calls'))).toBe(false)
+      expect(existsSync(options.temporaryDirectory!)).toBe(false)
     }
   }
   finally { rmSync(root, { recursive: true, force: true }) }
@@ -170,6 +230,7 @@ test('boot and System UI do not admit a device before its event log is readable'
     const trace = readFileSync(join(options.artifactsDirectory, 'device-commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
     const events = trace.filter(entry => entry.args.includes('logcat'))
     expect(events.map(entry => entry.code)).toEqual([255, 0])
+    expect(events[0].stdout).toContain('partial boot history')
     expect(events.every(entry => entry.args.includes('-d') && entry.args.includes('events'))).toBe(true)
     const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
     expect(Date.parse(events[1].finishedAt)).toBeLessThanOrEqual(Date.parse(identity.bootedAt))
@@ -254,6 +315,7 @@ test('the SDK process fixture records hardware mode and reaps only its owned pro
     session = await createAndroidEmulator(options)
     const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
     expect(identity.acceleration).toBe('hardware')
+    expect(identity.memoryMb).toBe(2048)
     expect(identity.bootedAt).toBeString()
     expect(identity.bootTimeoutMs).toBe(42_000)
     expect(identity.bootElapsedMs).toBeGreaterThanOrEqual(0)
@@ -293,3 +355,35 @@ test('software execution is explicit and cannot be mistaken for hardware acceler
   }
   finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
 })
+
+
+test('a resolved HOME waits for its actual input window before handing off the device', async () => {
+  const { root, options } = fixture(true, false, false, false, 'normal', 'com.android.sdksetup/.DefaultActivity', 'ready', 'delayed')
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    session = await createAndroidEmulator(options)
+    expect(existsSync(join(options.sdkRoot, 'home-focused'))).toBe(true)
+    const trace = readFileSync(join(options.artifactsDirectory, 'device-commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    const focus = trace.filter(entry => entry.args.includes('window'))
+    expect(focus).toHaveLength(2)
+    expect(focus[0].stdout.trim()).toBe('mCurrentFocus=null')
+    expect(focus[1].stdout).toContain('com.android.launcher3/com.android.launcher3.Launcher')
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(Date.parse(focus[1].finishedAt)).toBeLessThanOrEqual(Date.parse(identity.bootedAt))
+    expect(identity.bootTimeoutMs).toBe(600_000)
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
+
+test('a foreign focused window cannot admit an otherwise ready emulator', async () => {
+  const { root, options } = fixture(true, false, false, false, 'normal', 'com.android.sdksetup/.DefaultActivity', 'ready', 'foreign')
+  options.bootTimeoutMs = 5000
+  let session: Awaited<ReturnType<typeof createAndroidEmulator>> | undefined
+  try {
+    await expect(createAndroidEmulator(options).then(value => { session = value; return value })).rejects.toThrow('did not boot within 5000ms')
+    const identity = JSON.parse(readFileSync(join(options.artifactsDirectory, 'android-emulator.json'), 'utf8'))
+    expect(identity.status).toBe('failed')
+    expect(existsSync(join(options.sdkRoot, 'deleted'))).toBe(true)
+  }
+  finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
+}, 10_000)
