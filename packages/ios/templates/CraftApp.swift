@@ -689,6 +689,10 @@ final class CraftChrome: ObservableObject {
     /// The selected tab highlight's corner radius. Nil preserves the default
     /// capsule, while a finite non-negative value opts into a rounded rect.
     private(set) var tabSelectionCornerRadius: CGFloat?
+    /// The configured static shape, retained when the page updates only its
+    /// tabs or selected item at runtime.
+    private var configuredTabSelectionCornerRadius: CGFloat?
+    private(set) var tabSelectionColor: UIColor?
 
     weak var webView: WKWebView?
     /// What the tab bar covers at the bottom of the screen, in points.
@@ -723,9 +727,13 @@ final class CraftChrome: ObservableObject {
     /// The tab bar from `tabs` in craft.config.json, there before the page
     /// loads; the page's own `tabBar` message replaces it later. `splash`
     /// false when the first screen is native and draws itself.
-    func configure(tabs configured: [CraftConfig.Tab], selected: String?, splash: Bool) {
+    func configure(tabs configured: [CraftConfig.Tab], selected: String?, splash: Bool, appearance: CraftConfig.TabBar? = nil) {
         splashVisible = splash
         tabSwipeEnabled = true
+        configuredTabSelectionCornerRadius = appearance?.selection?.cornerRadius
+            .flatMap { $0.isFinite && $0 >= 0 ? CGFloat($0) : nil }
+        tabSelectionCornerRadius = configuredTabSelectionCornerRadius
+        tabSelectionColor = appearance?.selection?.color.flatMap { UIColor(hex: $0) }
         guard !configured.isEmpty else { return }
         tabs = configured.map { Tab(id: $0.id, title: $0.title, symbol: $0.symbol ?? "circle", badge: nil, selectedSymbol: Tab.normalizedSelectedSymbol($0.selectedSymbol), selectedIconTint: $0.selectedIconTint, selectedIconPulse: $0.selectedIconPulse) }
         self.selected = selected ?? configured.first?.id
@@ -856,6 +864,7 @@ final class CraftChrome: ObservableObject {
                 tint = light.map { light in dark.map { dark in UIColor { $0.userInterfaceStyle == .dark ? dark : light } } ?? light }
             }
             if let swipeEnabled = body["swipeEnabled"] as? Bool { tabSwipeEnabled = swipeEnabled }
+            if !body.keys.contains("selection") { tabSelectionCornerRadius = configuredTabSelectionCornerRadius }
             withAnimation(Self.motion(.easeOut(duration: 0.2))) { tabBarVisible = !tabs.isEmpty && !hiddenByScreen }
             publishLayout()
         case "selectTab":
@@ -1323,7 +1332,7 @@ private struct CraftTabSelectionIndicator: View {
                 let width = geometry.size.width / CGFloat(max(1, count))
                 CraftTabSelectionShape(cornerRadius: cornerRadius)
                     .frame(width: width, height: geometry.size.height)
-                    .foregroundStyle(Color.primary.opacity(0.09))
+                    .foregroundStyle(chrome.tabSelectionColor.map { Color($0) } ?? Color.primary.opacity(0.09))
                     .offset(x: position * width)
             }
         }
@@ -1706,6 +1715,9 @@ struct CraftConfig: Codable {
     var nativeScreens: [String: String]? = nil
     /// The tab bar to show before the page describes its own.
     var tabs: [Tab]? = nil
+    /// Static styling for the selected tab indicator; the page may still
+    /// override its shape through `tabBar.set({ selection })`.
+    var tabBar: TabBar? = nil
     /// Hybrid: web-storage keys the page's own code writes, mirrored into the
     /// Keychain under another name for native screens (`{"auth_token": "auth.token"}`).
     var shareStorage: [String: String]? = nil
@@ -1731,6 +1743,15 @@ struct CraftConfig: Codable {
         var selectedSymbol: String? = nil
         var selectedIconTint: String? = nil
         var selectedIconPulse: Bool? = nil
+    }
+
+    struct TabBar: Codable {
+        var selection: TabSelection? = nil
+    }
+
+    struct TabSelection: Codable {
+        var cornerRadius: Double? = nil
+        var color: String? = nil
     }
 
     struct BackgroundRefresh: Codable {

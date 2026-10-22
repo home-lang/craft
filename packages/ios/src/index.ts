@@ -74,6 +74,15 @@ export interface CraftPostGenerateHook {
   args?: string[]
 }
 
+export interface CraftTabBarConfig {
+  selection?: {
+    /** The selected tab indicator's corner radius in points; omitted keeps a capsule. */
+    cornerRadius?: number
+    /** The selected tab indicator fill as #RRGGBB. */
+    color?: string
+  }
+}
+
 export interface CraftConfig {
   appShortcuts?: CraftAppShortcut[]
   /** Bundled font files keyed by their PostScript font name, used as native fontFamily. */
@@ -92,6 +101,8 @@ export interface CraftConfig {
    * and `dark` pin one. Unset keeps the older `darkMode` switch.
    */
   appearance?: CraftAppearance
+  /** Static native tab-bar styling applied before the page's own tabBar.set call. */
+  tabBar?: CraftTabBarConfig
   /** Runs from the generated project root after `craft ios build` writes it. */
   postGenerate?: CraftPostGenerateHook
   backgroundColor?: string
@@ -1546,6 +1557,11 @@ export async function init(options: InitOptions): Promise<void> {
   if (config.renderer !== 'web' && config.renderer !== 'native') {
     throw new Error(`Unknown iOS renderer: ${config.renderer}. Expected web or native.`)
   }
+  const selection = config.tabBar?.selection
+  if (selection?.cornerRadius !== undefined && (!Number.isFinite(selection.cornerRadius) || selection.cornerRadius < 0))
+    throw new Error('iOS tabBar.selection.cornerRadius must be a finite non-negative number')
+  if (selection?.color !== undefined && !/^#[0-9a-f]{6}$/i.test(selection.color))
+    throw new Error('iOS tabBar.selection.color must be a #RRGGBB color')
   if (config.enableBackgroundLocation) config.enableGeolocation = true
   const problems = hybridConfigProblems(config)
   if (problems.length) throw new Error(problems.join('\n'))

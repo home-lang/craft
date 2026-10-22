@@ -58,6 +58,27 @@ describe('Craft iOS builder', () => {
       .toThrow('postGenerate hook failed with exit code 7: patch failed')
   })
 
+  it('generates static tab-bar selection appearance and validates its shape', async () => {
+    const output = createTempDir('craft-ios-tab-bar-appearance-')
+    await init({ name: 'Tab Bar', output, runtimeDir: null, config: {
+      tabBar: { selection: { cornerRadius: 8, color: '#123456' } },
+    } })
+    const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
+    const swift = readFileSync(join(output, 'Sources', 'TabBarApp.swift'), 'utf8')
+    const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
+    expect(config.tabBar).toEqual({ selection: { cornerRadius: 8, color: '#123456' } })
+    expect(swift).toContain('private(set) var tabSelectionColor: UIColor?')
+    expect(swift).toContain('appearance: CraftConfig.TabBar? = nil')
+    expect(swift).toContain('chrome.tabSelectionColor.map { Color($0) }')
+    expect(hybrid).toContain('appearance: config.tabBar')
+    await expect(init({ name: 'Invalid Tab Bar', output: join(output, 'invalid'), runtimeDir: null, config: {
+      tabBar: { selection: { cornerRadius: -1 } },
+    } })).rejects.toThrow('cornerRadius must be a finite non-negative number')
+    await expect(init({ name: 'Invalid Tab Color', output: join(output, 'invalid-color'), runtimeDir: null, config: {
+      tabBar: { selection: { color: 'red' } },
+    } })).rejects.toThrow('color must be a #RRGGBB color')
+  })
+
   it('restores the shell with the actual Xcode Cloud build identity without changing other resources', () => {
     const output = createTempDir('craft-cloud-identity-')
     const file = join(output, 'craft.config.json')
