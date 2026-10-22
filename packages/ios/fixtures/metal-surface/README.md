@@ -41,4 +41,9 @@ the focused `ios-render` scope. It uses Xcode 26.2 and iOS 26.2. Local execution
 on the available iOS 27 beta passed the unit case, but the UI runner timed out
 before a UI case began. A later local attempt also timed out during simulator
 data migration. These failures remain evidence, and neither establishes visual
-acceptance. The complete fixture must pass before claiming that acceptance.
+acceptance. A later unchanged retry on the required Xcode 26.2 and iOS 26.2
+toolchain passed both unit and UI cases with zero failures or skips. Its
+[retained receipt](../../../../docs/receipts/metal-surface-ios.json) verifies
+the original artifact digest and records all three inspected screen captures.
+That focused execution predates the command ownership correction; complete
+release acceptance and consumer adoption remain separate gates.

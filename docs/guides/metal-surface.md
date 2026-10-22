@@ -52,10 +52,12 @@ frames, a real resize and backing scale, suspension, main-thread enforcement,
 buffer-budget refusal and layer removal. It is included in `zig build test`.
 
 The [UIKit fixture](../../packages/ios/fixtures/metal-surface/README.md) checks
-the same surface through an actual native view. Local iOS 27 unit execution
-passed its GPU pixel, geometry, suspension and ownership cases. Complete iOS
-visual acceptance remains unverified until its UI case also passes on the
-required toolchain. The mobile workflow requires that complete result.
+the same surface through an actual native view. The [retained iOS receipt](../receipts/metal-surface-ios.json) records both
+unit and UI cases passing on Xcode 26.2 and iOS 26.2. Three inspected screen
+captures show frames 60, 61 and 62 before resize, after resize and after
+background/foreground resume. GPU readback and screen samples agree with the
+fixture. The focused dispatch is separate from complete release acceptance
+and installed-consumer adoption.
 Native game input, frame clocks and the stx HUD remain separate integrations.
 
 The iOS archive targets resolve framework, library and header paths from their
