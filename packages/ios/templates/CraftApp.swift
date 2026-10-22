@@ -1321,6 +1321,7 @@ private struct CraftTabSelectionShape: Shape {
 }
 
 private struct CraftTabSelectionIndicator: View {
+    @ObservedObject private var chrome = CraftChrome.shared
     @ObservedObject private var progress = CraftChrome.shared.tabSwipeProgress
     let selected: Int?
     let count: Int

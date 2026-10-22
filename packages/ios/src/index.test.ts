@@ -91,6 +91,7 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('private(set) var tabSelectionColor: UIColor?')
     expect(swift).toContain('appearance: CraftConfig.TabBar? = nil')
     expect(swift).toContain('chrome.tabSelectionColor.map { Color($0) }')
+    expect(swift).toContain('@ObservedObject private var chrome = CraftChrome.shared')
     expect(hybrid).toContain('appearance: config.tabBar')
     await expect(init({ name: 'Invalid Tab Bar', output: join(output, 'invalid'), runtimeDir: null, config: {
       tabBar: { selection: { cornerRadius: -1 } },
