@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { createAndroidEmulator } from '../packages/android/src/emulator'
 import { managedJavaHome } from './managed-java-home'
+import { softwareProvisioningCpus } from './software-provisioning-profile'
 
 if (process.platform !== 'linux' || process.arch !== 'x64')
   throw new Error('The software emulator verification requires a Linux x86_64 host')
@@ -22,7 +23,8 @@ const memoryMb = 4096
 // passing AMD profile but starve SystemUI with the helper's two-CPU default.
 // Keep the public helper default unchanged while giving this cold profile all
 // four guest CPUs so startup ANRs remain a real failure rather than a timeout.
-const virtualCpus = 4
+// Diagnostics may vary this one dimension; release acceptance keeps four.
+const virtualCpus = softwareProvisioningCpus(diagnostic, process.env.CRAFT_ANDROID_DIAGNOSTIC_VIRTUAL_CPUS)
 const expectedFingerprint = diagnostic ? process.env.CRAFT_ANDROID_DIAGNOSTIC_FINGERPRINT : undefined
 if (diagnostic && !expectedFingerprint)
   throw new Error('The cold-provisioning diagnostic requires the failed stock image fingerprint')
@@ -72,15 +74,20 @@ try {
   const abi = await adb(['shell', 'getprop', 'ro.product.cpu.abi'])
   const playStore = await adb(['shell', 'pm', 'path', 'com.android.vending'])
   const fingerprint = await adb(['shell', 'getprop', 'ro.build.fingerprint'])
+  const cpuPresent = await adb(['shell', 'cat', '/sys/devices/system/cpu/present'])
+  const cpuRange = /^0(?:-(\d+))?$/.exec(cpuPresent)
+  const guestVirtualCpus = cpuRange ? Number(cpuRange[1] ?? '0') + 1 : 0
   const meminfo = await adb(['shell', 'cat', '/proc/meminfo'])
   const guestMemTotalKb = Number(/^MemTotal:\s+(\d+)\s+kB$/m.exec(meminfo)?.[1])
   if (api !== '35' || abi !== 'x86_64' || !/^package:\/\S+/.test(playStore) || !fingerprint)
     throw new Error('The owned emulator must run the requested stock Play image')
   if (!Number.isSafeInteger(guestMemTotalKb) || guestMemTotalKb <= 0)
     throw new Error('The owned emulator must report its actual guest memory')
+  if (guestVirtualCpus !== virtualCpus)
+    throw new Error('The owned emulator must report the requested guest CPU count')
   if (diagnostic && fingerprint !== expectedFingerprint)
     throw new Error('The stock Play image changed; this diagnostic cannot explain the retained cold-boot failures')
-  Object.assign(proof, { serial: session.serial, api, abi, playStore, fingerprint, guestMemTotalKb, verifiedAt: new Date().toISOString() })
+  Object.assign(proof, { serial: session.serial, api, abi, playStore, fingerprint, guestMemTotalKb, guestVirtualCpus, cpuPresent, verifiedAt: new Date().toISOString() })
 }
 finally {
   try {

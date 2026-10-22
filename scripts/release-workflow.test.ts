@@ -98,6 +98,15 @@ test.each(['ci.yml', 'mobile-e2e.yml'])('%s lets Main acceptance finish while su
   expect(policy.queue ?? 'single').toBe('single')
 })
 
+test('cold-provisioning measurements cannot replace pending release acceptance', () => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/ci.yml'), 'utf8')) as { concurrency: { group: string } }
+  const group = (diagnostic: boolean) => workflow.concurrency.group.replace(/\$\{\{.*?\}\}/g, expression => String(runInNewContext(expression.slice(3, -2), {
+    inputs: { software_cold_provisioning_diagnostic: diagnostic },
+    github: { workflow: 'CI', head_ref: '', ref: 'refs/heads/main' },
+  })))
+  expect(group(true)).not.toBe(group(false))
+})
+
 test('mobile device jobs use the same released stx compiler version', () => {
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { env: Record<string, string>, jobs: Record<string, Job> }
   expect(workflow.env.STX_COMPILER_VERSION).toMatch(/^v\d+\.\d+\.\d+$/)

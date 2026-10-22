@@ -8,6 +8,10 @@ on:
         description: Measure bounded stock Play software cold provisioning; does not run release acceptance
         type: boolean
         default: false
+      software_diagnostic_virtual_cpus:
+        description: Guest CPU count for the cold-provisioning diagnostic only (1 to 4)
+        type: number
+        default: 4
   push:
     branches:
       - main
@@ -16,7 +20,7 @@ on:
       - main
 
 concurrency:
-  group: source-ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: source-ci-${{ github.workflow }}-${{ inputs.software_cold_provisioning_diagnostic && 'software-cold-provisioning-diagnostic' || (github.head_ref || github.ref) }}
   # Finish Main acceptance; newer commits replace the single pending run.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -70,6 +74,7 @@ jobs:
       - name: Measure actual stock Play software cold provisioning
         env:
           CRAFT_ANDROID_DIAGNOSTIC_FINGERPRINT: google/sdk_gphone64_x86_64/emu64xa:15/AE3A.240806.036/12592187:user/release-keys
+          CRAFT_ANDROID_DIAGNOSTIC_VIRTUAL_CPUS: ${{ inputs.software_diagnostic_virtual_cpus }}
         run: bun scripts/verify-android-emulator.ts --cold-provisioning-diagnostic
       - name: Retain diagnostic identity, elapsed time, host CPU and cleanup
         if: always()
@@ -498,6 +503,9 @@ jobs:
 
       - name: Test dependency-bot job selection
         run: bun test ./scripts/buddy-schedule.test.ts ./scripts/buddy-update.test.ts
+
+      - name: Test software-provisioning diagnostic isolation
+        run: bun test ./scripts/software-provisioning-profile.test.ts
 
       - name: Test agent environment briefing
         run: bun test ./scripts/agents-guidelines.test.ts
