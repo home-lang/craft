@@ -6509,10 +6509,66 @@ fn handleCreateWebView(
     return null;
 }
 
+/// `webView:runOpenPanelWithParameters:initiatedByFrame:completionHandler:`
+///
+/// WKWebView does not present an `NSOpenPanel` for an HTML file input on its
+/// own.  Without this delegate callback the input is inert, including the
+/// hidden-input-and-click pattern used by upload controls.  Keep the panel
+/// synchronous, like Craft's other AppKit file dialogs, so the completion
+/// block remains valid until WebKit receives the selected URLs (or nil on
+/// cancellation).
+fn handleOpenPanel(
+    _: objc.id,
+    _: objc.SEL,
+    webView: objc.id,
+    parameters: objc.id,
+    frame: objc.id,
+    completionHandler: objc.id,
+) callconv(.c) void {
+    _ = webView;
+    _ = frame;
+
+    const handler = completionHandler orelse return;
+
+    const panel = msgSend0(getClass("NSOpenPanel"), "openPanel");
+    if (panel == null) {
+        const BlockLayout = extern struct {
+            isa: ?*anyopaque,
+            flags: c_int,
+            reserved: c_int,
+            invoke: *const fn (*anyopaque, objc.id) callconv(.c) void,
+        };
+        const block: *BlockLayout = @ptrCast(@alignCast(handler));
+        block.invoke(handler, null);
+        return;
+    }
+
+    _ = msgSend1Bool(panel, "setCanChooseFiles:", true);
+    _ = msgSend1Bool(panel, "setCanChooseDirectories:", parameters != null and msgSendBool(parameters, "allowsDirectories"));
+    _ = msgSend1Bool(panel, "setAllowsMultipleSelection:", parameters != null and msgSendBool(parameters, "allowsMultipleSelection"));
+
+    if (parameters != null and msgSendBool1Sel(parameters, "respondsToSelector:", sel("allowedFileExtensions"))) {
+        const extensions = msgSend0(parameters, "allowedFileExtensions");
+        if (extensions != null) _ = msgSend1(panel, "setAllowedFileTypes:", extensions);
+    }
+
+    const response = msgSend0(panel, "runModal");
+    const urls: objc.id = if (@intFromPtr(response) == 1) msgSend0(panel, "URLs") else null;
+    const BlockLayout = extern struct {
+        isa: ?*anyopaque,
+        flags: c_int,
+        reserved: c_int,
+        invoke: *const fn (*anyopaque, objc.id) callconv(.c) void,
+    };
+    const block: *BlockLayout = @ptrCast(@alignCast(handler));
+    block.invoke(handler, urls);
+}
+
 /// Attach craft's `WKUIDelegate`.
 ///
 /// Two callbacks, neither of which has anything to do with the other:
 /// `getUserMedia()` permission, and the page asking for a second window.
+/// The third callback supplies the AppKit panel behind HTML file inputs.
 ///
 /// Installed in every non-benchmark window. It used to be installed only under
 /// `--dev-tools`, which meant a packaged app was denied the camera outright
@@ -6561,6 +6617,18 @@ pub fn setupUIDelegate(webview: objc.id) !void {
             } else {
                 std.debug.print("[Media] Added webView:requestMediaCapturePermissionForOrigin:... method\n", .{});
             }
+        }
+
+        // HTML `<input type="file">`. The completion block receives an
+        // NSArray<NSURL *> or nil when the person cancels the panel.
+        if (!objc.class_addMethod(
+            @ptrCast(@alignCast(delegateClass)),
+            objc.sel_registerName("webView:runOpenPanelWithParameters:initiatedByFrame:completionHandler:"),
+            @as(objc.IMP, @ptrCast(@constCast(&handleOpenPanel))),
+            "v@:@@@?",
+        )) {
+            if (comptime std.ascii.eqlIgnoreCase(@tagName(builtin.mode), "debug"))
+                std.debug.print("[UI] Failed to add file open panel method\n", .{});
         }
 
         // `window.open()` / `target="_blank"`. Returns an object (the child
