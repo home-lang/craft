@@ -2850,6 +2850,8 @@ final class NativeRenderUnitTests: XCTestCase {
         window.rootViewController = controller
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
+        // The inset follows a layout once its pass is over, on the main
+        // queue: each check drains it first.
         func screen(footer: CGFloat) -> [[String: Any]] {
             [["type": "KeyboardAvoidingView", "props": ["key": "avoid", "keyboardVerticalOffset": 100], "style": ["flex": 1], "children": [
                 ["type": "ScrollView", "props": ["key": "form"], "style": ["flex": 1], "children": [
@@ -2869,13 +2871,13 @@ final class NativeRenderUnitTests: XCTestCase {
             UIResponder.keyboardAnimationCurveUserInfoKey: 0,
         ])
         controller.view.layoutIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        drainMainQueue()
         func covered() -> CGFloat { max(0, form.convert(form.bounds, to: window).maxY - keyboard.minY) }
         XCTAssertEqual(form.contentInset.bottom, covered(), accuracy: 0.5, "inset for what the keyboard covers")
 
         controller.render(document(screen(footer: 0)))
         controller.view.layoutIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        drainMainQueue()
         XCTAssertGreaterThan(covered(), 50, "the form now ends under the keyboard")
         XCTAssertEqual(form.contentInset.bottom, covered(), accuracy: 0.5, "the inset follows the form to where it ends now")
         XCTAssertEqual(form.verticalScrollIndicatorInsets.bottom, covered(), accuracy: 0.5)
@@ -2886,7 +2888,7 @@ final class NativeRenderUnitTests: XCTestCase {
         ])
         controller.render(document(screen(footer: 120)))
         controller.view.layoutIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        drainMainQueue()
         XCTAssertEqual(form.contentInset.bottom, 0, "no keyboard, no inset")
     }
 
