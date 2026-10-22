@@ -448,6 +448,10 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('private fun refreshInputDefaultsForTraitChange()')
       expect(nativeActivity).toContain('val probe = EditText(this)')
       expect(nativeActivity).toContain('if (screen.active) send(screen, "APPEARANCE", appearance)')
+      // stx applies sm:/md:/lg: classes for the window's width in dp, at launch and on every change.
+      expect(nativeActivity).toContain('viewportWidth: ${resources.configuration.screenWidthDp},')
+      expect(nativeActivity).toContain('publishViewport(newConfig)')
+      expect(nativeActivity).toContain('allScreens().forEach { screen -> if (!screen.headless) send(screen, "VIEWPORT", payload) }')
       expect(nativeActivity).toContain('private fun appearance(): JSONObject')
       expect(nativeActivity).toContain('.put("fontScale", (scale * 1000).roundToInt() / 1000.0)')
       expect(nativeActivity).toContain('import android.animation.ValueAnimator')
