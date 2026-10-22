@@ -8,6 +8,19 @@ const page = @import("window_context.zig");
 const activity = @import("background_activity.zig");
 const objc = @import("objc_runtime.zig").objc;
 
+/// The dispatcher and capability manifest share these action names.
+pub const A = struct {
+    pub const sleep = "sleep";
+    pub const cancel = "cancel";
+    pub const cancel_all = "cancelAll";
+};
+
+pub const capability_actions = [_]@import("capabilities.zig").ActionDecl{
+    .{ .name = A.sleep, .reply = .result },
+    .{ .name = A.cancel, .reply = .result },
+    .{ .name = A.cancel_all, .reply = .result },
+};
+
 const capacity = 256;
 const Entry = struct {
     timer: objc.id,
@@ -37,7 +50,7 @@ pub fn handleMessage(allocator: std.mem.Allocator, action: []const u8, data: []c
 fn dispatch(allocator: std.mem.Allocator, action: []const u8, data: []const u8) !void {
     if (comptime builtin.os.tag != .macos) return error.PlatformNotSupported;
     const owner = page.currentWebView() orelse return error.InvalidParameter;
-    if (std.mem.eql(u8, action, "cancelAll")) {
+    if (std.mem.eql(u8, action, A.cancel_all)) {
         forgetWebView(owner);
         errors.sendResultToJS(allocator, action, "{\"ok\":true}");
         return;
@@ -47,7 +60,7 @@ fn dispatch(allocator: std.mem.Allocator, action: []const u8, data: []const u8) 
     defer parsed.deinit();
     const params = parsed.value;
     if (params.timerId == 0 or params.timerId > 9007199254740991 or params.delayMs > 86_400_000) return error.InvalidParameter;
-    if (std.mem.eql(u8, action, "cancel")) {
+    if (std.mem.eql(u8, action, A.cancel)) {
         var cancelled = false;
         for (entries, 0..) |entry, index| {
             if (entry) |value| {
@@ -61,7 +74,7 @@ fn dispatch(allocator: std.mem.Allocator, action: []const u8, data: []const u8) 
         errors.sendResultToJS(allocator, action, if (cancelled) "{\"cancelled\":true}" else "{\"cancelled\":false}");
         return;
     }
-    if (!std.mem.eql(u8, action, "sleep")) return error.InvalidParameter;
+    if (!std.mem.eql(u8, action, A.sleep)) return error.InvalidParameter;
     const request_id = request.current() orelse return error.InvalidParameter;
     var available: ?usize = null;
     for (entries, 0..) |entry, index| {
@@ -127,7 +140,7 @@ fn finish(index: usize, fired: bool, deliver: bool) void {
         defer request.pop();
         page.push(entry.window, entry.webview);
         defer page.pop();
-        errors.sendResultToJS(std.heap.c_allocator, "sleep", if (fired) "{\"fired\":true}" else "{\"fired\":false}");
+        errors.sendResultToJS(std.heap.c_allocator, A.sleep, if (fired) "{\"fired\":true}" else "{\"fired\":false}");
     }
 }
 

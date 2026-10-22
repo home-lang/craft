@@ -1521,6 +1521,7 @@ pub fn build(b: *std.Build) void {
         "src/bridge_app.zig",
         "src/bridge_screen.zig",
         "src/bridge_haptics.zig",
+        "src/bridge_timers.zig",
         "src/bridge_capabilities.zig",
         "src/bridge_capabilities_actions.zig",
         "src/js/craft-bridge.js",
