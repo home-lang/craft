@@ -222,7 +222,7 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
           // Keep each workflow on the released Pantry version it declares.
           // Windows uses the newer workspace-link fix; the native acceptance
           // workflows intentionally stay on their current toolchain pin.
-          const version = file === 'mobile-e2e.yml' && name === 'ios-metal'
+          const version = (file === 'mobile-e2e.yml' && name === 'ios-metal') || (file === 'ci.yml' && name === 'vulkan-abi')
             ? '0.11.113'
             : file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
               ? '0.11.109'

@@ -84,6 +84,47 @@ jobs:
           path: artifacts/android-software-cold-provisioning
           if-no-files-found: error
 
+  vulkan-abi:
+    name: Vulkan SDK ABI (${{ matrix.os }})
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install the pinned ABI toolchain
+        uses: pantry-pm/pantry/packages/action@3a37ec776aa9e37e17bd8e3aea2d457cdbd02c36 # v0.11.113
+        with:
+          version: '0.11.113'
+          install: 'false'
+          packages: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e
+      - name: Check the compiler identity
+        run: test "$(zig version)" = '0.18.0-dev.146+35accc06e'
+      - name: Install the real Xlib development headers
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev
+      - name: First-party Zig dependencies
+        uses: ./.github/actions/first-party-zig-deps
+      - name: Check out the exact Khronos SDK headers
+        uses: actions/checkout@v6
+        with:
+          repository: KhronosGroup/Vulkan-Headers
+          ref: 6802bb4733b63ed5efd3adb308a6c885ef180ea1 # vulkan-sdk-1.4.363.0
+          path: .zig-cache/vulkan-headers
+          persist-credentials: false
+      - name: Execute the independent SDK ABI probe and C callback
+        working-directory: packages/zig
+        run: |
+          VULKAN_HEADERS="$(bun -p "require('node:path').resolve('../../.zig-cache/vulkan-headers/include')")"
+          zig build test:vulkan-abi -Dvulkan-headers="$VULKAN_HEADERS" --summary all
+
   zig-core:
     if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     strategy:
