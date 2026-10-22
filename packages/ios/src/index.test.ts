@@ -2629,6 +2629,8 @@ describe('Craft iOS builder', () => {
     expect(watch).toContain('protocolVersion')
     expect(watch).toContain('requestId')
     expect(watch).toContain('stateVersion')
+    expect(watch).toContain('guard incomingVersion >= stateVersion else { return }')
+    expect(watch).toContain('stateVersion = incomingVersion')
     expect(watch).toContain('planned-session')
     expect(watch).toContain('craft.watch.state.v1')
     expect(watch).toContain('updateApplicationContext(state)')

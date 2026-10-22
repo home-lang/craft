@@ -117,6 +117,10 @@ final class CraftWatchSession: NSObject, ObservableObject {
     }
 
     private func apply(_ payload: [String: Any]) {
+        if let incomingVersion = payload["stateVersion"] as? Int {
+            guard incomingVersion >= stateVersion else { return }
+            stateVersion = incomingVersion
+        }
         if let plan = payload["plan"] as? [String: Any], payload["type"] as? String == "planned-session" {
             plannedSession = plan
             status = "Plan ready"
