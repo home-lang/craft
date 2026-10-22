@@ -2609,23 +2609,36 @@ final class NativeRenderUnitTests: XCTestCase {
         controller.view.layoutIfNeeded()
         let input = try XCTUnwrap(find(UITextView.self, key: "comment", below: controller.view))
         XCTAssertFalse(input.isScrollEnabled, "with no max height it grows with its text")
+        let form = try XCTUnwrap(find(UIScrollView.self, key: "workout", below: controller.view))
+        let keyboard = CGRect(x: 0, y: window.bounds.height - 336, width: window.bounds.width, height: 336)
+        var currentKeyboard = keyboard
+        // Becoming first responder also schedules UIKit's real keyboard. Its
+        // later frame can replace the synthetic one while this test yields.
+        // Observe that frame independently of Craft's layout, in window space.
+        let keyboardObserver = NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main
+        ) { notification in
+            guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue else { return }
+            currentKeyboard = window.convert(frame.cgRectValue, from: nil)
+        }
+        defer { NotificationCenter.default.removeObserver(keyboardObserver) }
         XCTAssertTrue(input.becomeFirstResponder())
         input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
-        let keyboard = CGRect(x: 0, y: window.bounds.height - 336, width: window.bounds.width, height: 336)
         NotificationCenter.default.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
-            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: keyboard),
+            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: window.convert(keyboard, to: nil)),
             UIResponder.keyboardAnimationDurationUserInfoKey: 0,
             UIResponder.keyboardAnimationCurveUserInfoKey: 0,
         ])
         controller.view.layoutIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        XCTAssertGreaterThan(input.bounds.height, keyboard.minY - window.safeAreaInsets.top, "taller than the part the keyboard leaves")
+        XCTAssertTrue(window.bounds.intersects(currentKeyboard), "the observed keyboard covers part of this window")
+        XCTAssertGreaterThan(input.bounds.height, currentKeyboard.minY - window.safeAreaInsets.top, "taller than the part the keyboard leaves")
         func caret() throws -> CGRect {
             let end = try XCTUnwrap(input.selectedTextRange?.end)
             return input.convert(input.caretRect(for: end), to: window)
         }
         var shown = try caret()
-        XCTAssertLessThanOrEqual(shown.maxY, keyboard.minY + 0.5, "caret \(shown) above the keyboard at \(keyboard.minY)")
+        XCTAssertLessThanOrEqual(shown.maxY, currentKeyboard.minY + 0.5, "caret \(shown) above the keyboard at \(currentKeyboard.minY)")
         XCTAssertGreaterThanOrEqual(shown.minY, window.safeAreaInsets.top - 0.5, "caret \(shown) on screen")
 
         input.text = long + "\n31) and one more line"
@@ -2633,8 +2646,21 @@ final class NativeRenderUnitTests: XCTestCase {
         input.delegate?.textViewDidChange?(input)
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
         shown = try caret()
-        XCTAssertLessThanOrEqual(shown.maxY, keyboard.minY + 0.5, "typed: caret \(shown) above the keyboard at \(keyboard.minY)")
+        XCTAssertLessThanOrEqual(shown.maxY, currentKeyboard.minY + 0.5, "typed: caret \(shown) above the keyboard at \(currentKeyboard.minY)")
         XCTAssertGreaterThanOrEqual(shown.minY, window.safeAreaInsets.top - 0.5, "typed: caret \(shown) on screen")
+
+        // A larger edit must reveal the caret again, even if a keyboard
+        // frame change made the viewport taller during the first edit.
+        let offsetBeforeTyping = form.contentOffset.y
+        input.text += "\n" + (32...41).map { "\($0)) continuing the answer" }.joined(separator: "\n")
+        input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
+        input.delegate?.textViewDidChange?(input)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        shown = try caret()
+        XCTAssertTrue(window.bounds.intersects(currentKeyboard))
+        XCTAssertLessThanOrEqual(shown.maxY, currentKeyboard.minY + 0.5, "continued: caret \(shown) above the keyboard at \(currentKeyboard.minY)")
+        XCTAssertGreaterThanOrEqual(shown.minY, window.safeAreaInsets.top - 0.5, "continued: caret \(shown) on screen")
+        XCTAssertGreaterThan(form.contentOffset.y, offsetBeforeTyping + 0.5, "typing beyond the viewport actually scrolls the caret into view")
     }
 
     func testScrollKeyboardTapPreservesTextAreaFocusAndSelectionButDismissesBackground() throws {
