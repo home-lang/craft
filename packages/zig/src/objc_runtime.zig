@@ -107,10 +107,12 @@ pub const objc = if (is_darwin) struct {
         return func(target, selector);
     }
 
-    /// Send message with struct return (uses stret on some architectures)
+    /// Send a zero-argument message returning a Cocoa geometry structure or
+    /// naturally aligned C aggregate. ARM64 routes every return shape through
+    /// objc_msgSend; the C function type selects registers or an indirect result.
+    /// Intel's large aggregates use the separate objc_msgSend_stret entry point.
     pub fn msgSendStret(comptime T: type, target: anytype, selector: SEL) T {
-        if (@sizeOf(T) <= 16) {
-            // Small structs can use regular msgSend on arm64
+        if (builtin.target.cpu.arch == .aarch64 or @sizeOf(T) <= 16) {
             const Fn = *const fn (@TypeOf(target), SEL) callconv(.c) T;
             const func: Fn = @ptrCast(&objc_msgSend);
             return func(target, selector);

@@ -2038,6 +2038,22 @@ pub fn build(b: *std.Build) void {
     if (target.result.os.tag.isDarwin()) {
         test_step.dependOn(&run_ios_surface_tests.step);
         test_step.dependOn(&run_ios_module_tests.step);
+        const objc_return_tests = b.addTest(.{
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("test/objc_struct_return_test.zig"),
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+        objc_return_tests.root_module.addAnonymousImport("objc_runtime", .{ .root_source_file = b.path("src/objc_runtime.zig") });
+        objc_return_tests.root_module.addCSourceFile(.{ .file = b.path("test/fixtures/objc_struct_return.m"), .flags = &.{"-fno-objc-arc"} });
+        objc_return_tests.root_module.linkFramework("Foundation", .{});
+        objc_return_tests.root_module.linkFramework("CoreGraphics", .{});
+        applySdkPaths(b, objc_return_tests.root_module, macos_sdk);
+        const run_objc_returns = b.addRunArtifact(objc_return_tests);
+        b.step("test-objc-runtime", "Test native Objective-C structure returns").dependOn(&run_objc_returns.step);
+        test_step.dependOn(&run_objc_returns.step);
     }
     test_step.dependOn(&run_ios_conformance_tests.step);
     test_step.dependOn(&run_jni_tests.step);
