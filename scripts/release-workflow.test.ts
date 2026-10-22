@@ -23,6 +23,22 @@ const artifactDownload = 'actions/download-artifact@d3f86a106a0bac45b974a628896c
 const needs = (job: Job) => typeof job.needs === 'string' ? [job.needs] : job.needs ?? []
 const steps = (job: Job) => job.steps?.map(step => step.run ?? '').join('\n') ?? ''
 
+test('the Vulkan ABI matrix uses runner Git on Windows and still runs the exact compiler probe', () => {
+  const ci = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/ci.yml'), 'utf8')) as any
+  const job = ci.jobs['vulkan-abi']
+  const platforms = job.strategy.matrix.include as Array<{ os: string, tools: string }>
+  expect(platforms.map(platform => platform.os)).toEqual(['ubuntu-latest', 'macos-latest', 'windows-latest'])
+  for (const platform of platforms) {
+    expect(platform.tools).toContain('bun.com@1.4.2')
+    expect(platform.tools).toContain('ziglang.org@0.18.0-dev.146+35accc06e')
+    if (platform.os === 'windows-latest') expect(platform.tools).not.toContain('git-scm.org')
+    else expect(platform.tools).toContain('git-scm.org@2.53.0')
+  }
+  expect(job.steps.find((step: any) => step.name === 'Install the pinned ABI toolchain').with.packages).toBe('${{ matrix.tools }}')
+  expect(steps(job)).toContain('zig build test:vulkan-abi')
+  expect(job.steps.find((step: any) => step.name === 'Execute the independent SDK ABI probe and C callback').if).toBeUndefined()
+})
+
 test('macOS signing reads credentials from the declared Stacks CLI, not the shared buddy binary', () => {
   const loader = release.jobs.pantry.steps?.find(step => step.name === 'Load macOS release credentials')?.run
   expect(loader).toBeTruthy()

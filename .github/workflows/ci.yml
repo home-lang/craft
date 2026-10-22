@@ -90,7 +90,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            tools: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e
+          - os: macos-latest
+            tools: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e
+          # The runner already provides Git for Windows. Pantry's Git recipe
+          # currently resolves Unix dependencies without Windows artifacts.
+          - os: windows-latest
+            tools: bun.com@1.4.2 ziglang.org@0.18.0-dev.146+35accc06e
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -102,7 +110,7 @@ jobs:
         with:
           version: '0.11.113'
           install: 'false'
-          packages: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e
+          packages: ${{ matrix.tools }}
       - name: Check the compiler identity
         run: test "$(zig version)" = '0.18.0-dev.146+35accc06e'
       - name: Install the native Linux development libraries
