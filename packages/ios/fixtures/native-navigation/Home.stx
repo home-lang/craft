@@ -17,6 +17,8 @@ const panelAccessibilityDisabled = state(false)
 const longPressStatus = state('')
 const longPressAccessibilityDisabled = state(false)
 const switchValue = state(false)
+const nullableSwitchValue = state(true)
+const precedenceSwitchValue = state(false)
 const invalidSwitchColors = state(false)
 const pickerValue = state('one')
 const itemsPickerValue = state('one')
@@ -25,6 +27,7 @@ const dateValue = state('2026-10-12')
 const timeValue = state('07:30')
 const countdownValue = state('01:30:45')
 const checkboxValue = state(false)
+const checkboxPrecedenceValue = state(false)
 const checkboxStatus = state('checkbox pending')
 const invalidControlColors = state(false)
 const invalidControlStyleStatus = state('')
@@ -410,6 +413,14 @@ function toggleSwitch(event) {
   status.set(switchValue() ? 'switch on' : 'switch off')
 }
 
+function toggleNullableSwitch(event) {
+  nullableSwitchValue.set(event.value)
+}
+
+function togglePrecedenceSwitch(event) {
+  precedenceSwitchValue.set(event.value)
+}
+
 function choosePicker(event) {
   pickerValue.set(event.value)
   status.set(`picker ${pickerValue()}`)
@@ -442,6 +453,10 @@ function chooseCountdown(event) {
 function chooseCheckbox(event) {
   checkboxValue.set(event.value)
   checkboxStatus.set(event.value ? 'checkbox on' : 'checkbox off')
+}
+
+function choosePrecedenceCheckbox(event) {
+  checkboxPrecedenceValue.set(event.value)
 }
 
 function toggleInvalidControlColors() {
@@ -846,8 +861,10 @@ function openDetailsThenUpdateBackground() {
     <Switch testID="uncontrolled-switch" />
     <Button testID="toggle-invalid-switch-colors" @click="toggleInvalidSwitchColors()">Toggle invalid switch colors</Button>
     {{-- value-change selects the legacy native API when checked is also supplied. --}}
-    <Switch testID="nullable-switch" :value="null" :checked="true" @value-change="toggleSwitch($event)" />
-    <Switch testID="switch-value-precedence" :value="false" :checked="true" @value-change="toggleSwitch($event)" />
+    <Switch testID="nullable-switch" :value="null" :checked="true" @value-change="toggleNullableSwitch($event)" />
+    <Text testID="nullable-switch-status" :text="nullableSwitchValue() ? 'nullable switch on' : 'nullable switch off'" />
+    <Switch testID="switch-value-precedence" :value="false" :checked="true" @value-change="togglePrecedenceSwitch($event)" />
+    <Text testID="switch-precedence-status" :text="precedenceSwitchValue() ? 'precedence switch on' : 'precedence switch off'" />
     <select testID="native-picker" :value="pickerValue" @change="choosePicker($event)">
       <option value="one">One</option>
       <option value="two">Two</option>
@@ -865,7 +882,8 @@ function openDetailsThenUpdateBackground() {
     <Checkbox testID="native-checkbox" label="Accept terms" :value="checkboxValue" :color="invalidControlColors ? 'not-a-color' : '#22c55e'" @value-change="chooseCheckbox($event)" />
     <Text testID="checkbox-status" :text="checkboxStatus" />
     <Checkbox testID="native-checkbox-indeterminate" label="Mixed terms" indeterminate />
-    <Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" @value-change="chooseCheckbox($event)" />
+    <Checkbox testID="checkbox-checked-precedence" :checked="false" :value="true" @value-change="choosePrecedenceCheckbox($event)" />
+    <Text testID="checkbox-precedence-status" :text="checkboxPrecedenceValue() ? 'precedence checkbox on' : 'precedence checkbox off'" />
     <Button testID="toggle-invalid-control-colors" @click="toggleInvalidControlColors()">Toggle invalid control colors</Button>
     <Text testID="invalid-control-style-status" :text="invalidControlStyleStatus" />
     <Text testID="date-event-status" :text="dateEventStatus" />

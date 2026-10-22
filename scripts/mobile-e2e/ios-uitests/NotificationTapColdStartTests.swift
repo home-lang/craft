@@ -147,6 +147,14 @@ final class NotificationTapColdStartTests: XCTestCase {
             .firstMatch
         XCTAssertTrue(banner.waitForExistence(timeout: timeout), "no banner for \(text) ever appeared")
         banner.tap()
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 60), "tapping the banner did not start the app")
+        // SpringBoard can leave an app launched by a notification in the
+        // background while it finishes dismissing the banner. Give that
+        // launch a short chance to reach the foreground itself, then activate
+        // the already-running process. Activating a not-running app is not a
+        // fallback: the final wait still proves the notification tap launched
+        // it rather than hiding a missed banner behind a fresh launch.
+        if app.wait(for: .runningForeground, timeout: 10) { return }
+        if app.state == .runningBackground { app.activate() }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 50), "tapping the banner did not start the app")
     }
 }

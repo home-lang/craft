@@ -210,11 +210,19 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
     for (const [name, job] of Object.entries(workflow.jobs)) {
       for (const step of job.steps ?? []) {
         if (step.uses?.startsWith('pantry-pm/pantry/packages/action@')) {
-          // Windows needs the published fix that removes workspace links
-          // without following them into the tracked source checkout.
-          const preservesWindowsSources = file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
-          const version = preservesWindowsSources ? '0.11.109' : '0.11.101'
-          const source = preservesWindowsSources ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9' : 'ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf'
+          // Keep each workflow on the released Pantry version it declares.
+          // Windows uses the newer workspace-link fix; the native acceptance
+          // workflows intentionally stay on their current toolchain pin.
+          const version = file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
+            ? '0.11.109'
+            : ['mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml'].includes(file)
+              ? '0.11.106'
+              : '0.11.101'
+          const source = version === '0.11.109'
+            ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9'
+            : version === '0.11.106'
+              ? 'e62755c21d946ed0f8dc8e4af39f6ea5f084537a'
+              : 'ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf'
           expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe(version)
           expect(step.uses, `${file} ${name} must pin the matching action source`).toBe(`pantry-pm/pantry/packages/action@${source}`)
         }
