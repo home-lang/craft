@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { afterAll, describe, expect, it } from 'bun:test'
 import { addSchemeBuildTargets, addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from '../scripts/insert-project-targets'
@@ -29,6 +29,7 @@ import {
   renderWatchEntitlements,
   resolveCraftVersion,
   restoreShell,
+  runPostGenerateHook,
   syncWebAssets,
   syncNativeFonts,
 } from './index'
@@ -38,6 +39,25 @@ import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
 afterAll(removeAllTempDirs)
 
 describe('Craft iOS builder', () => {
+  it('runs a declared postGenerate command from the project root with metadata', async () => {
+    const output = createTempDir('craft-ios-post-generate-')
+    await init({ name: 'Hook App', output, runtimeDir: null, config: {
+      postGenerate: { command: 'sh', args: ['-c', 'printf "%s|%s|%s" "$PWD" "$CRAFT_PLATFORM" "$CRAFT_GENERATE_PHASE" > hook.txt'] },
+    } })
+    const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
+    expect(config.postGenerate).toEqual({ command: 'sh', args: ['-c', 'printf "%s|%s|%s" "$PWD" "$CRAFT_PLATFORM" "$CRAFT_GENERATE_PHASE" > hook.txt'] })
+    runPostGenerateHook(config.postGenerate, output)
+    expect(readFileSync(join(output, 'hook.txt'), 'utf8')).toBe(`${realpathSync(output)}|ios|build`)
+  })
+
+  it('reports invalid iOS postGenerate commands and non-zero exits', () => {
+    const output = createTempDir('craft-ios-post-generate-errors-')
+    expect(() => runPostGenerateHook({ command: '' }, output)).toThrow('postGenerate.command must be a non-empty executable')
+    expect(() => runPostGenerateHook({ command: join(output, 'missing-hook') }, output)).toThrow('postGenerate hook could not start')
+    expect(() => runPostGenerateHook({ command: 'sh', args: ['-c', 'printf "patch failed" >&2; exit 7'] }, output))
+      .toThrow('postGenerate hook failed with exit code 7: patch failed')
+  })
+
   it('restores the shell with the actual Xcode Cloud build identity without changing other resources', () => {
     const output = createTempDir('craft-cloud-identity-')
     const file = join(output, 'craft.config.json')
