@@ -34,6 +34,28 @@ describe('Craft Android builder', () => {
       .toThrow('postGenerate hook failed with exit code 7: patch failed')
   })
 
+  it('generates static tab-bar selection appearance and validates its shape', async () => {
+    const output = createTempDir('craft-android-tab-bar-appearance-')
+    await init({ name: 'Tab Bar', output, runtimeDir: null, config: {
+      renderer: 'native',
+      tabBar: { selection: { cornerRadius: 8, color: '#123456' } },
+    } })
+    const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
+    const shell = readFileSync(join(output, 'app/src/main/java/com/craft/tabbar/CraftNativeShell.kt'), 'utf8')
+    const activity = readFileSync(join(output, 'app/src/main/java/com/craft/tabbar/MainActivity.kt'), 'utf8')
+    expect(config.tabBar).toEqual({ selection: { cornerRadius: 8, color: '#123456' } })
+    expect(shell).toContain('data class CraftNativeTabBarAppearance')
+    expect(shell).toContain('private fun tabCellBackground(index: Int, dark: Boolean)')
+    expect(activity).toContain('routes.tabBarAppearance')
+    await expect(init({ name: 'Invalid Tab Bar', output: join(output, 'invalid'), runtimeDir: null, config: {
+      renderer: 'native', tabBar: { selection: { cornerRadius: -1 } },
+    } })).rejects.toThrow('cornerRadius must be a finite non-negative number')
+    await expect(init({ name: 'Invalid Tab Color', output: join(output, 'invalid-color'), runtimeDir: null, config: {
+      renderer: 'native', tabBar: { selection: { color: 'red' } },
+    } })).rejects.toThrow('color must be a #RRGGBB color')
+  })
+
+
   it('bundles custom fonts with their licenses and removes retired fonts', async () => {
     const root = createTempDir('craft-native-fonts-')
     const font = join(root, 'Signature.ttf')

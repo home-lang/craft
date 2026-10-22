@@ -138,6 +138,8 @@ export interface CraftAndroidConfig {
   renderer?: 'web' | 'native'
   /** "system" follows the device; light/dark pin the generated host. */
   appearance?: 'light' | 'dark' | 'system'
+  /** Static native tab-bar styling applied before the page's own tabBar.set call. */
+  tabBar?: CraftTabBarConfig
   /** Runs from the generated project root before Gradle compiles the app. */
   postGenerate?: CraftPostGenerateHook
   version?: string
@@ -260,6 +262,15 @@ export interface CraftAndroidConfig {
     release?: string
     /** One session per launch, for crash-free sessions. Default on. */
     sessions?: boolean
+  }
+}
+
+export interface CraftTabBarConfig {
+  selection?: {
+    /** The selected tab indicator's corner radius in dp; omitted keeps the default. */
+    cornerRadius?: number
+    /** The selected tab indicator fill as #RRGGBB. */
+    color?: string
   }
 }
 
@@ -565,6 +576,11 @@ function validateAndroidConfig(config: CraftAndroidConfig): void {
   if (config.appearance !== undefined && !['light', 'dark', 'system'].includes(config.appearance)) {
     throw new Error(`Unknown Android appearance: ${config.appearance}. Expected light, dark, or system.`)
   }
+  const selection = config.tabBar?.selection
+  if (selection?.cornerRadius !== undefined && (!Number.isFinite(selection.cornerRadius) || selection.cornerRadius < 0))
+    throw new Error('Android tabBar.selection.cornerRadius must be a finite non-negative number')
+  if (selection?.color !== undefined && !/^#[0-9a-f]{6}$/i.test(selection.color))
+    throw new Error('Android tabBar.selection.color must be a #RRGGBB color')
 
   const packageSegments = config.packageName.split('.')
   if (packageSegments.length < 2
