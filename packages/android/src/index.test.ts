@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'bun:test'
-import { ANDROID_MIN_SDK, build, init, installRuntime, renderAndroidDeepLinks, renderAndroidPermissions, resolveRuntimeDir, syncAndroidWebAssets, syncNativeFonts } from './index'
+import { ANDROID_MIN_SDK, build, init, installRuntime, renderAndroidDeepLinks, renderAndroidPermissions, resolveRuntimeDir, runPostGenerateHook, syncAndroidWebAssets, syncNativeFonts } from './index'
 import { createTempDir, removeAllTempDirs } from '../../typescript/src/temp-dir'
 
 // Every scratch directory this file made goes when the file is done (#357).
@@ -15,6 +15,25 @@ function generatedFiles(path: string): string[] {
 }
 
 describe('Craft Android builder', () => {
+  it('runs a declared postGenerate command from the project root with metadata', async () => {
+    const output = createTempDir('craft-android-post-generate-')
+    await init({ name: 'Hook App', output, runtimeDir: null, config: {
+      postGenerate: { command: 'sh', args: ['-c', 'printf "%s|%s|%s" "$PWD" "$CRAFT_PLATFORM" "$CRAFT_GENERATE_PHASE" > hook.txt'] },
+    } })
+    const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
+    expect(config.postGenerate).toEqual({ command: 'sh', args: ['-c', 'printf "%s|%s|%s" "$PWD" "$CRAFT_PLATFORM" "$CRAFT_GENERATE_PHASE" > hook.txt'] })
+    runPostGenerateHook(config.postGenerate, output)
+    expect(readFileSync(join(output, 'hook.txt'), 'utf8')).toBe(`${realpathSync(output)}|android|build`)
+  })
+
+  it('reports invalid Android postGenerate commands and non-zero exits', () => {
+    const output = createTempDir('craft-android-post-generate-errors-')
+    expect(() => runPostGenerateHook({ command: '' }, output)).toThrow('postGenerate.command must be a non-empty executable')
+    expect(() => runPostGenerateHook({ command: join(output, 'missing-hook') }, output)).toThrow('postGenerate hook could not start')
+    expect(() => runPostGenerateHook({ command: 'sh', args: ['-c', 'printf "patch failed" >&2; exit 7'] }, output))
+      .toThrow('postGenerate hook failed with exit code 7: patch failed')
+  })
+
   it('bundles custom fonts with their licenses and removes retired fonts', async () => {
     const root = createTempDir('craft-native-fonts-')
     const font = join(root, 'Signature.ttf')

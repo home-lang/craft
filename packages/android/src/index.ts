@@ -138,6 +138,8 @@ export interface CraftAndroidConfig {
   renderer?: 'web' | 'native'
   /** "system" follows the device; light/dark pin the generated host. */
   appearance?: 'light' | 'dark' | 'system'
+  /** Runs from the generated project root before Gradle compiles the app. */
+  postGenerate?: CraftPostGenerateHook
   version?: string
   versionCode?: number
   darkMode?: boolean
@@ -261,6 +263,12 @@ export interface CraftAndroidConfig {
   }
 }
 
+/** A declared command Craft runs after the native project has been generated. */
+export interface CraftPostGenerateHook {
+  command: string
+  args?: string[]
+}
+
 /** The shared health data types (the iOS builder's HealthKit names). */
 export type HealthConnectType = 'steps' | 'heartRate' | 'activeEnergy' | 'distance' | 'workouts' | 'restingHeartRate'
   | 'heartRateVariability' | 'bodyMass' | 'sleep' | 'mindful' | 'dietaryEnergy' | 'dietaryProtein'
@@ -354,6 +362,42 @@ export interface BuildOptions {
   compile?: boolean
   /** Same meaning as `InitOptions.runtimeDir`; refreshes what init installed. */
   runtimeDir?: string | null
+}
+
+/**
+ * Run the app's declared generator hook without invoking a shell.
+ *
+ * A hook gets the generated project as its cwd and explicit metadata so a
+ * patch can target the right platform and phase without guessing from paths.
+ */
+export function runPostGenerateHook(
+  hook: CraftPostGenerateHook | undefined,
+  output: string,
+  phase: 'build' = 'build',
+): void {
+  if (!hook) return
+  if (typeof hook.command !== 'string' || !hook.command.trim())
+    throw new Error('Android postGenerate.command must be a non-empty executable')
+  if (hook.args !== undefined && (!Array.isArray(hook.args) || hook.args.some(argument => typeof argument !== 'string')))
+    throw new Error('Android postGenerate.args must be an array of strings')
+
+  const command = [hook.command, ...(hook.args ?? [])]
+  let result: ReturnType<typeof Bun.spawnSync>
+  try {
+    result = Bun.spawnSync(command, {
+      cwd: output,
+      env: { ...process.env, CRAFT_PROJECT_ROOT: output, CRAFT_PLATFORM: 'android', CRAFT_GENERATE_PHASE: phase },
+      stdout: 'inherit',
+      stderr: 'pipe',
+    })
+  }
+  catch (error) {
+    throw new Error(`Android postGenerate hook could not start: ${hook.command}`, { cause: error })
+  }
+  if (result.exitCode !== 0) {
+    const stderr = result.stderr?.toString().trim()
+    throw new Error(`Android postGenerate hook failed with exit code ${result.exitCode}${stderr ? `: ${stderr}` : ''}`)
+  }
 }
 
 export interface OpenOptions {
@@ -1576,6 +1620,8 @@ export async function build(options: BuildOptions): Promise<void> {
   }
 
   syncNativeFonts(config.nativeFonts, output)
+
+  runPostGenerateHook(config.postGenerate, output)
 
   if (!compile) return
 
