@@ -904,7 +904,7 @@
     get: function (key, fallback) {
       const bad = _prefsKey('get', key)
       if (bad) return Promise.reject(bad)
-      return _req('prefs', 'prefs:get', _stringify({ k: key }), PREFS_TIMEOUT_MS).then(function (_r) {
+      return _req('prefs', 'prefs:get', _stringify({ k: key }), PREFS_TIMEOUT_MS).then(function (r) {
         const tag = r && r.t
         if (tag === 'none') return fallback
         if (tag === 'other') {
@@ -981,7 +981,7 @@
   // the same reason — there is no 'dead', because craft cannot prove a channel
   // has no emitter.
   window.craft.capabilities = function () {
-    return _req('capabilities', 'capabilities:get', '{}', 5000).then(function (_manifest) {
+    return _req('capabilities', 'capabilities:get', '{}', 5000).then(function (manifest) {
       window.__craftCapabilities = manifest
       return manifest
     })
@@ -1463,7 +1463,7 @@
     getBiometryType: function () { return _req('biometric', 'getBiometryType').then(function (r) { return (r && r.type) || 'none' }) },
     evaluate:        function (reason, opts) {
       const o = Object.assign({ reason: String(reason || 'Authenticate to continue') }, opts || {})
-      return _req('biometric', 'evaluate', _stringify(_o)).then(function (r) { return r || { success: false } })
+      return _req('biometric', 'evaluate', _stringify(o)).then(function (r) { return r || { success: false } })
     },
   }
 
@@ -1480,7 +1480,7 @@
     isPlaying:       function () { return _req('audio', 'isPlaying').then(function (r) { return !!(r && r.value) }) },
     startRecording:  function (path, opts) {
       const o = Object.assign({ path: String(path) }, opts || {})
-      return _req('audio', 'startRecording', _stringify(_o)).then(function (r) { return !!(r && r.ok) })
+      return _req('audio', 'startRecording', _stringify(o)).then(function (r) { return !!(r && r.ok) })
     },
     stopRecording:   function () { return _send('audio', 'stopRecording') },
     isRecording:     function () { return _req('audio', 'isRecording').then(function (r) { return !!(r && r.value) }) },
@@ -1633,7 +1633,7 @@
   window.craft.handoff = {
     startActivity: function (type, opts) {
       const o = Object.assign({ type: String(type) }, opts || {})
-      return _req('handoff', 'startActivity', _stringify(_o)).then(function (r) { return !!(r && r.ok) })
+      return _req('handoff', 'startActivity', _stringify(o)).then(function (r) { return !!(r && r.ok) })
     },
     updateActivity: function (opts) { return _req('handoff', 'updateActivity', _stringify(opts || {})).then(function (r) { return !!(r && r.ok) }) },
     stopActivity:        function () { return _send('handoff', 'stopActivity') },

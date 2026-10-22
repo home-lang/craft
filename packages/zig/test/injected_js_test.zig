@@ -249,6 +249,45 @@ test "the embedded bridge posts through WebView2 when WebKit is absent" {
 // fire-and-forget half of the bridge. Stubs that never fire keep it
 // deterministic: these tests resolve their own calls explicitly.
 
+fn expectOptionsPayload(call: []const u8, namespace: []const u8, action: []const u8, payload: []const u8) !void {
+    var fx = try Fixture.init();
+    defer fx.deinit();
+    _ = try fx.ctx.evaluate(WEBVIEW_HOST);
+    _ = try fx.ctx.evaluate(BRIDGE);
+    _ = try fx.ctx.evaluate(call);
+    try testing.expectEqualStrings("1", try fx.text("String(posted.length)"));
+    try testing.expectEqualStrings(namespace, try fx.text("posted[0].t"));
+    try testing.expectEqualStrings(action, try fx.text("posted[0].a"));
+    try testing.expectEqualStrings(payload, try fx.text("posted[0].d"));
+}
+
+test "biometric evaluation forwards its reason and options" {
+    try expectOptionsPayload(
+        "window.craft.biometric.evaluate('Unlock', { allowFallback: true });",
+        "biometric",
+        "evaluate",
+        "{\"reason\":\"Unlock\",\"allowFallback\":true}",
+    );
+}
+
+test "audio recording forwards its path and options" {
+    try expectOptionsPayload(
+        "window.craft.audio.startRecording('/tmp/capture.m4a', { sampleRate: 44100 });",
+        "audio",
+        "startRecording",
+        "{\"path\":\"/tmp/capture.m4a\",\"sampleRate\":44100}",
+    );
+}
+
+test "handoff activity forwards its type and options" {
+    try expectOptionsPayload(
+        "window.craft.handoff.startActivity('org.stacksjs.edit', { title: 'Edit image' });",
+        "handoff",
+        "startActivity",
+        "{\"type\":\"org.stacksjs.edit\",\"title\":\"Edit image\"}",
+    );
+}
+
 test "craft.menu.set posts what bridge_menu.zig's parser reads" {
     // The one path that matters, end to end and without a window: the real
     // injected script builds the message, and the real native parser decodes
