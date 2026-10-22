@@ -1,5 +1,54 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.295...v0.0.296)
+
+## 🚀 Features
+
+- **runtime**: expose retained hosting through Craft ([676e773](https://github.com/craft-native/craft/commit/676e773)) _(by Chris)_
+- **runtime**: add bounded persistent JavaScript host backends ([59af5ed](https://github.com/craft-native/craft/commit/59af5ed)) _(by Chris)_
+- **tray**: expose rendered native status item state ([b6cc99c](https://github.com/craft-native/craft/commit/b6cc99c)) _(by Chris Breuer)_
+- **types**: expose app appearance controls ([f40f6f4](https://github.com/craft-native/craft/commit/f40f6f4)) _(by glennmichael123)_
+- **android**: configure tab selection appearance ([ed6fbb3](https://github.com/craft-native/craft/commit/ed6fbb3)) _(by glennmichael123)_
+- **ios**: configure tab selection appearance ([e2ecbea](https://github.com/craft-native/craft/commit/e2ecbea)) _(by glennmichael123)_
+- add native post-generate hooks ([8ac6505](https://github.com/craft-native/craft/commit/8ac6505)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **runtime**: adopt the verified stopped-mutator admission fix ([3ff3d47](https://github.com/craft-native/craft/commit/3ff3d47)) _(by Chris)_
+- **ios**: update SwiftUI appearance at runtime ([b29e09d](https://github.com/craft-native/craft/commit/b29e09d)) _(by glennmichael123)_
+- **ios**: preserve native screen appearance config ([d831ee6](https://github.com/craft-native/craft/commit/d831ee6)) _(by glennmichael123)_
+- **ios**: let native screens control interface appearance ([341823a](https://github.com/craft-native/craft/commit/341823a)) _(by glennmichael123)_
+- **ios**: retain tab chrome in selection indicator ([00e99d0](https://github.com/craft-native/craft/commit/00e99d0)) _(by glennmichael123)_
+- **ios**: mirror nested tab bar config ([f8e8e2c](https://github.com/craft-native/craft/commit/f8e8e2c)) _(by glennmichael123)_
+- **macos**: open file inputs through WKWebView ([dd55dad](https://github.com/craft-native/craft/commit/dd55dad)) _(by glennmichael123)_
+- **ios**: ignore stale watch state updates ([e7be262](https://github.com/craft-native/craft/commit/e7be262)) _(by glennmichael123)_
+
+## 📚 Documentation
+
+- describe native project customization ([0438102](https://github.com/craft-native/craft/commit/0438102)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **runtime**: verify persistent hosting through the public API ([21b084c](https://github.com/craft-native/craft/commit/21b084c)) _(by Chris)_
+- **tray**: keep typed bridge fixtures aligned with native state ([d420b7e](https://github.com/craft-native/craft/commit/d420b7e)) _(by Chris Breuer)_
+- **ios**: preserve nested config conformance ([45a3363](https://github.com/craft-native/craft/commit/45a3363)) _(by glennmichael123)_
+- **ios**: ratchet appearance actions ([56dac5b](https://github.com/craft-native/craft/commit/56dac5b)) _(by glennmichael123)_
+- **ios**: advance appearance action ratchet ([33853c5](https://github.com/craft-native/craft/commit/33853c5)) _(by glennmichael123)_
+- cover native post-generate build hooks ([71169f9](https://github.com/craft-native/craft/commit/71169f9)) _(by glennmichael123)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into HEAD ([76d4f9d](https://github.com/craft-native/craft/commit/76d4f9d)) _(by Chris Breuer)_
+- Merge pull request #401 from craft-native/codex/issues-388-400-344 ([fa64e64](https://github.com/craft-native/craft/commit/fa64e64)) _(by Glenn Michael Torregosa)_ ([#401](https://github.com/craft-native/craft/issues/401))
+- Merge remote-tracking branch 'origin/main' into HEAD ([125135b](https://github.com/craft-native/craft/commit/125135b)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+- _Glenn Michael Torregosa_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.294...v0.0.295)
 
 ## 🧪 Tests
