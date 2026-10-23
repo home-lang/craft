@@ -209,6 +209,7 @@ jobs:
           CRAFT_ONLY_TESTING: ${{ matrix.suite == 'navigation-unit' && 'NativeNavigationUnitTests' || inputs.selectors }}
           CRAFT_NATIVE_NAVIGATION_GROUP: ${{ matrix.suite == 'navigation-ui-core' && 'core' || matrix.suite == 'navigation-ui-controls' && 'controls' || '' }}
           CRAFT_NATIVE_NAVIGATION_RESULT: ${{ github.workspace }}/artifacts/mobile-e2e/ios-native/navigation.xcresult
+          CRAFT_NATIVE_NAVIGATION_LIVE_LOG: ${{ github.workspace }}/artifacts/mobile-e2e/ios-native/navigation.log
         run: |
           mkdir -p artifacts/mobile-e2e/ios-native
           bun packages/ios/scripts/test-native-navigation.ts 2>&1 | tee artifacts/mobile-e2e/ios-native/navigation.log
