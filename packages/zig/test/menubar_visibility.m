@@ -105,6 +105,32 @@ static void verifyStatusItemScope(void) {
     [items removeAllObjects]; remaining = 256;
     assert(snapshotItems((__bridge AXUIElementRef)root, 8, YES, 100, NO, NO, items, &remaining));
     assert(!preservesItems(expected, items));
+    // Apple module suppression is opt-in; right-side apps remain protected
+    // under either policy. Actual snapshots still observe system modules.
+    NSMutableDictionary *systemAttributes = [statusAttributes mutableCopy];
+    systemAttributes[(__bridge NSString *)kAXIdentifierAttribute] = @"com.apple.menuextra.focusmode";
+    id system = testNode(systemAttributes);
+    extrasAttributes[(__bridge NSString *)kAXChildrenAttribute] = @[status, system];
+    [items removeAllObjects]; remaining = 256;
+    assert(preserveSystemItems);
+    assert(snapshotItems((__bridge AXUIElementRef)root, 8, YES, 100, NO, YES, items, &remaining));
+    NSDictionary *strict = [items copy];
+    assert(strict.count == 2);
+    craft_menubar_visibility_init(NULL, NULL, false);
+    assert(!preserveSystemItems);
+    [items removeAllObjects]; remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)root, 8, YES, 100, NO, YES, items, &remaining));
+    NSDictionary *appsOnly = [items copy];
+    assert(appsOnly.count == 1 && [appsOnly[key] unsignedIntegerValue] == 1);
+    extrasAttributes[(__bridge NSString *)kAXChildrenAttribute] = @[status];
+    [items removeAllObjects]; remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)root, 8, YES, 100, NO, NO, items, &remaining));
+    assert(preservesItems(appsOnly, items) && !preservesItems(strict, items));
+    extrasAttributes[(__bridge NSString *)kAXChildrenAttribute] = @[system];
+    [items removeAllObjects]; remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)root, 8, YES, 100, NO, NO, items, &remaining));
+    assert(!preservesItems(appsOnly, items));
+    craft_menubar_visibility_init(NULL, NULL, true);
     // Unreadable extras preserve the app's native presence, never its window
     // controls. This keeps an unknown app protected without walking its UI.
     id ordinaryApp = testNode(@{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXApplicationRole,

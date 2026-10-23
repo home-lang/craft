@@ -23,6 +23,7 @@ static id<CraftVisibilityAssertion> pendingAssertion;
 static NSUInteger generation;
 static BOOL busy;
 static BOOL requestedPermission;
+static BOOL preserveSystemItems = YES;
 static NSString *failure;
 static NSUInteger hiddenAppCount;
 static Class configurationClass;
@@ -131,9 +132,10 @@ static void fail(NSString *reason) {
 
 bool craft_menubar_visibility_available(void) { return available(); }
 
-void craft_menubar_visibility_init(void *item, void (*callback)(void)) {
+void craft_menubar_visibility_init(void *item, void (*callback)(void), bool preserve_system_items) {
     marker = (__bridge NSStatusItem *)item;
     changed = callback;
+    preserveSystemItems = preserve_system_items;
     failure = available() ? nil : @"unavailable";
 }
 
@@ -259,7 +261,8 @@ static id (*readAttribute)(AXUIElementRef, CFStringRef) = attribute;
 
 // Verify the displayed bar independently of the per-app grouping inventory.
 // A private allow-list can silently omit an allowed app (notably a mismatched
-// helper bundle), or suppress a system indicator. Such an activation is unsafe.
+// helper bundle), or suppress a system indicator. System preservation is an
+// explicit consumer policy; unselected application icons are always protected.
 static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, double boundary, BOOL rtl,
     BOOL protectedOnly, NSMutableDictionary *items, NSUInteger *remaining) {
     if (!depth || !*remaining) return NO;
@@ -285,6 +288,9 @@ static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, doub
     if ([role isEqual:(__bridge NSString *)kAXMenuRole]) return YES;
     NSString *identifier = readAttribute(node, kAXIdentifierAttribute);
     BOOL system = [identifier isKindOfClass:NSString.class] && [identifier hasPrefix:@"com.apple.menuextra."];
+    // MenuBarClientCore can suppress Apple modules even when allowed. Consumers
+    // may explicitly accept that behavior without disabling app verification.
+    if (protectedOnly && system && !preserveSystemItems) return YES;
     if (system || [role isEqual:(__bridge NSString *)kAXButtonRole]
         || [role isEqual:(__bridge NSString *)kAXMenuBarItemRole]) {
         id position = readAttribute(node, kAXPositionAttribute), size = readAttribute(node, kAXSizeAttribute);
@@ -473,6 +479,7 @@ const char *craft_menubar_visibility_state(void) {
         @"collapsed": @((bool)(assertion != nil)), @"separatorHidden": @NO,
         @"available": @(available()), @"authorized": @((bool)AXIsProcessTrusted()),
         @"busy": @(busy), @"hiddenAppCount": @(hiddenAppCount),
+        @"preserveSystemItems": @(preserveSystemItems),
         @"markerWidth": @(marker.length), @"error": failure ?: (id)NSNull.null,
     };
     NSData *json = [NSJSONSerialization dataWithJSONObject:state options:0 error:nil];

@@ -116,7 +116,7 @@ fn getSystemStatusBar() objc.id {
 
 const visibility = struct {
     extern fn craft_menubar_visibility_available() bool;
-    extern fn craft_menubar_visibility_init(item: objc.id, changed: *const fn () callconv(.c) void) void;
+    extern fn craft_menubar_visibility_init(item: objc.id, changed: *const fn () callconv(.c) void, preserve_system_items: bool) void;
     extern fn craft_menubar_visibility_collapse() void;
     extern fn craft_menubar_visibility_expand() void;
     extern fn craft_menubar_visibility_cleanup() void;
@@ -358,17 +358,16 @@ pub fn init() void {
 }
 
 /// Explicit opt-in. Failure never selects the legacy width-based backend.
-pub fn initNativeVisibility() void {
+pub fn initNativeVisibility(preserve_system_items: bool) void {
     if (builtin.target.os.tag != .macos) return;
     if (is_initialized) {
-        if (native_visibility) return;
         destroy();
     }
     native_visibility = true;
-    visibility.craft_menubar_visibility_init(null, &visibilityChanged);
+    visibility.craft_menubar_visibility_init(null, &visibilityChanged, preserve_system_items);
     if (!visibility.craft_menubar_visibility_available()) return;
     init();
-    visibility.craft_menubar_visibility_init(separator_item, &visibilityChanged);
+    visibility.craft_menubar_visibility_init(separator_item, &visibilityChanged, preserve_system_items);
     drawMarker(separator_item, false);
 }
 
