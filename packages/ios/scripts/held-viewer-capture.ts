@@ -31,18 +31,42 @@ export class HeldViewerTiming {
   captureStartedAt?: number
   captureFinishedAt?: number
   releasedAt?: number
+  tab?: string
   private press = false
+  private markerKind?: 'fixture' | 'driver'
 
   line(value: string, observedAt: number): boolean {
-    const begin = /\bCRAFT_TAB_LCV_HOLD_BEGIN ([\d.]+)/.exec(value)
-    const end = /\bCRAFT_TAB_LCV_HOLD_END ([\d.]+)/.exec(value)
-    if (begin) {
+    const fixtureBegin = /\bCRAFT_TAB_LCV_HOLD_BEGIN (\S+)\s*$/.exec(value)
+    const fixtureEnd = /\bCRAFT_TAB_LCV_HOLD_END (\S+)\s*$/.exec(value)
+    const driverBegin = /\bDRIVER BEGIN holdtab ([^|]+?)\s*\|\s*(\S+)\s*\|\s*(\S+)\s*$/.exec(value)
+    const driverEnd = /\bDRIVER END holdtab ([^|]+?)\s*\|\s*(\S+)\s*$/.exec(value)
+    if ((value.includes('CRAFT_TAB_LCV_HOLD_BEGIN') && !fixtureBegin)
+      || (value.includes('CRAFT_TAB_LCV_HOLD_END') && !fixtureEnd)
+      || (value.includes('DRIVER BEGIN holdtab') && !driverBegin)
+      || (value.includes('DRIVER END holdtab') && !driverEnd))
+      throw new Error('Malformed viewer hold marker')
+    const timestamp = (raw: string): number => {
+      if (!/^\d+(?:\.\d+)?$/.test(raw) || !Number.isFinite(Number(raw)) || Number(raw) <= 0)
+        throw new Error('Invalid viewer hold timestamp')
+      return Number(raw)
+    }
+    if (driverBegin && (!/^6(?:\.0+)?$/.test(driverBegin[2]!) || !driverBegin[1]!.trim()))
+      throw new Error('Viewer capture requires a named six-second public driver hold')
+    if (fixtureBegin || driverBegin) {
       if (this.beganAt !== undefined) throw new Error('Duplicate viewer hold marker')
-      this.beganAt = Number(begin[1])
+      this.markerKind = driverBegin ? 'driver' : 'fixture'
+      this.tab = driverBegin?.[1]?.trim()
+      this.beganAt = timestamp((driverBegin?.[3] ?? fixtureBegin?.[1])!)
+    }
+    if (fixtureEnd || driverEnd) {
+      if (this.beganAt === undefined || this.releasedAt !== undefined)
+        throw new Error('Unmatched or duplicate viewer release marker')
+      if ((driverEnd ? 'driver' : 'fixture') !== this.markerKind || (driverEnd && driverEnd[1]!.trim() !== this.tab))
+        throw new Error('Viewer release does not match the held tab')
+      this.releasedAt = timestamp((driverEnd?.[2] ?? fixtureEnd?.[1])!)
     }
     if (this.beganAt === undefined || this.releasedAt !== undefined) return false
     if (/\bPress\b.*\bfor 6(?:\.0+)? seconds\b/.test(value)) this.press = true
-    if (end) this.releasedAt = Number(end[1])
     if (this.press && this.synthesisObservedAt === undefined && value.includes('Synthesize event')) {
       this.synthesisObservedAt = observedAt
       return true

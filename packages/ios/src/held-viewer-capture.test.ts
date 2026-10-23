@@ -176,6 +176,61 @@ describe('independent held viewer capture', () => {
     expect(timing.line('Synthesize event', 102)).toBe(false)
   })
 
+  test('public driver trace verifies the same during-hold screenshot timing as native fixtures', () => {
+    const timing = new HeldViewerTiming()
+    timing.line('DRIVER BEGIN holdtab Today | 6.0 | 100', 100)
+    expect(timing.line('Synthesize event', 101)).toBe(false)
+    timing.line('t = 1s Press "craft-tab-/" Button[0.5, 0.5] for 6.0 seconds', 101)
+    expect(timing.line('t = 2s Synthesize event', 102)).toBe(true)
+    timing.captured(102.8, 103.2)
+    timing.line('DRIVER END holdtab Today | 108', 108)
+    expect(() => timing.verify()).not.toThrow()
+    expect(timing.beganAt).toBe(100)
+    expect(timing.releasedAt).toBe(108)
+  })
+
+  test('public driver markers reject non-six holds, malformed timestamps, mismatched tabs and duplicates', () => {
+    for (const marker of [
+      'DRIVER BEGIN holdtab Today | 2.0 | 100',
+      'DRIVER BEGIN holdtab Today | 6.0 | NaN',
+      'DRIVER BEGIN holdtab Today | 6.0 | 100.0.1',
+      'DRIVER BEGIN holdtab Today | 6.0 | -100',
+      'DRIVER BEGIN holdtab | 6.0 | 100',
+    ]) expect(() => new HeldViewerTiming().line(marker, 100)).toThrow()
+    for (const marker of [
+      'DRIVER END holdtab Health | 108',
+      'DRIVER END holdtab Today | Infinity',
+      'CRAFT_TAB_LCV_HOLD_END 108',
+      'DRIVER BEGIN holdtab Today | 6.0 | 100',
+    ]) {
+      const timing = new HeldViewerTiming()
+      timing.line('DRIVER BEGIN holdtab Today | 6.0 | 100', 100)
+      expect(() => timing.line(marker, 108)).toThrow()
+    }
+  })
+
+  test('public driver complete live trace retains a qualified independent screenshot receipt', async () => {
+    const dir = createTempDir('craft-held-capture-test-')
+    const started = performance.now()
+    try {
+      const log = join(dir, 'log'), done = join(dir, 'done'), output = join(dir, 'evidence')
+      writeFileSync(log, 'DRIVER BEGIN holdtab Today | 6.0 | 100\n' + gesture)
+      await captureHeldViewer({ log, done, output, simulator, timeoutMs: 2500 }, {
+        prepare: async () => {},
+        now: () => 102 + (performance.now() - started) / 1000,
+        capture: async path => {
+          await Bun.write(path, pixel)
+          appendFileSync(log, 'DRIVER END holdtab Today | 108\n')
+        },
+      })
+      const receipt = JSON.parse(readFileSync(join(output, 'receipt.json'), 'utf8'))
+      expect(receipt.verifiedDuringHold).toBe(true)
+      expect(receipt.timing.tab).toBe('Today')
+      expect(receipt.timing.captureFinishedAt).toBeLessThan(receipt.timing.releasedAt)
+    }
+    finally { removeTempDir(dir) }
+  })
+
   test('requires screenshot completion before release and rejects buffered/early captures', () => {
     for (const [start, finish, end] of [[102.8, 103, 108], [102.1, 103, 108], [102.8, 108, 108], [102.8, 109, 108], [102.8, 103, 104]]) {
       const timing = ready()
