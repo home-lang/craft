@@ -1,5 +1,32 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.309...v0.0.310)
+
+## 🐛 Bug Fixes
+
+- **menubar**: verify native status items without scanning app windows ([16e7e54](https://github.com/craft-native/craft/commit/16e7e54)) _(by Chris Breuer)_
+- **menubar**: keep unbundled native helpers visible ([ae553e3](https://github.com/craft-native/craft/commit/ae553e3)) _(by Chris Breuer)_
+- **menubar**: preserve visible apps by native signing identity ([ce4df3b](https://github.com/craft-native/craft/commit/ce4df3b)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: verify actual recorded frames during held tab gestures ([8e8ab58](https://github.com/craft-native/craft/commit/8e8ab58)) _(by Chris Breuer)_
+- **ios**: own public screen recording through movie finalization ([6e51192](https://github.com/craft-native/craft/commit/6e51192)) _(by Chris Breuer)_
+- **ios**: qualify actual recorded frames within native holds ([0e69abd](https://github.com/craft-native/craft/commit/0e69abd)) _(by Chris Breuer)_
+- **ios**: reuse verified simctl for held screenshots ([e4c8217](https://github.com/craft-native/craft/commit/e4c8217)) _(by Chris Breuer)_
+- **ios**: qualify public driver held-tab capture markers ([a8201ed](https://github.com/craft-native/craft/commit/a8201ed)) _(by Chris Breuer)_
+- **ios**: share screenshot preflight command deadline ([5631427](https://github.com/craft-native/craft/commit/5631427)) _(by Chris Breuer)_
+- **ios**: wait for screenshot control before viewer gesture ([00e2a54](https://github.com/craft-native/craft/commit/00e2a54)) _(by Chris Breuer)_
+- **ios**: verify screenshot positive control before held capture ([c9d6e1a](https://github.com/craft-native/craft/commit/c9d6e1a)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- integrate current Craft release metadata ([9e390f2](https://github.com/craft-native/craft/commit/9e390f2)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.308...v0.0.309)
 
 ## 🐛 Bug Fixes
