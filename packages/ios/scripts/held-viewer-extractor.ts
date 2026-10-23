@@ -1,6 +1,6 @@
 import { createReadStream, existsSync, lstatSync, mkdirSync, realpathSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
-import { nativeFixtureCommand } from './native-fixture-command'
+import { nativeFixtureBuildTimeoutMs, nativeFixtureCommand } from './native-fixture-command'
 
 const source = join(import.meta.dir, 'held-viewer-frame.swift')
 
@@ -23,6 +23,7 @@ export interface HeldViewerExtractor {
 export async function buildHeldViewerExtractor(options: { output: string }, dependencies: {
   command?: typeof nativeFixtureCommand
   xcrun?: string
+  monotonicNow?: () => number
 } = {}): Promise<string> {
   const output = options.output
   if (!isAbsolute(output)) throw new Error('Extractor build output must be absolute')
@@ -34,17 +35,18 @@ export async function buildHeldViewerExtractor(options: { output: string }, depe
   const calls: { args: string[], timeoutMs: number, startedWall: number, finishedWall?: number, result?: Awaited<ReturnType<typeof nativeFixtureCommand>> }[] = []
   let swiftc: string | undefined, macosSdk: string | undefined
   let sourceSha256: string | undefined, swiftcSha256: string | undefined, binarySha256: string | undefined
-  const deadline = performance.now() + 30_000
+  const now = dependencies.monotonicNow ?? (() => performance.now())
+  const deadline = now() + nativeFixtureBuildTimeoutMs
   const receipt = (verified: boolean, error?: string) => ({
     verified, error, output, path, source, sourceSha256, swiftc, swiftcSha256,
-    macosSdk, binarySha256, xcrun, totalBuildBudgetMs: 30_000, calls,
+    macosSdk, binarySha256, xcrun, totalBuildBudgetMs: nativeFixtureBuildTimeoutMs, calls,
   })
   const run = async (args: string[]) => {
-    const timeoutMs = Math.max(0, Math.floor(deadline - performance.now()))
+    const timeoutMs = Math.max(0, Math.floor(deadline - now()))
     const call: typeof calls[number] = { args, timeoutMs, startedWall: Date.now() / 1000 }
     calls.push(call)
     try {
-      if (!timeoutMs) throw new Error('Extractor build exhausted its shared 30-second budget')
+      if (!timeoutMs) throw new Error('Extractor build exhausted its shared native fixture compilation deadline')
       const result = await command(args, { cwd: output, timeoutMs })
       call.result = result
       if (result.code !== 0 || result.timedOut || result.cancelled)
@@ -67,7 +69,7 @@ export async function buildHeldViewerExtractor(options: { output: string }, depe
     if (sourceSha256 !== await hash(source) || swiftcSha256 !== await hash(swiftc))
       throw new Error('Extractor source or compiler changed during its build')
     binarySha256 = await hash(path)
-    if (performance.now() >= deadline) throw new Error('Extractor build exhausted its shared 30-second budget')
+    if (now() >= deadline) throw new Error('Extractor build exhausted its shared native fixture compilation deadline')
     await Bun.write(manifest, JSON.stringify(receipt(true), null, 2))
     return manifest
   }
