@@ -4295,6 +4295,36 @@ final class CraftMapTapDelegate: NSObject, UIGestureRecognizerDelegate {
     }
 }
 
+/// A pressable wrapper must yield to an actionable descendant. Without this
+/// ordering UIKit may let the ancestor's tap recognizer win the same touch,
+/// so a nested Button never receives its physical action. A descendant
+/// control or tap recognizer is the source of the event; STX handles the
+/// logical bubbling from there.
+final class CraftPressGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+    static let shared = CraftPressGestureDelegate()
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let parent = gestureRecognizer.view,
+              let child = otherGestureRecognizer.view,
+              child !== parent else { return false }
+        return child.isDescendant(of: parent)
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard let container = gestureRecognizer.view else { return true }
+        let hitView = container.hitTest(touch.location(in: container), with: nil)
+        guard var candidate = hitView ?? touch.view else { return true }
+        while candidate !== container {
+            if candidate is UIControl { return false }
+            if candidate.gestureRecognizers?.contains(where: { $0 !== gestureRecognizer && $0 is UITapGestureRecognizer }) == true {
+                return false
+            }
+            candidate = candidate.superview ?? container
+        }
+        return true
+    }
+}
+
 /// The delegate of a Pressable's press-in/out feedback. That recognizer is
 /// a long press of no duration, so it begins the moment a finger lands; on its
 /// own it would claim the touch, and the tap that is the Pressable's onPress
@@ -9148,6 +9178,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let actionable = handler != nil || linkTargets[id] != nil
         if actionable, tapRecognizers[id] == nil {
             let recognizer = UITapGestureRecognizer(target: self, action: #selector(viewPressed(_:)))
+            recognizer.cancelsTouchesInView = false
+            recognizer.delegate = CraftPressGestureDelegate.shared
             tapRecognizers[id] = recognizer
             view.addGestureRecognizer(recognizer)
         } else if !actionable, let recognizer = tapRecognizers.removeValue(forKey: id) {
