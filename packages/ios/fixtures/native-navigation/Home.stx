@@ -1025,7 +1025,9 @@ function openDetailsThenUpdateBackground() {
     <Button testID="open-details" @click="openFormDetails()">Open details</Button>
     </ScrollView>
   <View testID="native-root-overlay" style={{"position":"absolute","top":8,"right":8,"width":24,"height":24,"backgroundColor":"#ef4444"}} />
-  <Button :if="!heldViewerHeartbeat()" testID="held-viewer-heartbeat-toggle" @click="heldViewerHeartbeat.set(true)" style={{"position":"absolute","top":8,"left":8,"width":24,"height":24,"fontSize":10}}>Live</Button>
-  <ActivityIndicator :if="heldViewerHeartbeat()" testID="held-viewer-heartbeat" color="#22c55e" size="small" style={{"position":"absolute","top":8,"left":8,"width":24,"height":24}} />
+  <View testID="held-viewer-heartbeat-slot" style={{"position":"absolute","top":8,"left":8,"width":24,"height":24}}>
+    <Pressable testID="held-viewer-heartbeat-toggle" @click="heldViewerHeartbeat.set(true)" style={{"width":24,"height":24}}><Text style={{"fontSize":10}}>Live</Text></Pressable>
+    <ActivityIndicator testID="held-viewer-heartbeat" color="#22c55e" size="small" :animating="heldViewerHeartbeat()" hidesWhenStopped style={{"position":"absolute","top":0,"left":0,"width":24,"height":24}} />
+  </View>
   </SafeAreaView>
 </template>
