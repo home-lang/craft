@@ -235,9 +235,17 @@ static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, double boundary
                     id value = attribute(node, (__bridge CFStringRef)name);
                     [parts addObject:[value isKindOfClass:NSString.class] ? value : @""];
                 }
-                if (![[parts subarrayWithRange:NSMakeRange(1, 4)] componentsJoinedByString:@""].length) return NO;
-                NSString *key = [parts componentsJoinedByString:@"\x1f"];
-                items[key] = @([items[key] unsignedIntegerValue] + 1);
+                if (![[parts subarrayWithRange:NSMakeRange(1, 4)] componentsJoinedByString:@""].length) {
+                    // An icon is allowed to omit every text attribute. Retain
+                    // its native AX identity across the verification interval:
+                    // labels and coordinates cannot identify this item safely.
+                    NSMutableArray *anonymous = items[@"anonymous"];
+                    if (!anonymous) items[@"anonymous"] = anonymous = [NSMutableArray array];
+                    [anonymous addObject:(__bridge id)node];
+                } else {
+                    NSString *key = [parts componentsJoinedByString:@"\x1f"];
+                    items[key] = @([items[key] unsignedIntegerValue] + 1);
+                }
             }
         }
     }
@@ -265,8 +273,21 @@ static NSDictionary *(*readBarSnapshot)(pid_t, double, BOOL, BOOL) = barSnapshot
 
 static BOOL preservesItems(NSDictionary *expected, NSDictionary *actual) {
     if (!expected.count || !actual.count) return NO;
-    for (NSString *key in expected)
+    for (NSString *key in expected) {
+        if ([key isEqual:@"anonymous"]) {
+            NSMutableArray *remaining = [actual[key] mutableCopy];
+            for (id element in expected[key]) {
+                NSUInteger match = [remaining indexOfObjectPassingTest:^BOOL(id candidate, NSUInteger index, BOOL *stop) {
+                    (void)index; (void)stop;
+                    return CFEqual((__bridge CFTypeRef)element, (__bridge CFTypeRef)candidate);
+                }];
+                if (!remaining || match == NSNotFound) return NO;
+                [remaining removeObjectAtIndex:match];
+            }
+            continue;
+        }
         if ([actual[key] unsignedIntegerValue] < [expected[key] unsignedIntegerValue]) return NO;
+    }
     return YES;
 }
 

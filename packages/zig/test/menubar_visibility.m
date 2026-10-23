@@ -62,6 +62,17 @@ int main(void) {
         assert(!preservesItems(@{@"right": @2}, snapshot));
         assert(!preservesItems(@{@"missing": @1}, snapshot));
         assert(!preservesItems(nil, snapshot));
+        // Unlabeled items are matched by retained AX identity, not by a shared
+        // empty string or a position that changes when the bar reflows.
+        AXUIElementRef anonymous = AXUIElementCreateApplication(getpid());
+        AXUIElementRef same = AXUIElementCreateApplication(getpid());
+        AXUIElementRef other = AXUIElementCreateApplication(getpid() + 1);
+        NSDictionary *expectedAnonymous = @{@"anonymous": @[(__bridge id)anonymous]};
+        assert(preservesItems(expectedAnonymous, @{@"anonymous": @[(__bridge id)same]}));
+        assert(!preservesItems(expectedAnonymous, @{@"anonymous": @[(__bridge id)other]}));
+        assert(!preservesItems(expectedAnonymous, snapshot));
+        assert(!preservesItems(@{@"anonymous": @[(__bridge id)anonymous, (__bridge id)anonymous]}, expectedAnonymous));
+        CFRelease(anonymous); CFRelease(same); CFRelease(other);
         // A helper's sealed identifier differs from its app/LaunchServices ID.
         // It must stay allowed even when its icon sits in the hidden section.
         NSString *signedIdentity = @"dev.craft.visibility.fixture.runtime";
