@@ -782,6 +782,23 @@ describe('Craft Android builder', () => {
     expect(native).toContain('control.transitionName = craftNativeOptionalString(props.opt("transitionID"))?.takeIf { it.isNotBlank() }')
   })
 
+  it('gives native screens screen-owned audio playback with cancellation and teardown', async () => {
+    const output = createTempDir('craft-android-native-audio-')
+    await init({ name: 'NativeAudio', packageName: 'org.example.nativeaudio', output, runtimeDir: null, config: { renderer: 'native' } })
+    const root = join(output, 'app/src/main/java/org/example/nativeaudio')
+    const sounds = readFileSync(join(root, 'CraftNativeSounds.kt'), 'utf8')
+    const native = readFileSync(join(root, 'MainActivity.kt'), 'utf8')
+    expect(sounds).toContain('setOnPreparedListener')
+    expect(sounds).toContain('setOnCompletionListener')
+    expect(sounds).toContain('setOnErrorListener')
+    expect(sounds).toContain('sound.player.release()')
+    expect(sounds).toContain('CraftNativeMedia.local(context, text)')
+    expect(native).toContain('put("audio")')
+    expect(native).toContain('screen.soundRequestCancellers[token]')
+    expect(native).toContain('sounds.close()')
+    expect(native).toContain('"SOUND_EVENT"')
+  })
+
   it('hands native wallet passes to Google Wallet through an opt-in save URL', async () => {
     const output = createTempDir('craft-android-native-wallet-')
     await init({ name: 'Wallet', packageName: 'org.example.wallet', output, runtimeDir: null, config: { renderer: 'native', enableWallet: true } })
