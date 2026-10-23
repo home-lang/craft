@@ -1387,7 +1387,8 @@ dot. Non-JSON values and invalid names are rejected before a write is posted;
 the previous confirmed checkpoint remains available after a failed or
 interrupted replacement. If a screen closes while a checkpoint is still being
 written, its promise rejects instead of hanging; the host's later worker
-completion cannot publish a second result for that request.
+completion cannot publish a second result for that request. iOS also reports a
+failed result when its writer completes after the screen runtime is disposed.
 
 The `media` capability (iOS) keeps video and audio on the phone for offline,
 in Application Support rather than the temporary directory, left out of

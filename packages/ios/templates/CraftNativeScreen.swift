@@ -6407,14 +6407,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             CraftSnapshots.read(name)
         }
         let snapshotSet: @convention(block) (String, JSValue, JSValue) -> Void = { name, value, done in
-            CraftSnapshots.write(name, json: value.isNull || value.isUndefined ? nil : value.toString()) { ok in
-                CraftNativeScriptThread.run { done.call(withArguments: [ok]) }
+            CraftSnapshots.write(name, json: value.isNull || value.isUndefined ? nil : value.toString()) { [weak self] ok in
+                CraftNativeScriptThread.run {
+                    // A writer can finish after UIKit has disposed this
+                    // screen. Resolve the pending promise as a cancellation,
+                    // never as a successful write into a dead runtime.
+                    done.call(withArguments: [self?.runtimeDisposed == true ? false : ok])
+                }
             }
         }
         let snapshotClear: @convention(block) (JSValue, JSValue) -> Void = { keep, done in
             let names = (keep.isUndefined || keep.isNull ? [] : (keep.toArray() ?? [])).compactMap { $0 as? String }
-            CraftSnapshots.clear(keeping: Set(names)) { ok in
-                CraftNativeScriptThread.run { done.call(withArguments: [ok]) }
+            CraftSnapshots.clear(keeping: Set(names)) { [weak self] ok in
+                CraftNativeScriptThread.run {
+                    done.call(withArguments: [self?.runtimeDisposed == true ? false : ok])
+                }
             }
         }
         let config = self.config

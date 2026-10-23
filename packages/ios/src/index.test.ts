@@ -543,6 +543,8 @@ describe('Craft iOS builder', () => {
     expect(native).toContain('pendingCapabilityDeadlines.values.forEach { $0.cancel() }')
     expect(native).toContain('CraftNativeScriptThread.run { timers.pending.values.forEach { $0.cancel() } }')
     expect(native).toContain('pendingCapabilityRequests.forEach { CraftNativeActions.cancel(requestToken: $0) }')
+    expect(native).toContain('self?.runtimeDisposed == true ? false : ok')
+    expect(native).toContain('never as a successful write into a dead runtime')
     expect(native).toContain('lifecycleObservers.forEach(NotificationCenter.default.removeObserver)')
     expect(native).not.toContain('WKWebView')
   })
