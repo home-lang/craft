@@ -661,6 +661,7 @@
     cancelAll:         function ()     { return _send('notification', 'cancelAll') },
     setBadge:          function (n)    { return _send('notification', 'setBadge', _stringify({ count: Number(n) || 0 })) },
     clearBadge:        function ()     { return _send('notification', 'clearBadge') },
+    destroy:               function ()      { return _send('menubarCollapse', 'destroy') },
     requestPermission: function (opts) { return _req('notification', 'requestPermission', opts ? _stringify(opts) : undefined).then(function (r) { return r === 'granted' || (r && r.granted) === true }) },
     getPermissionStatus: function () { return _req('notification', 'getPermissionStatus').then(function (r) { return typeof r === 'string' ? r : 'unknown' }) },
     // macOS: query Notification Center for one delivered request ID.
@@ -1367,6 +1368,7 @@
   // location — CoreLocation
   // -------------------------------------------------------------------------
   window.craft.location = {
+    destroy:               function ()      { return _send('menubarCollapse', 'destroy') },
     requestPermission:  function (mode) { return _req('location', 'requestPermission', _stringify({ mode: String(mode || 'whenInUse') })).then(function (r) { return (r && r.status) || 'undetermined' }) },
     getAuthorization:   function () { return _req('location', 'getAuthorization').then(function (r) { return (r && r.status) || 'undetermined' }) },
     getCurrentLocation: function () { return _req('location', 'getCurrentLocation') },
@@ -1700,7 +1702,13 @@
   // menubar — collapse/expand (only meaningful in tray mode)
   // -------------------------------------------------------------------------
   window.craft.menubar = {
-    init:                  function ()      { return _send('menubarCollapse', 'init') },
+    init:                  function (opts)  {
+      const backend = opts && opts.backend || 'legacy'
+      if (backend !== 'legacy' && backend !== 'nativeVisibility') return Promise.reject(new TypeError('Unknown menu bar backend'))
+      return _send('menubarCollapse', 'init', backend)
+    },
+    destroy:               function ()      { return _send('menubarCollapse', 'destroy') },
+    requestPermission:     function ()      { return _send('menubarCollapse', 'requestPermission') },
     collapse:              function ()      { return _send('menubarCollapse', 'collapse') },
     expand:                function ()      { return _send('menubarCollapse', 'expand') },
     toggle:                function ()      { return _send('menubarCollapse', 'toggle') },

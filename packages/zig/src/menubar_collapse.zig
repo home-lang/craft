@@ -114,6 +114,18 @@ fn getSystemStatusBar() objc.id {
 // Global State
 // ============================================================================
 
+const visibility = struct {
+    extern fn craft_menubar_visibility_available() bool;
+    extern fn craft_menubar_visibility_init(item: objc.id, changed: *const fn () callconv(.c) void) void;
+    extern fn craft_menubar_visibility_collapse() void;
+    extern fn craft_menubar_visibility_expand() void;
+    extern fn craft_menubar_visibility_cleanup() void;
+    extern fn craft_menubar_visibility_request_permission() void;
+    extern fn craft_menubar_visibility_collapsed() bool;
+    extern fn craft_menubar_visibility_busy() bool;
+    extern fn craft_menubar_visibility_state() [*:0]const u8;
+};
+var native_visibility: bool = false;
 var early_initialized: bool = false;
 var is_initialized: bool = false;
 var is_collapsed: bool = false;
@@ -345,8 +357,44 @@ pub fn init() void {
         std.debug.print("[Menubar] Ready — separator created\n", .{});
 }
 
+/// Explicit opt-in. Failure never selects the legacy width-based backend.
+pub fn initNativeVisibility() void {
+    if (builtin.target.os.tag != .macos) return;
+    if (is_initialized) {
+        if (native_visibility) return;
+        destroy();
+    }
+    native_visibility = true;
+    visibility.craft_menubar_visibility_init(null, &visibilityChanged);
+    if (!visibility.craft_menubar_visibility_available()) return;
+    init();
+    visibility.craft_menubar_visibility_init(separator_item, &visibilityChanged);
+    drawMarker(separator_item, false);
+}
+
+pub fn nativeVisibilityState() ?[]const u8 {
+    if (builtin.target.os.tag != .macos or !native_visibility) return null;
+    return std.mem.span(visibility.craft_menubar_visibility_state());
+}
+
+pub fn requestPermission() void {
+    if (builtin.target.os.tag == .macos and native_visibility)
+        visibility.craft_menubar_visibility_request_permission();
+}
+
+fn visibilityChanged() callconv(.c) void {
+    is_collapsed = visibility.craft_menubar_visibility_collapsed();
+    auto_collapse_timer_active = false;
+    drawMarker(separator_item, is_collapsed);
+    notifyJS();
+}
+
 pub fn collapse() void {
     if (builtin.target.os.tag != .macos) return;
+    if (native_visibility) {
+        visibility.craft_menubar_visibility_collapse();
+        return;
+    }
     if (!is_initialized) {
         init();
         if (!is_initialized) return;
@@ -380,6 +428,12 @@ pub fn collapse() void {
 
 pub fn expand() void {
     if (builtin.target.os.tag != .macos) return;
+    if (native_visibility) {
+        visibility.craft_menubar_visibility_expand();
+        last_expand_ns = nanoTimestamp();
+        auto_collapse_timer_active = auto_collapse_delay > 0;
+        return;
+    }
     if (!is_initialized) {
         init();
         if (!is_initialized) return;
@@ -405,14 +459,19 @@ pub fn expand() void {
 
 pub fn toggle() void {
     if (builtin.target.os.tag != .macos) return;
+    if (native_visibility) {
+        if (is_collapsed or visibility.craft_menubar_visibility_busy()) expand() else collapse();
+        return;
+    }
     if (!is_initialized) {
         init();
         if (!is_initialized) return;
     }
-    if (is_collapsed) expand() else collapse();
+    if (is_collapsed or (native_visibility and visibility.craft_menubar_visibility_busy())) expand() else collapse();
 }
 
 pub fn cleanup() void {
+    if (builtin.target.os.tag == .macos and native_visibility) visibility.craft_menubar_visibility_cleanup();
     if (is_collapsed) expand();
     if (builtin.target.os.tag == .macos and native_timer != null) {
         _ = msgSend0(native_timer, "invalidate");
@@ -420,8 +479,27 @@ pub fn cleanup() void {
     }
 }
 
+/// Disable grouping and remove its status item. No assertion survives it.
+pub fn destroy() void {
+    if (builtin.target.os.tag != .macos) return;
+    cleanup();
+    if (separator_item != null) {
+        msgSendVoid1(getSystemStatusBar(), "removeStatusItem:", separator_item);
+        _ = msgSend0(separator_item, "release");
+        separator_item = null;
+    }
+    if (saved_tray_menu != null) {
+        _ = msgSend0(saved_tray_menu, "release");
+        saved_tray_menu = null;
+    }
+    is_initialized = false;
+    is_collapsed = false;
+    native_visibility = false;
+    auto_collapse_timer_active = false;
+}
+
 pub fn isCollapsed() bool {
-    return is_collapsed and collapse_widening.settled;
+    return is_collapsed and (native_visibility or collapse_widening.settled);
 }
 
 pub fn isInitialized() bool {
@@ -443,8 +521,10 @@ fn collapseTimer(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
 }
 
 pub fn checkAutoCollapse() void {
-    settleCollapse();
-    restoreOnSystemReflow();
+    if (!native_visibility) {
+        settleCollapse();
+        restoreOnSystemReflow();
+    }
 
     if (toggle_debounce_active) {
         if (toggle_debounce_ns) |start| {
@@ -477,7 +557,7 @@ pub fn checkAutoCollapse() void {
 
 pub fn setSeparatorHidden(hidden: bool) void {
     if (builtin.target.os.tag != .macos) return;
-    separator_hidden = hidden;
+    separator_hidden = hidden and !native_visibility;
 
     drawMarker(separator_item, is_collapsed);
 }
@@ -509,7 +589,7 @@ fn drawMarker(item: objc.id, widened: bool) void {
     if (button == null) return;
     const label = if (widened) "Show menu bar items" else "Hide menu bar items";
     msgSendVoid1(button, "setAlignment:", NSTextAlignmentRight);
-    msgSendVoid1(button, "setTitle:", createNSString(if (widened) "›" else if (separator_hidden) "" else MARKER_GLYPH));
+    msgSendVoid1(button, "setTitle:", createNSString(if (widened) "›" else if (native_visibility) "‹" else if (separator_hidden) "" else MARKER_GLYPH));
     msgSendVoid1(button, "setToolTip:", createNSString(label));
     msgSendVoid1(button, "setAccessibilityLabel:", createNSString(label));
     clearHighlight(button);
@@ -631,17 +711,25 @@ fn wantsMenu(event: objc.id) bool {
 }
 
 fn showTrayMenu(view: objc.id) void {
-    if (saved_tray_menu == null) return;
+    const current_menu = msgSend0(tray_item, "menu");
+    if (current_menu == null) return;
     const NSApp = msgSend0(getClass("NSApplication"), "sharedApplication");
     const event = msgSend0(NSApp, "currentEvent");
     if (event == null) return;
-    msgSendVoid3(getClass("NSMenu"), "popUpContextMenu:withEvent:forView:", saved_tray_menu, event, view);
+    msgSendVoid3(getClass("NSMenu"), "popUpContextMenu:withEvent:forView:", current_menu, event, view);
 }
 
 fn notifyJS() void {
     const macos = @import("macos.zig");
+    if (nativeVisibilityState()) |state| {
+        var native_buf: [2048]u8 = undefined;
+        const native_js = std.fmt.bufPrint(&native_buf, "window.dispatchEvent(new CustomEvent('craft:menubar:stateChange',{{detail:{s}}}));", .{state}) catch return;
+        macos.tryEvalJS(native_js) catch {};
+        return;
+    }
     var buf: [320]u8 = undefined;
-    const js = std.fmt.bufPrint(&buf, "window.dispatchEvent(new CustomEvent('craft:menubar:stateChange',{{detail:{{collapsed:{s},separatorHidden:{s}}}}}));", .{
+    const js = std.fmt.bufPrint(&buf, "window.dispatchEvent(new CustomEvent('craft:menubar:stateChange',{{detail:{{backend:'legacy',initialized:{s},collapsed:{s},separatorHidden:{s}}}}}));", .{
+        if (is_initialized) "true" else "false",
         if (isCollapsed()) "true" else "false",
         if (separator_hidden) "true" else "false",
     }) catch return;
