@@ -27,5 +27,17 @@ fun main() {
     check(!retyped.accept("a", "a"))
     check(!retyped.accept("", "a"))
     check(!retyped.accept("a", "a"))
+    val counted = CraftNativeInputEcho()
+    check(!counted.accept("", "", 0))
+    check(counted.record("Pl") == 1)
+    check(counted.record("Pla") == 2)
+    check(!counted.accept("Pl", "Pla", 1))
+    check(counted.record("Plan") == 3)
+    check(!counted.accept("Pla", "Plan", 2))
+    check(counted.record("Plane") == 4)
+    check(!counted.accept("Plane", "Plane", 4))
+    check(!counted.accept("Plan", "Plane", 3)) // Late even after latest ack.
+    check(counted.accept("", "Plane", 4)) // Current intentional clear.
+    check(counted.accept("Plan", "", 4)) // External value may equal old typing.
     println("Android native input echoes: passed")
 }

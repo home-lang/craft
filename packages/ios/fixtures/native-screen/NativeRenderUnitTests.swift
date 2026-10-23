@@ -3704,3 +3704,86 @@ final class NativePlatformControlTests: XCTestCase {
         XCTAssertNil(screen.presentedViewController)
     }
 }
+
+@MainActor
+final class NativeTypingEventTests: XCTestCase {
+    private func find<T: UIView>(_ type: T.Type, below view: UIView) -> T? {
+        if let found = view as? T { return found }
+        return view.subviews.lazy.compactMap { self.find(type, below: $0) }.first
+    }
+
+    func testDelayedControlledEchoCannotEraseLaterEditsButCurrentResetCan() throws {
+        let previousThread = CraftNativeScriptThread.isBackground
+        defer { CraftNativeScriptThread.isBackground = previousThread }
+        for background in [false, true] {
+            CraftNativeScriptThread.isBackground = background
+            let screen = CraftNativeScreenController(config: CraftConfig())
+            screen.loadViewIfNeeded()
+            screen.evaluateScript("globalThis.edits = []; globalThis.__stxNativeCallback = function(json) { const m = JSON.parse(json); if (m.type === 'EVENT') edits.push(m.payload.nativeEvent); };")
+            func document(_ value: String, _ count: Int) -> [String: Any] {
+                ["type": "TextInput", "props": ["key": "search", "value": value, "mostRecentEventCount": count], "events": ["onChangeText": "typed"]]
+            }
+            screen.render(document("", 0))
+            let input = try XCTUnwrap(find(UITextField.self, below: screen.view))
+            for value in ["P", "Pl", "Pla"] { input.text = value; input.sendActions(for: .editingChanged) }
+            // Pl was valid when sent, but Pla was already typed before it arrived.
+            screen.render(document("Pl", 2))
+            XCTAssertEqual(input.text, "Pla", "An older controlled echo erased an accepted character")
+            input.text = (input.text ?? "") + "n"
+            input.sendActions(for: .editingChanged)
+            screen.render(document("Pla", 3))
+            XCTAssertEqual(input.text, "Plan")
+            input.text = (input.text ?? "") + "e"
+            input.sendActions(for: .editingChanged)
+            screen.render(document("Plane", 5))
+            let start = try XCTUnwrap(input.position(from: input.beginningOfDocument, offset: 1))
+            let end = try XCTUnwrap(input.position(from: input.beginningOfDocument, offset: 3))
+            input.selectedTextRange = input.textRange(from: start, to: end)
+            screen.render(document("Plan", 4))
+            XCTAssertEqual(input.text, "Plane", "A late echo stays stale after the latest acknowledgement")
+            XCTAssertEqual(input.selectedTextRange.map { input.offset(from: input.beginningOfDocument, to: $0.start) }, 1)
+            XCTAssertEqual(input.selectedTextRange.map { input.offset(from: input.beginningOfDocument, to: $0.end) }, 3)
+            XCTAssertEqual(screen.evaluateScript("edits.map(e => e.text).join('|')")?.toString(), "P|Pl|Pla|Plan|Plane")
+            XCTAssertEqual(screen.evaluateScript("edits.map(e => e.eventCount).join('|')")?.toString(), "1|2|3|4|5")
+            screen.render(document("", 5))
+            XCTAssertEqual(input.text, "", "An intentional current reset must still apply")
+            screen.render(document("Plan", 5))
+            XCTAssertEqual(input.text, "Plan", "A current external value may equal earlier typed text")
+        }
+    }
+
+    func testMultilineUsesTheSameAcknowledgementBoundary() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        func document(_ value: String, _ count: Int) -> [String: Any] {
+            ["type": "TextInput", "props": ["key": "notes", "multiline": true, "value": value, "mostRecentEventCount": count], "events": ["onChangeText": "typed"]]
+        }
+        screen.render(document("", 0))
+        let input = try XCTUnwrap(find(UITextView.self, below: screen.view))
+        input.text = "Pl"; screen.textViewDidChange(input)
+        input.text = "Pla"; screen.textViewDidChange(input)
+        screen.render(document("Pl", 1))
+        XCTAssertEqual(input.text, "Pla")
+        screen.render(document("", 2))
+        XCTAssertEqual(input.text, "")
+    }
+
+    func testLegacyRuntimeEchoProtectionAlsoAppliesOnTheMainScriptThread() throws {
+        let previousThread = CraftNativeScriptThread.isBackground
+        CraftNativeScriptThread.isBackground = false
+        defer { CraftNativeScriptThread.isBackground = previousThread }
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        func document(_ value: String) -> [String: Any] {
+            ["type": "TextInput", "props": ["key": "legacy", "value": value], "events": ["onChangeText": "typed"]]
+        }
+        screen.render(document(""))
+        let input = try XCTUnwrap(find(UITextField.self, below: screen.view))
+        input.text = "Pl"; input.sendActions(for: .editingChanged)
+        input.text = "Pla"; input.sendActions(for: .editingChanged)
+        screen.render(document("Pl"))
+        XCTAssertEqual(input.text, "Pla")
+        screen.render(document("Reset"))
+        XCTAssertEqual(input.text, "Reset")
+    }
+}

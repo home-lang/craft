@@ -3150,17 +3150,27 @@ internal class CraftNativeInputEcho {
     private var rendered: String? = null
     private var initialized = false
 
-    fun record(value: String) {
+    private var eventCount = 0
+
+    fun record(value: String): Int {
         pending.addLast(value)
         while (pending.size > 64) pending.removeFirst()
+        return ++eventCount
     }
 
-    fun accept(value: String?, nativeValue: String): Boolean {
+    fun accept(value: String?, nativeValue: String, acknowledged: Int? = null): Boolean {
         if (value == null) {
             initialized = false
             rendered = null
             pending.clear()
             return false
+        }
+        if (acknowledged != null && acknowledged >= 0) {
+            if (acknowledged < eventCount) return false
+            pending.clear()
+            initialized = true
+            rendered = value
+            return nativeValue != value
         }
         // A retained field can render the same prop more than once, after
         // its echo was consumed. That repeated prop must not overwrite a
@@ -5592,16 +5602,16 @@ class MainActivity : AppCompatActivity() {
                     if (isEnabled && keyListener != null) {
                         screen.suppressedTextChanges.add(this)
                         setText("")
-                        screen.inputEchoes.getOrPut(this) { CraftNativeInputEcho() }.record("")
+                        val eventCount = screen.inputEchoes.getOrPut(this) { CraftNativeInputEcho() }.record("")
                         screen.handlers[this]?.let { current ->
-                            send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject().put("text", "").put("clear", true)))
+                            send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject().put("text", "").put("clear", true).put("eventCount", eventCount)))
                         }
                     }
                 }
                 refreshClearButton()
                 val controlledValue = props.opt("value") as? String
                 val echoes = screen.inputEchoes.getOrPut(this) { CraftNativeInputEcho() }
-                if (echoes.accept(controlledValue, text.toString()) && controlledValue != null) {
+                if (echoes.accept(controlledValue, text.toString(), craftNativeInt(props.opt("mostRecentEventCount"), -1).takeIf { it >= 0 }) && controlledValue != null) {
                     screen.suppressedTextChanges.add(this)
                     setTextPreservingSelection(this, controlledValue)
                 }
@@ -5664,10 +5674,10 @@ class MainActivity : AppCompatActivity() {
                             (screen.inputIdentities[this@apply] ?: identity).let { screen.drafts[it] = updated }
                             if (screen.suppressedTextChanges.remove(this@apply)) return
                             val current = screen.handlers[this@apply] ?: return
-                            screen.inputEchoes.getOrPut(this@apply) { CraftNativeInputEcho() }.record(updated)
+                            val eventCount = screen.inputEchoes.getOrPut(this@apply) { CraftNativeInputEcho() }.record(updated)
                             send(screen, "EVENT", JSONObject()
                                 .put("handlerName", current)
-                                .put("nativeEvent", JSONObject().put("text", updated)))
+                                .put("nativeEvent", JSONObject().put("text", updated).put("eventCount", eventCount)))
                         }
                         override fun afterTextChanged(s: Editable?) {}
                     }

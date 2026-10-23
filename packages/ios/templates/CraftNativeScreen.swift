@@ -8123,7 +8123,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if field.isEnabled != desiredEnabled { field.isEnabled = desiredEnabled }
             applyAutofill(to: field, props: props)
             if let value = props["value"] as? String {
-                updateField(field, value: value)
+                updateField(field, value: value, acknowledged: (props["mostRecentEventCount"] as? NSNumber)?.intValue)
             } else if previous?.view !== field {
                 updateField(field, value: inputDrafts[current.identity] ?? props["defaultValue"] as? String)
             }
@@ -8986,6 +8986,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         submitHandlers.removeValue(forKey: id)
         inputIdentities.removeValue(forKey: id)
         unechoedText.removeValue(forKey: id)
+        inputEventCounts.removeValue(forKey: id)
         if node.type == "TextInput" && !preservingInputDrafts { inputDrafts.removeValue(forKey: node.identity) }
         longPressHandlers.removeValue(forKey: id)
         textMaxLengths.removeValue(forKey: id)
@@ -9203,19 +9204,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
-    /// Text a field sent its script that the script has not echoed back yet,
-    /// while the script runs on its own thread: a value that matches an older
-    /// one is the script catching up, not a new value, and applying it would
-    /// undo what was typed since.
+    /// Legacy runtimes echo values without a revision. Keep their bounded
+    /// history on either script thread; bridge delivery may still be delayed.
     private var unechoedText: [ObjectIdentifier: [String]] = [:]
+    private var inputEventCounts: [ObjectIdentifier: Int] = [:]
 
-    private func noteSentText(_ text: String, for view: UIView) {
-        guard CraftNativeScriptThread.isBackground else { return }
+    @discardableResult
+    private func noteSentText(_ text: String, for view: UIView) -> Int {
         let id = ObjectIdentifier(view)
+        let count = (inputEventCounts[id] ?? 0) + 1
+        inputEventCounts[id] = count
         var sent = unechoedText[id] ?? []
         sent.append(text)
         if sent.count > 32 { sent.removeFirst(sent.count - 32) }
         unechoedText[id] = sent
+        return count
     }
 
     /// Whether `value` is a stale echo of text the view has moved past: it
@@ -9233,9 +9236,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         return later > 0
     }
 
-    private func updateField(_ field: UITextField, value: String?) {
+    private func acceptsText(_ value: String, for view: UIView, acknowledged: Int?) -> Bool {
+        if let acknowledged, acknowledged >= 0 {
+            guard acknowledged >= (inputEventCounts[ObjectIdentifier(view)] ?? 0) else { return false }
+            unechoedText.removeValue(forKey: ObjectIdentifier(view))
+            return true // A current explicit reset may equal an older edit.
+        }
+        return !isStaleEcho(value, for: view)
+    }
+
+    private func updateField(_ field: UITextField, value: String?, acknowledged: Int? = nil) {
         guard let value = value, field.markedTextRange == nil else { return }
-        if isStaleEcho(value, for: field) || field.text == value { return }
+        if !acceptsText(value, for: field, acknowledged: acknowledged) || field.text == value { return }
         let selection = field.selectedTextRange
         let start = selection.map { field.offset(from: field.beginningOfDocument, to: $0.start) }
         let end = selection.map { field.offset(from: field.beginningOfDocument, to: $0.end) }
@@ -9247,9 +9259,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
-    private func updateTextView(_ textView: UITextView, value: String?) {
+    private func updateTextView(_ textView: UITextView, value: String?, acknowledged: Int? = nil) {
         guard let value = value, textView.markedTextRange == nil else { return }
-        if isStaleEcho(value, for: textView) || textView.text == value { return }
+        if !acceptsText(value, for: textView, acknowledged: acknowledged) || textView.text == value { return }
         let selection = textView.selectedTextRange
         let start = selection.map { textView.offset(from: textView.beginningOfDocument, to: $0.start) }
         let end = selection.map { textView.offset(from: textView.beginningOfDocument, to: $0.end) }
@@ -9312,7 +9324,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             craftTextView.placeholderColor = color(props["placeholderTextColor"])
             craftTextView.placeholderFont = textView.font
         }
-        updateTextView(textView, value: (props["value"] as? String) ?? defaultValue)
+        updateTextView(textView, value: (props["value"] as? String) ?? defaultValue, acknowledged: (props["mostRecentEventCount"] as? NSNumber)?.intValue)
         if textView.markedTextRange == nil {
             let attributes = inputTextAttributes(style, font: textView.font ?? .systemFont(ofSize: 16), alignment: textView.textAlignment)
             let styled = NSAttributedString(string: textView.text ?? "", attributes: attributes)
@@ -10124,9 +10136,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         textField.text = ""
         let id = ObjectIdentifier(textField)
         inputIdentities[id].map { inputDrafts[$0] = "" }
-        noteSentText("", for: textField)
+        let eventCount = noteSentText("", for: textField)
         if let handler = handlers[id] {
-            send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": "", "clear": true]])
+            send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": "", "clear": true, "eventCount": eventCount]])
         }
         return false // The model receives exactly one edit, including lazy models.
     }
@@ -10177,8 +10189,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         (textView as? CraftNativeTextView)?.refreshPlaceholder()
         keepCaretVisible(in: textView)
         guard let handler = handlers[id] else { return }
-        noteSentText(textView.text ?? "", for: textView)
-        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": textView.text ?? ""]])
+        let eventCount = noteSentText(textView.text ?? "", for: textView)
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": textView.text ?? "", "eventCount": eventCount]])
     }
 
     func textViewDidChangeSelection(_ textView: UITextView) {
@@ -10234,8 +10246,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         inputIdentities[id].map { inputDrafts[$0] = sender.text ?? "" }
         let focused = sender.isFirstResponder ? sender : firstResponder(in: rootStack)
         guard let handler = handlers[id] else { return }
-        noteSentText(sender.text ?? "", for: sender)
-        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": sender.text ?? ""]])
+        let eventCount = noteSentText(sender.text ?? "", for: sender)
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": sender.text ?? "", "eventCount": eventCount]])
         restoreFocus(focused)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self, weak focused] in
             self?.restoreFocus(focused)

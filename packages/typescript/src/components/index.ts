@@ -825,6 +825,8 @@ export interface PressableProps extends ViewProps {
  * TextInput component props.
  */
 export interface TextInputProps extends BaseProps {
+  /** Runtime acknowledgement of the latest native edit; stale controlled echoes are ignored. */
+  mostRecentEventCount?: number
   clearButtonMode?: 'never' | 'while-editing' | 'unless-editing' | 'always'
   /** Style object or array */
   style?: StyleValue<TextStyle>
