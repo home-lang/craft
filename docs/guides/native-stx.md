@@ -1385,7 +1385,9 @@ Checkpoint names use the same bounded filename contract on both native hosts:
 letters, digits, `.`, `_`, and `-`, up to 128 characters, without a leading
 dot. Non-JSON values and invalid names are rejected before a write is posted;
 the previous confirmed checkpoint remains available after a failed or
-interrupted replacement.
+interrupted replacement. If a screen closes while a checkpoint is still being
+written, its promise rejects instead of hanging; the host's later worker
+completion cannot publish a second result for that request.
 
 The `media` capability (iOS) keeps video and audio on the phone for offline,
 in Application Support rather than the temporary directory, left out of

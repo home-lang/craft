@@ -4005,6 +4005,8 @@ class MainActivity : AppCompatActivity() {
         val audio = CraftNativeAudio()
         val sounds = CraftNativeSounds(view.context)
         val soundRequestCancellers = mutableMapOf<String, () -> Unit>()
+        /** Snapshot writes awaiting the writer thread; close rejects them once. */
+        val pendingSyncResults = mutableSetOf<String>()
         var active = true
         var closing = false
             private set
@@ -4952,13 +4954,20 @@ class MainActivity : AppCompatActivity() {
     /** A synchronous store written in an isolate (CraftNativeShell.kt's prelude). */
     private fun syncWrite(screen: Screen, payload: JSONObject) {
         val id = payload.optString("id").takeIf { it.isNotBlank() }
+        val store = payload.optString("store")
+        if (id != null) screen.pendingSyncResults.add(id)
         val reply: (Boolean) -> Unit = { ok ->
-            if (id != null && screen.active) send(screen, "SYNC_RESULT", JSONObject().put("id", id).put("ok", ok))
+            if (id != null && screen.pendingSyncResults.remove(id) && (screen.active || screen.closing)) {
+                send(screen, "SYNC_RESULT", JSONObject().put("id", id).put("ok", ok))
+            }
         }
         val key = payload.optString("key")
         val value = if (payload.isNull("value")) null else payload.optString("value")
-        when (payload.optString("store")) {
-            "storage" -> if (key.isNotBlank()) stores.setStorage(key, value, from = screen.capabilityScope)
+        when (store) {
+            "storage" -> if (key.isNotBlank()) {
+                stores.setStorage(key, value, from = screen.capabilityScope)
+                if (id != null) reply(true)
+            } else if (id != null) reply(false)
             "snapshots" -> if (payload.optBoolean("clear")) {
                 val keep = payload.optJSONArray("keep") ?: JSONArray()
                 stores.clearSnapshots((0 until keep.length()).map { keep.optString(it) }.toSet(), reply)
@@ -8051,6 +8060,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun closeScreen(screen: Screen, done: () -> Unit = {}) {
         if (!screen.active) { screen.close(done); return }
+        // A snapshot writer may still be replacing a file after the isolate
+        // starts teardown. Reject its promise before the port is closed; the
+        // worker's later completion sees the id was already consumed.
+        screen.pendingSyncResults.toList().forEach { id ->
+            send(screen, "SYNC_RESULT", JSONObject().put("id", id).put("ok", false))
+        }
+        screen.pendingSyncResults.clear()
         CraftNativeHub.unregister(screen.capabilityScope)
         screen.timers.values.forEach(capabilityHandler::removeCallbacks)
         screen.timers.clear()
