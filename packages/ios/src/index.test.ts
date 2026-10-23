@@ -2139,6 +2139,9 @@ describe('Craft iOS builder', () => {
     expect(services).toContain('AVAudioSession.interruptionNotification')
     expect(services).toContain('sound.interrupted = true')
     expect(services).toContain('AVAudioSession.InterruptionOptions.shouldResume')
+    expect(screen).toContain('reply(.success(sounds.pause(id: id)))')
+    expect(screen).toContain('reply(.success(sounds.resume(id: id)))')
+    expect(screen).toContain('reply(.success(sounds.stop(id: id, fadeOut: number(1, "fadeOut") / 1000)))')
     expect(plist).not.toContain('<string>audio</string>')
     // A route change or an interruption stops AVAudioEngine; it starts again.
     expect(audio).toContain('forName: .AVAudioEngineConfigurationChange, object: engine')

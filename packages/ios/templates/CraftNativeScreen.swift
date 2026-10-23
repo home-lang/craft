@@ -7762,20 +7762,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             screenRequestCancellers[requestToken] = { [weak self] in self?.sounds.stop(id: id, fadeOut: 0) }
             sounds.play(id: id, url: url, options: args.count > 2 ? args[2] as? [String: Any] ?? [:] : [:], answer: reply)
         case ("Audio", "pause"):
-            sounds.pause(id: id)
-            reply(.success(true))
+            reply(.success(sounds.pause(id: id)))
         case ("Audio", "resume"):
-            sounds.resume(id: id)
-            reply(.success(true))
+            reply(.success(sounds.resume(id: id)))
         case ("Audio", "setVolume"):
-            sounds.setVolume(id: id, volume: number(1), fade: number(2, "fade") / 1000)
-            reply(.success(true))
+            reply(.success(sounds.setVolume(id: id, volume: number(1), fade: number(2, "fade") / 1000)))
         case ("Audio", "stop"):
-            sounds.stop(id: id, fadeOut: number(1, "fadeOut") / 1000)
-            reply(.success(true))
+            reply(.success(sounds.stop(id: id, fadeOut: number(1, "fadeOut") / 1000)))
         case ("Audio", "stopAll"):
-            sounds.stopAll(fadeOut: number(0, "fadeOut") / 1000)
-            reply(.success(true))
+            reply(.success(sounds.stopAll(fadeOut: number(0, "fadeOut") / 1000)))
         default:
             return false
         }

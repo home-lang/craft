@@ -1378,6 +1378,8 @@ only when the system grants the `shouldResume` option. A permanent Android
 focus loss releases every player and sends each sound's error event; replacement,
 decode failure, cancellation, interruption, and teardown also release their
 player resources.
+Control calls resolve `false` when their sound id is not owned by the screen,
+matching the browser host instead of reporting a false success.
 
 Checkpoint names use the same bounded filename contract on both native hosts:
 letters, digits, `.`, `_`, and `-`, up to 128 characters, without a leading
