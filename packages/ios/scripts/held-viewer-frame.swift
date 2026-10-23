@@ -33,9 +33,8 @@ func timeData(_ time: CMTime) throws -> [String: Any] {
     return ["value": time.value, "timescale": time.timescale]
 }
 
-func decodedReader(_ asset: AVAsset, _ track: AVAssetTrack, range: CMTimeRange? = nil) throws -> (AVAssetReader, AVAssetReaderTrackOutput) {
+func decodedReader(_ asset: AVAsset, _ track: AVAssetTrack) throws -> (AVAssetReader, AVAssetReaderTrackOutput) {
     let reader = try AVAssetReader(asset: asset)
-    if let range { reader.timeRange = range }
     let output = AVAssetReaderTrackOutput(track: track, outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
     output.alwaysCopiesSampleData = false
     try require(reader.canAdd(output), "Cannot decode the recorded video track")
@@ -72,14 +71,9 @@ do {
     receipt["firstPTS"] = try timeData(firstPTS)
     originReader.cancelReading()
     let firstSeconds = CMTimeGetSeconds(firstPTS)
-    // Only this media interval can possibly qualify. Decoding it, rather than
-    // a whole long core-suite movie, preserves the actual frame requirement.
-    let lowerOffset = max(0, synthesis - spawn)
-    let upperOffset = end - ready
-    try require(upperOffset > lowerOffset, "First-frame wall uncertainty leaves no qualifying hold interval")
-    let range = CMTimeRange(start: CMTimeAdd(firstPTS, CMTime(seconds: lowerOffset, preferredTimescale: 1_000_000_000)),
-                            duration: CMTime(seconds: upperOffset - lowerOffset, preferredTimescale: 1_000_000_000))
-    let (reader, output) = try decodedReader(asset, track, range: range)
+    // Preserve original sample timestamps. A timeRange can synthesize a
+    // clipped-boundary timestamp for a picture captured before that range.
+    let (reader, output) = try decodedReader(asset, track)
     var decoded: [[String: Any]] = []
     var selected: CMTime?
     var closest = Double.infinity
@@ -94,7 +88,7 @@ do {
         }
     }
     receipt["decodedPTS"] = decoded
-    try require(reader.status == .completed, "AVFoundation did not complete decoding the hold interval")
+    try require(reader.status == .completed, "AVFoundation did not complete decoding the original recording")
     guard let selected else { throw FrameFailure.invalid("No decoded frame has its whole capture interval inside the hold") }
     receipt["selectedPTS"] = try timeData(selected)
     let generator = AVAssetImageGenerator(asset: asset)

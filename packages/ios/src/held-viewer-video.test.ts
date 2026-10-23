@@ -64,7 +64,9 @@ let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sour
 writer.add(input)
 guard writer.startWriting() else { fatalError("Cannot write synthetic media") }
 writer.startSession(atSourceTime: .zero)
-for index in 0..<(CommandLine.arguments[2] == "static" ? 1 : 7) {
+let mode = CommandLine.arguments[2]
+let originalSamples = mode == "static" ? [0] : mode == "sparse" ? [0, 4, 6] : Array(0..<7)
+for index in originalSamples {
     while !input.isReadyForMoreMediaData { Thread.sleep(forTimeInterval: 0.001) }
     var buffer: CVPixelBuffer?
     guard CVPixelBufferPoolCreatePixelBuffer(nil, adaptor.pixelBufferPool!, &buffer) == kCVReturnSuccess, let buffer else { fatalError("No pixel buffer") }
@@ -82,13 +84,17 @@ guard writer.status == .completed else { fatalError("Synthetic movie incomplete"
       const result = run(args)
       expect(result.exitCode, result.stderr.toString()).toBe(0)
     }
-    for (const mode of ['moving', 'static']) {
+    for (const mode of ['sparse', 'moving', 'static']) {
       const movie = join(dir, `${mode}.mov`), png = join(dir, `${mode}.png`), receipt = join(dir, `${mode}.json`)
       const media = run([movieTool, movie, mode])
       expect(media.exitCode, media.stderr.toString()).toBe(0)
       const result = run([extractor, movie, png, receipt, '100', '100.25', '101', '107'])
       const evidence = JSON.parse(readFileSync(receipt, 'utf8'))
-      if (mode === 'moving') {
+      // Trimming a sparse source to a hold range can invent a boundary PTS
+      // for the old picture. Retain only its original decoded sample times.
+      expect(evidence.decodedPTS.map((time: { value: number, timescale: number }) => time.value / time.timescale))
+        .toEqual(mode === 'static' ? [0] : mode === 'sparse' ? [0, 4, 6] : [0, 1, 2, 3, 4, 5, 6])
+      if (mode !== 'static') {
         expect(result.exitCode, result.stderr.toString()).toBe(0)
         expect(evidence.verified).toBe(true)
         expect(validateHeldVideoFrame(evidence)).toMatchObject({ frameWallEarliest: 104, frameWallLatest: 104.25 })
