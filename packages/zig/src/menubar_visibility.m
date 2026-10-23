@@ -72,9 +72,14 @@ void craft_menubar_visibility_init(void *item, void (*callback)(void)) {
 }
 
 void craft_menubar_visibility_request_permission(void) {
-    if (requestedPermission || !available()) return;
-    requestedPermission = YES;
-    AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)@{(__bridge NSString *)kAXTrustedCheckOptionPrompt: @YES});
+    if (!available() || AXIsProcessTrusted()) return;
+    if (!requestedPermission) {
+        requestedPermission = YES;
+        AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)@{(__bridge NSString *)kAXTrustedCheckOptionPrompt: @YES});
+    }
+    // A denied request may no longer show a prompt. An explicit user action
+    // always opens the OS permission pane; it never grants access itself.
+    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
     notify();
 }
 
@@ -87,12 +92,13 @@ static void recordItem(NSMutableDictionary *sections, NSString *bundle, CGRect f
     sections[bundle] = @([sections[bundle] boolValue] || visible);
 }
 
-static NSArray *allowedBundles(NSArray<NSString *> *bundles, NSDictionary *sections, NSString *ownBundle, NSUInteger *hiddenCount) {
+static NSArray *allowedBundles(NSArray<NSString *> *bundles, NSDictionary *sections, NSArray<NSString *> *ownBundles, NSUInteger *hiddenCount) {
     NSSet *system = [NSSet setWithArray:@[@"com.apple.MenuBarAgent", @"com.apple.controlcenter", @"com.apple.systemuiserver"]];
-    NSMutableSet *allowed = [NSMutableSet setWithObject:ownBundle];
+    NSSet *protected = [NSSet setWithArray:ownBundles];
+    NSMutableSet *allowed = [protected mutableCopy];
     NSMutableSet *hidden = [NSMutableSet set];
     for (NSString *bundle in bundles) {
-        if (sections[bundle] && ![sections[bundle] boolValue] && ![bundle isEqualToString:ownBundle] && ![system containsObject:bundle])
+        if (sections[bundle] && ![sections[bundle] boolValue] && ![protected containsObject:bundle] && ![system containsObject:bundle])
             [hidden addObject:bundle];
         else [allowed addObject:bundle];
     }
@@ -112,10 +118,22 @@ static NSDictionary<NSString *, NSNumber *> *inventory(NSArray<NSRunningApplicat
         AXUIElementSetMessagingTimeout(element, 0.1);
         CFTypeRef bar = NULL;
         if (AXUIElementCopyAttributeValue(element, CFSTR("AXExtrasMenuBar"), &bar) == kAXErrorSuccess && bar) {
+            if (CFGetTypeID(bar) != AXUIElementGetTypeID()) {
+                CFRelease(bar);
+                CFRelease(element);
+                continue;
+            }
             CFTypeRef children = NULL;
             AXUIElementSetMessagingTimeout((AXUIElementRef)bar, 0.1);
             if (AXUIElementCopyAttributeValue((AXUIElementRef)bar, kAXChildrenAttribute, &children) == kAXErrorSuccess && children) {
+                if (CFGetTypeID(children) != CFArrayGetTypeID()) {
+                    CFRelease(children);
+                    CFRelease(bar);
+                    CFRelease(element);
+                    continue;
+                }
                 for (id child in (__bridge NSArray *)children) {
+                    if (CFGetTypeID((__bridge CFTypeRef)child) != AXUIElementGetTypeID()) continue;
                     CFTypeRef position = NULL, size = NULL;
                     AXUIElementRef item = (__bridge AXUIElementRef)child;
                     AXUIElementSetMessagingTimeout(item, 0.1);
@@ -149,7 +167,7 @@ static void activationDeadline(NSUInteger ticket) {
 static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, NSUInteger ticket) {
     @try {
         id configuration = [(id<CraftVisibilityConfiguration>)[configurationClass alloc]
-            initWithAllowedSystemItems:systemItems allowedBundleIdentifiers:allowed];
+            initWithAllowedSystemItems:[systemItems copy] allowedBundleIdentifiers:[allowed copy]];
         id<CraftVisibilityAssertion> pending = [[assertionClass alloc] init];
         if (!configuration || !pending) return fail(@"activationFailed");
         pendingAssertion = pending;
@@ -179,6 +197,12 @@ void craft_menubar_visibility_collapse(void) {
     if (!available()) return fail(@"unavailable");
     if (!AXIsProcessTrusted()) return fail(@"permissionRequired");
     NSString *ownBundle = NSBundle.mainBundle.bundleIdentifier;
+    NSString *registeredBundle = NSRunningApplication.currentApplication.bundleIdentifier;
+    NSMutableArray *ownBundles = [NSMutableArray array];
+    if (ownBundle.length) [ownBundles addObject:ownBundle];
+    // A composite app can register its native helper under a second identity.
+    // Protect both identities regardless of where the user moves the cup.
+    if (registeredBundle.length) [ownBundles addObject:registeredBundle];
     NSRect frame = marker.button.window.frame;
     if (!ownBundle.length || !marker.button.window || NSWidth(frame) <= 0) return fail(@"layoutUnavailable");
     busy = YES;
@@ -207,7 +231,7 @@ void craft_menubar_visibility_collapse(void) {
                 for (NSRunningApplication *app in apps)
                     if (app.bundleIdentifier) [bundles addObject:app.bundleIdentifier];
                 NSUInteger hidden = 0;
-                NSArray *allowed = allowedBundles(bundles, sections, ownBundle, &hidden);
+                NSArray *allowed = allowedBundles(bundles, sections, ownBundles, &hidden);
                 // Keep all system controls, including identifiers added by the
                 // current OS. The framework ignores unrecognized identifiers.
                 NSMutableArray *systemItems = [NSMutableArray array];

@@ -66,11 +66,12 @@ int main(void) {
         assert([sections[@"both"] boolValue] && [sections[@"unknown"] boolValue]);
         assert([sections[@"rtl-left"] boolValue] && ![sections[@"rtl-right"] boolValue]);
         sections[@"own.app"] = @NO;
+        sections[@"native.helper"] = @NO;
         sections[@"com.apple.controlcenter"] = @NO;
         NSUInteger hidden = 0;
-        NSArray *allowed = allowedBundles(@[@"left", @"left", @"right", @"both", @"new", @"unknown", @"own.app", @"com.apple.controlcenter"], sections, @"own.app", &hidden);
+        NSArray *allowed = allowedBundles(@[@"left", @"left", @"right", @"both", @"new", @"unknown", @"own.app", @"native.helper", @"com.apple.controlcenter"], sections, @[@"own.app", @"native.helper"], &hidden);
         assert(hidden == 1 && ![allowed containsObject:@"left"]);
-        for (NSString *bundle in @[@"right", @"both", @"new", @"unknown", @"own.app", @"com.apple.controlcenter"]) assert([allowed containsObject:bundle]);
+        for (NSString *bundle in @[@"right", @"both", @"new", @"unknown", @"own.app", @"native.helper", @"com.apple.controlcenter"]) assert([allowed containsObject:bundle]);
 
         TestAssertion *first = begin();
         assert(busy && !assertion);
