@@ -1359,6 +1359,14 @@ unchanged. `craft.files.download` resolves a non-2xx response as
 `{ ok: false, status, body }`; transport failures still reject with the native
 network error codes.
 
+Both maintained native hosts implement `craft.files.pickFile`. Android maps the
+shared MIME, UTI, and common extension filters to `ACTION_OPEN_DOCUMENT`, copies
+each selected document into the same app-owned directory, and enforces the
+shared 512 MiB default/per-file limit before publishing a descriptor. A
+dismissed picker resolves with an empty array; a canceled or oversized copy
+never leaves a partial file behind. Use this for GPX, TCX, FIT, PDF, or other
+documents that are not photos or videos.
+
 The `media` capability (iOS) keeps video and audio on the phone for offline,
 in Application Support rather than the temporary directory, left out of
 iCloud backups. `craft.media.keep(url, { headers })` downloads the file once

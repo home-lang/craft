@@ -799,6 +799,22 @@ describe('Craft Android builder', () => {
     expect(native).toContain('"SOUND_EVENT"')
   })
 
+  it('gives native screens an app-owned general document picker', async () => {
+    const output = createTempDir('craft-android-native-files-')
+    await init({ name: 'NativeFiles', packageName: 'org.example.nativefiles', output, runtimeDir: null, config: { renderer: 'native' } })
+    const root = join(output, 'app/src/main/java/org/example/nativefiles')
+    const capabilities = readFileSync(join(root, 'CraftNativeCapabilities.kt'), 'utf8')
+    expect(capabilities).toContain('"pickFile" -> pickFile(requestToken, args, completion)')
+    expect(capabilities).toContain('Intent.ACTION_OPEN_DOCUMENT')
+    expect(capabilities).toContain('Intent.EXTRA_ALLOW_MULTIPLE')
+    expect(capabilities).toContain('Intent.EXTRA_MIME_TYPES')
+    expect(capabilities).toContain('copyDocuments(pending.requestToken, uris, pending.fileLimit)')
+    expect(capabilities).toContain('FILE_TOO_LARGE')
+    expect(capabilities).toContain('CANCELLED: File selection was cancelled')
+    expect(capabilities).toContain('ownedFile(it)?.parentFile?.deleteRecursively()')
+    expect(capabilities).toContain('application/vnd.garmin.tcx+xml')
+  })
+
   it('hands native wallet passes to Google Wallet through an opt-in save URL', async () => {
     const output = createTempDir('craft-android-native-wallet-')
     await init({ name: 'Wallet', packageName: 'org.example.wallet', output, runtimeDir: null, config: { renderer: 'native', enableWallet: true } })
