@@ -8,6 +8,22 @@ export function includesHeldViewer(selection: readonly string[]): boolean {
   return !selection.length || selection.some(value => heldViewerTest === value || heldViewerTest.startsWith(`${value}/`))
 }
 
+export async function waitForHeldViewerReady(ready: string, exited: Promise<number>, timeoutMs = 35_000): Promise<void> {
+  if (!isAbsolute(ready) || !Number.isFinite(timeoutMs) || timeoutMs <= 0)
+    throw new Error('Expected an absolute readiness path and a positive timeout')
+  let code: number | undefined, failure: unknown
+  void exited.then(value => { code = value }, error => { failure = error })
+  await Promise.resolve()
+  const deadline = performance.now() + timeoutMs
+  while (performance.now() < deadline) {
+    if (failure) throw failure
+    if (code !== undefined) throw new Error(`Viewer watcher exited before readiness (exit ${code})`)
+    if (existsSync(ready)) return
+    await Bun.sleep(25)
+  }
+  throw new Error('Viewer screenshot positive control did not become ready before its deadline')
+}
+
 /** Log evidence is a timing gate, never a substitute for reviewing the PNG. */
 export class HeldViewerTiming {
   beganAt?: number
@@ -58,6 +74,62 @@ interface CaptureOptions {
   signal?: AbortSignal
   timeoutMs?: number
   parentPid?: number
+  ready?: string
+}
+
+async function pngHash(path: string): Promise<string> {
+  const bytes = await Bun.file(path).arrayBuffer()
+  if (bytes.byteLength < 8 || Buffer.from(bytes.slice(0, 8)).toString('hex') !== '89504e470d0a1a0a')
+    throw new Error('Independent capture did not produce a PNG')
+  return new Bun.CryptoHasher('sha256').update(bytes).digest('hex')
+}
+
+/** Positive control completes before the runner may begin XCTest's held gesture. */
+export async function prepareHeldViewerCapture(options: CaptureOptions, dependencies: {
+  command?: typeof nativeFixtureCommand
+  xcrun?: string
+} = {}): Promise<void> {
+  const ready = options.ready ?? join(options.output, 'preflight-ready')
+  if (!isAbsolute(ready)) throw new Error('Viewer readiness path must be absolute')
+  if (existsSync(ready)) throw new Error('Viewer readiness evidence already exists; use a fresh result directory')
+  mkdirSync(options.output, { recursive: true })
+  const command = dependencies.command ?? nativeFixtureCommand
+  const calls: { args: string[], startedAt: number, finishedAt?: number, result?: Awaited<ReturnType<typeof nativeFixtureCommand>> }[] = []
+  const baseline = join(options.output, 'baseline.png')
+  const xcrun = dependencies.xcrun ?? Bun.which('xcrun')
+  let simctl: string | undefined, simctlSha256: string | undefined, sha256: string | undefined
+  const receipt = (verified: boolean, error?: string) => ({
+    verified, error, simulator: options.simulator, xcrun, simctl, simctlSha256,
+    developerDir: process.env.DEVELOPER_DIR ?? null, calls, screenshot: baseline, sha256,
+    screenshotCommandTimeoutMs: 30_000,
+  })
+  const run = async (args: string[]) => {
+    const call: typeof calls[number] = { args, startedAt: Date.now() / 1000 }
+    calls.push(call)
+    try {
+      const result = await command(args, { cwd: options.output, timeoutMs: 30_000, signal: options.signal })
+      call.result = result
+      if (result.code !== 0 || result.timedOut || result.cancelled)
+        throw new Error(`Viewer screenshot positive control failed: ${JSON.stringify(result)}`)
+      return result
+    }
+    finally { call.finishedAt = Date.now() / 1000 }
+  }
+  try {
+    if (!xcrun || !isAbsolute(xcrun)) throw new Error('Cannot resolve the public xcrun executable')
+    const resolved = await run([xcrun, '--find', 'simctl'])
+    simctl = resolved.stdout.trim()
+    if (!isAbsolute(simctl)) throw new Error('xcrun did not resolve an absolute simctl executable')
+    simctlSha256 = new Bun.CryptoHasher('sha256').update(await Bun.file(simctl).arrayBuffer()).digest('hex')
+    await run([xcrun, 'simctl', 'io', options.simulator, 'screenshot', baseline])
+    sha256 = await pngHash(baseline)
+    await Bun.write(join(options.output, 'preflight.json'), JSON.stringify(receipt(true), null, 2))
+    await Bun.write(ready, 'Screenshot positive control verified\n')
+  }
+  catch (error) {
+    await Bun.write(join(options.output, 'preflight.json'), JSON.stringify(receipt(false, String(error)), null, 2))
+    throw error
+  }
 }
 
 /** Runs in an independent process while the existing xcode command stays synchronous. */
@@ -65,6 +137,7 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
   now?: () => number
   capture?: (png: string, signal: AbortSignal) => Promise<void>
   command?: typeof nativeFixtureCommand
+  prepare?: () => Promise<void>
 } = {}): Promise<void> {
   if (![options.log, options.output, options.done].every(isAbsolute) || !/^[\da-f-]{36}$/i.test(options.simulator))
     throw new Error('Viewer capture needs absolute evidence paths and a simulator UUID')
@@ -91,10 +164,12 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
   const receipt = (verifiedDuringHold: boolean, error?: string) => ({
     verifiedDuringHold, error, timing, simulator: options.simulator,
     screenshot: png, captureDelayMs: 750, screenshotCommandTimeoutMs: 5000, screenshotCommand,
+    preflight: join(options.output, 'preflight.json'),
     beforeAfter: ['XCTest attachment: Large content viewer before hold', 'XCTest attachment: Large content viewer after release'],
     visualReviewRequired: 'The during-hold PNG must show the actual system Large Content Viewer.',
   })
   try {
+    await (dependencies.prepare ?? (() => prepareHeldViewerCapture({ ...options, signal })))()
     while (performance.now() < deadline) {
       signal.throwIfAborted()
       if (options.parentPid) {
@@ -122,9 +197,7 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
                 const started = now()
                 try { await capture(png, signal) }
                 finally { timing.captured(started, now()) }
-                const bytes = new Uint8Array(await Bun.file(png).arrayBuffer())
-                if (bytes.length < 8 || Buffer.from(bytes.subarray(0, 8)).toString('hex') !== '89504e470d0a1a0a')
-                  throw new Error('Independent capture did not produce a PNG')
+                await pngHash(png)
                 finished = true
               })().catch(error => { failure = error })
             }
@@ -160,14 +233,14 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
 }
 
 if (import.meta.main) {
-  const [log, simulator, output, done, rawOffset, rawParent] = process.argv.slice(2)
+  const [log, simulator, output, done, rawOffset, rawParent, ready] = process.argv.slice(2)
   const controller = new AbortController()
   const cancel = () => controller.abort()
   process.once('SIGTERM', cancel)
   process.once('SIGINT', cancel)
   try {
     if (!log || !simulator || !output || !done) throw new Error('Expected live log, simulator, evidence directory, completion marker and offset')
-    await captureHeldViewer({ log, simulator, output, done, startOffset: Number(rawOffset ?? 0), parentPid: Number(rawParent) || undefined, signal: controller.signal })
+    await captureHeldViewer({ log, simulator, output, done, startOffset: Number(rawOffset ?? 0), parentPid: Number(rawParent) || undefined, signal: controller.signal, ready })
   }
   catch (error) { console.error(error); process.exitCode = 1 }
   finally { process.off('SIGTERM', cancel); process.off('SIGINT', cancel) }
