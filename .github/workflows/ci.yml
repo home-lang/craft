@@ -200,7 +200,7 @@ jobs:
         if: runner.os == 'macOS'
         env:
           CRAFT_NATIVE_TEST_BIN: ${{ github.workspace }}/packages/zig/zig-out/bin/craft
-        run: bun test ./packages/typescript/src/__tests__/bridge-origin.native.test.ts ./packages/typescript/src/__tests__/bridge-timers.native.test.ts
+        run: bun test ./packages/typescript/src/__tests__/bridge-origin.native.test.ts ./packages/typescript/src/__tests__/bridge-timers.native.test.ts ./packages/typescript/src/__tests__/menubar-visibility.native.test.ts
 
       - name: Verify standalone macOS signing entitlements
         if: runner.os == 'macOS'

@@ -43,3 +43,14 @@ native visibility explicitly; do not combine both controllers. Private visibilit
 must not be used in App Store submissions. The native tests exercise lifecycle
 failure paths with controlled replies and the real bridge with the packaged
 runtime, without granting Accessibility access.
+
+For live acceptance on macOS 27, with Accessibility already authorized, run:
+
+```sh
+CRAFT_NATIVE_TEST_BIN="$PWD/packages/zig/zig-out/bin/craft" CRAFT_NATIVE_VISIBILITY_E2E=1 bun test packages/typescript/src/__tests__/menubar-visibility.native.test.ts
+```
+
+This creates isolated signed controller/target app bundles, creates a real target
+status item, waits for the real macOS activation reply, then checks
+reveal and destroy. The test never requests a permission grant. Test apps and
+their assertions are released in cleanup; ordinary CI skips this opt-in case.
