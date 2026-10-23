@@ -123,11 +123,8 @@ jobs:
           sudo apt-get install -y libx11-dev libgtk-3-dev libwebkit2gtk-4.1-dev
       - name: First-party Zig dependencies
         uses: ./.github/actions/first-party-zig-deps
-        with:
-          git-executable: ${{ steps.managed-git.outputs.executable }}
       - name: Run the documented public graphics package consumer
-        working-directory: packages/zig/test/fixtures/graphics-package-consumer
-        run: zig build check --summary all
+        run: bun scripts/verify-zig-package-consumer.ts
       - name: Check out the exact Khronos SDK headers
         run: |
           bun scripts/managed-git.ts init .zig-cache/vulkan-headers
