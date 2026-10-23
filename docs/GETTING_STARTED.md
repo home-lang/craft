@@ -127,8 +127,9 @@ zig build run
 The exported `craft` module declares its native libraries. Applications should
 not copy Craft's linker flags. The maintained
 [graphics package consumer](../packages/zig/test/fixtures/graphics-package-consumer/)
-uses this same dependency API to check exact CPU bitmap pixels, shared Canvas
-types and explicit unsupported shader/text errors. Run `zig build check` from
+uses this same dependency API to check exact CPU bitmap, textured terrain,
+UTF-8 atlas glyph and complete-frame pixels, shared Canvas types, atomic frame
+rejection and explicit unsupported shader/font-family text errors. Run `zig build check` from
 that fixture. It selects `js-runtime=false` because it opens no window and
 executes no JavaScript. This check does not prove native window presentation.
 

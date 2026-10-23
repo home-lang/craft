@@ -87,8 +87,11 @@ dependencies and exports `graphics`, `renderer` and `gpu`. The internal module
 remains target-inheriting because native fixtures reuse it for distinct cross
 compilation targets. A separate application under
 `packages/zig/test/fixtures/graphics-package-consumer` uses only the documented
-`b.dependency(...).module("craft")` API. It verifies exact CPU pixels, one
-Canvas type and explicit unavailable-operation errors without consumer linker
-flags. Native macOS execution and Windows cross compilation passed locally.
-Hosted execution is required independently on each matrix host. This source
+`b.dependency(...).module("craft")` API. It verifies exact bitmap pixels, a
+shared translucent terrain edge without gaps or double blending, transformed
+sprites, UTF-8/newline atlas glyphs and complete-frame atomic rejection. It
+also checks one Canvas type and explicit unavailable shader/font-family text
+errors, without consumer linker flags. The expanded scene fixture passed
+native macOS Debug and ReleaseSafe execution and Windows GNU cross compilation
+locally. Hosted execution is required independently on each matrix host. This source
 check does not qualify a published Zig archive or native game presentation.
