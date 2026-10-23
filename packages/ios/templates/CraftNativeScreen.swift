@@ -8077,15 +8077,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 break
             }
             let field = result as! UITextField
-            field.placeholder = props["placeholder"] as? String
-            if let placeholder = field.placeholder,
+            if let placeholder = props["placeholder"] as? String,
                let placeholderColor = color(props["placeholderTextColor"]) {
                 field.attributedPlaceholder = NSAttributedString(
                     string: placeholder,
                     attributes: [.foregroundColor: placeholderColor]
                 )
             } else {
+                // UIKit shares these properties: resetting the attributed
+                // value after the plain one also erases the visible hint.
                 field.attributedPlaceholder = nil
+                field.placeholder = props["placeholder"] as? String
             }
             field.tintColor = color(props["selectionColor"])
             let fieldId = ObjectIdentifier(field)

@@ -2707,6 +2707,29 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(forgotFocus)
     }
 
+    func testPlainTextInputKeepsItsPlaceholderWithoutACustomColor() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        func document(_ placeholder: String?, color: String? = nil) -> [String: Any] {
+            var props: [String: Any] = ["key": "email"]
+            props["placeholder"] = placeholder
+            props["placeholderTextColor"] = color
+            return ["type": "TextInput", "props": props, "style": ["height": 48, "width": 300]]
+        }
+        screen.render(document("Email"))
+        let input = try XCTUnwrap(find(UITextField.self, key: "email", below: screen.view))
+        XCTAssertEqual(input.placeholder, "Email", "A normal HTML input has no custom placeholder color")
+        screen.render(document("Updated email", color: "#ff0000"))
+        XCTAssertTrue(input === find(UITextField.self, key: "email", below: screen.view))
+        XCTAssertEqual(input.placeholder, "Updated email")
+        XCTAssertEqual(input.attributedPlaceholder?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor, .red)
+        screen.render(document("Email"))
+        XCTAssertEqual(input.placeholder, "Email", "Removing a custom color restores the system placeholder")
+        XCTAssertNotEqual(input.attributedPlaceholder?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor, .red)
+        screen.render(document(nil))
+        XCTAssertNil(input.placeholder)
+    }
+
     func testTextInputsPadTheirTextAndAskForAutofill() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
