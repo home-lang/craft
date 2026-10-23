@@ -2150,6 +2150,15 @@ describe('Craft iOS builder', () => {
     expect(audio).toContain('AVAudioSession.interruptionNotification')
   })
 
+  it('cleans failed native photo writes instead of leaving staging folders behind', async () => {
+    const output = createTempDir('craft-ios-native-file-cleanup-')
+    await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { nativeScreens: { '/m/import': 'Import' } } as any })
+    const files = readFileSync(join(output, 'Sources', 'CraftNativeFiles.swift'), 'utf8')
+    expect(files).toContain('CGImageDestinationCreateWithURL')
+    expect(files).toContain('CGImageDestinationFinalize(destination) else {')
+    expect(files.match(/removeItem\(at: url\.deletingLastPathComponent\(\)\)/g)?.length).toBe(3)
+  })
+
   it('runs an all-native app with the shell\'s tabs and paths, an app script and the web view\'s services', async () => {
     const output = createTempDir('craft-ios-native-app-')
     const bundle = join(output, 'bundle.js')

@@ -1367,7 +1367,9 @@ dismissed picker resolves with an empty array; a canceled or oversized copy
 never leaves a partial file behind. The same cancellation cleanup applies while
 Android is decoding a picked image or copying a video, so a request canceled
 after the picker closes cannot publish or leak an app-owned file. Use this for
-GPX, TCX, FIT, PDF, or other documents that are not photos or videos.
+GPX, TCX, FIT, PDF, or other documents that are not photos or videos. On iOS,
+failed photo JPEG creation or finalization also removes its staging directory,
+so a rejected image import does not accumulate orphaned temporary files.
 
 `craft.audio` playback is screen-owned on both hosts. Android requests audio
 focus before preparing a player, reports a denied request as `AUDIO_FOCUS_DENIED`,
