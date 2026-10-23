@@ -28,7 +28,10 @@ final class HybridNavigationUnitTests: XCTestCase {
         let source = try XCTUnwrap(nav.topViewController as? CraftHybridWebSlot)
         let webView = try XCTUnwrap(hybrid.webView)
         let settled = await wait { hybrid.pagePath == "/" && nav.transitionCoordinator == nil }
-        XCTAssertTrue(settled)
+        guard settled else {
+            XCTFail("the initial fixture route must settle before navigation")
+            return
+        }
         // Hold the real fixture router, so observing the pending native slot
         // does not race its 650ms timer on a busy simulator.
         _ = try await webView.evaluateJavaScript("window.hybridFixture.holdArrival = true")
