@@ -5,7 +5,7 @@ import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './inser
 import { nativeNavigationGroup, verifyNativeNavigationResults } from './native-navigation-groups'
 import { nativeNavigationResultBundle } from './native-navigation-result'
 import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
-import { includesHeldViewer } from './held-viewer-capture'
+import { includesHeldViewer, waitForHeldViewerReady } from './held-viewer-capture'
 
 const fixture = join(import.meta.dir, '..', 'fixtures', 'native-navigation')
 // The @stacksjs/stx CLI (`stx native compile`), from a sibling checkout unless CI pins one.
@@ -165,24 +165,30 @@ try {
     run([...xcodeArgs, 'build-for-testing'], output)
     const captureOutput = `${resultBundle}.large-content-viewer`
     const done = join(captureOutput, 'xcode-finished')
+    const ready = join(captureOutput, `preflight-ready-${process.pid}-${Date.now()}`)
     if (captureViewer) mkdirSync(captureOutput, { recursive: true })
     const watcher = captureViewer ? Bun.spawn([
       process.execPath, join(import.meta.dir, 'held-viewer-capture.ts'), liveLog!, device.udid,
-      captureOutput, done, String(statSync(liveLog!).size), String(process.pid),
+      captureOutput, done, String(statSync(liveLog!).size), String(process.pid), ready,
     ], { stdout: 'inherit', stderr: 'inherit' }) : undefined
     const stopWatcher = () => watcher?.kill('SIGTERM')
     if (watcher) process.once('exit', stopWatcher)
     let testFailure: unknown
-    try { runXcodeTests([
-      // Retain live XCTest activity as well as the structured result bundle.
-      ...xcodeArgs.filter(arg => arg !== '-quiet'),
-      '-resultBundlePath', resultBundle,
-      // Keep XCTest results, screenshots and live logs without waiting for
-      // an unrelated OS diagnostic archive after a test has already finished.
-      '-collect-test-diagnostics', 'never',
-      ...selection,
-      'test-without-building',
-    ], output, resultBundle, groupCases?.length) }
+    try {
+      // Prove and warm the independent public capture path before XCTest can
+      // synthesize its hold. A failed control must never start the gesture.
+      if (watcher) await waitForHeldViewerReady(ready, watcher.exited)
+      runXcodeTests([
+        // Retain live XCTest activity as well as the structured result bundle.
+        ...xcodeArgs.filter(arg => arg !== '-quiet'),
+        '-resultBundlePath', resultBundle,
+        // Keep XCTest results, screenshots and live logs without waiting for
+        // an unrelated OS diagnostic archive after a test has already finished.
+        '-collect-test-diagnostics', 'never',
+        ...selection,
+        'test-without-building',
+      ], output, resultBundle, groupCases?.length)
+    }
     catch (error) { testFailure = error }
     finally {
       if (watcher) {
