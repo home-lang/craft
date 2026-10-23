@@ -6412,7 +6412,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                     // A writer can finish after UIKit has disposed this
                     // screen. Resolve the pending promise as a cancellation,
                     // never as a successful write into a dead runtime.
-                    done.call(withArguments: [self?.runtimeDisposed == true ? false : ok])
+                    done.call(withArguments: [self?.runtimeDisposed != false ? false : ok])
                 }
             }
         }
@@ -6420,7 +6420,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let names = (keep.isUndefined || keep.isNull ? [] : (keep.toArray() ?? [])).compactMap { $0 as? String }
             CraftSnapshots.clear(keeping: Set(names)) { [weak self] ok in
                 CraftNativeScriptThread.run {
-                    done.call(withArguments: [self?.runtimeDisposed == true ? false : ok])
+                    done.call(withArguments: [self?.runtimeDisposed != false ? false : ok])
                 }
             }
         }
