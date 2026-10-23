@@ -1375,6 +1375,12 @@ screen closes. A permanent focus loss releases every player and sends each
 sound's error event; replacement, decode failure, cancellation, and teardown
 also release their player resources.
 
+Checkpoint names use the same bounded filename contract on both native hosts:
+letters, digits, `.`, `_`, and `-`, up to 128 characters, without a leading
+dot. Non-JSON values and invalid names are rejected before a write is posted;
+the previous confirmed checkpoint remains available after a failed or
+interrupted replacement.
+
 The `media` capability (iOS) keeps video and audio on the phone for offline,
 in Application Support rather than the temporary directory, left out of
 iCloud backups. `craft.media.keep(url, { headers })` downloads the file once
