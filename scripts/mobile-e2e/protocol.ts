@@ -875,3 +875,14 @@ export function androidDeclines(text: string): string[] {
   const pattern = new RegExp(`craft: (\\w+) (${phrases}) \\(([^)]*)\\)`, 'g')
   return [...plain.matchAll(pattern)].map(match => `${match[1]}: ${match[2]} (${match[3]})`)
 }
+
+
+/** Host-side observation must distinguish a failed command from empty system data. */
+export function simulatorPasteboardProblems(result: { exitCode: number, stdout: string, stderr: string }, nonce: string): string[] {
+  if (!nonce) return ['the simulator pasteboard check has no expected run nonce']
+  if (result.exitCode !== 0)
+    return [`the simulator pasteboard read failed (exit ${result.exitCode}): ${result.stderr.trim().slice(0, 300) || 'no diagnostic output'}`]
+  if (!result.stdout.includes(nonce))
+    return [`the simulator pasteboard does not hold the nonce this run wrote; it holds ${JSON.stringify(result.stdout.trim().slice(0, 80))}`]
+  return []
+}
