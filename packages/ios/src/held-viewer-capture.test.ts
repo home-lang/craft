@@ -30,7 +30,8 @@ describe('independent held viewer capture', () => {
         command: async (args, options) => {
           calls.push(args)
           expect(existsSync(ready)).toBe(false)
-          expect(options.timeoutMs).toBe(30_000)
+          expect(options.timeoutMs).toBeGreaterThan(0)
+          expect(options.timeoutMs).toBeLessThanOrEqual(30_000)
           if (args.includes('screenshot')) await Bun.write(args.at(-1)!, pixel)
           return { code: 0, signal: null, stdout: args.includes('--find') ? `${simctl}\n` : '', stderr: '', timedOut: false, cancelled: false, processGroup: 123, groupDisposed: true }
         },
@@ -63,6 +64,42 @@ describe('independent held viewer capture', () => {
         })).rejects.toThrow(mode === 'timeout' ? '"timedOut":true' : 'did not produce a PNG')
         expect(existsSync(ready)).toBe(false)
         expect(JSON.parse(readFileSync(join(output, 'preflight.json'), 'utf8')).verified).toBe(false)
+      }
+    }
+    finally { removeTempDir(dir) }
+  })
+
+  test('tool resolution consumes the shared preflight budget instead of giving capture another 30 seconds', async () => {
+    const dir = createTempDir('craft-held-capture-test-')
+    try {
+      const simctl = join(dir, 'simctl')
+      writeFileSync(simctl, 'synthetic tool')
+      for (const elapsed of [28_000, 30_000]) {
+        const output = join(dir, String(elapsed))
+        let now = 0
+        const budgets: number[] = []
+        const prepare = prepareHeldViewerCapture({ log: join(dir, 'log'), done: join(dir, 'done'), output, simulator }, {
+          xcrun: '/usr/bin/xcrun', monotonicNow: () => now,
+          command: async (args, options) => {
+            budgets.push(options.timeoutMs)
+            if (args.includes('--find')) now = elapsed
+            else await Bun.write(args.at(-1)!, pixel)
+            return { code: 0, signal: null, stdout: args.includes('--find') ? simctl : '', stderr: '', timedOut: false, cancelled: false, processGroup: 123, groupDisposed: true }
+          },
+        })
+        if (elapsed === 28_000) {
+          await prepare
+          expect(budgets).toEqual([30_000, 2000])
+          expect(existsSync(join(output, 'preflight-ready'))).toBe(true)
+        }
+        else {
+          await expect(prepare).rejects.toThrow('exhausted its shared')
+          expect(budgets).toEqual([30_000])
+          expect(existsSync(join(output, 'preflight-ready'))).toBe(false)
+        }
+        const receipt = JSON.parse(readFileSync(join(output, 'preflight.json'), 'utf8'))
+        expect(receipt.totalCommandBudgetMs).toBe(30_000)
+        expect(receipt.calls[1].timeoutMs).toBe(30_000 - elapsed)
       }
     }
     finally { removeTempDir(dir) }

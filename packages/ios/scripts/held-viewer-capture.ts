@@ -88,26 +88,31 @@ async function pngHash(path: string): Promise<string> {
 export async function prepareHeldViewerCapture(options: CaptureOptions, dependencies: {
   command?: typeof nativeFixtureCommand
   xcrun?: string
+  monotonicNow?: () => number
 } = {}): Promise<void> {
   const ready = options.ready ?? join(options.output, 'preflight-ready')
   if (!isAbsolute(ready)) throw new Error('Viewer readiness path must be absolute')
   if (existsSync(ready)) throw new Error('Viewer readiness evidence already exists; use a fresh result directory')
   mkdirSync(options.output, { recursive: true })
   const command = dependencies.command ?? nativeFixtureCommand
-  const calls: { args: string[], startedAt: number, finishedAt?: number, result?: Awaited<ReturnType<typeof nativeFixtureCommand>> }[] = []
+  const calls: { args: string[], timeoutMs: number, startedAt: number, finishedAt?: number, result?: Awaited<ReturnType<typeof nativeFixtureCommand>> }[] = []
   const baseline = join(options.output, 'baseline.png')
   const xcrun = dependencies.xcrun ?? Bun.which('xcrun')
+  const monotonicNow = dependencies.monotonicNow ?? (() => performance.now())
+  const deadline = monotonicNow() + 30_000
   let simctl: string | undefined, simctlSha256: string | undefined, sha256: string | undefined
   const receipt = (verified: boolean, error?: string) => ({
     verified, error, simulator: options.simulator, xcrun, simctl, simctlSha256,
     developerDir: process.env.DEVELOPER_DIR ?? null, calls, screenshot: baseline, sha256,
-    screenshotCommandTimeoutMs: 30_000,
+    totalCommandBudgetMs: 30_000,
   })
   const run = async (args: string[]) => {
-    const call: typeof calls[number] = { args, startedAt: Date.now() / 1000 }
+    const timeoutMs = Math.max(0, Math.floor(deadline - monotonicNow()))
+    const call: typeof calls[number] = { args, timeoutMs, startedAt: Date.now() / 1000 }
     calls.push(call)
     try {
-      const result = await command(args, { cwd: options.output, timeoutMs: 30_000, signal: options.signal })
+      if (timeoutMs <= 0) throw new Error('Viewer screenshot positive control exhausted its shared 30-second command budget')
+      const result = await command(args, { cwd: options.output, timeoutMs, signal: options.signal })
       call.result = result
       if (result.code !== 0 || result.timedOut || result.cancelled)
         throw new Error(`Viewer screenshot positive control failed: ${JSON.stringify(result)}`)
