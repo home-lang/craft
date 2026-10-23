@@ -140,3 +140,63 @@ nativeTest('tray setters reach the actual status button and clearing its title p
     await rm(dir, { recursive: true, force: true })
   }
 }, 20000)
+
+nativeTest('native visibility keeps a compact control and disables without a legacy fallback', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'craft-native-visibility-'))
+  const marker = join(dir, 'state.json')
+  const html = `<script>(async () => {
+    const before = await craft.menubar.getState();
+    await craft.menubar.init({backend:'nativeVisibility'});
+    const initialized = await craft.menubar.getState();
+    await craft.menubar.collapse();
+    await craft.menubar.expand();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const expanded = await craft.menubar.getState();
+    await craft.menubar.destroy();
+    const destroyed = await craft.menubar.getState();
+    await craft.fs.writeFile(${JSON.stringify(marker)}, JSON.stringify({before, initialized, expanded, destroyed}));
+    craft.app.quit();
+  })();</script>`
+  const proc = Bun.spawn([process.env.CRAFT_NATIVE_TEST_BIN!, '--headless', '--system-tray', '--html', html], { stdout: 'ignore', stderr: 'pipe' })
+  const stderr = new Response(proc.stderr).text()
+  const timeout = setTimeout(() => proc.kill(), 15000)
+  try {
+    expect(await proc.exited).toBe(0)
+    const result = JSON.parse(await readFile(marker, 'utf8'))
+    expect(result.before.initialized).toBe(false)
+    expect(result.initialized.backend).toBe('nativeVisibility')
+    expect(typeof result.initialized.authorized).toBe('boolean')
+    expect(typeof result.initialized.available).toBe('boolean')
+    expect(result.initialized.initialized).toBe(result.initialized.available)
+    expect(result.initialized.markerWidth).toBe(result.initialized.available ? 20 : 0)
+    expect(result.expanded).toMatchObject({collapsed: false, busy: false, hiddenAppCount: 0})
+    expect(result.expanded.markerWidth).toBe(result.initialized.markerWidth)
+    expect(result.destroyed.initialized).toBe(false)
+    expect(result.destroyed.collapsed).toBe(false)
+  }
+  finally {
+    clearTimeout(timeout)
+    if (proc.exitCode === null) proc.kill()
+    await proc.exited
+    const output = await stderr
+    if (proc.exitCode !== 0) console.error(output)
+    await rm(dir, { recursive: true, force: true })
+  }
+}, 20000)
+
+nativeTest('native visibility lifecycle rejects stale replies and restores icons after every failure', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'craft-visibility-lifecycle-'))
+  try {
+    const fixture = join(import.meta.dir, '../../../zig/test/menubar_visibility.m')
+    const executable = join(dir, 'visibility-test')
+    const compile = Bun.spawnSync(['xcrun', 'clang', '-fobjc-arc', '-fblocks', '-Wall', '-Wextra', '-Werror', '-framework', 'Cocoa', '-framework', 'ApplicationServices', fixture, '-o', executable])
+    expect(compile.stderr.toString()).toBe('')
+    expect(compile.exitCode).toBe(0)
+    const run = Bun.spawnSync([executable])
+    expect(run.exitCode).toBe(0)
+    expect(run.stdout.toString()).toContain('permission revocation, errors, timeout and quit passed')
+  }
+  finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}, 20000)
