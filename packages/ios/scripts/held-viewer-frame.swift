@@ -33,14 +33,31 @@ func timeData(_ time: CMTime) throws -> [String: Any] {
     return ["value": time.value, "timescale": time.timescale]
 }
 
-func decodedReader(_ asset: AVAsset, _ track: AVAssetTrack) throws -> (AVAssetReader, AVAssetReaderTrackOutput) {
+// Read the original stored samples without changing their timestamps or
+// decompressing an entire long-running XCTest recording just to find a frame.
+// https://developer.apple.com/documentation/avfoundation/avassetreadertrackoutput/outputsettings
+func recordedTimes(_ asset: AVAsset, _ track: AVAssetTrack) throws -> [CMTime] {
     let reader = try AVAssetReader(asset: asset)
-    let output = AVAssetReaderTrackOutput(track: track, outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
+    let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
     output.alwaysCopiesSampleData = false
-    try require(reader.canAdd(output), "Cannot decode the recorded video track")
+    try require(reader.canAdd(output), "Cannot read the recorded video track")
     reader.add(output)
-    try require(reader.startReading(), "AVFoundation could not start decoding the recording")
-    return (reader, output)
+    try require(reader.startReading(), "AVFoundation could not read the recording: \(String(describing: reader.error))")
+    var times: [CMTime] = []
+    while let sample = output.copyNextSampleBuffer() {
+        // A stored-format buffer can batch many frames. CoreMedia expands
+        // each sample's original timing, including reordered H.264 pictures.
+        for index in 0..<CMSampleBufferGetNumSamples(sample) {
+            var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: .invalid, decodeTimeStamp: .invalid)
+            try require(CMSampleBufferGetSampleTimingInfo(sample, at: index, timingInfoOut: &timing) == noErr,
+                        "Cannot read original video sample timing")
+            _ = try timeData(timing.presentationTimeStamp)
+            times.append(timing.presentationTimeStamp)
+        }
+    }
+    try require(reader.status == .completed, "AVFoundation did not finish reading original samples: \(String(describing: reader.error))")
+    // Stored H.264 samples arrive in decode order; presentation order can differ.
+    return times.sorted { CMTimeCompare($0, $1) < 0 }
 }
 
 let arguments = CommandLine.arguments
@@ -65,21 +82,23 @@ do {
     let asset = AVURLAsset(url: URL(fileURLWithPath: movie))
     let tracks = try await asset.loadTracks(withMediaType: .video)
     guard let track = tracks.first else { throw FrameFailure.invalid("Recording has no video track") }
-    let (originReader, originOutput) = try decodedReader(asset, track)
-    guard let originSample = originOutput.copyNextSampleBuffer() else { throw FrameFailure.invalid("Recording has no decoded video frame") }
-    let firstPTS = CMSampleBufferGetPresentationTimeStamp(originSample)
+    let samples = try recordedTimes(asset, track)
+    receipt["samplePTS"] = try samples.map { try timeData($0) }
+    guard let firstSample = samples.first else { throw FrameFailure.invalid("Recording has no video sample") }
+    let generator = AVAssetImageGenerator(asset: asset)
+    generator.appliesPreferredTrackTransform = true
+    generator.requestedTimeToleranceBefore = .zero
+    generator.requestedTimeToleranceAfter = .zero
+    // Both the origin and the selected picture must really decode at their
+    // original sample PTS. A requested timestamp alone is never evidence.
+    let (_, firstPTS) = try await generator.image(at: firstSample)
+    try require(CMTimeCompare(firstPTS, firstSample) == 0, "Decoded first frame differs from the original first sample")
     receipt["firstPTS"] = try timeData(firstPTS)
-    originReader.cancelReading()
+    receipt["decodedPTS"] = [try timeData(firstPTS)]
     let firstSeconds = CMTimeGetSeconds(firstPTS)
-    // Preserve original sample timestamps. A timeRange can synthesize a
-    // clipped-boundary timestamp for a picture captured before that range.
-    let (reader, output) = try decodedReader(asset, track)
-    var decoded: [[String: Any]] = []
     var selected: CMTime?
     var closest = Double.infinity
-    while let sample = output.copyNextSampleBuffer() {
-        let pts = CMSampleBufferGetPresentationTimeStamp(sample)
-        decoded.append(try timeData(pts))
+    for pts in samples {
         let offset = CMTimeGetSeconds(pts) - firstSeconds
         let earliest = spawn + offset, latest = ready + offset
         if offset >= 0 && earliest > synthesis && latest < end {
@@ -87,15 +106,10 @@ do {
             if distance < closest { selected = pts; closest = distance }
         }
     }
-    receipt["decodedPTS"] = decoded
-    try require(reader.status == .completed, "AVFoundation did not complete decoding the original recording")
     guard let selected else { throw FrameFailure.invalid("No decoded frame has its whole capture interval inside the hold") }
     receipt["selectedPTS"] = try timeData(selected)
-    let generator = AVAssetImageGenerator(asset: asset)
-    generator.appliesPreferredTrackTransform = true
-    generator.requestedTimeToleranceBefore = .zero
-    generator.requestedTimeToleranceAfter = .zero
     let (image, actual) = try await generator.image(at: selected)
+    receipt["decodedPTS"] = [try timeData(firstPTS), try timeData(actual)]
     receipt["actualPTS"] = try timeData(actual)
     try require(CMTimeCompare(actual, selected) == 0, "Extracted actual PTS differs from the selected decoded frame")
     let offset = CMTimeGetSeconds(actual) - firstSeconds

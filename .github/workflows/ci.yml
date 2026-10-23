@@ -395,6 +395,10 @@ jobs:
         working-directory: packages/ios
         run: bun test ./src/launch-link-state.test.ts
 
+      - name: Test public recording frame provenance
+        working-directory: packages/ios
+        run: bun test ./src/held-viewer-video.test.ts ./src/held-viewer-extractor.test.ts
+
       # Build generated iOS, Live Activity, and Watch targets against device
       # SDKs; build the Watch-enabled app with its Watch app embedded and
       # install it on an iOS simulator, using the watchOS simulator runtime the

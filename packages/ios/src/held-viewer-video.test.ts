@@ -80,7 +80,7 @@ input.markAsFinished()
 await writer.finishWriting()
 guard writer.status == .completed else { fatalError("Synthetic movie incomplete") }
 `)
-    for (const args of [['xcrun', 'swiftc', generator, '-o', movieTool], ['xcrun', 'swiftc', join(import.meta.dir, '../scripts/held-viewer-frame.swift'), '-o', extractor]]) {
+    for (const args of [['xcrun', '--sdk', 'macosx', 'swiftc', generator, '-o', movieTool], ['xcrun', '--sdk', 'macosx', 'swiftc', join(import.meta.dir, '../scripts/held-viewer-frame.swift'), '-o', extractor]]) {
       const result = run(args)
       expect(result.exitCode, result.stderr.toString()).toBe(0)
     }
@@ -91,12 +91,13 @@ guard writer.status == .completed else { fatalError("Synthetic movie incomplete"
       const result = run([extractor, movie, png, receipt, '100', '100.25', '101', '107'])
       const evidence = JSON.parse(readFileSync(receipt, 'utf8'))
       // Trimming a sparse source to a hold range can invent a boundary PTS
-      // for the old picture. Retain only its original decoded sample times.
-      expect(evidence.decodedPTS.map((time: { value: number, timescale: number }) => time.value / time.timescale))
+      // for the old picture. Retain only its original stored sample times.
+      expect(evidence.samplePTS.map((time: { value: number, timescale: number }) => time.value / time.timescale))
         .toEqual(mode === 'static' ? [0] : mode === 'sparse' ? [0, 4, 6] : [0, 1, 2, 3, 4, 5, 6])
       if (mode !== 'static') {
         expect(result.exitCode, result.stderr.toString()).toBe(0)
         expect(evidence.verified).toBe(true)
+        expect(evidence.decodedPTS.map((time: { value: number, timescale: number }) => time.value / time.timescale)).toEqual([0, 4])
         expect(validateHeldVideoFrame(evidence)).toMatchObject({ frameWallEarliest: 104, frameWallLatest: 104.25 })
         expect(evidence.actualPTS.value / evidence.actualPTS.timescale).toBe(4)
         expect(evidence.pngSha256).toBe(new Bun.CryptoHasher('sha256').update(readFileSync(png)).digest('hex'))
