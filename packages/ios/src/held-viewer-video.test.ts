@@ -65,17 +65,17 @@ writer.add(input)
 guard writer.startWriting() else { fatalError("Cannot write synthetic media") }
 writer.startSession(atSourceTime: .zero)
 let mode = CommandLine.arguments[2]
-let originalSamples = mode == "static" ? [0] : mode == "sparse" ? [0, 4, 6] : Array(0..<7)
+let originalSamples = mode == "static" ? [0] : mode == "late" ? [0, 1104, 1106] : mode == "sparse" ? [0, 4, 6] : Array(0..<7)
 for index in originalSamples {
     while !input.isReadyForMoreMediaData { Thread.sleep(forTimeInterval: 0.001) }
     var buffer: CVPixelBuffer?
     guard CVPixelBufferPoolCreatePixelBuffer(nil, adaptor.pixelBufferPool!, &buffer) == kCVReturnSuccess, let buffer else { fatalError("No pixel buffer") }
     CVPixelBufferLockBaseAddress(buffer, [])
-    memset(CVPixelBufferGetBaseAddress(buffer), Int32(20 + index * 30), CVPixelBufferGetDataSize(buffer))
+    memset(CVPixelBufferGetBaseAddress(buffer), Int32(20 + (index % 7) * 30), CVPixelBufferGetDataSize(buffer))
     CVPixelBufferUnlockBaseAddress(buffer, [])
     guard adaptor.append(buffer, withPresentationTime: CMTime(value: Int64(index), timescale: 1)) else { fatalError("Cannot append synthetic frame") }
 }
-writer.endSession(atSourceTime: CMTime(value: 7, timescale: 1))
+writer.endSession(atSourceTime: CMTime(value: mode == "late" ? 1107 : 7, timescale: 1))
 input.markAsFinished()
 await writer.finishWriting()
 guard writer.status == .completed else { fatalError("Synthetic movie incomplete") }
@@ -84,22 +84,24 @@ guard writer.status == .completed else { fatalError("Synthetic movie incomplete"
       const result = run(args)
       expect(result.exitCode, result.stderr.toString()).toBe(0)
     }
-    for (const mode of ['sparse', 'moving', 'static']) {
+    for (const mode of ['sparse', 'moving', 'late', 'static']) {
       const movie = join(dir, `${mode}.mov`), png = join(dir, `${mode}.png`), receipt = join(dir, `${mode}.json`)
       const media = run([movieTool, movie, mode])
       expect(media.exitCode, media.stderr.toString()).toBe(0)
-      const result = run([extractor, movie, png, receipt, '100', '100.25', '101', '107'])
+      const late = mode === 'late'
+      const result = run([extractor, movie, png, receipt, '100', '100.25', late ? '1201' : '101', late ? '1207' : '107'])
       const evidence = JSON.parse(readFileSync(receipt, 'utf8'))
       // Trimming a sparse source to a hold range can invent a boundary PTS
-      // for the old picture. Retain only its original stored sample times.
+      // for the old picture. Retain original stored times even when the
+      // hold happens eighteen minutes into a long test-suite recording.
       expect(evidence.samplePTS.map((time: { value: number, timescale: number }) => time.value / time.timescale))
-        .toEqual(mode === 'static' ? [0] : mode === 'sparse' ? [0, 4, 6] : [0, 1, 2, 3, 4, 5, 6])
+        .toEqual(mode === 'static' ? [0] : mode === 'late' ? [0, 1104, 1106] : mode === 'sparse' ? [0, 4, 6] : [0, 1, 2, 3, 4, 5, 6])
       if (mode !== 'static') {
         expect(result.exitCode, result.stderr.toString()).toBe(0)
         expect(evidence.verified).toBe(true)
-        expect(evidence.decodedPTS.map((time: { value: number, timescale: number }) => time.value / time.timescale)).toEqual([0, 4])
-        expect(validateHeldVideoFrame(evidence)).toMatchObject({ frameWallEarliest: 104, frameWallLatest: 104.25 })
-        expect(evidence.actualPTS.value / evidence.actualPTS.timescale).toBe(4)
+        expect(evidence.decodedPTS.map((time: { value: number, timescale: number }) => time.value / time.timescale)).toEqual([0, late ? 1104 : 4])
+        expect(validateHeldVideoFrame(evidence)).toMatchObject({ frameWallEarliest: late ? 1204 : 104, frameWallLatest: late ? 1204.25 : 104.25 })
+        expect(evidence.actualPTS.value / evidence.actualPTS.timescale).toBe(late ? 1104 : 4)
         expect(evidence.pngSha256).toBe(new Bun.CryptoHasher('sha256').update(readFileSync(png)).digest('hex'))
         expect(evidence.movieSha256).toBe(new Bun.CryptoHasher('sha256').update(readFileSync(movie)).digest('hex'))
       }
