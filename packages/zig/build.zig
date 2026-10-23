@@ -441,6 +441,7 @@ pub fn build(b: *std.Build) void {
         // arrives through the reply path, which is precisely the code this gate
         // exists to compile.
         ios_surface_tests.root_module.linkFramework("Carbon", .{});
+        if (target_os == .macos) linkMenuBarVisibility(b, ios_surface_tests.root_module);
         ios_surface_tests.root_module.addCSourceFile(.{
             .file = b.path("vendor/sqlite/sqlite3.c"),
             .flags = &.{ "-DSQLITE_THREADSAFE=1", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_ENABLE_JSON1" },
@@ -486,6 +487,7 @@ pub fn build(b: *std.Build) void {
         // desktop bridge — including the Carbon hotkey machinery. Same linkage
         // macos_hotkey_tests already carries.
         ios_module_tests.root_module.linkFramework("Carbon", .{});
+        if (target_os == .macos) linkMenuBarVisibility(b, ios_module_tests.root_module);
     }
 
     // The iOS conformance gate. It embeds the Swift template as the migration
@@ -1879,6 +1881,7 @@ pub fn build(b: *std.Build) void {
             // came to list Cocoa, WebKit and CoreMIDI by hand and miss the one
             // framework they actually could not link without.
             system_tray_tests.root_module.linkFramework("Carbon", .{});
+            linkMenuBarVisibility(b, system_tray_tests.root_module);
             applySdkPaths(b, system_tray_tests.root_module, macos_sdk);
         },
         .linux => {
@@ -1912,6 +1915,7 @@ pub fn build(b: *std.Build) void {
             // came to list Cocoa, WebKit and CoreMIDI by hand and miss the one
             // framework they actually could not link without.
             system_tray_benchmark.root_module.linkFramework("Carbon", .{});
+            linkMenuBarVisibility(b, system_tray_benchmark.root_module);
             applySdkPaths(b, system_tray_benchmark.root_module, macos_sdk);
         },
         .linux => {
@@ -2081,6 +2085,15 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all unit tests");
+    // A quick host gate for artifacts that link the desktop reply path by hand.
+    // The complete test step below also runs all four.
+    const menubar_native_step = b.step("test-menubar-native", "Verify native menu bar linkage and host bridge consumers");
+    if (target_os == .macos) {
+        menubar_native_step.dependOn(&run_ios_surface_tests.step);
+        menubar_native_step.dependOn(&run_ios_module_tests.step);
+        menubar_native_step.dependOn(&run_system_tray_tests.step);
+        menubar_native_step.dependOn(&run_system_tray_benchmark.step);
+    }
     const metal_surface_step = b.step("test-metal-surface", "Verify bounded native Metal presentation and drawable pixels");
     const metal_layout_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -3152,6 +3165,17 @@ fn iosSdkPath(b: *std.Build, sdk_name: []const u8) ?[]const u8 {
     return trimmed;
 }
 
+/// Shared by the CLI and by host test artifacts that reach the tray indirectly.
+fn linkMenuBarVisibility(b: *std.Build, module: *std.Build.Module) void {
+    module.linkFramework("ApplicationServices", .{});
+    // Objective-C owns blocks and exception boundaries. The private framework
+    // itself is resolved at runtime and is never a linked dependency.
+    module.addCSourceFile(.{
+        .file = b.path("src/menubar_visibility.m"),
+        .flags = &.{ "-fobjc-arc", "-fblocks" },
+    });
+}
+
 fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: std.Target.Os.Tag, sdk_path: ?[]const u8) void {
     switch (target_os) {
         .macos => {
@@ -3175,13 +3199,7 @@ fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: st
             // is why the hand-linked executables below resolve it too; named
             // here so nothing depends on that chain.
             module.linkFramework("CoreServices", .{});
-            module.linkFramework("ApplicationServices", .{});
-            // Objective-C owns blocks and exception boundaries for the opt-in
-            // macOS 27 visibility backend. No private framework is linked.
-            module.addCSourceFile(.{
-                .file = b.path("src/menubar_visibility.m"),
-                .flags = &.{ "-fobjc-arc", "-fblocks" },
-            });
+            linkMenuBarVisibility(b, module);
             // Carbon for `macos_hotkey.zig`: `RegisterEventHotKey` is the only
             // route to a global hotkey that neither needs an Objective-C block
             // (which Zig cannot write) nor Accessibility permission (which a
