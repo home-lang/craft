@@ -3647,6 +3647,137 @@ final class NativePlatformControlTests: XCTestCase {
         return view.subviews.compactMap { find(type, below: $0) }.first
     }
 
+    private func identified(_ id: String, below view: UIView) -> UIView? {
+        if view.accessibilityIdentifier == id { return view }
+        return view.subviews.lazy.compactMap { self.identified(id, below: $0) }.first
+    }
+
+    private func pagerDocument(index: Int, count: Int) -> [String: Any] {
+        ["id": "pager", "type": "ScrollView",
+         "props": ["key": "pager", "horizontal": true, "pagingEnabled": true, "pageIndex": index],
+         "style": ["width": "100%", "height": 180],
+         "events": ["onPageSelected": "page-selected"],
+         "children": (0..<count).map { number in
+            ["id": "page-\(number)", "type": "View", "props": ["key": "page-\(number)", "testID": "page-\(number)"],
+             "style": ["width": 37, "height": 22],
+             "children": [["type": "Text", "children": ["Page \(number + 1)"]]]] as [String: Any]
+         }]
+    }
+
+    private func waitForPager(_ screen: CraftNativeScreenController, index: Int, count: Int) {
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            screen.evaluateScript("Boolean(pages.length && pages[pages.length - 1].index === \(index) && pages[pages.length - 1].count === \(count))")?.toBool() == true
+        }, object: nil)
+        wait(for: [settled], timeout: 3)
+    }
+
+    func testPagerUsesWholeViewportRetainsPagesAndResizesAtItsSelectedPage() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        screen.view.frame = CGRect(x: 0, y: 0, width: 320, height: 480)
+        screen.evaluateScript("globalThis.pages = []; globalThis.__stxNativeCallback = function(json) { const m = JSON.parse(json); if (m.type === 'EVENT' && m.payload.handlerName === 'page-selected') pages.push(m.payload.nativeEvent); };")
+        screen.render(pagerDocument(index: 1, count: 3))
+        screen.view.layoutIfNeeded()
+        let scroll = try XCTUnwrap(find(UIScrollView.self, below: screen.view))
+        scroll.layoutIfNeeded()
+        waitForPager(screen, index: 1, count: 3)
+        XCTAssertTrue(scroll.isPagingEnabled)
+        XCTAssertEqual(scroll.bounds.width, 320, accuracy: 0.5)
+        XCTAssertEqual(scroll.contentSize.width, 3 * scroll.bounds.width, accuracy: 0.5)
+        XCTAssertEqual(scroll.contentOffset.x, scroll.bounds.width, accuracy: 0.5)
+        let pages = try (0..<3).map { try XCTUnwrap(identified("page-\($0)", below: scroll)) }
+        for (index, page) in pages.enumerated() {
+            XCTAssertEqual(page.frame.width, scroll.bounds.width, accuracy: 0.5, "Page must fill its viewport despite authored intrinsic width")
+            XCTAssertEqual(page.frame.minX, CGFloat(index) * scroll.bounds.width, accuracy: 0.5)
+            XCTAssertEqual(page.accessibilityElementsHidden, index != 1, "VoiceOver must not read off-screen pages")
+        }
+        let reported = screen.evaluateScript("pages.length")?.toInt32()
+        screen.render(pagerDocument(index: 1, count: 3))
+        screen.view.layoutIfNeeded()
+        scroll.layoutIfNeeded()
+        XCTAssertEqual(screen.evaluateScript("pages.length")?.toInt32(), reported, "Reconciliation is not a second page selection")
+        XCTAssertTrue(pages[1] === identified("page-1", below: scroll))
+
+        screen.view.frame.size.width = 480
+        screen.view.setNeedsLayout()
+        screen.view.layoutIfNeeded()
+        scroll.layoutIfNeeded()
+        XCTAssertEqual(scroll.bounds.width, 480, accuracy: 0.5)
+        XCTAssertEqual(scroll.contentOffset.x, 480, accuracy: 0.5, "Rotation preserves the selected page")
+        XCTAssertEqual(scroll.contentSize.width, 1440, accuracy: 0.5)
+        XCTAssertEqual(pages[2].frame.width, 480, accuracy: 0.5)
+        XCTAssertEqual(screen.evaluateScript("pages.length")?.toInt32(), reported, "Resizing is not another selection")
+    }
+
+    func testPagerControlledCommandsAndSettledNativeScrollClampAndDeduplicateEvents() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        screen.view.frame = CGRect(x: 0, y: 0, width: 320, height: 480)
+        screen.evaluateScript("globalThis.pages = []; globalThis.__stxNativeCallback = function(json) { const m = JSON.parse(json); if (m.type === 'EVENT' && m.payload.handlerName === 'page-selected') pages.push(m.payload.nativeEvent); };")
+        screen.render(pagerDocument(index: 0, count: 3))
+        screen.view.layoutIfNeeded()
+        let scroll = try XCTUnwrap(find(UIScrollView.self, below: screen.view))
+        scroll.layoutIfNeeded()
+        waitForPager(screen, index: 0, count: 3)
+        screen.render(pagerDocument(index: 2, count: 3))
+        screen.view.layoutIfNeeded()
+        scroll.layoutIfNeeded()
+        waitForPager(screen, index: 2, count: 3)
+        XCTAssertEqual(scroll.contentOffset.x, scroll.bounds.width * 2, accuracy: 0.5)
+        // UIKit supplies these settled callbacks after a drag. The UI fixture
+        // separately proves an actual synthesized finger swipe reaches them.
+        scroll.setContentOffset(CGPoint(x: scroll.bounds.width, y: 0), animated: false)
+        screen.scrollViewDidEndDragging(scroll, willDecelerate: false)
+        waitForPager(screen, index: 1, count: 3)
+        let reports = screen.evaluateScript("pages.length")?.toInt32()
+        screen.scrollViewDidEndDecelerating(scroll)
+        screen.scrollViewDidEndScrollingAnimation(scroll)
+        XCTAssertEqual(screen.evaluateScript("pages.length")?.toInt32(), reports)
+        XCTAssertFalse(try XCTUnwrap(identified("page-1", below: scroll)).accessibilityElementsHidden)
+        XCTAssertTrue(try XCTUnwrap(identified("page-2", below: scroll)).accessibilityElementsHidden)
+        screen.render(pagerDocument(index: 99, count: 1))
+        screen.view.layoutIfNeeded()
+        scroll.layoutIfNeeded()
+        waitForPager(screen, index: 0, count: 1)
+        XCTAssertEqual(scroll.contentOffset.x, 0, accuracy: 0.5)
+        XCTAssertNil(identified("page-1", below: scroll))
+        screen.render(pagerDocument(index: -1, count: 0))
+        screen.view.layoutIfNeeded()
+        scroll.layoutIfNeeded()
+        waitForPager(screen, index: 0, count: 0)
+        XCTAssertEqual(scroll.contentSize.width, 0, accuracy: 0.5)
+    }
+
+    func testCSSGenericFontFallbacksProduceNativeFamiliesAndPreserveTraits() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        func font(_ family: String, type: String = "Text", weight: String = "700", italic: Bool = true) throws -> UIFont {
+            screen.render(["type": type, "props": ["key": "sample", "value": "111 WWW"],
+                "style": ["fontFamily": family, "fontWeight": weight, "fontStyle": italic ? "italic" : "normal", "fontSize": 19],
+                "children": ["111 WWW"]])
+            if type == "TextInput" { return try XCTUnwrap(find(UITextField.self, below: screen.view)?.font) }
+            return try XCTUnwrap(find(UILabel.self, below: screen.view)?.font)
+        }
+        for family in ["monospace", "ui-monospace", "'Definitely Missing Font', ui-monospace, serif"] {
+            for type in ["Text", "TextInput"] {
+                let actual = try font(family, type: type)
+                XCTAssertTrue(actual.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), family)
+                XCTAssertTrue(actual.fontDescriptor.symbolicTraits.contains(.traitBold), family)
+                XCTAssertTrue(actual.fontDescriptor.symbolicTraits.contains(.traitItalic), family)
+                XCTAssertGreaterThan(actual.pointSize, 0)
+            }
+        }
+        let sans = try font("system-ui", italic: false)
+        XCTAssertFalse(sans.fontDescriptor.symbolicTraits.contains(.traitMonoSpace))
+        let serif = try font("'Missing Font', ui-serif", italic: false)
+        XCTAssertNotEqual(serif.familyName, sans.familyName)
+        let custom = try XCTUnwrap(UIFont(name: "Helvetica", size: 19))
+        let selected = try font("Helvetica, monospace")
+        XCTAssertEqual(selected.familyName, custom.familyName, "First available custom family wins over generic fallback")
+        XCTAssertTrue(selected.fontDescriptor.symbolicTraits.contains(.traitBold))
+        XCTAssertTrue(selected.fontDescriptor.symbolicTraits.contains(.traitItalic))
+    }
+
     func testSegmentsAreUIKitControlsAndReconcileWithoutFalseChanges() throws {
         let screen = CraftNativeScreenController(config: CraftConfig())
         screen.loadViewIfNeeded()

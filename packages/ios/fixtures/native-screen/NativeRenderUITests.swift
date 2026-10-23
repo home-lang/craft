@@ -22,6 +22,34 @@ final class NativeRenderUITests: XCTestCase {
         return matched
     }
 
+    func testNativePagerFingerSwipesAndControlledSelectionExposeOnlyCurrentPage() throws {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertFalse(app.webViews.firstMatch.exists)
+        let open = app.buttons["open-pager"]
+        XCTAssertTrue(open.waitForExistence(timeout: 15))
+        open.tap()
+        let status = app.staticTexts["pager-status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 10))
+        waitForLabel(status, "Page 1 of 3")
+        let pager = app.scrollViews["native-pager"]
+        XCTAssertTrue(pager.exists)
+        XCTAssertTrue(app.staticTexts["pager-page-0"].isHittable)
+        XCTAssertFalse(app.staticTexts["pager-page-1"].exists, "Off-screen page should not enter the accessibility tree")
+        pager.swipeLeft()
+        waitForLabel(status, "Page 2 of 3")
+        XCTAssertTrue(app.staticTexts["pager-page-1"].isHittable)
+        XCTAssertFalse(app.staticTexts["pager-page-0"].exists)
+        app.buttons["pager-last"].tap()
+        waitForLabel(status, "Page 3 of 3")
+        XCTAssertTrue(app.staticTexts["pager-page-2"].isHittable)
+        XCTAssertFalse(app.staticTexts["pager-page-1"].exists)
+        pager.swipeRight()
+        waitForLabel(status, "Page 2 of 3")
+        XCTAssertTrue(app.staticTexts["pager-page-1"].isHittable)
+        XCTAssertFalse(app.staticTexts["pager-page-2"].exists)
+    }
+
     func testTypingAndButtonUpdatesDoNotDropTheKeyboard() throws {
         let app = XCUIApplication()
         app.launch()
