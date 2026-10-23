@@ -5,7 +5,7 @@ import { parseArgs } from 'node:util'
 import { resolveZig } from '../../../scripts/zig'
 import { tempDirPrefix } from '../../typescript/src/temp-dir'
 import { nativeFixtureCommand } from './native-fixture-command'
-import { metalXCTestSteps } from './metal-xctest-steps'
+import { metalXCTestSteps, verifyMetalXCTestSummaries } from './metal-xctest-steps'
 
 const { values } = parseArgs({ args: process.argv.slice(2), strict: true, options: { runtime: { type: 'string' }, xcodegen: { type: 'string' }, output: { type: 'string' } } })
 if (process.platform !== 'darwin' || !values.runtime || !values.xcodegen || !isAbsolute(values.xcodegen))
@@ -147,11 +147,17 @@ schemes:
   await capture(['xcrun', 'simctl', 'boot', simulator])
   await run('boot-owned-simulator', ['xcrun', 'simctl', 'bootstatus', simulator, '-b'], 180_000)
   const results = join(evidence, 'TestResults.xcresult')
-  for (const step of metalXCTestSteps(simulator, join(workspace, 'DerivedData'), results))
+  const summaries: Record<string, unknown>[] = []
+  for (const step of metalXCTestSteps(simulator, join(workspace, 'DerivedData'), results)) {
     await run(step.name, step.args, step.timeoutMs)
-  const summary = JSON.parse(await capture(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', results]))
-  proof.xctest = summary
-  if (summary.result !== 'Passed' || summary.totalTestCount < 2 || summary.passedTests !== summary.totalTestCount || summary.failedTests !== 0 || summary.skippedTests !== 0) throw new Error('Native Metal acceptance requires both suites to execute successfully without skips')
+    if (step.resultBundle) {
+      const summary = JSON.parse(await capture(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', step.resultBundle]))
+      summaries.push(summary)
+      proof.xctest = summaries
+      save()
+    }
+  }
+  verifyMetalXCTestSummaries(summaries)
   proof.status = 'passed'
 }
 catch (error) { failure = error; proof.status = 'failed'; proof.error = String(error) }

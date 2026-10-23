@@ -582,6 +582,9 @@ jobs:
       - name: Test installed-app smoke checkpoints
         run: bun test ./scripts/verify-packaged-app.test.ts
 
+      - name: Test native Metal suite admission
+        run: bun test ./packages/ios/scripts/metal-xctest-steps.test.ts
+
       - name: Run pickier (lint + format check)
         run: bun run lint
 
