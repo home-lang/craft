@@ -1,5 +1,35 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.304...v0.0.305)
+
+## 🚀 Features
+
+- **native**: add controlled paging and platform font stacks ([26be292](https://github.com/craft-native/craft/commit/26be292)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **packaging**: give bundled native runtimes an agent app identity ([2c925f1](https://github.com/craft-native/craft/commit/2c925f1)) _(by Chris Breuer)_
+- **menubar**: restore icons when native visibility changes the wrong group ([09e86f9](https://github.com/craft-native/craft/commit/09e86f9)) _(by Chris Breuer)_
+- **ios**: retain paging axis and custom font weight ([4eb6256](https://github.com/craft-native/craft/commit/4eb6256)) _(by Chris Breuer)_
+- **native**: initialize pager gesture tracking with its host ([e16dea0](https://github.com/craft-native/craft/commit/e16dea0)) _(by Chris Breuer)_
+- **ci**: use the native Windows source archiver ([47ca70f](https://github.com/craft-native/craft/commit/47ca70f)) _(by Chris)_
+- **ci**: resolve Zig packages through their native manifest ([b5770e3](https://github.com/craft-native/craft/commit/b5770e3)) _(by Chris)_
+- **zig**: ship portable dependencies and complete native sources ([7ca7646](https://github.com/craft-native/craft/commit/7ca7646)) _(by Chris)_
+
+## 📚 Documentation
+
+- describe portable Zig package verification ([621bf49](https://github.com/craft-native/craft/commit/621bf49)) _(by Chris)_
+
+## 🧪 Tests
+
+- retain pager selection through held and locked gestures ([9cf0747](https://github.com/craft-native/craft/commit/9cf0747)) _(by Chris Breuer)_
+- exercise native pager geometry gestures and font families ([9e7c53b](https://github.com/craft-native/craft/commit/9e7c53b)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.303...v0.0.304)
 
 ## 🐛 Bug Fixes
