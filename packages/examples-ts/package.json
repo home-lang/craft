@@ -1,6 +1,6 @@
 {
   "name": "craft-examples",
-  "version": "0.0.297",
+  "version": "0.0.298",
   "private": true,
   "type": "module",
   "description": "TypeScript examples for Craft",
