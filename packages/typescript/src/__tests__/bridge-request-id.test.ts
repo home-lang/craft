@@ -109,12 +109,15 @@ describe('bridge reply correlation', () => {
   it('selects native menu bar visibility explicitly and never silently downgrades an unknown backend', async () => {
     const h = loadBridge()
     await h.craft.menubar.init({ backend: 'nativeVisibility' })
-    expect(h.sent.at(-1)).toMatchObject({ t: 'menubarCollapse', a: 'init', d: 'nativeVisibility' })
+    expect(h.sent.at(-1)).toMatchObject({ t: 'menubarCollapse', a: 'init', d: '{"backend":"nativeVisibility","preserveSystemItems":true}' })
+    await h.craft.menubar.init({ backend: 'nativeVisibility', preserveSystemItems: false })
+    expect(h.sent.at(-1)).toMatchObject({ t: 'menubarCollapse', a: 'init', d: '{"backend":"nativeVisibility","preserveSystemItems":false}' })
     await h.craft.menubar.destroy()
     expect(h.sent.at(-1)).toMatchObject({ t: 'menubarCollapse', a: 'destroy' })
     const count = h.sent.length
     await expect(h.craft.menubar.init({ backend: 'unknown' })).rejects.toThrow('Unknown menu bar backend')
     await expect(h.craft.menubar.init({ backend: '' })).rejects.toThrow('Unknown menu bar backend')
+    await expect(h.craft.menubar.init({ backend: 'nativeVisibility', preserveSystemItems: 'false' })).rejects.toThrow('preserveSystemItems must be a boolean')
     expect(h.sent).toHaveLength(count)
   })
 

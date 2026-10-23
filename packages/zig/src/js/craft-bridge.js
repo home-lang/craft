@@ -1705,7 +1705,10 @@
     init:                  function (opts)  {
       const backend = opts && opts.backend !== undefined ? opts.backend : 'legacy'
       if (backend !== 'legacy' && backend !== 'nativeVisibility') return Promise.reject(new TypeError('Unknown menu bar backend'))
-      return _send('menubarCollapse', 'init', backend)
+      if (opts && opts.preserveSystemItems !== undefined && typeof opts.preserveSystemItems !== 'boolean') return Promise.reject(new TypeError('preserveSystemItems must be a boolean'))
+      return _send('menubarCollapse', 'init', backend === 'nativeVisibility'
+        ? JSON.stringify({ backend: backend, preserveSystemItems: !opts || opts.preserveSystemItems !== false })
+        : backend)
     },
     destroy:               function ()      { return _send('menubarCollapse', 'destroy') },
     requestPermission:     function ()      { return _send('menubarCollapse', 'requestPermission') },

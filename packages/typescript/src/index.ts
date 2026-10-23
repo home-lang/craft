@@ -702,6 +702,7 @@ export type {
   CraftAppAPI,
   CraftBridgeAPI,
   MenubarState,
+  MenubarInitOptions,
   CraftTimersAPI,
   Permission,
   HapticType,
