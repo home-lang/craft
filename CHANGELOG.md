@@ -1,5 +1,31 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.311...v0.0.312)
+
+## 🚀 Features
+
+- **sdk**: expose native menu bar system-item policy ([f615fb2](https://github.com/craft-native/craft/commit/f615fb2)) _(by Chris Breuer)_
+- **menubar**: make system-item verification configurable ([41ccbd4](https://github.com/craft-native/craft/commit/41ccbd4)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **ios**: integrate verified extractor build admission ([c41ddf6](https://github.com/craft-native/craft/commit/c41ddf6)) _(by Chris)_
+- **ios**: build capture tools before starting live setup ([a3c12a5](https://github.com/craft-native/craft/commit/a3c12a5)) _(by Chris)_
+
+## 📚 Documentation
+
+- **menubar**: explain native system-module visibility policy ([e6cff24](https://github.com/craft-native/craft/commit/e6cff24)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- build native frame extractor before capture admission ([3b4d7f5](https://github.com/craft-native/craft/commit/3b4d7f5)) _(by Chris Breuer)_
+- **ios**: prebuild and verify held-frame extractor provenance ([fd083ca](https://github.com/craft-native/craft/commit/fd083ca)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.304...v0.0.311)
 
 ## 🚀 Features
