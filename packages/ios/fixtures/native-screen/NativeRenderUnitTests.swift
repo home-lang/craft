@@ -707,6 +707,92 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(imageView === find(UIImageView.self, key: "avatar", below: controller.view))
     }
 
+    /// Calendar may retarget a retained screen twice in one update: an
+    /// animated week-top request, then its actual nonanimated selected day.
+    /// Sticky geometry must follow the final viewport without a JS onScroll.
+    func testStickyHeaderTracksRetargetedDaysAndReactiveReconciliation() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.loadViewIfNeeded()
+
+        func calendar(target: String, key: Int, animated: Bool, revision: Int) -> [String: Any] {
+            ["id": "calendar-root", "type": "View", "style": ["flex": 1], "children": [[
+                "id": "calendar-scroll", "type": "ScrollView",
+                "props": ["key": "calendar-scroll", "stickyHeaderIndices": [1],
+                          "scrollTarget": ["id": target, "key": key, "animated": animated]],
+                "style": ["flex": 1],
+                "children": [
+                    ["id": "calendar-top", "type": "View", "props": ["key": "calendar-top"], "style": ["height": 160]],
+                    ["id": "week-header", "type": "View", "props": ["key": "week-header"],
+                     "style": ["height": 80, "backgroundColor": "#f8fafc"],
+                     "children": [node("Text", key: "week-label", text: "Week revision \(revision)")]],
+                    ["id": "day-26", "type": "View", "props": ["key": "day-26"], "style": ["height": 360],
+                     "children": [node("Text", key: "day-26-label", text: "Monday, October 26: \(revision)")]],
+                    ["id": "day-27", "type": "View", "props": ["key": "day-27"], "style": ["height": 360]],
+                    ["id": "day-28", "type": "View", "props": ["key": "day-28"], "style": ["height": 360],
+                     "children": [node("Text", key: "day-28-label", text: "Wednesday, October 28: \(revision)")]],
+                    ["id": "trailing", "type": "View", "props": ["key": "trailing"], "style": ["height": 1000]],
+                ],
+            ]]]
+        }
+
+        // One normal layout consumes a pending target. Run the main loop
+        // afterwards rather than forcing another scroll layout to repair it.
+        func settle() {
+            controller.view.layoutIfNeeded()
+            let deadline = Date().addingTimeInterval(0.2)
+            while Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        }
+        controller.render(calendar(target: "day-26", key: 1, animated: false, revision: 0))
+        settle()
+        let scroll = try XCTUnwrap(find(UIScrollView.self, key: "calendar-scroll", below: controller.view))
+        let header = try XCTUnwrap(find(UIView.self, key: "week-header", below: scroll))
+        let content = try XCTUnwrap(header.superview)
+        let naturalCenter = header.center
+        let naturalBounds = header.bounds
+        XCTAssertGreaterThan(scroll.bounds.height, 0)
+        XCTAssertEqual(naturalCenter.y - naturalBounds.height / 2, 160, accuracy: 0.5)
+        XCTAssertEqual(naturalBounds.height, 80, accuracy: 0.5)
+
+        func assertSelectedDay(_ id: String, line: UInt = #line) throws {
+            let day = try XCTUnwrap(find(UIView.self, key: id, below: scroll), file: #filePath, line: line)
+            XCTAssertTrue(scroll === find(UIScrollView.self, key: "calendar-scroll", below: controller.view), file: #filePath, line: line)
+            XCTAssertTrue(header === find(UIView.self, key: "week-header", below: scroll), file: #filePath, line: line)
+            XCTAssertTrue(header.superview === content, file: #filePath, line: line)
+            let visibleTop = scroll.contentOffset.y + scroll.adjustedContentInset.top
+            let headerRect = header.convert(header.bounds, to: scroll)
+            let dayRect = day.convert(day.bounds, to: scroll)
+            XCTAssertEqual(headerRect.minY, visibleTop, accuracy: 0.5, "The sticky header follows this viewport, not the previous target", file: #filePath, line: line)
+            XCTAssertEqual(dayRect.minY, headerRect.maxY, accuracy: 0.5, "The selected day starts below the sticky header", file: #filePath, line: line)
+            XCTAssertEqual(header.center.x, naturalCenter.x, accuracy: 0.5, file: #filePath, line: line)
+            XCTAssertEqual(header.center.y, naturalCenter.y, accuracy: 0.5, file: #filePath, line: line)
+            XCTAssertEqual(header.bounds, naturalBounds, file: #filePath, line: line)
+        }
+        try assertSelectedDay("day-26")
+        let mondayOffset = scroll.contentOffset.y
+
+        controller.render(calendar(target: "calendar-top", key: 2, animated: true, revision: 1))
+        controller.view.layoutIfNeeded()
+        controller.render(calendar(target: "day-28", key: 3, animated: false, revision: 2))
+        settle()
+        try assertSelectedDay("day-28")
+        XCTAssertEqual(scroll.contentOffset.y - mondayOffset, 720, accuracy: 0.5)
+
+        // A later data response reconciles the same keyed header and days,
+        // without changing the target key or emitting any JS scroll handler.
+        controller.render(calendar(target: "day-28", key: 3, animated: false, revision: 3))
+        settle()
+        try assertSelectedDay("day-28")
+
+        controller.render(calendar(target: "day-26", key: 4, animated: false, revision: 4))
+        settle()
+        try assertSelectedDay("day-26")
+        XCTAssertEqual(scroll.contentOffset.y, mondayOffset, accuracy: 0.5)
+    }
+
     func testHeaderAccessibilityRoleMapsToUIKitTrait() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
