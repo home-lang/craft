@@ -21,7 +21,6 @@
     "publicArchiveConsumer": {
       "steps": 3,
       "passed": 3,
-      "maxRssMiB": 643,
       "pixelChecks": [
         "bitmap",
         "terrain",
@@ -30,7 +29,8 @@
       ],
       "freshCaches": true,
       "siblingCheckouts": false,
-      "window": false
+      "window": false,
+      "maxRssReported": "643M"
     }
   },
   "logs": [
@@ -70,5 +70,10 @@
       "name": "craft-upstream-tools-public-consumer.log",
       "sha256": "60f492eb6e3937993a2c4ee1b925b3649f6791a24e3076962a7d28743a28d749"
     }
-  ]
+  ],
+  "upstreamViewerIntegrationTests": {
+    "passed": 23,
+    "failed": 0,
+    "assertions": 160
+  }
 }
