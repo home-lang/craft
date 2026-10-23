@@ -408,6 +408,8 @@ final class NativeNavigationUITests: XCTestCase {
         app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         XCTAssertTrue(app.staticTexts["home-title"].waitForExistence(timeout: 15))
+        app.buttons["held-viewer-heartbeat-toggle"].tap()
+        XCTAssertTrue(app.activityIndicators["held-viewer-heartbeat"].waitForExistence(timeout: 5), "The fixture must produce real compositor frames during a static held viewer")
         let tab = app.buttons["craft-tab-/"]
         XCTAssertTrue(tab.waitForExistence(timeout: 10))
         XCTAssertTrue(tab.isHittable)
