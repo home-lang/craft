@@ -2308,6 +2308,15 @@ internal class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(cont
         if (authoredPageIndex == null || horizontal.width <= 0 || pageDragging || pageInMotion) return
         val pages = (0 until content.childCount).map { content.getChildAt(it) }.filter { it.visibility != View.GONE }
         val index = (horizontal.scrollX.toFloat() / horizontal.width).roundToInt().coerceIn(0, max(0, pages.size - 1))
+        val target = index * horizontal.width
+        if (horizontal.scrollX != target) {
+            // ACTION_UP can start native motion after our touch listener's snap.
+            // A rounded index is not settled until that viewport is fully shown.
+            pageInMotion = true
+            horizontal.smoothScrollTo(target, 0)
+            schedulePageSettle(horizontal)
+            return
+        }
         currentPageIndex = index
         pages.forEachIndexed { i, page -> page.importantForAccessibility = if (i == index) View.IMPORTANT_FOR_ACCESSIBILITY_AUTO else View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS }
         val report = index to pages.size
