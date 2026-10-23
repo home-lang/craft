@@ -2,6 +2,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readSync, statSync } from '
 import { isAbsolute, join } from 'node:path'
 import { nativeFixtureCommand } from './native-fixture-command'
 import { validateHeldVideoFrame } from './held-viewer-video'
+import { HeldViewerStatusBar } from './held-viewer-status'
 
 export const heldViewerTest = 'NativeNavigationUITests/NativeNavigationUITests/testTabBarLargeContentViewerDuringAccessibilityHold'
 
@@ -300,10 +301,14 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
   let recordingFailure: unknown, recording: Promise<void> | undefined
   let tool: ResolvedScreenshotTool | undefined, swiftc: string | undefined, swiftcSha256: string | undefined, macosSdk: string | undefined
   let remainder = '', doneAt: number | undefined
+  let status: HeldViewerStatusBar | undefined, statusReady: Promise<void> | undefined
+  let statusFailure: unknown, redrawFailure: unknown, restorationFailure: unknown
+  let redraw: Promise<void> | undefined, redrawDelayMs: number | undefined
   const receipt = (verifiedDuringHold: boolean, error?: string) => ({
     verifiedDuringHold, error, method: 'public-simctl-recordVideo-decoded-frame', timing,
     simulator: options.simulator, screenshot: png, movie, recording: recordReceipt, frame: frameReceipt,
     recordingResult, resolvedTool: tool, swiftc, swiftcSha256, macosSdk,
+    ownedDisplayStimulus: { calls: status?.calls, restored: status?.restored, redrawDelayMs, restorationFailure: restorationFailure ? String(restorationFailure) : undefined },
     preflight: join(options.output, 'preflight.json'),
     beforeAfter: ['XCTest attachment: Large content viewer before hold', 'XCTest attachment: Large content viewer after release'],
     visualReviewRequired: 'The actual decoded during-hold PNG must show the system Large Content Viewer.',
@@ -324,6 +329,9 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
     // Keep the runner blocked until both the old positive control and actual
     // recording first-frame acknowledgement succeed within the same setup budget.
     tool = await (dependencies.prepare ?? (() => prepareHeldViewerCapture({ ...options, signal, ready: join(options.output, 'screenshot-control-ready') })))()
+    status = new HeldViewerStatusBar({ simctl: tool.simctl, simulator: options.simulator, cwd: options.output }, command)
+    // This independent read shares the same setup deadline with compilation.
+    statusReady = status.prepare(setupCommand).catch(error => { statusFailure = error })
     const xcrun = dependencies.xcrun ?? Bun.which('xcrun')
     if (!xcrun || !isAbsolute(xcrun)) throw new Error('Cannot resolve public Apple compiler tools')
     swiftc = (await setupCommand([xcrun, '--sdk', 'macosx', '--find', 'swiftc'])).stdout.trim()
@@ -343,10 +351,17 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
       if (performance.now() >= setupDeadline) throw new Error('Public recording was not ready within its shared setup budget')
       await Bun.sleep(25)
     }
+    await statusReady
+    if (statusFailure) throw statusFailure
+    const anchor = await Bun.file(recordReceipt).json()
+    if (!Number.isFinite(anchor.spawnWall) || !Number.isFinite(anchor.readyWall) || anchor.spawnWall > anchor.readyWall)
+      throw new Error('Public recording first-frame anchor is invalid')
+    redrawDelayMs = Math.max(2000, Math.ceil((anchor.readyWall - anchor.spawnWall) * 1000) + 250)
     await Bun.write(publicReady, 'Screenshot control and public recording first frame verified\n')
     while (performance.now() < deadline) {
       signal.throwIfAborted()
       if (recordingFailure) throw recordingFailure
+      if (redrawFailure) throw redrawFailure
       if (recordingResult) throw new Error(`Public recording ended before the held gesture: ${JSON.stringify(recordingResult)}`)
       if (options.parentPid) {
         try { process.kill(options.parentPid, 0) }
@@ -363,7 +378,16 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
           offset += read
           const lines = (remainder + chunk.subarray(0, read).toString()).split('\n')
           remainder = lines.pop()!
-          for (const line of lines) timing.line(line, now())
+          for (const line of lines) {
+            if (timing.line(line, now())) {
+              redraw = (async () => {
+                await Bun.sleep(redrawDelayMs!)
+                signal.throwIfAborted()
+                if (timing.releasedAt !== undefined) throw new Error('Held viewer ended before its display-only redraw')
+                await status!.redraw(signal)
+              })().catch(error => { redrawFailure = error })
+            }
+          }
         }
       }
       if (timing.releasedAt !== undefined) {
@@ -372,7 +396,11 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
           || beganAt > synthesisObservedAt || releasedAt - synthesisObservedAt < 5.5)
           throw new Error('Missing actual six-second synthesized hold evidence')
         await Bun.write(recordStop, 'Actual synthesized hold released\n')
-        await recording
+        await Promise.all([recording, (async () => {
+          await redraw
+          if (redrawFailure) throw redrawFailure
+          await status!.restore()
+        })()])
         if (recordingFailure) throw recordingFailure
         const finalized = recordingResult as Awaited<ReturnType<typeof nativeFixtureCommand>> | undefined
         if (!finalized || finalized.code !== 0 || finalized.timedOut || finalized.cancelled)
@@ -412,13 +440,15 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
   }
   catch (error) {
     stop.abort()
-    await recording
+    await Promise.all([recording, statusReady, redraw])
+    try { await status?.restore() }
+    catch (cleanupError) { restorationFailure = cleanupError }
     await Bun.write(join(options.output, 'receipt.json'), JSON.stringify(receipt(false, String(error)), null, 2))
     throw error
   }
   finally {
     stop.abort()
-    await recording
+    await Promise.all([recording, statusReady, redraw])
   }
 }
 

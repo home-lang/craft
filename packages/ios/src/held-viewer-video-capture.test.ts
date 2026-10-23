@@ -16,12 +16,16 @@ for (const alteredAnchor of [false, true]) {
       writeFileSync(log, '')
       const calls: string[][] = []
       const completed = { code: 0, signal: null, stdout: '', stderr: '', timedOut: false, cancelled: false, processGroup: 123, groupDisposed: true as const }
-      let now = 102
-      const run = captureHeldViewerVideo({ output, log, done: join(dir, 'done'), ready, simulator, timeoutMs: 3000 }, {
+      const now = 102
+      const run = captureHeldViewerVideo({ output, log, done: join(dir, 'done'), ready, simulator, timeoutMs: 5000 }, {
         prepare: async () => ({ simctl: '/synthetic/simctl', simctlSha256: 'verified-tool' }),
         xcrun: '/usr/bin/xcrun', now: () => now,
         command: async (args) => {
           calls.push(args)
+          if (args[1] === 'status_bar') {
+            if (args.includes('override')) appendFileSync(log, 'CRAFT_TAB_LCV_HOLD_END 108\n')
+            return { ...completed, stdout: args.at(-1) === 'list' ? 'Current Status Bar Overrides:\n=============================\n' : '' }
+          }
           if (args.includes('--find')) {
             expect(args).toEqual(['/usr/bin/xcrun', '--sdk', 'macosx', '--find', 'swiftc'])
             return { ...completed, stdout: swiftc }
@@ -39,7 +43,7 @@ for (const alteredAnchor of [false, true]) {
             await Bun.write(args[4]!, 'actual synthetic movie')
             await Bun.write(args[7]!, JSON.stringify({ completed: true, spawnWall: 99, readyWall: 99.1 }))
             await Bun.write(args[5]!, 'Recording started')
-            const deadline = performance.now() + 2000
+            const deadline = performance.now() + 4000
             while (!existsSync(args[6]!) && performance.now() < deadline) await Bun.sleep(10)
             expect(existsSync(args[6]!)).toBe(true)
             return completed
@@ -63,13 +67,15 @@ for (const alteredAnchor of [false, true]) {
       expect(existsSync(join(output, 'recording-ready'))).toBe(true)
       appendFileSync(log, 'CRAFT_TAB_LCV_HOLD_BEGIN 100\nPress Home for 6 seconds\nSynthesize event\n')
       await Bun.sleep(50)
-      now = 108
-      appendFileSync(log, 'CRAFT_TAB_LCV_HOLD_END 108\n')
+      // The actual independent redraw produces the release marker in this
+      // synthetic plumbing fixture; product touch timing remains real in CI.
       if (alteredAnchor) await expect(run).rejects.toThrow('Frame timing does not match')
       else await run
       expect(calls.some(args => args.includes('screenshot'))).toBe(false)
       const receipt = JSON.parse(readFileSync(join(output, 'receipt.json'), 'utf8'))
       expect(receipt.verifiedDuringHold).toBe(!alteredAnchor)
+      expect(receipt.ownedDisplayStimulus.restored).toBe(true)
+      expect(calls.filter(args => args[1] === 'status_bar').map(args => args[3])).toEqual(['list', 'override', 'clear', 'list'])
       if (!alteredAnchor) {
         expect(receipt.method).toBe('public-simctl-recordVideo-decoded-frame')
         expect(receipt.validated).toEqual({ frameWallEarliest: 103, frameWallLatest: 103.1, frameOffsetFromFirstPTS: 4 })
