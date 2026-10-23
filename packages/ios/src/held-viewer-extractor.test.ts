@@ -2,6 +2,8 @@ import { expect, test } from 'bun:test'
 import { mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildHeldViewerExtractor, verifyHeldViewerExtractor } from '../scripts/held-viewer-extractor'
+import { nativeFixtureBuildTimeoutMs } from '../scripts/native-fixture-command'
+import { metalXCTestSteps } from '../scripts/metal-xctest-steps'
 import { createTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 function fixture() {
@@ -32,10 +34,10 @@ test('build phase resolves the public compiler/SDK and retains the verified exec
       [f.swiftc, '-sdk', f.sdk, join(import.meta.dir, '../scripts/held-viewer-frame.swift'), '-o', join(f.output, 'held-viewer-frame')],
     ])
     expect(receipt.verified).toBe(true)
-    expect(receipt.totalBuildBudgetMs).toBe(30_000)
+    expect(receipt.totalBuildBudgetMs).toBe(nativeFixtureBuildTimeoutMs)
     for (const call of receipt.calls) {
       expect(call.timeoutMs).toBeGreaterThan(0)
-      expect(call.timeoutMs).toBeLessThanOrEqual(30_000)
+      expect(call.timeoutMs).toBeLessThanOrEqual(nativeFixtureBuildTimeoutMs)
       expect(call.finishedWall).toBeGreaterThanOrEqual(call.startedWall)
       expect(call.result).toMatchObject({ code: 0, timedOut: false, groupDisposed: true })
     }
@@ -49,7 +51,7 @@ test('build phase resolves the public compiler/SDK and retains the verified exec
   finally { removeTempDir(f.dir) }
 })
 
-test('all build commands share the remaining deadline rather than receiving fresh thirty-second budgets', async () => {
+test('all build commands share the remaining deadline rather than receiving fresh compilation budgets', async () => {
   const f = fixture()
   try {
     await buildHeldViewerExtractor({ output: f.output }, { xcrun: '/usr/bin/xcrun', command: async (args, options) => {
@@ -127,6 +129,48 @@ test('relative output and wrong manifest output cannot qualify', async () => {
   try {
     const manifest = await f.build()
     await expect(verifyHeldViewerExtractor(manifest, f.dir)).rejects.toThrow('expected absolute output')
+  }
+  finally { removeTempDir(f.dir) }
+})
+
+
+test('cold tool resolution and compilation consume the normal fixture build phase instead of capture readiness', async () => {
+  const f = fixture()
+  let clock = 1000
+  const timeouts: number[] = []
+  try {
+    const manifest = await buildHeldViewerExtractor({ output: f.output }, {
+      xcrun: '/usr/bin/xcrun', monotonicNow: () => clock,
+      command: async (args, options) => {
+        timeouts.push(options.timeoutMs)
+        const result = await f.command!(args, options)
+        clock += args.includes('--find') ? 31_000 : args[0] === f.swiftc ? 45_000 : 1000
+        return result
+      },
+    })
+    const buildBudget = metalXCTestSteps('owned-simulator', '/owned/build', '/owned/results')[0]!.timeoutMs
+    expect(timeouts).toEqual([buildBudget, buildBudget - 31_000, buildBudget - 32_000])
+    expect(JSON.parse(readFileSync(manifest, 'utf8')).totalBuildBudgetMs).toBe(buildBudget)
+    expect(await verifyHeldViewerExtractor(manifest, f.output)).toHaveProperty('binarySha256')
+  }
+  finally { removeTempDir(f.dir) }
+})
+
+
+test('exhausting the normal build deadline cannot start another tool or qualify an extractor', async () => {
+  const f = fixture()
+  let clock = 0
+  try {
+    await expect(buildHeldViewerExtractor({ output: f.output }, {
+      xcrun: '/usr/bin/xcrun', monotonicNow: () => clock,
+      command: async (args, options) => {
+        const result = await f.command!(args, options)
+        clock += nativeFixtureBuildTimeoutMs + 1
+        return result
+      },
+    })).rejects.toThrow('compilation deadline')
+    expect(f.calls).toHaveLength(1)
+    expect(JSON.parse(readFileSync(join(f.output, 'extractor-build.json'), 'utf8')).verified).toBe(false)
   }
   finally { removeTempDir(f.dir) }
 })
