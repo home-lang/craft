@@ -1382,14 +1382,18 @@ export interface CraftBridgeAPI {
 
   /** Native status-item arrangement and collapse controls (macOS). */
   menubar?: {
-    init(): Promise<void>
+    /** Native visibility requires macOS 27, a direct build and Accessibility.
+     * No automatic fallback to width-based hiding is performed. */
+    init(options?: { backend?: 'legacy' | 'nativeVisibility' }): Promise<void>
+    destroy(): Promise<void>
+    requestPermission(): Promise<void>
     collapse(): Promise<void>
     expand(): Promise<void>
     toggle(): Promise<void>
-    getState(): Promise<{ collapsed: boolean; initialized: boolean; separatorHidden: boolean }>
+    getState(): Promise<MenubarState>
     setAutoCollapse(seconds: number): Promise<void>
     setSeparatorHidden(hidden: boolean): Promise<void>
-    onStateChange(callback: (state: { collapsed: boolean }) => void): () => void
+    onStateChange(callback: (state: MenubarState) => void): () => void
   }
 
   /**
@@ -2615,4 +2619,18 @@ declare global {
 export interface CraftTimersAPI {
   /** Wait up to one day. Aborting rejects with AbortError and releases native resources. */
   sleep(delayMs: number, options?: { signal?: AbortSignal }): Promise<void>
+}
+
+/** Settled native menu-bar state; private visibility capability is explicit. */
+export interface MenubarState {
+  collapsed: boolean
+  initialized: boolean
+  separatorHidden: boolean
+  backend?: 'legacy' | 'nativeVisibility'
+  available?: boolean
+  authorized?: boolean
+  busy?: boolean
+  hiddenAppCount?: number
+  markerWidth?: number
+  error?: 'unavailable' | 'permissionRequired' | 'layoutUnavailable' | 'activationFailed' | 'activationTimeout' | null
 }

@@ -106,6 +106,17 @@ function settled(p: Promise<unknown>): Promise<unknown> {
 }
 
 describe('bridge reply correlation', () => {
+  it('selects native menu bar visibility explicitly and never silently downgrades an unknown backend', async () => {
+    const h = loadBridge()
+    await h.craft.menubar.init({ backend: 'nativeVisibility' })
+    expect(h.sent.at(-1)).toMatchObject({ t: 'menubarCollapse', a: 'init', d: 'nativeVisibility' })
+    await h.craft.menubar.destroy()
+    expect(h.sent.at(-1)).toMatchObject({ t: 'menubarCollapse', a: 'destroy' })
+    const count = h.sent.length
+    await expect(h.craft.menubar.init({ backend: 'unknown' })).rejects.toThrow('Unknown menu bar backend')
+    expect(h.sent).toHaveLength(count)
+  })
+
   it('posts notification show with zero delay', async () => {
     const h = loadBridge()
     await h.craft.notifications.show({ title: 'Now' })
