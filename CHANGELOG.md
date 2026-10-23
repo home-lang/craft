@@ -1,5 +1,33 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.308...v0.0.309)
+
+## 🐛 Bug Fixes
+
+- adopt upstream compiler-cache and publisher corrections ([e116e12](https://github.com/craft-native/craft/commit/e116e12)) _(by Chris)_
+- **ios**: retain accessibility size for tab content viewers ([cb84784](https://github.com/craft-native/craft/commit/cb84784)) _(by Chris Breuer)_
+- **ios**: align sticky headers with retargeted scroll offsets ([fa33362](https://github.com/craft-native/craft/commit/fa33362)) _(by Chris Breuer)_
+- **ios**: cap tab chrome before resolving Dynamic Type metrics ([c194017](https://github.com/craft-native/craft/commit/c194017)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- retain the verified Craft tooling adoption ([e4d96e1](https://github.com/craft-native/craft/commit/e4d96e1)) _(by Chris)_
+- **ios**: retain bounded viewer screenshot failure details ([1778c09](https://github.com/craft-native/craft/commit/1778c09)) _(by Chris Breuer)_
+- **ios**: capture tab content viewer during native hold ([b92159d](https://github.com/craft-native/craft/commit/b92159d)) _(by Chris Breuer)_
+- **ios**: hold native tab for independent content viewer capture ([657c2b4](https://github.com/craft-native/craft/commit/657c2b4)) _(by Chris Breuer)_
+- support bounded standard XCTest holds on native tabs ([8a1a975](https://github.com/craft-native/craft/commit/8a1a975)) _(by Chris Breuer)_
+- **ios**: retain sticky header geometry across day retargets ([8d7cf02](https://github.com/craft-native/craft/commit/8d7cf02)) _(by Chris Breuer)_
+- **ios**: verify tab chrome at maximum accessibility text size ([06c7c48](https://github.com/craft-native/craft/commit/06c7c48)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/settlers-metal-surface ([3c2bdb8](https://github.com/craft-native/craft/commit/3c2bdb8)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.307...v0.0.308)
 
 ## 🐛 Bug Fixes
