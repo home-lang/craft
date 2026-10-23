@@ -8566,6 +8566,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 contentStyle.merge(override) { _, next in next }
             }
             configureStack(scroll.contentStack, style: contentStyle)
+            // Content-style defaults are vertical; the scroll host's explicit
+            // axis must survive that shared container configuration.
+            scroll.setAxis(direction)
             reconcileChildren(children.filter {
                 guard let child = $0 as? [String: Any] else { return true }
                 return canonicalType(child["type"] as? String ?? "") != "RefreshControl"
@@ -9798,7 +9801,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             case "sans-serif", "ui-sans-serif", "system-ui", "-apple-system": return .systemFont(ofSize: scaledSize, weight: weight)
             default:
                 guard let custom = UIFont(name: family, size: scaledSize) else { return nil }
-                let descriptor = custom.fontDescriptor.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight.rawValue]])
+                let weighted = custom.fontDescriptor.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight.rawValue]])
+                var traits = custom.fontDescriptor.symbolicTraits
+                if weight >= .semibold { traits.insert(.traitBold) } else { traits.remove(.traitBold) }
+                let descriptor = weighted.withSymbolicTraits(traits) ?? weighted
                 return UIFont(descriptor: descriptor, size: scaledSize)
             }
         }.first
