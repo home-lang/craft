@@ -108,6 +108,10 @@ try {
       renderer: 'web',
       nativeScreens: { '/native': 'HybridNative' },
       devServerURL,
+      // The hosted simulator's first WebKit request includes cold networking
+      // startup. Match the fixture's existing readiness budget; the production
+      // offline-page deadline is intentionally much shorter.
+      requestTimeoutSeconds: 120,
       backgroundColor: '#000000',
       backgroundColorDark: '#000000',
     },
