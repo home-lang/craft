@@ -15,7 +15,6 @@ const config: PickierConfig = {
     '**/.claude/**',
     '**/.zed/**',
     '**/zig-cache/**',
-    '**/zig-pkg/**',
     '**/zig-out/**',
     '**/templates/**',
   ],

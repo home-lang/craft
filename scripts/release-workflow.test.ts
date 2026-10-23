@@ -248,14 +248,14 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
           // qualified provider. An older fixture pin hit PathAlreadyExists
           // while reconciling a restored Git cache and blocked v0.0.302.
           const version = ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'windows-managed-git.yml'].includes(file)
-            ? '0.11.119'
+            ? '0.11.120'
             : file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
               ? '0.11.109'
               : ['benchmarks.yml', 'binary-size.yml'].includes(file)
                 ? '0.11.106'
                 : '0.11.101'
-          const source = version === '0.11.119'
-            ? '6fbf7259c2764d18a12d915bf8bc68c500cb4931'
+          const source = version === '0.11.120'
+            ? '3de609e1a7e305393b3d94e2848d859b39c5b5de'
             : version === '0.11.109'
               ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9'
               : version === '0.11.106'
@@ -481,7 +481,7 @@ test('a failed native leg cannot publish a partial GitHub, Zig, or npm release',
   expect(release.jobs.npm.if).toContain("needs.prepare-npm.result == 'success'")
   expect(release.jobs.npm.if).toContain("needs.publish-release.result == 'success'")
   const zigPublish = registry.steps!.find(step => step.name === 'Publish Zig package')
-  expect(zigPublish?.with).toMatchObject({ version: '0.11.119', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
+  expect(zigPublish?.with).toMatchObject({ version: '0.11.120', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
   expect(zigPublish?.with?.release).toBeUndefined()
   expect(Object.entries(release.jobs).flatMap(([name, job]) =>
     (job.steps ?? []).filter(step => step.with?.publish === 'zig').map(() => name))).toEqual(['publish-pantry'])
