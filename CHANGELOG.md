@@ -1,5 +1,21 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.305...v0.0.306)
+
+## 🐛 Bug Fixes
+
+- **ios**: preserve authored bounce options when restoring scroll axis ([d5de31d](https://github.com/craft-native/craft/commit/d5de31d)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- align native scroll contract with paging host visibility ([9e86890](https://github.com/craft-native/craft/commit/9e86890)) _(by Chris Breuer)_
+- await native pager settlement between geometry commands ([ed2c365](https://github.com/craft-native/craft/commit/ed2c365)) _(by Chris Breuer)_
+- preserve pager bounce options and custom input font traits ([f7ba8d3](https://github.com/craft-native/craft/commit/f7ba8d3)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.304...v0.0.305)
 
 ## 🚀 Features
