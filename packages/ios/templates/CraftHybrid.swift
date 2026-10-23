@@ -1664,6 +1664,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             (nav.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(true)
         }
         currentTab = id
+        if let top = nav.topViewController { CraftChrome.shared.visiblePath = nativePaths[ObjectIdentifier(top)] }
         for (key, other) in stacks { other.view.isHidden = key != id }
         nav.view.frame = view.bounds
         view.bringSubviewToFront(nav.view)
@@ -2042,6 +2043,9 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController, animated: Bool) {
         lastNavigation = CACurrentMediaTime()
         if animated { CraftFramePacing.shared.begin("navigation") }
+        if navigationController === visibleStack {
+            CraftChrome.shared.visiblePath = nativePaths[ObjectIdentifier(viewController)]
+        }
         // The page draws its own header, and a tab's root screen its own
         // title unless it asked for the bar; a pushed native screen gets the
         // bar and its Back.
@@ -2084,6 +2088,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             hybrid.pageReset(to: rootPath)
         }
         guard navigationController === visibleStack else { return }
+        // Also restore selection after a cancelled interactive pop.
+        CraftChrome.shared.visiblePath = nativePaths[ObjectIdentifier(viewController)]
         if let slot = viewController as? CraftHybridWebSlot { adoptWeb(into: slot) } else { parkWeb() }
     }
 

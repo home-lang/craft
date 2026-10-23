@@ -766,6 +766,13 @@ final class CraftChrome: ObservableObject {
     @Published var tabAccessory: Tab?
     private weak var tabAccessoryOwner: AnyObject?
     @Published var selected: String?
+    /// The visible destination may be the accessory, independently of its owning stack.
+    @Published var visiblePath: String?
+    var accessorySelected: Bool {
+        guard let path = visiblePath, let accessory = tabAccessory?.id else { return false }
+        return path == accessory || path.hasPrefix(accessory + "/")
+    }
+    var highlightedTab: String? { accessorySelected ? nil : selected }
     let tabSwipeProgress = CraftTabSwipeProgress()
     private(set) var tabSwipePosition: CGFloat? {
         get { tabSwipeProgress.position }
@@ -1195,7 +1202,7 @@ private struct CraftTabBarContent: View {
     @ScaledMetric(relativeTo: .caption2) private var badgeSize: CGFloat = 10
 
     var body: some View {
-        if chrome.tabBarVisible && !chrome.tabs.isEmpty {
+        if !chrome.tabs.isEmpty {
             HStack(spacing: 8) {
                 bar
                 if let accessory = chrome.tabAccessory {
@@ -1203,8 +1210,13 @@ private struct CraftTabBarContent: View {
                         surface {
                             Image(systemName: accessory.symbol)
                                 .font(.system(size: iconSize))
-                                .foregroundStyle(Color.primary)
+                                .foregroundStyle(chrome.accessorySelected ? selectedColor : Color.primary)
                                 .frame(width: 62, height: 62)
+                                .background {
+                                    if chrome.accessorySelected {
+                                        Circle().fill(selectedColor.opacity(0.14)).padding(4)
+                                    }
+                                }
                         }
                             .contentShape(Rectangle())
                             .overlay(alignment: .topTrailing) {
@@ -1229,6 +1241,7 @@ private struct CraftTabBarContent: View {
                     .accessibilityLabel(accessory.accessibilityLabel ?? accessory.title)
                     .accessibilityValue(accessory.badge ?? "")
                     .accessibilityIdentifier("craft-tab-accessory")
+                    .accessibilityAddTraits(chrome.accessorySelected ? .isSelected : [])
                 }
             }
                 .padding(.horizontal, 16)
@@ -1238,7 +1251,13 @@ private struct CraftTabBarContent: View {
                         .onAppear { report(proxy) }
                         .onChange(of: proxy.frame(in: .global)) { _ in report(proxy) }
                 })
-                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                // Keep the view mounted: a disappearing conditional inside a
+                // child does not reliably animate in the UIKit navigation transaction.
+                .offset(y: chrome.tabBarVisible || reduceMotion ? 0 : 120)
+                .opacity(chrome.tabBarVisible ? 1 : 0)
+                .allowsHitTesting(chrome.tabBarVisible)
+                .accessibilityHidden(!chrome.tabBarVisible)
+                .animation(.easeInOut(duration: reduceMotion ? 0.12 : 0.24), value: chrome.tabBarVisible)
                 .ignoresSafeArea(.keyboard)
         }
     }
@@ -1278,7 +1297,7 @@ private struct CraftTabBarContent: View {
     private var items: some View {
         HStack(spacing: 0) {
             ForEach(chrome.tabs) { tab in
-                let isSelected = tab.id == chrome.selected
+                let isSelected = tab.id == chrome.highlightedTab
                 Button { chrome.tap(tab) } label: {
                     VStack(spacing: 3) {
                         ZStack(alignment: .topTrailing) {
@@ -1331,7 +1350,7 @@ private struct CraftTabBarContent: View {
         }
         .background {
             CraftTabSelectionIndicator(
-                selected: chrome.tabs.firstIndex(where: { $0.id == chrome.selected }),
+                selected: chrome.tabs.firstIndex(where: { $0.id == chrome.highlightedTab }),
                 count: chrome.tabs.count,
                 cornerRadius: chrome.tabSelectionCornerRadius
             )

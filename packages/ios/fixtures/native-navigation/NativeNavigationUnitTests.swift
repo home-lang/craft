@@ -88,6 +88,24 @@ final class NativeNavigationUnitTests: XCTestCase {
         super.tearDown()
     }
 
+    func testAccessorySelectionTracksDestinationWithoutSelectingAnOwningTab() {
+        let chrome = CraftChrome.shared
+        chrome.selected = "/"
+        chrome.updateTabAccessory(["path": "/messages", "title": "Messages", "symbol": "bubble.left"])
+        defer { chrome.visiblePath = nil; chrome.updateTabAccessory(nil) }
+        chrome.visiblePath = "/messages"
+        XCTAssertTrue(chrome.accessorySelected)
+        XCTAssertNil(chrome.highlightedTab)
+        XCTAssertEqual(chrome.selected, "/", "the underlying stack remains available for Back")
+        chrome.visiblePath = "/messages/42"
+        XCTAssertTrue(chrome.accessorySelected)
+        chrome.visiblePath = "/messages-other"
+        XCTAssertFalse(chrome.accessorySelected)
+        XCTAssertEqual(chrome.highlightedTab, "/")
+        chrome.visiblePath = "/"
+        XCTAssertFalse(chrome.accessorySelected)
+    }
+
     private func drag(_ distance: CGFloat, phase: UIGestureRecognizer.State = .changed, speed: CGFloat = 0) {
         pan.distance = distance
         pan.speed = speed

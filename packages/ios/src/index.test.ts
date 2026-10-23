@@ -1766,7 +1766,7 @@ describe('Craft iOS builder', () => {
     // the stack's willShow showed the bar again, so it had two Backs.
     const hybrid = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftHybrid.swift'), 'utf8')
     const willShow = hybrid.slice(hybrid.indexOf('func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController'))
-    expect(willShow.slice(0, 900)).toContain('native?.navigationBarHidden == true')
+    expect(willShow.slice(0, willShow.indexOf("func navigationController", 5))).toContain('native?.navigationBarHidden == true')
     const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
     expect(swift).toContain('private(set) var navigationBarHidden: Bool?')
   })
