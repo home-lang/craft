@@ -114,6 +114,7 @@ describe('bridge reply correlation', () => {
     expect(h.sent.at(-1)).toMatchObject({ t: 'menubarCollapse', a: 'destroy' })
     const count = h.sent.length
     await expect(h.craft.menubar.init({ backend: 'unknown' })).rejects.toThrow('Unknown menu bar backend')
+    await expect(h.craft.menubar.init({ backend: '' })).rejects.toThrow('Unknown menu bar backend')
     expect(h.sent).toHaveLength(count)
   })
 

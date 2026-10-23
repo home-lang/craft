@@ -1703,7 +1703,7 @@
   // -------------------------------------------------------------------------
   window.craft.menubar = {
     init:                  function (opts)  {
-      const backend = opts && opts.backend || 'legacy'
+      const backend = opts && opts.backend !== undefined ? opts.backend : 'legacy'
       if (backend !== 'legacy' && backend !== 'nativeVisibility') return Promise.reject(new TypeError('Unknown menu bar backend'))
       return _send('menubarCollapse', 'init', backend)
     },
