@@ -13,7 +13,14 @@ const paths = [...pathsBody.matchAll(/"([^"\r\n]+)"/g)].map(match => match[1]!)
 if (!paths.length || paths.some(path => isAbsolute(path) || path.split(/[\\/]/).includes('..')))
   throw new Error('Package paths must remain inside the source package')
 const zig = resolveZig(repository).path
-const tar = Bun.which('tar')
+// Git Bash's GNU tar interprets a Windows drive letter as a remote host.
+// Require the platform's native archiver, which accepts native absolute paths.
+const windowsRoot = process.env.SystemRoot || process.env.SYSTEMROOT
+if (process.platform === 'win32' && !windowsRoot)
+  throw new Error('Windows must declare its native system directory')
+const tar = Bun.which('tar', {
+  PATH: process.platform === 'win32' ? join(windowsRoot!, 'System32') : process.env.PATH,
+})
 if (!tar) throw new Error('The native tar archiver is required')
 
 async function run(command: string[], cwd: string, env = process.env): Promise<void> {
