@@ -1172,15 +1172,18 @@ final class CraftChromeRelay: NSObject, WKScriptMessageHandler {
 
 /// The floating tab bar: Liquid Glass on iOS 26 and later, a material capsule before.
 struct CraftTabBarView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         // ScaledMetric reads the environment of its owning view. Put the
         // metrics in a child so this compact-chrome cap reaches them too.
-        CraftTabBarContent()
+        CraftTabBarContent(viewerTextSize: dynamicTypeSize)
             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 }
 
 private struct CraftTabBarContent: View {
+    let viewerTextSize: DynamicTypeSize
     @ObservedObject private var chrome = CraftChrome.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -1220,6 +1223,9 @@ private struct CraftTabBarContent: View {
                         Image(systemName: accessory.symbol)
                         Text(accessory.accessibilityLabel ?? accessory.title)
                     }
+                    // Keep accessibility intent for the viewer; displayed
+                    // sizes come from the bounded metrics owned above.
+                    .environment(\.dynamicTypeSize, viewerTextSize)
                     .accessibilityLabel(accessory.accessibilityLabel ?? accessory.title)
                     .accessibilityValue(accessory.badge ?? "")
                     .accessibilityIdentifier("craft-tab-accessory")
@@ -1317,6 +1323,7 @@ private struct CraftTabBarContent: View {
                     Image(systemName: symbol(tab.symbol, selected: isSelected))
                     Text(tab.displayTitle)
                 }
+                .environment(\.dynamicTypeSize, viewerTextSize)
                 .accessibilityIdentifier("craft-tab-\(tab.id)")
                 .accessibilityLabel(tab.accessibilityLabel ?? tab.badge.map { "\(tab.displayTitle), \($0)" } ?? tab.displayTitle)
                 .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
