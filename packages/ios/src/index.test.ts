@@ -1611,6 +1611,16 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('is not available on a native screen')
   })
 
+  it('exposes the native shortcut module as an explicit unsupported result', async () => {
+    const output = createTempDir('craft-ios-native-shortcuts-')
+    await init({ runtimeDir: null, name: 'NativeShortcuts', bundleId: 'org.example.nativeshortcuts', output, config: { renderer: 'native' } as any })
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    expect(screen).toContain("keep('shortcuts', {")
+    expect(screen).toContain('set: function() { return Promise.resolve(false); }')
+    expect(screen).toContain('clear: function() { return Promise.resolve(false); }')
+    expect(screen).toContain('onShortcut: function() { return function() {}; }')
+  })
+
   it('keeps generated iOS media limits strict and finite', async () => {
     const output = createTempDir('craft-ios-native-media-numbers-')
     await init({ runtimeDir: null, name: 'NativeMediaNumbers', bundleId: 'org.example.nativemedianumbers', output })
@@ -1751,11 +1761,11 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('field.borderStyle = style["borderWidth"] != nil || style["backgroundColor"] != nil ? .none : .roundedRect')
   })
 
-  it('keeps a labelled scroll view, picker or group a container, so VoiceOver reads what it holds', () => {
+  it('keeps labelled scroll views, pickers, modals, drawers and groups as containers', () => {
     // A tour pager labelled for VoiceOver became one element and hid its pages.
     const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
     const a11y = swift.slice(swift.indexOf('private func applyAccessibility(_ props: [String: Any], type: String, to view: UIView)'))
-    expect(a11y).toContain('let container = ["ScrollView", "FlatList", "SectionList", "Picker"].contains(type)')
+    expect(a11y).toContain('let container = ["ScrollView", "FlatList", "SectionList", "Picker", "Modal", "Drawer"].contains(type)')
     expect(a11y).toContain('view.isAccessibilityElement = !container && role != "none"')
     expect(a11y).toContain('view.accessibilityContainerType = container && (view.accessibilityLabel != nil || controlledVideo) ? .semanticGroup : .none')
     expect(a11y).toContain('case "tablist": traits.insert(.tabBar)')

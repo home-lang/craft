@@ -4155,6 +4155,40 @@ final class CraftMapTapDelegate: NSObject, UIGestureRecognizerDelegate {
     }
 }
 
+/// A pressable wrapper must yield to an actionable descendant. Without this
+/// ordering UIKit may let the ancestor's tap recognizer win the same touch,
+/// so a nested Button never receives its physical action. A descendant
+/// control or tap recognizer is the source of the event; STX handles the
+/// logical bubbling from there.
+final class CraftPressGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+    static let shared = CraftPressGestureDelegate()
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let parent = gestureRecognizer.view,
+              let child = otherGestureRecognizer.view,
+              child !== parent else { return false }
+        return child.isDescendant(of: parent)
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard let container = gestureRecognizer.view else { return true }
+        // UIKit can report an internal UIButton label as `touch.view` while
+        // the recognizer is attached to an ancestor. Resolve the hit-test
+        // path from the container as well so that the ancestor never claims
+        // a control's physical tap (the child action will bubble in STX).
+        let hitView = container.hitTest(touch.location(in: container), with: nil)
+        guard var candidate = hitView ?? touch.view else { return true }
+        while candidate !== container {
+            if candidate is UIControl { return false }
+            if candidate.gestureRecognizers?.contains(where: { $0 !== gestureRecognizer && $0 is UITapGestureRecognizer }) == true {
+                return false
+            }
+            candidate = candidate.superview ?? container
+        }
+        return true
+    }
+}
+
 /// The delegate of a Pressable's press-in/out feedback. That recognizer is
 /// a long press of no duration, so it begins the moment a finger lands; on its
 /// own it would claim the touch, and the tap that is the Pressable's onPress
@@ -6562,6 +6596,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 keep('navigation', {
                     setOptions: function(options) { craftNativeSetOptions(JSON.stringify(options || {})); }
                 });
+                // Dynamic home-screen quick actions belong to the app shell,
+                // not an individual JavaScriptCore screen. Keep the typed
+                // module present so STX can answer `unsupported` honestly
+                // instead of falling through to an undefined namespace.
+                keep('shortcuts', {
+                    set: function() { return Promise.resolve(false); },
+                    clear: function() { return Promise.resolve(false); },
+                    onShortcut: function() { return function() {}; }
+                });
             })();
         """)
     }
@@ -8965,6 +9008,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let actionable = handler != nil || linkTargets[id] != nil
         if actionable, tapRecognizers[id] == nil {
             let recognizer = UITapGestureRecognizer(target: self, action: #selector(viewPressed(_:)))
+            recognizer.cancelsTouchesInView = false
+            recognizer.delegate = CraftPressGestureDelegate.shared
             tapRecognizers[id] = recognizer
             view.addGestureRecognizer(recognizer)
         } else if !actionable, let recognizer = tapRecognizers.removeValue(forKey: id) {
@@ -9836,7 +9881,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let controlledVideo = type == "Video" && (props["controls"] as? Bool) == true
         // UIPickerView exposes adjustable component wheels. Making the
         // picker itself a leaf hides those wheels and their selected values.
-        let container = ["ScrollView", "FlatList", "SectionList", "Picker"].contains(type)
+        let container = ["ScrollView", "FlatList", "SectionList", "Picker", "Modal", "Drawer"].contains(type)
             || ["tablist", "radiogroup", "list", "menu", "menubar", "toolbar"].contains(role ?? "")
             || controlledVideo
         view.isAccessibilityElement = !container && role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "DatePicker", "Switch", "Slider"].contains(type))
@@ -10240,6 +10285,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     @objc private func viewPressed(_ sender: UITapGestureRecognizer) {
         guard let view = sender.view else { return }
+        // UIKit may still deliver an ancestor recognizer after the delegate
+        // has negotiated with a control's touch recognizer. The child control
+        // owns that physical tap; STX will perform logical bubbling from its
+        // event, so do not send the ancestor handler a second time here.
+        if let hit = view.hitTest(sender.location(in: view), with: nil), hit !== view {
+            var candidate: UIView? = hit
+            while let current = candidate, current !== view {
+                if current is UIControl { return }
+                if current.gestureRecognizers?.contains(where: { $0 !== sender && $0 is UITapGestureRecognizer }) == true { return }
+                candidate = current.superview
+            }
+        }
         let id = ObjectIdentifier(view)
         if let target = linkTargets[id] {
         hybridEvents?.nativeScreen(self, open: target, props: [:])
