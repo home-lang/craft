@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.299...v0.0.300)
+
+## 🐛 Bug Fixes
+
+- **ci**: verify managed Git with native filesystem path rules ([2aa3d83](https://github.com/craft-native/craft/commit/2aa3d83)) _(by Chris)_
+
+## 🧹 Chores
+
+- **ci**: adopt qualified Pantry 0.11.119 in source and release jobs ([7605dc8](https://github.com/craft-native/craft/commit/7605dc8)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.296...v0.0.299)
 
 ## 🚀 Features
