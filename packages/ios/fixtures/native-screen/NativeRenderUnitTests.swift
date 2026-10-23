@@ -3654,7 +3654,7 @@ final class NativePlatformControlTests: XCTestCase {
 
     private func pagerDocument(index: Int, count: Int) -> [String: Any] {
         ["id": "pager", "type": "ScrollView",
-         "props": ["key": "pager", "horizontal": true, "pagingEnabled": true, "pageIndex": index],
+         "props": ["key": "pager", "horizontal": true, "pagingEnabled": true, "pageIndex": index, "alwaysBounceHorizontal": false],
          "style": ["width": "100%", "height": 180],
          "events": ["onPageSelected": "page-selected"],
          "children": (0..<count).map { number in
@@ -3682,6 +3682,7 @@ final class NativePlatformControlTests: XCTestCase {
         scroll.layoutIfNeeded()
         waitForPager(screen, index: 1, count: 3)
         XCTAssertTrue(scroll.isPagingEnabled)
+        XCTAssertFalse(scroll.alwaysBounceHorizontal, "Restoring the pager axis must preserve authored bounce options")
         XCTAssertEqual(scroll.bounds.width, 320, accuracy: 0.5)
         XCTAssertEqual(scroll.contentSize.width, 3 * scroll.bounds.width, accuracy: 0.5)
         XCTAssertEqual(scroll.contentOffset.x, scroll.bounds.width, accuracy: 0.5)
@@ -3808,10 +3809,12 @@ final class NativePlatformControlTests: XCTestCase {
         let serif = try font("'Missing Font', ui-serif", italic: false)
         XCTAssertNotEqual(serif.familyName, sans.familyName)
         let custom = try XCTUnwrap(UIFont(name: "Helvetica", size: 19))
-        let selected = try font("Helvetica, monospace")
-        XCTAssertEqual(selected.familyName, custom.familyName, "First available custom family wins over generic fallback")
-        XCTAssertTrue(selected.fontDescriptor.symbolicTraits.contains(.traitBold))
-        XCTAssertTrue(selected.fontDescriptor.symbolicTraits.contains(.traitItalic))
+        for type in ["Text", "TextInput"] {
+            let selected = try font("Helvetica, monospace", type: type)
+            XCTAssertEqual(selected.familyName, custom.familyName, "First available custom family wins over generic fallback: \(type)")
+            XCTAssertTrue(selected.fontDescriptor.symbolicTraits.contains(.traitBold), type)
+            XCTAssertTrue(selected.fontDescriptor.symbolicTraits.contains(.traitItalic), type)
+        }
     }
 
     func testSegmentsAreUIKitControlsAndReconcileWithoutFalseChanges() throws {
