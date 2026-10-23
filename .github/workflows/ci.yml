@@ -95,10 +95,8 @@ jobs:
             tools: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e
           - os: macos-latest
             tools: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e
-          # The runner already provides Git for Windows. Pantry's Git recipe
-          # currently resolves Unix dependencies without Windows artifacts.
           - os: windows-latest
-            tools: bun.com@1.4.2 ziglang.org@0.18.0-dev.146+35accc06e
+            tools: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -106,11 +104,27 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install the pinned ABI toolchain
-        uses: pantry-pm/pantry/packages/action@3a37ec776aa9e37e17bd8e3aea2d457cdbd02c36 # v0.11.113
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          version: '0.11.113'
+          version: '0.11.119'
           install: 'false'
           packages: ${{ matrix.tools }}
+      - name: Check Git is the declared Pantry provider
+        run: |
+          bun -e '
+            import { realpathSync } from "node:fs";
+            import { sep } from "node:path";
+            const executable = Bun.which("git");
+            if (!executable) throw new Error("The declared Git executable is missing");
+            const provider = realpathSync(executable);
+            if (!provider.startsWith(realpathSync("pantry") + sep)) throw new Error("Git must resolve inside the declared Pantry toolchain");
+            const result = Bun.spawnSync([executable, "--version"]);
+            const version = process.platform === "win32" ? "git version 2.53.0.windows.1" : "git version 2.53.0";
+            if (result.exitCode !== 0 || result.stdout.toString().trim() !== version) throw new Error("The declared Git version did not execute");
+            console.log(JSON.stringify({ executable, provider, version }));
+          '
       - name: Check the compiler identity
         run: test "$(zig version)" = '0.18.0-dev.146+35accc06e'
       - name: Install the native Linux development libraries

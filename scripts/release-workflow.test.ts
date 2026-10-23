@@ -23,7 +23,7 @@ const artifactDownload = 'actions/download-artifact@d3f86a106a0bac45b974a628896c
 const needs = (job: Job) => typeof job.needs === 'string' ? [job.needs] : job.needs ?? []
 const steps = (job: Job) => job.steps?.map(step => step.run ?? '').join('\n') ?? ''
 
-test('the Vulkan ABI matrix uses runner Git on Windows and still runs the exact compiler probe', () => {
+test('the Vulkan ABI matrix requires managed Git on every platform and still runs the exact compiler probe', () => {
   const ci = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/ci.yml'), 'utf8')) as any
   const job = ci.jobs['vulkan-abi']
   const platforms = job.strategy.matrix.include as Array<{ os: string, tools: string }>
@@ -31,11 +31,11 @@ test('the Vulkan ABI matrix uses runner Git on Windows and still runs the exact 
   for (const platform of platforms) {
     expect(platform.tools).toContain('bun.com@1.4.2')
     expect(platform.tools).toContain('ziglang.org@0.18.0-dev.146+35accc06e')
-    if (platform.os === 'windows-latest') expect(platform.tools).not.toContain('git-scm.org')
-    else expect(platform.tools).toContain('git-scm.org@2.53.0')
+    expect(platform.tools).toContain('git-scm.org@2.53.0')
   }
   expect(job.steps.find((step: any) => step.name === 'Install the pinned ABI toolchain').with.packages).toBe('${{ matrix.tools }}')
   expect(steps(job)).toContain('zig build test:vulkan-abi')
+  expect(steps(job)).toContain('Git must resolve inside the declared Pantry toolchain')
   expect(job.steps.find((step: any) => step.name === 'Execute the independent SDK ABI probe and C callback').if).toBeUndefined()
 })
 
@@ -238,16 +238,20 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
           // Keep each workflow on the released Pantry version it declares.
           // Windows uses the newer workspace-link fix; the native acceptance
           // workflows intentionally stay on their current toolchain pin.
-          const version = (file === 'mobile-e2e.yml' && name === 'ios-metal') || (file === 'ci.yml' && name === 'vulkan-abi')
-            ? '0.11.113'
-            : file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
+          const version = file === 'ci.yml' && name === 'vulkan-abi'
+            ? '0.11.119'
+            : file === 'mobile-e2e.yml' && name === 'ios-metal'
+              ? '0.11.113'
+              : file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
               ? '0.11.109'
               : ['mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml'].includes(file)
                 ? '0.11.106'
                 : '0.11.101'
-          const source = version === '0.11.113'
-            ? '3a37ec776aa9e37e17bd8e3aea2d457cdbd02c36'
-            : version === '0.11.109'
+          const source = version === '0.11.119'
+            ? '6fbf7259c2764d18a12d915bf8bc68c500cb4931'
+            : version === '0.11.113'
+              ? '3a37ec776aa9e37e17bd8e3aea2d457cdbd02c36'
+              : version === '0.11.109'
               ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9'
               : version === '0.11.106'
                 ? 'e62755c21d946ed0f8dc8e4af39f6ea5f084537a'

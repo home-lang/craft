@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "verifiedAt": "2026-10-23T00:05:31.701Z",
+  "verifiedAt": "2026-10-23T00:33:21.498Z",
   "sources": [
     {
       "repository": "stacksjs/bumpx",
@@ -52,12 +52,12 @@
       {
         "script": "test:sdk",
         "exitCode": 0,
-        "outputSha256": "b0aacc036822e9d70e5e20ee574f480a70e920ee4d60eca2573fcdd1d083a19d"
+        "outputSha256": "96e933acfe2685ebd58076ac695798fdbfb4ed505d673246bee9246f389bdb52"
       },
       {
         "script": "test:release",
         "exitCode": 0,
-        "outputSha256": "aacdfb3b4d9da7006b14c4935a694e369a195d027dbcf7220f4f7871045b26e8"
+        "outputSha256": "f031a8f32278a1f3595c98c94200005ab8f0aa2ef781ff07574fbf04d288a03f"
       },
       {
         "script": "verify:packages",
