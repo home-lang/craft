@@ -1,5 +1,21 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.313...v0.0.314)
+
+## 🐛 Bug Fixes
+
+- animate Android tabs and select accessory routes ([6765f96](https://github.com/craft-native/craft/commit/6765f96)) _(by Chris Breuer)_
+- animate tab chrome and select accessory destinations ([04b5148](https://github.com/craft-native/craft/commit/04b5148)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: suspend the main actor while awaiting queued layout ([27ff22a](https://github.com/craft-native/craft/commit/27ff22a)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.312...v0.0.313)
 
 ## 🧪 Tests
