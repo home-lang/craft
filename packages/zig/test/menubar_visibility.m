@@ -6,6 +6,8 @@ static Boolean testTrusted(void) { return trusted; }
 #define AXIsProcessTrusted testTrusted
 #import "../src/menubar_visibility.m"
 #include <assert.h>
+#include <spawn.h>
+#include <sys/wait.h>
 
 @interface TestConfiguration : NSObject <CraftVisibilityConfiguration>
 @end
@@ -50,7 +52,11 @@ static NSDictionary *state(void) {
     const char *json = craft_menubar_visibility_state();
     return [NSJSONSerialization JSONObjectWithData:[[NSString stringWithUTF8String:json] dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
 }
-int main(void) {
+int main(int argc, char *argv[]) {
+    if (argc == 2 && strcmp(argv[1], "--identity-fixture") == 0) {
+        pause();
+        return 0;
+    }
     @autoreleasepool {
         (void)available(); // Resolve once before substituting the test classes.
         configurationClass = TestConfiguration.class;
@@ -77,11 +83,23 @@ int main(void) {
         // It must stay allowed even when its icon sits in the hidden section.
         NSString *signedIdentity = @"dev.craft.visibility.fixture.runtime";
         assert([signingIdentifier() isEqual:signedIdentity]);
+        assert([processSigningIdentifier(getpid()) isEqual:signedIdentity]);
+        assert(processSigningIdentifier(-1) == nil);
+        // Reading another live process must work without task-port access or
+        // a matching LaunchServices app bundle. Reap only this owned fixture.
+        pid_t guest;
+        char *guestArgs[] = {argv[0], "--identity-fixture", NULL};
+        extern char **environ;
+        assert(posix_spawn(&guest, argv[0], NULL, NULL, guestArgs, environ) == 0);
+        NSString *guestIdentity = processSigningIdentifier(guest);
+        assert(kill(guest, SIGTERM) == 0);
+        assert(waitpid(guest, NULL, 0) == guest);
+        assert([guestIdentity isEqual:signedIdentity]);
         NSArray *protectedIdentifiers = ownIdentifiers();
         assert([protectedIdentifiers containsObject:signedIdentity]);
         NSUInteger selfHidden = 0;
         NSArray *selfAllowed = allowedBundles(@[signedIdentity, @"other.app"],
-            @{signedIdentity: @NO, @"other.app": @NO}, protectedIdentifiers, &selfHidden);
+            @{signedIdentity: @NO, @"other.app": @NO}, @{}, protectedIdentifiers, &selfHidden);
         assert(selfHidden == 1 && [selfAllowed containsObject:signedIdentity]);
         assert(![selfAllowed containsObject:@"other.app"]);
         NSMutableDictionary *sections = [NSMutableDictionary dictionary];
@@ -102,9 +120,36 @@ int main(void) {
         sections[@"native.helper"] = @NO;
         sections[@"com.apple.controlcenter"] = @NO;
         NSUInteger hidden = 0;
-        NSArray *allowed = allowedBundles(@[@"left", @"left", @"right", @"both", @"new", @"unknown", @"own.app", @"native.helper", @"com.apple.controlcenter"], sections, @[@"own.app", @"native.helper"], &hidden);
+        NSArray *allowed = allowedBundles(@[@"left", @"left", @"right", @"both", @"new", @"unknown", @"own.app", @"native.helper", @"com.apple.controlcenter"], sections, @{}, @[@"own.app", @"native.helper"], &hidden);
         assert(hidden == 1 && ![allowed containsObject:@"left"]);
         for (NSString *bundle in @[@"right", @"both", @"new", @"unknown", @"own.app", @"native.helper", @"com.apple.controlcenter"]) assert([allowed containsObject:bundle]);
+
+        // Allow a right-side native helper by its actual signing identity.
+        // An independent left-side app keeps both of its identities excluded.
+        NSDictionary *identities = @{
+            @"left": @[@"left", @"left.runtime"],
+            @"right": @[@"right", @"right.runtime"],
+            @"new": @[@"new", @"new.runtime"],
+        };
+        NSArray *nativeAllowed = allowedBundles(@[@"left", @"right", @"new"], sections, identities, @[], &hidden);
+        assert(hidden == 1 && ![nativeAllowed containsObject:@"left"] && ![nativeAllowed containsObject:@"left.runtime"]);
+        for (NSString *identifier in @[@"right", @"right.runtime", @"new", @"new.runtime"]) assert([nativeAllowed containsObject:identifier]);
+
+        // Two apps sharing a signed runtime cannot be hidden independently.
+        // The visible member protects all aliases, including chained groups.
+        NSDictionary *shared = @{
+            @"left": @[@"left", @"shared.first"],
+            @"also.left": @[@"also.left", @"shared.first", @"shared.second"],
+            @"right": @[@"right", @"shared.second"],
+            @"independent": @[@"independent", @"independent.runtime"],
+        };
+        NSArray *sharedAllowed = allowedBundles(@[@"left", @"also.left", @"right", @"independent"],
+            @{@"left": @NO, @"also.left": @NO, @"right": @YES, @"independent": @NO}, shared, @[], &hidden);
+        assert(hidden == 1 && ![sharedAllowed containsObject:@"independent"] && ![sharedAllowed containsObject:@"independent.runtime"]);
+        for (NSString *identifier in @[@"left", @"also.left", @"right", @"shared.first", @"shared.second"]) assert([sharedAllowed containsObject:identifier]);
+        NSArray *sharedHidden = allowedBundles(@[@"left", @"also.left"],
+            @{@"left": @NO, @"also.left": @NO}, shared, @[], &hidden);
+        assert(hidden == 2 && ![sharedHidden containsObject:@"shared.first"] && ![sharedHidden containsObject:@"shared.second"]);
 
         busy = YES;
         activate(@[@0, @1], ownIdentifiers(), 0, ++generation, 1, 100, NO, snapshot);

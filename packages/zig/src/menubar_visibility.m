@@ -28,19 +28,51 @@ static NSUInteger hiddenAppCount;
 static Class configurationClass;
 static Class assertionClass;
 
-static NSString *signingIdentifier(void) {
-    SecCodeRef code = NULL;
+static NSString *identifierForCode(SecCodeRef code) {
     CFDictionaryRef information = NULL;
     NSString *identifier = nil;
+    if (SecCodeCopySigningInformation(code, kSecCSDefaultFlags, &information) == errSecSuccess) {
+        id value = (__bridge id)CFDictionaryGetValue(information, kSecCodeInfoIdentifier);
+        if ([value isKindOfClass:NSString.class]) identifier = [value copy];
+        CFRelease(information);
+    }
+    return identifier;
+}
+
+static NSString *signingIdentifier(void) {
+    SecCodeRef code = NULL;
+    NSString *identifier = nil;
     if (SecCodeCopySelf(kSecCSDefaultFlags, &code) == errSecSuccess) {
-        if (SecCodeCopySigningInformation(code, kSecCSDefaultFlags, &information) == errSecSuccess) {
-            id value = (__bridge id)CFDictionaryGetValue(information, kSecCodeInfoIdentifier);
-            if ([value isKindOfClass:NSString.class]) identifier = [value copy];
-            CFRelease(information);
-        }
+        identifier = identifierForCode(code);
         CFRelease(code);
     }
     return identifier;
+}
+
+static NSString *processSigningIdentifier(pid_t pid) {
+    SecCodeRef code = NULL;
+    NSString *identifier = nil;
+    NSDictionary *attributes = @{(__bridge NSString *)kSecGuestAttributePid: @(pid)};
+    if (SecCodeCopyGuestWithAttributes(NULL, (__bridge CFDictionaryRef)attributes, kSecCSDefaultFlags, &code) == errSecSuccess) {
+        identifier = identifierForCode(code);
+        CFRelease(code);
+    }
+    return identifier;
+}
+
+static NSDictionary *applicationIdentities(NSArray<NSRunningApplication *> *apps) {
+    NSMutableDictionary *identities = [NSMutableDictionary dictionary];
+    for (NSRunningApplication *app in apps) {
+        NSString *bundle = app.bundleIdentifier;
+        if (!bundle.length) continue;
+        NSMutableSet *aliases = identities[bundle];
+        if (!aliases) identities[bundle] = aliases = [NSMutableSet setWithObject:bundle];
+        NSString *signedIdentity = processSigningIdentifier(app.processIdentifier);
+        if (signedIdentity.length) [aliases addObject:signedIdentity];
+    }
+    NSMutableDictionary *result = [NSMutableDictionary dictionary];
+    for (NSString *bundle in identities) result[bundle] = [identities[bundle] allObjects];
+    return result;
 }
 
 static NSArray<NSString *> *ownIdentifiers(void) {
@@ -122,7 +154,8 @@ static void recordItem(NSMutableDictionary *sections, NSString *bundle, CGRect f
     sections[bundle] = @([sections[bundle] boolValue] || visible);
 }
 
-static NSArray *allowedBundles(NSArray<NSString *> *bundles, NSDictionary *sections, NSArray<NSString *> *ownBundles, NSUInteger *hiddenCount) {
+static NSArray *allowedBundles(NSArray<NSString *> *bundles, NSDictionary *sections, NSDictionary *identities,
+    NSArray<NSString *> *ownBundles, NSUInteger *hiddenCount) {
     NSSet *system = [NSSet setWithArray:@[@"com.apple.MenuBarAgent", @"com.apple.controlcenter", @"com.apple.systemuiserver"]];
     NSSet *protected = [NSSet setWithArray:ownBundles];
     NSMutableSet *allowed = [protected mutableCopy];
@@ -131,7 +164,27 @@ static NSArray *allowedBundles(NSArray<NSString *> *bundles, NSDictionary *secti
     for (NSString *bundle in bundles) {
         if (sections[bundle] && ![sections[bundle] boolValue] && ![protected containsObject:bundle] && ![system containsObject:bundle])
             [hidden addObject:bundle];
-        else [allowed addObject:bundle];
+        else [allowed addObjectsFromArray:identities[bundle] ?: @[bundle]];
+    }
+    // Native helpers can share a signing identifier, including helpers from
+    // different app bundles. If any member must remain visible, allow the
+    // complete connected group. Hiding one side must never hide the other.
+    BOOL updated;
+    do {
+        updated = NO;
+        for (NSString *bundle in hidden.allObjects) {
+            NSArray *aliases = identities[bundle] ?: @[bundle];
+            if ([allowed intersectsSet:[NSSet setWithArray:aliases]]) {
+                [allowed addObjectsFromArray:aliases];
+                [hidden removeObject:bundle];
+                updated = YES;
+            }
+        }
+    } while (updated);
+    // The native API is an allow-list: all identities belonging to a visible
+    // app must be included, even if LaunchServices names only its outer app.
+    for (NSString *bundle in bundles) {
+        if (![hidden containsObject:bundle]) [allowed addObject:bundle];
     }
     *hiddenCount = hidden.count;
     return allowed.allObjects;
@@ -144,7 +197,9 @@ static NSDictionary<NSString *, NSNumber *> *inventory(NSArray<NSRunningApplicat
     NSSet *system = [NSSet setWithArray:@[@"com.apple.MenuBarAgent", @"com.apple.controlcenter", @"com.apple.systemuiserver"]];
     for (NSRunningApplication *app in apps) {
         NSString *bundle = app.bundleIdentifier;
-        if (!bundle || [system containsObject:bundle]) continue;
+        // Helpers without an app bundle stay allowed without spending an AX
+        // timeout on each one. Their identities still participate below.
+        if (!bundle || ![app.bundleURL.pathExtension isEqualToString:@"app"] || [system containsObject:bundle]) continue;
         AXUIElementRef element = AXUIElementCreateApplication(app.processIdentifier);
         AXUIElementSetMessagingTimeout(element, 0.1);
         CFTypeRef bar = NULL;
@@ -345,13 +400,9 @@ void craft_menubar_visibility_collapse(void) {
     const NSUInteger ticket = ++generation;
     const double boundary = NSMidX(frame);
     const BOOL rtl = NSApp.userInterfaceLayoutDirection == NSUserInterfaceLayoutDirectionRightToLeft;
-    // Enumerate genuine app bundles, not every WebKit/XPC helper. Retaining the
-    // running-app objects gives the worker a stable snapshot without AppKit IO.
-    NSArray *apps = [NSWorkspace.sharedWorkspace.runningApplications filteredArrayUsingPredicate:
-        [NSPredicate predicateWithBlock:^BOOL(NSRunningApplication *app, NSDictionary *bindings) {
-            (void)bindings;
-            return [app.bundleURL.pathExtension isEqualToString:@"app"];
-        }]];
+    // Unknown helpers stay allowed too. Omitting one from a native allow-list
+    // can hide its item even when its owning application is on the right.
+    NSArray *apps = [NSWorkspace.sharedWorkspace.runningApplications copy];
     pid_t agent = 0;
     for (NSRunningApplication *app in apps)
         if ([app.bundleIdentifier isEqual:@"com.apple.MenuBarAgent"]) agent = app.processIdentifier;
@@ -362,6 +413,7 @@ void craft_menubar_visibility_collapse(void) {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         @autoreleasepool {
             NSDictionary *sections = inventory(apps, boundary, rtl);
+            NSDictionary *identities = applicationIdentities(apps);
             NSDictionary *protectedItems = readBarSnapshot(agent, boundary, rtl, YES);
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (ticket != generation) return;
@@ -370,7 +422,7 @@ void craft_menubar_visibility_collapse(void) {
                 for (NSRunningApplication *app in apps)
                     if (app.bundleIdentifier) [bundles addObject:app.bundleIdentifier];
                 NSUInteger hidden = 0;
-                NSArray *allowed = allowedBundles(bundles, sections, ownBundles, &hidden);
+                NSArray *allowed = allowedBundles(bundles, sections, identities, ownBundles, &hidden);
                 // Keep all system controls, including identifiers added by the
                 // current OS. The framework ignores unrecognized identifiers.
                 NSMutableArray *systemItems = [NSMutableArray array];
