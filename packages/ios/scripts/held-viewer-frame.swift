@@ -33,9 +33,11 @@ func timeData(_ time: CMTime) throws -> [String: Any] {
     return ["value": time.value, "timescale": time.timescale]
 }
 
-func decodedReader(_ asset: AVAsset, _ track: AVAssetTrack) throws -> (AVAssetReader, AVAssetReaderTrackOutput) {
+func storedSampleReader(_ asset: AVAsset, _ track: AVAssetTrack) throws -> (AVAssetReader, AVAssetReaderTrackOutput) {
     let reader = try AVAssetReader(asset: asset)
-    let output = AVAssetReaderTrackOutput(track: track, outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
+    // Preserve actual stored sample timestamps without decoding every earlier
+    // full-screen picture. Only the selected original sample is decoded below.
+    let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
     output.alwaysCopiesSampleData = false
     try require(reader.canAdd(output), "Cannot decode the recorded video track")
     reader.add(output)
@@ -65,21 +67,29 @@ do {
     let asset = AVURLAsset(url: URL(fileURLWithPath: movie))
     let tracks = try await asset.loadTracks(withMediaType: .video)
     guard let track = tracks.first else { throw FrameFailure.invalid("Recording has no video track") }
-    let (originReader, originOutput) = try decodedReader(asset, track)
-    guard let originSample = originOutput.copyNextSampleBuffer() else { throw FrameFailure.invalid("Recording has no decoded video frame") }
-    let firstPTS = CMSampleBufferGetPresentationTimeStamp(originSample)
-    receipt["firstPTS"] = try timeData(firstPTS)
-    originReader.cancelReading()
-    let firstSeconds = CMTimeGetSeconds(firstPTS)
     // Preserve original sample timestamps. A timeRange can synthesize a
     // clipped-boundary timestamp for a picture captured before that range.
-    let (reader, output) = try decodedReader(asset, track)
-    var decoded: [[String: Any]] = []
+    let (reader, output) = try storedSampleReader(asset, track)
+    var stored: [[String: Any]] = []
+    var presentationTimes: [CMTime] = []
     var selected: CMTime?
     var closest = Double.infinity
     while let sample = output.copyNextSampleBuffer() {
+        // simctl movies contain empty timing/edit markers; they are not
+        // captured pictures and cannot establish the origin or qualify a frame.
+        if CMSampleBufferGetNumSamples(sample) == 0 { continue }
         let pts = CMSampleBufferGetPresentationTimeStamp(sample)
-        decoded.append(try timeData(pts))
+        stored.append(try timeData(pts))
+        presentationTimes.append(pts)
+    }
+    receipt["storedPTS"] = stored
+    try require(reader.status == .completed, "AVFoundation did not complete reading the original recording")
+    // Compressed B-frames can be stored in decode rather than presentation
+    // order. The recording origin is its earliest actual picture timestamp.
+    guard let firstPTS = presentationTimes.min(by: { CMTimeCompare($0, $1) < 0 }) else { throw FrameFailure.invalid("Recording has no stored video frame") }
+    receipt["firstPTS"] = try timeData(firstPTS)
+    let firstSeconds = CMTimeGetSeconds(firstPTS)
+    for pts in presentationTimes {
         let offset = CMTimeGetSeconds(pts) - firstSeconds
         let earliest = spawn + offset, latest = ready + offset
         if offset >= 0 && earliest > synthesis && latest < end {
@@ -87,8 +97,6 @@ do {
             if distance < closest { selected = pts; closest = distance }
         }
     }
-    receipt["decodedPTS"] = decoded
-    try require(reader.status == .completed, "AVFoundation did not complete decoding the original recording")
     guard let selected else { throw FrameFailure.invalid("No decoded frame has its whole capture interval inside the hold") }
     receipt["selectedPTS"] = try timeData(selected)
     let generator = AVAssetImageGenerator(asset: asset)
@@ -98,6 +106,7 @@ do {
     let (image, actual) = try await generator.image(at: selected)
     receipt["actualPTS"] = try timeData(actual)
     try require(CMTimeCompare(actual, selected) == 0, "Extracted actual PTS differs from the selected decoded frame")
+    receipt["decodedPTS"] = [try timeData(actual)]
     let offset = CMTimeGetSeconds(actual) - firstSeconds
     let earliest = spawn + offset, latest = ready + offset
     try require(earliest > synthesis && latest < end, "Extracted frame uncertainty is outside the synthesized hold")

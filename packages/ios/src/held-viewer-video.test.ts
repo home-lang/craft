@@ -91,12 +91,14 @@ guard writer.status == .completed else { fatalError("Synthetic movie incomplete"
       const result = run([extractor, movie, png, receipt, '100', '100.25', '101', '107'])
       const evidence = JSON.parse(readFileSync(receipt, 'utf8'))
       // Trimming a sparse source to a hold range can invent a boundary PTS
-      // for the old picture. Retain only its original decoded sample times.
-      expect(evidence.decodedPTS.map((time: { value: number, timescale: number }) => time.value / time.timescale))
+      // for the old picture. Preserve the original actual presentation times,
+      // including B-frames stored in a different decoding order.
+      expect(evidence.storedPTS?.map((time: { value: number, timescale: number }) => time.value / time.timescale).sort((a: number, b: number) => a - b))
         .toEqual(mode === 'static' ? [0] : mode === 'sparse' ? [0, 4, 6] : [0, 1, 2, 3, 4, 5, 6])
       if (mode !== 'static') {
         expect(result.exitCode, result.stderr.toString()).toBe(0)
         expect(evidence.verified).toBe(true)
+        expect(evidence.decodedPTS).toEqual([evidence.actualPTS])
         expect(validateHeldVideoFrame(evidence)).toMatchObject({ frameWallEarliest: 104, frameWallLatest: 104.25 })
         expect(evidence.actualPTS.value / evidence.actualPTS.timescale).toBe(4)
         expect(evidence.pngSha256).toBe(new Bun.CryptoHasher('sha256').update(readFileSync(png)).digest('hex'))
