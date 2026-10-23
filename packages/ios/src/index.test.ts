@@ -2132,6 +2132,9 @@ describe('Craft iOS builder', () => {
     expect(audio).toContain('CraftNativeSounds.releaseSession()')
     expect(services).toContain('category = respectSilentSwitch && (playing == 1 || category == .ambient) ? .ambient : .playback')
     expect(services).toContain('try session.setCategory(category, mode: .default, options: [.mixWithOthers])')
+    expect(services).toContain('AVAudioSession.interruptionNotification')
+    expect(services).toContain('sound.interrupted = true')
+    expect(services).toContain('AVAudioSession.InterruptionOptions.shouldResume')
     expect(plist).not.toContain('<string>audio</string>')
     // A route change or an interruption stops AVAudioEngine; it starts again.
     expect(audio).toContain('forName: .AVAudioEngineConfigurationChange, object: engine')

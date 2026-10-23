@@ -1371,9 +1371,11 @@ documents that are not photos or videos.
 focus before preparing a player, reports a denied request as `AUDIO_FOCUS_DENIED`,
 pauses on a transient interruption and resumes on focus gain, ducks during a
 duckable interruption, and releases focus when the last sound ends or the
-screen closes. A permanent focus loss releases every player and sends each
-sound's error event; replacement, decode failure, cancellation, and teardown
-also release their player resources.
+screen closes. iOS observes `AVAudioSession` interruptions and resumes sounds
+only when the system grants the `shouldResume` option. A permanent Android
+focus loss releases every player and sends each sound's error event; replacement,
+decode failure, cancellation, interruption, and teardown also release their
+player resources.
 
 Checkpoint names use the same bounded filename contract on both native hosts:
 letters, digits, `.`, `_`, and `-`, up to 128 characters, without a leading

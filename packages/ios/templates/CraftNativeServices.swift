@@ -279,6 +279,7 @@ final class CraftNativeSounds {
         /// The volume asked for; a fade in or out moves toward or away from it.
         var volume: Float
         var paused = false
+        var interrupted = false
 
         init(player: AVQueuePlayer, volume: Float) {
             self.player = player
@@ -306,8 +307,40 @@ final class CraftNativeSounds {
     private static var category: AVAudioSession.Category = .ambient
 
     private var sounds: [String: Sound] = [:]
+    private var interruptionObserver: NSObjectProtocol?
     /// `{ id, event: "ended" | "error", message? }` to the screen's script.
     var emit: (([String: Any]) -> Void)?
+
+    init() {
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main,
+        ) { [weak self] note in
+            guard let self else { return }
+            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue
+            if type == AVAudioSession.InterruptionType.began.rawValue {
+                self.sounds.values.forEach { sound in
+                    guard !sound.paused else { return }
+                    sound.interrupted = true
+                    sound.player.pause()
+                }
+                return
+            }
+            guard type == AVAudioSession.InterruptionType.ended.rawValue else { return }
+            let options = (note.userInfo?[AVAudioSessionInterruptionOptionKey] as? NSNumber)?.uintValue ?? 0
+            guard options & AVAudioSession.InterruptionOptions.shouldResume.rawValue != 0 else { return }
+            self.sounds.values.forEach { sound in
+                guard sound.interrupted else { return }
+                sound.interrupted = false
+                sound.player.play()
+            }
+        }
+    }
+
+    deinit {
+        if let interruptionObserver { NotificationCenter.default.removeObserver(interruptionObserver) }
+    }
 
     /// Starts `url`. `answer` hears once it plays (or could not be loaded).
     func play(id: String, url: URL, options: [String: Any], answer: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
@@ -365,6 +398,7 @@ final class CraftNativeSounds {
     func pause(id: String) {
         guard let sound = sounds[id] else { return }
         sound.paused = true
+        sound.interrupted = false
         sound.fade?.invalidate()
         sound.player.pause()
     }
@@ -372,6 +406,7 @@ final class CraftNativeSounds {
     func resume(id: String) {
         guard let sound = sounds[id], sound.paused else { return }
         sound.paused = false
+        sound.interrupted = false
         sound.player.volume = sound.volume
         sound.player.play()
     }
