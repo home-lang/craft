@@ -1172,6 +1172,15 @@ final class CraftChromeRelay: NSObject, WKScriptMessageHandler {
 
 /// The floating tab bar: Liquid Glass on iOS 26 and later, a material capsule before.
 struct CraftTabBarView: View {
+    var body: some View {
+        // ScaledMetric reads the environment of its owning view. Put the
+        // metrics in a child so this compact-chrome cap reaches them too.
+        CraftTabBarContent()
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+    }
+}
+
+private struct CraftTabBarContent: View {
     @ObservedObject private var chrome = CraftChrome.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -1207,6 +1216,10 @@ struct CraftTabBarView: View {
                             }
                     }
                     .buttonStyle(.plain)
+                    .accessibilityShowsLargeContentViewer {
+                        Image(systemName: accessory.symbol)
+                        Text(accessory.accessibilityLabel ?? accessory.title)
+                    }
                     .accessibilityLabel(accessory.accessibilityLabel ?? accessory.title)
                     .accessibilityValue(accessory.badge ?? "")
                     .accessibilityIdentifier("craft-tab-accessory")
@@ -1221,7 +1234,6 @@ struct CraftTabBarView: View {
                 })
                 .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 .ignoresSafeArea(.keyboard)
-                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         }
     }
 
