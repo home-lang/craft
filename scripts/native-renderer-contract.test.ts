@@ -1888,7 +1888,7 @@ describe('native renderer component contract', () => {
 
   it('initializes uncontrolled text inputs from defaultValue only once', () => {
     expect(ios).toContain('defaultValue: previous?.view === textView')
-    expect(ios).toContain('updateTextView(textView, value: (props["value"] as? String) ?? defaultValue)')
+    expect(ios).toContain('updateTextView(textView, value: (props["value"] as? String) ?? defaultValue, acknowledged: (props["mostRecentEventCount"] as? NSNumber)?.intValue)')
     expect(ios).toContain('else if previous?.view !== field {\n                updateField(field, value: inputDrafts[current.identity] ?? props["defaultValue"] as? String)')
     expect(android).toContain('(props.opt("defaultValue") as? String)?.let(::setText)')
     expect(guide).toContain('`defaultValue` initializes an uncontrolled')
