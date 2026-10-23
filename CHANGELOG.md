@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.316...v0.0.317)
+
+## 🧹 Chores
+
+- **deps**: update fast-uri to patched 3.1.9 ([4476207](https://github.com/craft-native/craft/commit/4476207)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.315...v0.0.316)
 
 ## 🧪 Tests
