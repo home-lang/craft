@@ -238,7 +238,7 @@ test('mobile device jobs preserve runner diagnostics when the harness fails', ()
 })
 
 test('workflow setup uses a known Pantry CLI instead of resolving latest', () => {
-  for (const file of ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml', 'native-lifecycle.yml', 'windows-source-provenance.yml']) {
+  for (const file of ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml', 'native-lifecycle.yml', 'windows-source-provenance.yml', 'windows-managed-git.yml']) {
     const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/', file), 'utf8')) as { jobs: Record<string, Job> }
     for (const [name, job] of Object.entries(workflow.jobs)) {
       for (const step of job.steps ?? []) {
@@ -246,7 +246,7 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
           // Keep each workflow on the released Pantry version it declares.
           // Windows uses the newer workspace-link fix; the native acceptance
           // workflows intentionally stay on their current toolchain pin.
-          const version = file === 'ci.yml' && name === 'vulkan-abi'
+          const version = file === 'windows-managed-git.yml' || (file === 'ci.yml' && name === 'vulkan-abi')
             ? '0.11.119'
             : file === 'mobile-e2e.yml' && name === 'ios-metal'
               ? '0.11.113'

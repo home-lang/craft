@@ -44,3 +44,21 @@ test.skipIf(process.platform === 'win32')('uses the declared executable for down
     removeTempDir(root)
   }
 })
+
+
+test('Windows managed providers retain ownership across extended path namespaces', () => {
+  const root = String.raw`D:\a\craft\pantry`
+  const provider = String.raw`D:\a\craft\pantry\git-scm.org\cmd\git.exe`
+  expect(insideManagedRoot(root, String.raw`\\?\D:\a\craft\pantry\git-scm.org\cmd\git.exe`, win32)).toBe(true)
+  expect(insideManagedRoot(String.raw`\\?\D:\a\craft\pantry`, provider, win32)).toBe(true)
+  expect(insideManagedRoot(root, provider.toLowerCase(), win32)).toBe(true)
+  expect(insideManagedRoot(String.raw`\\server\share\pantry`, String.raw`\\?\UNC\server\share\pantry\cmd\git.exe`, win32)).toBe(true)
+  for (const outside of [String.raw`C:\Program Files\Git\bin\git.exe`, String.raw`D:\a\craft\pantry-other\git.exe`, String.raw`D:\a\craft\pantry\..\git.exe`, root, 'git.exe'])
+    expect(insideManagedRoot(root, outside, win32)).toBe(false)
+})
+
+test('managed providers reject POSIX parent traversal and preserve directory boundaries', () => {
+  expect(insideManagedRoot('/project/pantry', '/project/pantry/git/bin/git')).toBe(true)
+  for (const outside of ['/usr/bin/git', '/project/pantry-other/git', '/project/Pantry/git', '/project/pantry/../git', '/project/pantry', 'git'])
+    expect(insideManagedRoot('/project/pantry', outside)).toBe(false)
+})
