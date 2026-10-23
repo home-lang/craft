@@ -3731,7 +3731,7 @@ final class NativePlatformControlTests: XCTestCase {
         waitForPager(screen, index: 1, count: 3)
         let reports = screen.evaluateScript("pages.length")?.toInt32()
         screen.scrollViewDidEndDecelerating(scroll)
-        screen.scrollViewDidEndScrollingAnimation(scroll)
+        scroll.delegate?.scrollViewDidEndScrollingAnimation?(scroll)
         XCTAssertEqual(screen.evaluateScript("pages.length")?.toInt32(), reports)
         XCTAssertFalse(try XCTUnwrap(identified("page-1", below: scroll)).accessibilityElementsHidden)
         XCTAssertTrue(try XCTUnwrap(identified("page-2", below: scroll)).accessibilityElementsHidden)
@@ -3746,6 +3746,42 @@ final class NativePlatformControlTests: XCTestCase {
         scroll.layoutIfNeeded()
         waitForPager(screen, index: 0, count: 0)
         XCTAssertEqual(scroll.contentSize.width, 0, accuracy: 0.5)
+    }
+
+    func testPagerReconciliationDuringAnimationDoesNotPublishAnIntermediatePage() throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 320, height: 480)
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        window.rootViewController = screen
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        screen.evaluateScript("globalThis.pages = []; globalThis.__stxNativeCallback = function(json) { const m = JSON.parse(json); if (m.type === 'EVENT' && m.payload.handlerName === 'page-selected') pages.push(m.payload.nativeEvent); };")
+        screen.render(pagerDocument(index: 0, count: 3))
+        screen.view.layoutIfNeeded()
+        let scroll = try XCTUnwrap(find(UIScrollView.self, below: screen.view))
+        scroll.layoutIfNeeded()
+        waitForPager(screen, index: 0, count: 3)
+        let before = screen.evaluateScript("pages.length")?.toInt32()
+        XCTAssertTrue(UIView.areAnimationsEnabled)
+        XCTAssertFalse(UIAccessibility.isReduceMotionEnabled, "The maintained fixture keeps animations enabled")
+        screen.render(pagerDocument(index: 2, count: 3))
+        screen.view.layoutIfNeeded()
+        scroll.layoutIfNeeded()
+        let deadline = Date().addingTimeInterval(3)
+        func isBetweenPages() -> Bool { scroll.contentOffset.x > 1 && scroll.contentOffset.x < scroll.bounds.width * 2 - 1 }
+        while !isBetweenPages() && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        XCTAssertTrue(isBetweenPages(), "The real UIKit scroll must be observed during its animation")
+        // An unrelated update while UIKit animates still carries the same
+        // controlled target. It must not adopt the in-between viewport.
+        screen.render(pagerDocument(index: 2, count: 3))
+        screen.view.layoutIfNeeded()
+        scroll.layoutIfNeeded()
+        XCTAssertEqual(screen.evaluateScript("pages.length")?.toInt32(), before)
+        XCTAssertEqual(screen.evaluateScript("pages[pages.length - 1].index")?.toInt32(), 0)
+        waitForPager(screen, index: 2, count: 3)
+        XCTAssertEqual(screen.evaluateScript("pages.length")?.toInt32(), (before ?? 0) + 1)
+        XCTAssertEqual(scroll.contentOffset.x, scroll.bounds.width * 2, accuracy: 0.5)
     }
 
     func testCSSGenericFontFallbacksProduceNativeFamiliesAndPreserveTraits() throws {

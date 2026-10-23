@@ -134,7 +134,7 @@ class NativeFlatListTest {
                 layoutPager(pager, 320)
             }
             instrumentation.waitForIdleSync()
-            val downTime = SystemClock.uptimeMillis()
+            var downTime = SystemClock.uptimeMillis()
             fun touch(action: Int, x: Float) {
                 instrumentation.runOnMainSync {
                     val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, x, 90f, 0)
@@ -146,6 +146,14 @@ class NativeFlatListTest {
                 SystemClock.sleep(16)
                 touch(MotionEvent.ACTION_MOVE, 280f - step * 20f)
             }
+            instrumentation.runOnMainSync {
+                assertTrue("Hold must be beyond half a viewport", requireNotNull(horizontalScroller(pager)).scrollX > 160)
+            }
+            // More than the native 80ms quiescence window, while the finger is
+            // still down: an apparent pause must not publish a selection.
+            SystemClock.sleep(250)
+            assertEquals("A held drag has not selected a page", 0, selected.get())
+            assertEquals("A held drag must not emit an intermediate selection", 1, changes.get())
             touch(MotionEvent.ACTION_UP, 40f)
             val deadline = SystemClock.uptimeMillis() + 5000
             while (selected.get() != 1 && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(25)
@@ -155,6 +163,20 @@ class NativeFlatListTest {
                 assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO, pager.content.getChildAt(1).importantForAccessibility)
                 assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS, pager.content.getChildAt(0).importantForAccessibility)
                 assertEquals(2, changes.get())
+                pager.setScrollEnabled(false)
+            }
+            downTime = SystemClock.uptimeMillis()
+            touch(MotionEvent.ACTION_DOWN, 280f)
+            for (step in 1..12) {
+                SystemClock.sleep(16)
+                touch(MotionEvent.ACTION_MOVE, 280f - step * 20f)
+            }
+            touch(MotionEvent.ACTION_UP, 40f)
+            SystemClock.sleep(250)
+            instrumentation.runOnMainSync {
+                assertEquals("A locked page must ignore another finger drag", 320, requireNotNull(horizontalScroller(pager)).scrollX)
+                assertEquals(1, selected.get())
+                assertEquals("Locked gestures must not emit selected events", 2, changes.get())
             }
         } finally { scenario.close() }
     }
