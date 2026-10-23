@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.307...v0.0.308)
+
+## 🐛 Bug Fixes
+
+- **menubar**: verify unlabeled icons by native accessibility identity ([cd5118c](https://github.com/craft-native/craft/commit/cd5118c)) _(by Chris Breuer)_
+- **ci**: exclude downloaded Zig package caches from source lint ([ab73bf3](https://github.com/craft-native/craft/commit/ab73bf3)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.306...v0.0.307)
 
 ## 🐛 Bug Fixes
