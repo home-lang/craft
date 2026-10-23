@@ -22,10 +22,7 @@ for (const alteredAnchor of [false, true]) {
       const now = 102
       const command: typeof nativeFixtureCommand = async (args) => {
         calls.push(args)
-        if (args[1] === 'status_bar') {
-          if (args.includes('override')) appendFileSync(log, 'CRAFT_TAB_LCV_HOLD_END 108\n')
-          return { ...completed, stdout: args.at(-1) === 'list' ? 'Current Status Bar Overrides:\n=============================\n' : '' }
-        }
+        if (args[1] === 'status_bar') throw new Error('A live compositor fixture must not depend on a system display RPC during its held gesture')
         if (args.includes('--find')) {
           expect(args).toEqual(['/usr/bin/xcrun', '--sdk', 'macosx', '--find', 'swiftc'])
           return { ...completed, stdout: swiftc }
@@ -74,8 +71,7 @@ for (const alteredAnchor of [false, true]) {
       expect(existsSync(join(output, 'recording-ready'))).toBe(true)
       appendFileSync(log, 'CRAFT_TAB_LCV_HOLD_BEGIN 100\nPress Home for 6 seconds\nSynthesize event\n')
       await Bun.sleep(50)
-      // The actual independent redraw produces the release marker in this
-      // synthetic plumbing fixture; product touch timing remains real in CI.
+      appendFileSync(log, 'CRAFT_TAB_LCV_HOLD_END 108\n')
       if (alteredAnchor) await expect(run).rejects.toThrow('Frame timing does not match')
       else await run
       expect(calls.some(args => args.includes('screenshot'))).toBe(false)
@@ -84,8 +80,7 @@ for (const alteredAnchor of [false, true]) {
       expect(calls.slice(buildCallCount).some(args => args[0] === swiftc || args[0] === '/usr/bin/xcrun')).toBe(false)
       const receipt = JSON.parse(readFileSync(join(output, 'receipt.json'), 'utf8'))
       expect(receipt.verifiedDuringHold).toBe(!alteredAnchor)
-      expect(receipt.ownedDisplayStimulus.restored).toBe(true)
-      expect(calls.filter(args => args[1] === 'status_bar').map(args => args[3])).toEqual(['list', 'override', 'clear', 'list'])
+      expect(calls.some(args => args[1] === 'status_bar')).toBe(false)
       if (!alteredAnchor) {
         expect(receipt.method).toBe('public-simctl-recordVideo-decoded-frame')
         expect(receipt.validated).toEqual({ frameWallEarliest: 103, frameWallLatest: 103.1, frameOffsetFromFirstPTS: 4 })
