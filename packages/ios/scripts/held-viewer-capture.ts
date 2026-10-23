@@ -298,12 +298,12 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
   const deadline = performance.now() + (options.timeoutMs ?? 45 * 60_000)
   let recordingResult: Awaited<ReturnType<typeof nativeFixtureCommand>> | undefined
   let recordingFailure: unknown, recording: Promise<void> | undefined
-  let tool: ResolvedScreenshotTool | undefined, swiftc: string | undefined, swiftcSha256: string | undefined
+  let tool: ResolvedScreenshotTool | undefined, swiftc: string | undefined, swiftcSha256: string | undefined, macosSdk: string | undefined
   let remainder = '', doneAt: number | undefined
   const receipt = (verifiedDuringHold: boolean, error?: string) => ({
     verifiedDuringHold, error, method: 'public-simctl-recordVideo-decoded-frame', timing,
     simulator: options.simulator, screenshot: png, movie, recording: recordReceipt, frame: frameReceipt,
-    recordingResult, resolvedTool: tool, swiftc, swiftcSha256,
+    recordingResult, resolvedTool: tool, swiftc, swiftcSha256, macosSdk,
     preflight: join(options.output, 'preflight.json'),
     beforeAfter: ['XCTest attachment: Large content viewer before hold', 'XCTest attachment: Large content viewer after release'],
     visualReviewRequired: 'The actual decoded during-hold PNG must show the system Large Content Viewer.',
@@ -326,10 +326,12 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
     tool = await (dependencies.prepare ?? (() => prepareHeldViewerCapture({ ...options, signal, ready: join(options.output, 'screenshot-control-ready') })))()
     const xcrun = dependencies.xcrun ?? Bun.which('xcrun')
     if (!xcrun || !isAbsolute(xcrun)) throw new Error('Cannot resolve public Apple compiler tools')
-    swiftc = (await setupCommand([xcrun, '--find', 'swiftc'])).stdout.trim()
+    swiftc = (await setupCommand([xcrun, '--sdk', 'macosx', '--find', 'swiftc'])).stdout.trim()
     if (!isAbsolute(swiftc)) throw new Error('Apple compiler resolver returned a relative path')
     swiftcSha256 = new Bun.CryptoHasher('sha256').update(await Bun.file(swiftc).arrayBuffer()).digest('hex')
-    await setupCommand([swiftc, join(import.meta.dir, 'held-viewer-frame.swift'), '-o', extractor])
+    macosSdk = (await setupCommand([xcrun, '--sdk', 'macosx', '--show-sdk-path'])).stdout.trim()
+    if (!isAbsolute(macosSdk)) throw new Error('Apple compiler resolver returned a relative macOS SDK path')
+    await setupCommand([swiftc, '-sdk', macosSdk, join(import.meta.dir, 'held-viewer-frame.swift'), '-o', extractor])
     recording = command([process.execPath, join(import.meta.dir, 'held-viewer-record.ts'), tool.simctl,
       options.simulator, movie, recordReady, recordStop, recordReceipt], {
       cwd: options.output, timeoutMs: Math.max(1, Math.floor(deadline - performance.now())), signal,

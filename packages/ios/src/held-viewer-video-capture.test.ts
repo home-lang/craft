@@ -11,7 +11,7 @@ for (const alteredAnchor of [false, true]) {
   test(`video evidence ${alteredAnchor ? 'rejects a substituted anchor' : 'records before readiness and verifies actual captured PTS after release'}`, async () => {
     const dir = createTempDir('craft-held-video-pipeline-')
     try {
-      const output = join(dir, 'evidence'), log = join(dir, 'log'), ready = join(dir, 'ready'), swiftc = join(dir, 'swiftc')
+      const output = join(dir, 'evidence'), log = join(dir, 'log'), ready = join(dir, 'ready'), swiftc = join(dir, 'swiftc'), macosSdk = join(dir, 'MacOSX.sdk')
       writeFileSync(swiftc, 'synthetic compiler')
       writeFileSync(log, '')
       const calls: string[][] = []
@@ -22,8 +22,18 @@ for (const alteredAnchor of [false, true]) {
         xcrun: '/usr/bin/xcrun', now: () => now,
         command: async (args) => {
           calls.push(args)
-          if (args.includes('--find')) return { ...completed, stdout: swiftc }
-          if (args[0] === swiftc) return completed
+          if (args.includes('--find')) {
+            expect(args).toEqual(['/usr/bin/xcrun', '--sdk', 'macosx', '--find', 'swiftc'])
+            return { ...completed, stdout: swiftc }
+          }
+          if (args.includes('--show-sdk-path')) {
+            expect(args).toEqual(['/usr/bin/xcrun', '--sdk', 'macosx', '--show-sdk-path'])
+            return { ...completed, stdout: macosSdk }
+          }
+          if (args[0] === swiftc) {
+            expect(args).toEqual([swiftc, '-sdk', macosSdk, join(import.meta.dir, '../scripts/held-viewer-frame.swift'), '-o', join(output, 'held-viewer-frame')])
+            return completed
+          }
           if (args[1]?.endsWith('held-viewer-record.ts')) {
             expect(existsSync(ready)).toBe(false)
             await Bun.write(args[4]!, 'actual synthetic movie')
