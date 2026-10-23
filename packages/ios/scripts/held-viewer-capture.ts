@@ -64,6 +64,7 @@ interface CaptureOptions {
 export async function captureHeldViewer(options: CaptureOptions, dependencies: {
   now?: () => number
   capture?: (png: string, signal: AbortSignal) => Promise<void>
+  command?: typeof nativeFixtureCommand
 } = {}): Promise<void> {
   if (![options.log, options.output, options.done].every(isAbsolute) || !/^[\da-f-]{36}$/i.test(options.simulator))
     throw new Error('Viewer capture needs absolute evidence paths and a simulator UUID')
@@ -75,18 +76,21 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
   const stop = new AbortController()
   const signal = options.signal ? AbortSignal.any([stop.signal, options.signal]) : stop.signal
   const png = join(options.output, 'during-hold.png')
+  let screenshotCommand: Awaited<ReturnType<typeof nativeFixtureCommand>> | undefined
   const capture = dependencies.capture ?? (async (path, abort) => {
-    const result = await nativeFixtureCommand(['xcrun', 'simctl', 'io', options.simulator, 'screenshot', path], {
-      cwd: options.output, timeoutMs: 3000, signal: abort,
+    const result = await (dependencies.command ?? nativeFixtureCommand)(['xcrun', 'simctl', 'io', options.simulator, 'screenshot', path], {
+      cwd: options.output, timeoutMs: 5000, signal: abort,
     })
-    if (result.code !== 0) throw new Error(`Independent simulator screenshot failed: ${result.stderr}`)
+    screenshotCommand = result
+    if (result.code !== 0 || result.timedOut || result.cancelled)
+      throw new Error(`Independent simulator screenshot failed: ${JSON.stringify(result)}`)
   })
   let pending: Promise<void> | undefined, failure: unknown, finished = false, remainder = ''
   let doneAt: number | undefined
   const deadline = performance.now() + (options.timeoutMs ?? 45 * 60_000)
   const receipt = (verifiedDuringHold: boolean, error?: string) => ({
     verifiedDuringHold, error, timing, simulator: options.simulator,
-    screenshot: png, captureDelayMs: 750,
+    screenshot: png, captureDelayMs: 750, screenshotCommandTimeoutMs: 5000, screenshotCommand,
     beforeAfter: ['XCTest attachment: Large content viewer before hold', 'XCTest attachment: Large content viewer after release'],
     visualReviewRequired: 'The during-hold PNG must show the actual system Large Content Viewer.',
   })
@@ -116,8 +120,8 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
                 signal.throwIfAborted()
                 if (timing.releasedAt !== undefined) throw new Error('Hold ended before the independent capture started')
                 const started = now()
-                await capture(png, signal)
-                timing.captured(started, now())
+                try { await capture(png, signal) }
+                finally { timing.captured(started, now()) }
                 const bytes = new Uint8Array(await Bun.file(png).arrayBuffer())
                 if (bytes.length < 8 || Buffer.from(bytes.subarray(0, 8)).toString('hex') !== '89504e470d0a1a0a')
                   throw new Error('Independent capture did not produce a PNG')
