@@ -1428,6 +1428,19 @@ shared `HTTPCookieStorage`.
 callbacks stay in JavaScript, the deadline runs on the main queue, and route
 teardown cancels every pending timer.
 
+## Controlled text edits
+
+TextInput change events carry a per-control `nativeEvent.eventCount`. A runtime
+that controls `value` echoes that count in `mostRecentEventCount` in the same
+update as the value. Both native hosts reject an update acknowledging an older
+edit, so delayed bridge delivery cannot erase later characters. A reset or
+formatted value acknowledging the current edit still applies. stx handles this
+handshake automatically; application inputs do not maintain counters.
+
+Older runtimes without acknowledgements keep the bounded pending-value fallback
+on either script thread. UIKit also retains its composition and selection
+protection, and removed controls release their counters with their handlers.
+
 ## Verification
 
 The repository exercises the same compiled multi-route fixture on both

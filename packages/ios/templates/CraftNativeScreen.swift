@@ -2578,6 +2578,7 @@ extension UIView {
         var responder: UIResponder? = next
         while let current = responder {
             if let screen = current as? CraftNativeScreenController { return screen }
+            if let sheet = current as? CraftNativeSheetController { return sheet.screen }
             responder = current.next
         }
         return nil
@@ -3976,13 +3977,141 @@ private final class CraftNativeImageBackgroundView: UIImageView {
     }
 }
 
-private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
+private final class CraftNativeSegmentElement: UIAccessibilityElement {
+    weak var control: CraftNativeSegmentedControl?
+    let index: Int
+    init(control: CraftNativeSegmentedControl, index: Int) {
+        self.control = control
+        self.index = index
+        super.init(accessibilityContainer: control)
+    }
+    override func accessibilityActivate() -> Bool {
+        guard let control, control.isEnabled, control.values.indices.contains(index), control.isEnabledForSegment(at: index) else { return false }
+        if control.selectedSegmentIndex != index {
+            control.selectedSegmentIndex = index
+            control.sendActions(for: .valueChanged)
+        }
+        return true
+    }
+}
+
+private final class CraftNativeSegmentedControl: UISegmentedControl {
+    var values: [String] = []
+    private var segments: [CraftNativeSegmentElement] = []
+    override var accessibilityElements: [Any]? {
+        get { segments }
+        set { /* The native segments, not the labelled group, own activation. */ }
+    }
+    func configureAccessibility(items: [[String: Any]]) {
+        if segments.count != items.count { segments = items.indices.map { CraftNativeSegmentElement(control: self, index: $0) } }
+        for (index, item) in items.enumerated() {
+            segments[index].accessibilityLabel = item["spoken"] as? String ?? item["label"] as? String ?? values[index]
+        }
+        refreshAccessibilityState()
+        setNeedsLayout()
+    }
+    func refreshAccessibilityState() {
+        for (index, segment) in segments.enumerated() {
+            segment.accessibilityTraits = [.button]
+            if selectedSegmentIndex == index { segment.accessibilityTraits.insert(.selected) }
+            if !isEnabled || !isEnabledForSegment(at: index) { segment.accessibilityTraits.insert(.notEnabled) }
+        }
+    }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard !segments.isEmpty else { return }
+        let width = bounds.width / CGFloat(segments.count)
+        for (index, segment) in segments.enumerated() {
+            let visualIndex = effectiveUserInterfaceLayoutDirection == .rightToLeft ? segments.count - index - 1 : index
+            segment.accessibilityFrameInContainerSpace = CGRect(x: CGFloat(visualIndex) * width, y: 0, width: width, height: bounds.height)
+        }
+    }
+}
+
+private final class CraftNativeSheetController: UIViewController {
+    weak var screen: CraftNativeScreenController?
+    weak var content: CraftNativeFlowView?
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        content?.frame = view.bounds.inset(by: view.safeAreaInsets)
+    }
+}
+
+private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate, UISheetPresentationControllerDelegate {
     let contentStack = CraftNativeFlowView()
     private let blocker = UIView()
     private let backdropTap = UITapGestureRecognizer()
     private var renderedVisible = false
     private var animationGeneration = 0
     var onRequestClose: ((String) -> Void)?
+    weak var sheetPresenter: CraftNativeScreenController?
+    var presentationStyle = "overFullScreen"
+    var sheetDetents: [String] = ["medium", "large"]
+    var selectedDetent: String?
+    var grabberVisible = true
+    private var sheetController: CraftNativeSheetController?
+    var isPresentedAsSheet: Bool { sheetController != nil }
+
+    private func configureSheet(_ controller: CraftNativeSheetController) {
+        controller.isModalInPresentation = onRequestClose == nil
+        guard let sheet = controller.sheetPresentationController else { return }
+        let choices = sheetDetents.filter { $0 == "medium" || $0 == "large" }
+        let values = choices.isEmpty ? ["large"] : Array(Set(choices)).sorted { $0 == "medium" && $1 == "large" }
+        sheet.detents = values.map { $0 == "medium" ? .medium() : .large() }
+        sheet.prefersGrabberVisible = grabberVisible
+        if let selectedDetent, values.contains(selectedDetent) {
+            sheet.selectedDetentIdentifier = selectedDetent == "medium" ? .medium : .large
+        }
+        sheet.delegate = self
+    }
+
+    private func restoreSheetContent(_ controller: CraftNativeSheetController) {
+        guard sheetController === controller else { return }
+        contentStack.removeFromSuperview()
+        addSubview(contentStack)
+        sheetController = nil
+        setNeedsLayout()
+    }
+
+    private func setSheetVisible(_ visible: Bool, animated: Bool) {
+        renderedVisible = visible
+        isHidden = true // UIKit owns the scrim, safe area, grabber and pan.
+        guard visible else {
+            guard let controller = sheetController else { return }
+            controller.view.endEditing(true)
+            controller.dismiss(animated: animated) { [weak self, weak controller] in
+                guard let self, let controller else { return }
+                self.restoreSheetContent(controller)
+                if self.renderedVisible { self.setSheetVisible(true, animated: animated) }
+            }
+            return
+        }
+        if let controller = sheetController { configureSheet(controller); return }
+        // A newly rendered modal is attached to its screen after this pass.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.renderedVisible, self.sheetController == nil,
+                  let presenter = self.sheetPresenter, presenter.view.window != nil else { return }
+            let controller = CraftNativeSheetController()
+            controller.screen = presenter
+            controller.modalPresentationStyle = self.presentationStyle == "formSheet" ? .formSheet : .pageSheet
+            controller.view.backgroundColor = .systemBackground
+            self.contentStack.removeFromSuperview()
+            controller.view.addSubview(self.contentStack)
+            controller.content = self.contentStack
+            self.sheetController = controller
+            self.configureSheet(controller)
+            var top: UIViewController = presenter
+            while let presented = top.presentedViewController { top = presented }
+            top.present(controller, animated: animated)
+        }
+    }
+
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        guard let controller = presentationController.presentedViewController as? CraftNativeSheetController else { return }
+        restoreSheetContent(controller)
+        renderedVisible = false
+        onRequestClose?("swipe")
+    }
 
     var transparent = false {
         didSet { blocker.backgroundColor = transparent ? .clear : UIColor.black.withAlphaComponent(0.32) }
@@ -4020,6 +4149,10 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     /// press bookkeeping once turned that off for a view with no handler of
     /// its own, and a shown modal let every tap through to the screen behind.
     func setVisible(_ visible: Bool, opacity: CGFloat, animationType: String?) {
+        if blocksBackground && (presentationStyle == "pageSheet" || presentationStyle == "formSheet") {
+            setSheetVisible(visible, animated: animationType != "none")
+            return
+        }
         if visible { isUserInteractionEnabled = true }
         if renderedVisible == visible && isHidden == !visible {
             if visible, alpha != opacity { alpha = opacity }
@@ -4072,6 +4205,12 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     }
 
     func resetForTeardown() {
+        renderedVisible = false
+        sheetPresenter = nil
+        if let controller = sheetController {
+            controller.dismiss(animated: false)
+            restoreSheetContent(controller)
+        }
         craftScreenController?.forgetFocusedInput(in: self)
         endEditing(true)
         animationGeneration += 1
@@ -4133,6 +4272,7 @@ private final class CraftNativeModalView: UIView, UIGestureRecognizerDelegate {
     override func layoutSubviews() {
         super.layoutSubviews()
         blocker.frame = bounds
+        guard sheetController == nil else { return }
         // The scrim covers the whole screen; what the modal holds stays
         // clear of the bars and the home indicator it is drawn over.
         contentStack.frame = bounds.inset(by: UIEdgeInsets(top: contentInsets.top, left: 0, bottom: contentInsets.bottom, right: 0))
@@ -4152,40 +4292,6 @@ final class CraftMapTapDelegate: NSObject, UIGestureRecognizerDelegate {
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
         true
-    }
-}
-
-/// A pressable wrapper must yield to an actionable descendant. Without this
-/// ordering UIKit may let the ancestor's tap recognizer win the same touch,
-/// so a nested Button never receives its physical action. A descendant
-/// control or tap recognizer is the source of the event; STX handles the
-/// logical bubbling from there.
-final class CraftPressGestureDelegate: NSObject, UIGestureRecognizerDelegate {
-    static let shared = CraftPressGestureDelegate()
-
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard let parent = gestureRecognizer.view,
-              let child = otherGestureRecognizer.view,
-              child !== parent else { return false }
-        return child.isDescendant(of: parent)
-    }
-
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        guard let container = gestureRecognizer.view else { return true }
-        // UIKit can report an internal UIButton label as `touch.view` while
-        // the recognizer is attached to an ancestor. Resolve the hit-test
-        // path from the container as well so that the ancestor never claims
-        // a control's physical tap (the child action will bubble in STX).
-        let hitView = container.hitTest(touch.location(in: container), with: nil)
-        guard var candidate = hitView ?? touch.view else { return true }
-        while candidate !== container {
-            if candidate is UIControl { return false }
-            if candidate.gestureRecognizers?.contains(where: { $0 !== gestureRecognizer && $0 is UITapGestureRecognizer }) == true {
-                return false
-            }
-            candidate = candidate.superview ?? container
-        }
-        return true
     }
 }
 
@@ -5929,7 +6035,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     @discardableResult
     func handleBackForModal() -> Bool {
         let modal = view.subviews.reversed().compactMap { $0 as? CraftNativeModalView }.first {
-            !$0.isHidden && $0.alpha > 0.01 && ($0.blocksBackground || $0.dismissOnOutsideTap)
+            ($0.isPresentedAsSheet || (!$0.isHidden && $0.alpha > 0.01)) && ($0.blocksBackground || $0.dismissOnOutsideTap)
         }
         guard let modal else { return false }
         let hasHandler = modal.onRequestClose != nil
@@ -6595,15 +6701,6 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 });
                 keep('navigation', {
                     setOptions: function(options) { craftNativeSetOptions(JSON.stringify(options || {})); }
-                });
-                // Dynamic home-screen quick actions belong to the app shell,
-                // not an individual JavaScriptCore screen. Keep the typed
-                // module present so STX can answer `unsupported` honestly
-                // instead of falling through to an undefined namespace.
-                keep('shortcuts', {
-                    set: function() { return Promise.resolve(false); },
-                    clear: function() { return Promise.resolve(false); },
-                    onShortcut: function() { return function() {}; }
                 });
             })();
         """)
@@ -7980,15 +8077,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 break
             }
             let field = result as! UITextField
-            field.placeholder = props["placeholder"] as? String
-            if let placeholder = field.placeholder,
+            if let placeholder = props["placeholder"] as? String,
                let placeholderColor = color(props["placeholderTextColor"]) {
                 field.attributedPlaceholder = NSAttributedString(
                     string: placeholder,
                     attributes: [.foregroundColor: placeholderColor]
                 )
             } else {
+                // UIKit shares these properties: resetting the attributed
+                // value after the plain one also erases the visible hint.
                 field.attributedPlaceholder = nil
+                field.placeholder = props["placeholder"] as? String
             }
             field.tintColor = color(props["selectionColor"])
             let fieldId = ObjectIdentifier(field)
@@ -8000,6 +8099,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 textMaxLengths.removeValue(forKey: fieldId)
             }
             field.delegate = self
+            switch props["clearButtonMode"] as? String {
+            case "while-editing": field.clearButtonMode = .whileEditing
+            case "unless-editing": field.clearButtonMode = .unlessEditing
+            case "always": field.clearButtonMode = .always
+            default: field.clearButtonMode = .never
+            }
             (field as? CraftNativeTextField)?.padding = paddingInsets(style)
             field.textColor = color(style["color"]) ?? .label
             field.font = textFont(style, default: .systemFont(ofSize: 16))
@@ -8020,7 +8125,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if field.isEnabled != desiredEnabled { field.isEnabled = desiredEnabled }
             applyAutofill(to: field, props: props)
             if let value = props["value"] as? String {
-                updateField(field, value: value)
+                updateField(field, value: value, acknowledged: (props["mostRecentEventCount"] as? NSNumber)?.intValue)
             } else if previous?.view !== field {
                 updateField(field, value: inputDrafts[current.identity] ?? props["defaultValue"] as? String)
             }
@@ -8032,6 +8137,27 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if props["autoFocus"] as? Bool == true, !field.isFirstResponder {
                 DispatchQueue.main.async { _ = field.becomeFirstResponder() }
             }
+        case "SegmentedControl":
+            let control = result as! CraftNativeSegmentedControl
+            let items = props["items"] as? [[String: Any]] ?? []
+            let labels = items.map { $0["label"] as? String ?? craftNativePickerValue($0["value"]) ?? "" }
+            // UIKit owns the segments; only rebuild when the choices change.
+            // Setting a controlled value never dispatches valueChanged.
+            if control.numberOfSegments != labels.count || labels.enumerated().contains(where: { control.titleForSegment(at: $0.offset) != $0.element }) {
+                control.removeAllSegments()
+                for (index, label) in labels.enumerated() { control.insertSegment(withTitle: label, at: index, animated: false) }
+            }
+            control.values = items.map { $0["value"] as? String ?? craftNativePickerValue($0["value"]) ?? "" }
+            for (index, item) in items.enumerated() { control.setEnabled(item["disabled"] as? Bool != true, forSegmentAt: index) }
+            let selected = props["value"] as? String ?? craftNativePickerValue(props["value"]) ?? props["selectedValue"] as? String ?? craftNativePickerValue(props["selectedValue"])
+            control.selectedSegmentIndex = control.values.firstIndex(where: { $0 == selected }) ?? UISegmentedControl.noSegment
+            control.isEnabled = props["disabled"] as? Bool != true
+            control.selectedSegmentTintColor = color(props["tintColor"])
+            let titleAttributes: [NSAttributedString.Key: Any]? = color(style["color"]).map { [.foregroundColor: $0] }
+            control.setTitleTextAttributes(titleAttributes, for: .normal)
+            control.setTitleTextAttributes(titleAttributes, for: .selected)
+            control.configureAccessibility(items: items)
+            updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: control)
         case "Picker":
             let picker = result as! UIPickerView
             let itemOptions = (props["items"] as? [[String: Any]])?.compactMap { item -> (value: String, label: String)? in
@@ -8094,6 +8220,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "Modal":
             let modal = result as! CraftNativeModalView
             let focusBeforeContent = firstResponder(in: rootStack) ?? lastFocusedInput
+            modal.sheetPresenter = self
+            modal.presentationStyle = props["presentationStyle"] as? String ?? "overFullScreen"
+            modal.sheetDetents = props["sheetDetents"] as? [String] ?? ["medium", "large"]
+            modal.selectedDetent = props["selectedDetent"] as? String
+            modal.grabberVisible = props["grabberVisible"] as? Bool != false
+            modal.onRequestClose = nonEmptyHandler(events["onRequestClose"]).map { handler in
+                { [weak self] reason in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["reason": reason]]) }
+            }
             modal.transparent = props["transparent"] as? Bool == true
             modal.blocksBackground = props["nonModal"] as? Bool != true
             modal.dismissOnOutsideTap = props["dismissOnOutsideTap"] as? Bool == true
@@ -8167,7 +8301,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 toggle.onTintColor = color(track["true"])
                 toggle.tintColor = color(track["false"])
             } else {
-                toggle.onTintColor = nil
+                toggle.onTintColor = color(style["color"])
                 toggle.tintColor = nil
             }
             toggle.thumbTintColor = color(props["thumbColor"])
@@ -8205,7 +8339,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
             indicator.indicatorScale = scale
             applyTransform(style["transform"], to: indicator)
-            indicator.color = color(props["color"]) ?? .tintColor
+            indicator.color = color(props["color"]) ?? color(style["color"]) ?? .tintColor
             indicator.hidesWhenStopped = props["hidesWhenStopped"] as? Bool ?? true
             if props["animating"] as? Bool == false {
                 indicator.stopAnimating()
@@ -8378,7 +8512,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             reconcileChildren(children, in: stack, parent: current, path: path, style: style)
         }
         updateLongPressHandler(props["disabled"] as? Bool == true ? nil : events["onLongPress"], for: result)
-        if type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "StatusBar" && type != "RefreshControl" && type != "Map" {
+        if type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "SegmentedControl" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "StatusBar" && type != "RefreshControl" && type != "Map" {
             let disabled = props["disabled"] as? Bool == true
             updatePressHandler(disabled ? nil : nonEmptyHandler(events["onPress"]) ?? nonEmptyHandler(events["onClick"]), for: result)
             updatePressFeedback(
@@ -8434,6 +8568,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             field.addTarget(self, action: #selector(textBlurred(_:)), for: .editingDidEnd)
             field.addTarget(self, action: #selector(textSubmitted(_:)), for: .editingDidEndOnExit)
             return field
+        case "SegmentedControl":
+            let control = CraftNativeSegmentedControl()
+            control.addTarget(self, action: #selector(segmentChanged(_:)), for: .valueChanged)
+            return control
         case "Picker":
             let picker = UIPickerView()
             picker.dataSource = self
@@ -8500,6 +8638,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "link": return "Link"
         case "checkbox": return "Checkbox"
         case "textinput", "input": return "TextInput"
+        case "segmentedcontrol", "segmented-control": return "SegmentedControl"
         case "picker", "select": return "Picker"
         case "datepicker", "date-picker", "date": return "DatePicker"
         case "modal": return "Modal"
@@ -8849,6 +8988,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         submitHandlers.removeValue(forKey: id)
         inputIdentities.removeValue(forKey: id)
         unechoedText.removeValue(forKey: id)
+        inputEventCounts.removeValue(forKey: id)
         if node.type == "TextInput" && !preservingInputDrafts { inputDrafts.removeValue(forKey: node.identity) }
         longPressHandlers.removeValue(forKey: id)
         textMaxLengths.removeValue(forKey: id)
@@ -9008,8 +9148,6 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let actionable = handler != nil || linkTargets[id] != nil
         if actionable, tapRecognizers[id] == nil {
             let recognizer = UITapGestureRecognizer(target: self, action: #selector(viewPressed(_:)))
-            recognizer.cancelsTouchesInView = false
-            recognizer.delegate = CraftPressGestureDelegate.shared
             tapRecognizers[id] = recognizer
             view.addGestureRecognizer(recognizer)
         } else if !actionable, let recognizer = tapRecognizers.removeValue(forKey: id) {
@@ -9068,19 +9206,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
-    /// Text a field sent its script that the script has not echoed back yet,
-    /// while the script runs on its own thread: a value that matches an older
-    /// one is the script catching up, not a new value, and applying it would
-    /// undo what was typed since.
+    /// Legacy runtimes echo values without a revision. Keep their bounded
+    /// history on either script thread; bridge delivery may still be delayed.
     private var unechoedText: [ObjectIdentifier: [String]] = [:]
+    private var inputEventCounts: [ObjectIdentifier: Int] = [:]
 
-    private func noteSentText(_ text: String, for view: UIView) {
-        guard CraftNativeScriptThread.isBackground else { return }
+    @discardableResult
+    private func noteSentText(_ text: String, for view: UIView) -> Int {
         let id = ObjectIdentifier(view)
+        let count = (inputEventCounts[id] ?? 0) + 1
+        inputEventCounts[id] = count
         var sent = unechoedText[id] ?? []
         sent.append(text)
         if sent.count > 32 { sent.removeFirst(sent.count - 32) }
         unechoedText[id] = sent
+        return count
     }
 
     /// Whether `value` is a stale echo of text the view has moved past: it
@@ -9098,9 +9238,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         return later > 0
     }
 
-    private func updateField(_ field: UITextField, value: String?) {
+    private func acceptsText(_ value: String, for view: UIView, acknowledged: Int?) -> Bool {
+        if let acknowledged, acknowledged >= 0 {
+            guard acknowledged >= (inputEventCounts[ObjectIdentifier(view)] ?? 0) else { return false }
+            unechoedText.removeValue(forKey: ObjectIdentifier(view))
+            return true // A current explicit reset may equal an older edit.
+        }
+        return !isStaleEcho(value, for: view)
+    }
+
+    private func updateField(_ field: UITextField, value: String?, acknowledged: Int? = nil) {
         guard let value = value, field.markedTextRange == nil else { return }
-        if isStaleEcho(value, for: field) || field.text == value { return }
+        if !acceptsText(value, for: field, acknowledged: acknowledged) || field.text == value { return }
         let selection = field.selectedTextRange
         let start = selection.map { field.offset(from: field.beginningOfDocument, to: $0.start) }
         let end = selection.map { field.offset(from: field.beginningOfDocument, to: $0.end) }
@@ -9112,9 +9261,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
-    private func updateTextView(_ textView: UITextView, value: String?) {
+    private func updateTextView(_ textView: UITextView, value: String?, acknowledged: Int? = nil) {
         guard let value = value, textView.markedTextRange == nil else { return }
-        if isStaleEcho(value, for: textView) || textView.text == value { return }
+        if !acceptsText(value, for: textView, acknowledged: acknowledged) || textView.text == value { return }
         let selection = textView.selectedTextRange
         let start = selection.map { textView.offset(from: textView.beginningOfDocument, to: $0.start) }
         let end = selection.map { textView.offset(from: textView.beginningOfDocument, to: $0.end) }
@@ -9177,7 +9326,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             craftTextView.placeholderColor = color(props["placeholderTextColor"])
             craftTextView.placeholderFont = textView.font
         }
-        updateTextView(textView, value: (props["value"] as? String) ?? defaultValue)
+        updateTextView(textView, value: (props["value"] as? String) ?? defaultValue, acknowledged: (props["mostRecentEventCount"] as? NSNumber)?.intValue)
         if textView.markedTextRange == nil {
             let attributes = inputTextAttributes(style, font: textView.font ?? .systemFont(ofSize: 16), alignment: textView.textAlignment)
             let styled = NSAttributedString(string: textView.text ?? "", attributes: attributes)
@@ -9881,7 +10030,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let controlledVideo = type == "Video" && (props["controls"] as? Bool) == true
         // UIPickerView exposes adjustable component wheels. Making the
         // picker itself a leaf hides those wheels and their selected values.
-        let container = ["ScrollView", "FlatList", "SectionList", "Picker", "Modal", "Drawer"].contains(type)
+        let container = ["ScrollView", "FlatList", "SectionList", "Picker", "SegmentedControl", "Modal", "Drawer"].contains(type)
             || ["tablist", "radiogroup", "list", "menu", "menubar", "toolbar"].contains(role ?? "")
             || controlledVideo
         view.isAccessibilityElement = !container && role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "DatePicker", "Switch", "Slider"].contains(type))
@@ -9984,6 +10133,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// Return on a `returnKeyType="next"` field the screen does not handle
     /// itself (no `@submit`) goes to the next field down the screen, keeping
     /// the keyboard up. Every other Return ends editing and fires `@submit`.
+    func textFieldShouldClear(_ textField: UITextField) -> Bool {
+        guard textField.isEnabled else { return false }
+        textField.text = ""
+        let id = ObjectIdentifier(textField)
+        inputIdentities[id].map { inputDrafts[$0] = "" }
+        let eventCount = noteSentText("", for: textField)
+        if let handler = handlers[id] {
+            send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": "", "clear": true, "eventCount": eventCount]])
+        }
+        return false // The model receives exactly one edit, including lazy models.
+    }
+
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         guard textField.returnKeyType == .next, submitHandlers[ObjectIdentifier(textField)] == nil,
               let next = inputAfter(textField) else { return true }
@@ -10030,8 +10191,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         (textView as? CraftNativeTextView)?.refreshPlaceholder()
         keepCaretVisible(in: textView)
         guard let handler = handlers[id] else { return }
-        noteSentText(textView.text ?? "", for: textView)
-        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": textView.text ?? ""]])
+        let eventCount = noteSentText(textView.text ?? "", for: textView)
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": textView.text ?? "", "eventCount": eventCount]])
     }
 
     func textViewDidChangeSelection(_ textView: UITextView) {
@@ -10087,12 +10248,20 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         inputIdentities[id].map { inputDrafts[$0] = sender.text ?? "" }
         let focused = sender.isFirstResponder ? sender : firstResponder(in: rootStack)
         guard let handler = handlers[id] else { return }
-        noteSentText(sender.text ?? "", for: sender)
-        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": sender.text ?? ""]])
+        let eventCount = noteSentText(sender.text ?? "", for: sender)
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": sender.text ?? "", "eventCount": eventCount]])
         restoreFocus(focused)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self, weak focused] in
             self?.restoreFocus(focused)
         }
+    }
+
+    @objc private func segmentChanged(_ sender: CraftNativeSegmentedControl) {
+        let index = sender.selectedSegmentIndex
+        guard sender.isEnabled, sender.values.indices.contains(index), sender.isEnabledForSegment(at: index),
+              let handler = handlers[ObjectIdentifier(sender)] else { return }
+        sender.refreshAccessibilityState()
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": sender.values[index], "index": index]])
     }
 
     @objc private func switchChanged(_ sender: UISwitch) {
@@ -10285,18 +10454,6 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     @objc private func viewPressed(_ sender: UITapGestureRecognizer) {
         guard let view = sender.view else { return }
-        // UIKit may still deliver an ancestor recognizer after the delegate
-        // has negotiated with a control's touch recognizer. The child control
-        // owns that physical tap; STX will perform logical bubbling from its
-        // event, so do not send the ancestor handler a second time here.
-        if let hit = view.hitTest(sender.location(in: view), with: nil), hit !== view {
-            var candidate: UIView? = hit
-            while let current = candidate, current !== view {
-                if current is UIControl { return }
-                if current.gestureRecognizers?.contains(where: { $0 !== sender && $0 is UITapGestureRecognizer }) == true { return }
-                candidate = current.superview
-            }
-        }
         let id = ObjectIdentifier(view)
         if let target = linkTargets[id] {
         hybridEvents?.nativeScreen(self, open: target, props: [:])

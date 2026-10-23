@@ -1,0 +1,51 @@
+name: Windows managed Git contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-managed-git-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-managed-git:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install the pinned published Action and native Git
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          version: '0.11.119'
+          install: 'false'
+          packages: bun.com@1.4.2 git-scm.org@2.53.0
+      - name: Verify the declared Git provider for Bash build steps
+        id: provider
+        run: |
+          mkdir -p artifacts/windows-managed-git
+          bun scripts/managed-git.ts --verify | tee artifacts/windows-managed-git/provider.jsonl
+      - name: Fetch exact first-party source through the selected provider
+        run: |
+          owned=$(mktemp -d)
+          trap 'rm -r -- "$owned"' EXIT
+          bun scripts/managed-git.ts -C "$owned" init
+          bun scripts/managed-git.ts -C "$owned" fetch --depth=1 --no-tags https://github.com/zig-utils/zig-regex.git fdd9c2e333ea6ac2fd06d080d939ef7f11d61b1b
+          test "$(bun scripts/managed-git.ts -C "$owned" rev-parse FETCH_HEAD)" = fdd9c2e333ea6ac2fd06d080d939ef7f11d61b1b
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.provider.outcome != 'skipped' }}
+        with:
+          name: windows-managed-git-provider
+          path: artifacts/windows-managed-git
+          if-no-files-found: error

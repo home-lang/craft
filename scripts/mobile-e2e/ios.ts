@@ -4,7 +4,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { join } from 'node:path'
 import { bootSimulator, init, pickSimulator } from '../../packages/ios/src/index'
 import { addSchemeBuildTargets, addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from '../../packages/ios/scripts/insert-project-targets'
-import { deepLinkProblems, deepLinkResults, evaluateRun, hasTerminated, LOCAL_NOTIFICATION_DELAY_MS, localNotificationProblems, NOTIFICATION_TEST_TIMEOUT_MS, notificationBody, notificationPayload, notificationReceiptProblems, notificationReceiptReport, notificationTapProblems, notificationTapReport, ZIG_REFUSED_ACTIONS, ZIG_SERVED_ACTIONS, ZIG_TESTED_ACTIONS, zigDispatchedActions, zigHandBacks, zigRefusals } from './protocol'
+import { simulatorPasteboardProblems, deepLinkProblems, deepLinkResults, evaluateRun, hasTerminated, LOCAL_NOTIFICATION_DELAY_MS, localNotificationProblems, NOTIFICATION_TEST_TIMEOUT_MS, notificationBody, notificationPayload, notificationReceiptProblems, notificationReceiptReport, notificationTapProblems, notificationTapReport, ZIG_REFUSED_ACTIONS, ZIG_SERVED_ACTIONS, ZIG_TESTED_ACTIONS, zigDispatchedActions, zigHandBacks, zigRefusals } from './protocol'
 import { command, driverPage, waitForFile } from './support'
 
 /** The scheme the probe registers, and the one its cold-start link uses. */
@@ -254,7 +254,9 @@ async function runLeg(leg: Leg, options: RunnerOptions): Promise<LegOutcome> {
   // Evidence before assertions, always: a leg that dies here is the one whose
   // screenshot is worth the most.
   await command(['xcrun', 'simctl', 'io', device.udid, 'screenshot', join(evidence, 'screen.png')], { allowFailure: true })
-  const pasteboard = await command(['xcrun', 'simctl', 'pbpaste', device.udid], { allowFailure: true })
+  const pasteboardCommand = ['xcrun', 'simctl', 'pbpaste', device.udid]
+  const pasteboard = await command(pasteboardCommand, { allowFailure: true, logPath: join(evidence, 'simctl.log') })
+  writeFileSync(join(evidence, 'pasteboard-command.json'), JSON.stringify({ argv: pasteboardCommand, ...pasteboard }, null, 2))
   writeFileSync(join(evidence, 'pasteboard.txt'), pasteboard.stdout)
 
   const consoleText = existsSync(consolePath) ? readFileSync(consolePath, 'utf8') : ''
@@ -267,8 +269,7 @@ async function runLeg(leg: Leg, options: RunnerOptions): Promise<LegOutcome> {
   // The one assertion the page cannot fake. simctl reads the device's own
   // pasteboard from the host, so a nonce found here travelled from JavaScript
   // through the bridge into real UIPasteboard state.
-  if (!pasteboard.stdout.includes(nonce))
-    failures.push(`the simulator pasteboard does not hold the nonce this run wrote; it holds ${JSON.stringify(pasteboard.stdout.trim().slice(0, 80))}`)
+  failures.push(...simulatorPasteboardProblems(pasteboard, nonce))
 
   // The position the page reported against the one the host set. Resolving
   // is not enough: a bridge that answered with a cached or default fix would

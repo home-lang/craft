@@ -1,5 +1,238 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.303...v0.0.304)
+
+## 🐛 Bug Fixes
+
+- **bridge**: reject empty menu bar backend selections ([acb2a30](https://github.com/craft-native/craft/commit/acb2a30)) _(by Chris Breuer)_
+- **build**: link native visibility in every host test consumer ([1f12f39](https://github.com/craft-native/craft/commit/1f12f39)) _(by Chris Breuer)_
+- **macos**: protect controller identities and unknown menu bar items ([ac55211](https://github.com/craft-native/craft/commit/ac55211)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **macos**: verify packaged native group assertions ([e636743](https://github.com/craft-native/craft/commit/e636743)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.302...v0.0.303)
+
+## 🐛 Bug Fixes
+
+- **ci**: qualify Pantry across required mobile acceptance ([9d5abe7](https://github.com/craft-native/craft/commit/9d5abe7)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.301...v0.0.302)
+
+## 🚀 Features
+
+- **sdk**: type native visibility capabilities and lifecycle ([6ff06cf](https://github.com/craft-native/craft/commit/6ff06cf)) _(by Chris Breuer)_
+- **bridge**: expose explicit native menu bar grouping ([d803a3d](https://github.com/craft-native/craft/commit/d803a3d)) _(by Chris Breuer)_
+- **macos**: add native menu bar visibility engine ([739365d](https://github.com/craft-native/craft/commit/739365d)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **e2e**: retain simulator pasteboard command failures ([a4a9804](https://github.com/craft-native/craft/commit/a4a9804)) _(by Chris)_
+
+## 🧪 Tests
+
+- **macos**: verify native visibility cancellation and recovery ([6b81d28](https://github.com/craft-native/craft/commit/6b81d28)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.299...v0.0.301)
+
+## 🐛 Bug Fixes
+
+- **ios**: preserve system text input placeholders ([b219fa3](https://github.com/craft-native/craft/commit/b219fa3)) _(by Chris Breuer)_
+- **ci**: verify managed Git with native filesystem path rules ([2aa3d83](https://github.com/craft-native/craft/commit/2aa3d83)) _(by Chris)_
+
+## 🧹 Chores
+
+- release v0.0.300 ([0296d9d](https://github.com/craft-native/craft/commit/0296d9d)) _(by Chris)_
+- **ci**: adopt qualified Pantry 0.11.119 in source and release jobs ([7605dc8](https://github.com/craft-native/craft/commit/7605dc8)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.299...v0.0.300)
+
+## 🐛 Bug Fixes
+
+- **ci**: verify managed Git with native filesystem path rules ([2aa3d83](https://github.com/craft-native/craft/commit/2aa3d83)) _(by Chris)_
+
+## 🧹 Chores
+
+- **ci**: adopt qualified Pantry 0.11.119 in source and release jobs ([7605dc8](https://github.com/craft-native/craft/commit/7605dc8)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.296...v0.0.299)
+
+## 🚀 Features
+
+- **native**: add platform segments, clear fields and sheet detents ([d698e7d](https://github.com/craft-native/craft/commit/d698e7d)) _(by Chris Breuer)_
+- **graphics**: establish the private Vulkan ABI boundary ([f0e1917](https://github.com/craft-native/craft/commit/f0e1917)) _(by Chris)_
+- **graphics**: present bounded frames through native Metal surfaces ([29bff73](https://github.com/craft-native/craft/commit/29bff73)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **ci**: execute the declared Git provider across ABI dependencies ([6b8f3e8](https://github.com/craft-native/craft/commit/6b8f3e8)) _(by Chris Breuer)_
+- **ci**: require the verified Pantry Git provider on Windows ([d711fb5](https://github.com/craft-native/craft/commit/d711fb5)) _(by Chris)_
+- **ci**: bound software emulator contention and separate native test budgets ([cb788b2](https://github.com/craft-native/craft/commit/cb788b2)) _(by Chris Breuer)_
+- **native**: reject controlled text echoes older than accepted edits ([b618bae](https://github.com/craft-native/craft/commit/b618bae)) _(by Chris Breuer)_
+- separate Metal compilation and XCTest deadlines ([6e2a7de](https://github.com/craft-native/craft/commit/6e2a7de)) _(by Chris Breuer)_
+- **ci**: use runner Git for the Windows ABI toolchain ([e14181c](https://github.com/craft-native/craft/commit/e14181c)) _(by Chris Breuer)_
+- **native**: preserve individual segment accessibility ([44ea4aa](https://github.com/craft-native/craft/commit/44ea4aa)) _(by Chris Breuer)_
+- **zig**: export the documented Craft module with native dependencies ([38681f2](https://github.com/craft-native/craft/commit/38681f2)) _(by Chris)_
+- **ci**: match the native cache archive path identity ([413f797](https://github.com/craft-native/craft/commit/413f797)) _(by Chris)_
+- **ios**: own native acceptance command groups ([f56d93f](https://github.com/craft-native/craft/commit/f56d93f)) _(by Chris)_
+- **build**: resolve each iOS archive against its complete SDK ([8437e35](https://github.com/craft-native/craft/commit/8437e35)) _(by Chris)_
+- **sharing**: detect Chrome capture while Meet is selected ([d675077](https://github.com/craft-native/craft/commit/d675077)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- retain the unresolved native cache failure and exact replays ([06e9063](https://github.com/craft-native/craft/commit/06e9063)) _(by Chris)_
+- **graphics**: retain verified UIKit Metal screen evidence ([99d87ff](https://github.com/craft-native/craft/commit/99d87ff)) _(by Chris)_
+- **graphics**: retain native Metal execution evidence ([44fac13](https://github.com/craft-native/craft/commit/44fac13)) _(by Chris)_
+
+## 🧪 Tests
+
+- **release**: isolate rehearsal changelog ranges from the caller ([b32b72e](https://github.com/craft-native/craft/commit/b32b72e)) _(by Chris Breuer)_
+- **graphics**: execute terrain and glyphs through the public module ([a3deabe](https://github.com/craft-native/craft/commit/a3deabe)) _(by Chris)_
+- **native**: retain uncontrolled defaults with edit acknowledgements ([935ad66](https://github.com/craft-native/craft/commit/935ad66)) _(by Chris Breuer)_
+- **native**: cover platform control contracts and document host behavior ([1c68055](https://github.com/craft-native/craft/commit/1c68055)) _(by Chris Breuer)_
+- **graphics**: execute Vulkan SDK ABI checks on each desktop host ([4241d2c](https://github.com/craft-native/craft/commit/4241d2c)) _(by Chris)_
+- **ios**: exercise Metal surfaces through native UIKit hosts ([c140991](https://github.com/craft-native/craft/commit/c140991)) _(by Chris)_
+- **android**: isolate software provisioning CPU diagnostics ([a301dfd](https://github.com/craft-native/craft/commit/a301dfd)) _(by Chris)_
+
+## 🤖 Continuous Integration
+
+- **ios**: require native Metal pixel and screen acceptance ([13b412c](https://github.com/craft-native/craft/commit/13b412c)) _(by Chris)_
+
+## 🧹 Chores
+
+- release v0.0.298 ([ea68da9](https://github.com/craft-native/craft/commit/ea68da9)) _(by Chris Breuer)_
+- adopt the verified Bumpx 0.2.26 release ([5678b40](https://github.com/craft-native/craft/commit/5678b40)) _(by Chris)_
+- **ci**: repeat original native installs without timing diagnostics ([d5adb6b](https://github.com/craft-native/craft/commit/d5adb6b)) _(by Chris)_
+- **ci**: replay the complete cached native tool setup ([e9c3e3c](https://github.com/craft-native/craft/commit/e9c3e3c)) _(by Chris)_
+- **ci**: retain exact native cache provisioning diagnostics ([ff543f0](https://github.com/craft-native/craft/commit/ff543f0)) _(by Chris)_
+- release v0.0.297 ([18ddc37](https://github.com/craft-native/craft/commit/18ddc37)) _(by Chris)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/hush-chrome-background-capture ([42b89d4](https://github.com/craft-native/craft/commit/42b89d4)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.296...v0.0.298)
+
+## 🚀 Features
+
+- **native**: add platform segments, clear fields and sheet detents ([d698e7d](https://github.com/craft-native/craft/commit/d698e7d)) _(by Chris Breuer)_
+- **graphics**: establish the private Vulkan ABI boundary ([f0e1917](https://github.com/craft-native/craft/commit/f0e1917)) _(by Chris)_
+- **graphics**: present bounded frames through native Metal surfaces ([29bff73](https://github.com/craft-native/craft/commit/29bff73)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **ci**: require the verified Pantry Git provider on Windows ([d711fb5](https://github.com/craft-native/craft/commit/d711fb5)) _(by Chris)_
+- **ci**: bound software emulator contention and separate native test budgets ([cb788b2](https://github.com/craft-native/craft/commit/cb788b2)) _(by Chris Breuer)_
+- **native**: reject controlled text echoes older than accepted edits ([b618bae](https://github.com/craft-native/craft/commit/b618bae)) _(by Chris Breuer)_
+- separate Metal compilation and XCTest deadlines ([6e2a7de](https://github.com/craft-native/craft/commit/6e2a7de)) _(by Chris Breuer)_
+- **ci**: use runner Git for the Windows ABI toolchain ([e14181c](https://github.com/craft-native/craft/commit/e14181c)) _(by Chris Breuer)_
+- **native**: preserve individual segment accessibility ([44ea4aa](https://github.com/craft-native/craft/commit/44ea4aa)) _(by Chris Breuer)_
+- **zig**: export the documented Craft module with native dependencies ([38681f2](https://github.com/craft-native/craft/commit/38681f2)) _(by Chris)_
+- **ci**: match the native cache archive path identity ([413f797](https://github.com/craft-native/craft/commit/413f797)) _(by Chris)_
+- **ios**: own native acceptance command groups ([f56d93f](https://github.com/craft-native/craft/commit/f56d93f)) _(by Chris)_
+- **build**: resolve each iOS archive against its complete SDK ([8437e35](https://github.com/craft-native/craft/commit/8437e35)) _(by Chris)_
+- **sharing**: detect Chrome capture while Meet is selected ([d675077](https://github.com/craft-native/craft/commit/d675077)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- retain the unresolved native cache failure and exact replays ([06e9063](https://github.com/craft-native/craft/commit/06e9063)) _(by Chris)_
+- **graphics**: retain verified UIKit Metal screen evidence ([99d87ff](https://github.com/craft-native/craft/commit/99d87ff)) _(by Chris)_
+- **graphics**: retain native Metal execution evidence ([44fac13](https://github.com/craft-native/craft/commit/44fac13)) _(by Chris)_
+
+## 🧪 Tests
+
+- **release**: isolate rehearsal changelog ranges from the caller ([b32b72e](https://github.com/craft-native/craft/commit/b32b72e)) _(by Chris Breuer)_
+- **graphics**: execute terrain and glyphs through the public module ([a3deabe](https://github.com/craft-native/craft/commit/a3deabe)) _(by Chris)_
+- **native**: retain uncontrolled defaults with edit acknowledgements ([935ad66](https://github.com/craft-native/craft/commit/935ad66)) _(by Chris Breuer)_
+- **native**: cover platform control contracts and document host behavior ([1c68055](https://github.com/craft-native/craft/commit/1c68055)) _(by Chris Breuer)_
+- **graphics**: execute Vulkan SDK ABI checks on each desktop host ([4241d2c](https://github.com/craft-native/craft/commit/4241d2c)) _(by Chris)_
+- **ios**: exercise Metal surfaces through native UIKit hosts ([c140991](https://github.com/craft-native/craft/commit/c140991)) _(by Chris)_
+- **android**: isolate software provisioning CPU diagnostics ([a301dfd](https://github.com/craft-native/craft/commit/a301dfd)) _(by Chris)_
+
+## 🤖 Continuous Integration
+
+- **ios**: require native Metal pixel and screen acceptance ([13b412c](https://github.com/craft-native/craft/commit/13b412c)) _(by Chris)_
+
+## 🧹 Chores
+
+- adopt the verified Bumpx 0.2.26 release ([5678b40](https://github.com/craft-native/craft/commit/5678b40)) _(by Chris)_
+- **ci**: repeat original native installs without timing diagnostics ([d5adb6b](https://github.com/craft-native/craft/commit/d5adb6b)) _(by Chris)_
+- **ci**: replay the complete cached native tool setup ([e9c3e3c](https://github.com/craft-native/craft/commit/e9c3e3c)) _(by Chris)_
+- **ci**: retain exact native cache provisioning diagnostics ([ff543f0](https://github.com/craft-native/craft/commit/ff543f0)) _(by Chris)_
+- release v0.0.297 ([18ddc37](https://github.com/craft-native/craft/commit/18ddc37)) _(by Chris)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/hush-chrome-background-capture ([42b89d4](https://github.com/craft-native/craft/commit/42b89d4)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.296...v0.0.297)
+
+## 🚀 Features
+
+- **graphics**: present bounded frames through native Metal surfaces ([29bff73](https://github.com/craft-native/craft/commit/29bff73)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **ios**: own native acceptance command groups ([f56d93f](https://github.com/craft-native/craft/commit/f56d93f)) _(by Chris)_
+- **build**: resolve each iOS archive against its complete SDK ([8437e35](https://github.com/craft-native/craft/commit/8437e35)) _(by Chris)_
+- **sharing**: detect Chrome capture while Meet is selected ([d675077](https://github.com/craft-native/craft/commit/d675077)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- **graphics**: retain verified UIKit Metal screen evidence ([99d87ff](https://github.com/craft-native/craft/commit/99d87ff)) _(by Chris)_
+- **graphics**: retain native Metal execution evidence ([44fac13](https://github.com/craft-native/craft/commit/44fac13)) _(by Chris)_
+
+## 🧪 Tests
+
+- **ios**: exercise Metal surfaces through native UIKit hosts ([c140991](https://github.com/craft-native/craft/commit/c140991)) _(by Chris)_
+- **android**: isolate software provisioning CPU diagnostics ([a301dfd](https://github.com/craft-native/craft/commit/a301dfd)) _(by Chris)_
+
+## 🤖 Continuous Integration
+
+- **ios**: require native Metal pixel and screen acceptance ([13b412c](https://github.com/craft-native/craft/commit/13b412c)) _(by Chris)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/hush-chrome-background-capture ([42b89d4](https://github.com/craft-native/craft/commit/42b89d4)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.295...v0.0.296)
 
 ## 🚀 Features

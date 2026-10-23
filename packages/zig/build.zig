@@ -28,6 +28,30 @@ pub fn build(b: *std.Build) void {
     // to the Kotlin shim, which is the quietest of the three outcomes.
     const android_ndk = b.option([]const u8, "android-ndk", "Android NDK root, required by build-android");
 
+    // SDK headers are needed only for this independent ABI check. Runtime
+    // Native surface calls can use these private declarations without SDK
+    // headers being installed in the consuming application.
+    const vulkan_abi_step = b.step("test:vulkan-abi", "Check the private Vulkan ABI against Khronos SDK headers");
+    if (b.option([]const u8, "vulkan-headers", "Vulkan-Headers include directory, required by test:vulkan-abi")) |headers| {
+        const abi_tests = b.addTest(.{ .root_module = b.createModule(.{
+            .root_source_file = b.path("test/vulkan_api_abi_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .imports = &.{
+                .{ .name = "vulkan_api", .module = b.createModule(.{ .root_source_file = b.path("src/vulkan_api.zig"), .target = target, .optimize = optimize }) },
+            },
+        }) });
+        abi_tests.root_module.addIncludePath(.{ .cwd_relative = headers });
+        abi_tests.root_module.addCSourceFile(.{ .file = b.path("test/vulkan_api_probe.cpp"), .flags = &.{ "-std=c++17", "-fno-exceptions", "-fno-rtti" } });
+        const run_abi_tests = b.addRunArtifact(abi_tests);
+        vulkan_abi_step.dependOn(&run_abi_tests.step);
+        const compile_abi_step = b.step("check:vulkan-abi", "Compile Vulkan ABI checks for a target without executing it");
+        compile_abi_step.dependOn(&abi_tests.step);
+    } else {
+        vulkan_abi_step.dependOn(&b.addFail("test:vulkan-abi requires -Dvulkan-headers=/absolute/path/to/Vulkan-Headers/include").step);
+    }
+
     // Set when the opt-in JavaScript tests are wired up, so `test` can include
     // them without the declaration being scoped inside the `if`.
     var js_test_run: ?*std.Build.Step.Run = null;
@@ -99,6 +123,27 @@ pub fn build(b: *std.Build) void {
     });
     // Add vendored SQLite include path for any C compilation units.
     craft_module.addIncludePath(b.path("vendor/sqlite"));
+    if (target.result.os.tag == .macos or target.result.os.tag == .ios) {
+        // The public surface declares these dependencies. Consumers of the
+        // Craft module inherit them instead of repairing their linker flags.
+        craft_module.linkFramework("Metal", .{});
+        craft_module.linkFramework("QuartzCore", .{});
+    }
+
+    // The exported module has the consumer's selected target and owns its
+    // native dependencies. Internal fixtures below reuse a target-inheriting
+    // module across distinct artifacts, including cross-platform slices.
+    const public_craft_module = b.addModule("craft", .{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "js_backend", .module = js_backend_module }},
+    });
+    linkPlatformLibraries(b, public_craft_module, target.result.os.tag, macos_sdk);
+    if (target.result.os.tag == .macos or target.result.os.tag == .ios) {
+        public_craft_module.linkFramework("Metal", .{});
+        public_craft_module.linkFramework("QuartzCore", .{});
+    }
 
     // Demo executable - simple hardcoded example
     const exe = b.addExecutable(.{
@@ -396,6 +441,7 @@ pub fn build(b: *std.Build) void {
         // arrives through the reply path, which is precisely the code this gate
         // exists to compile.
         ios_surface_tests.root_module.linkFramework("Carbon", .{});
+        if (target_os == .macos) linkMenuBarVisibility(b, ios_surface_tests.root_module);
         ios_surface_tests.root_module.addCSourceFile(.{
             .file = b.path("vendor/sqlite/sqlite3.c"),
             .flags = &.{ "-DSQLITE_THREADSAFE=1", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_ENABLE_JSON1" },
@@ -441,6 +487,7 @@ pub fn build(b: *std.Build) void {
         // desktop bridge — including the Carbon hotkey machinery. Same linkage
         // macos_hotkey_tests already carries.
         ios_module_tests.root_module.linkFramework("Carbon", .{});
+        if (target_os == .macos) linkMenuBarVisibility(b, ios_module_tests.root_module);
     }
 
     // The iOS conformance gate. It embeds the Swift template as the migration
@@ -1834,6 +1881,7 @@ pub fn build(b: *std.Build) void {
             // came to list Cocoa, WebKit and CoreMIDI by hand and miss the one
             // framework they actually could not link without.
             system_tray_tests.root_module.linkFramework("Carbon", .{});
+            linkMenuBarVisibility(b, system_tray_tests.root_module);
             applySdkPaths(b, system_tray_tests.root_module, macos_sdk);
         },
         .linux => {
@@ -1867,6 +1915,7 @@ pub fn build(b: *std.Build) void {
             // came to list Cocoa, WebKit and CoreMIDI by hand and miss the one
             // framework they actually could not link without.
             system_tray_benchmark.root_module.linkFramework("Carbon", .{});
+            linkMenuBarVisibility(b, system_tray_benchmark.root_module);
             applySdkPaths(b, system_tray_benchmark.root_module, macos_sdk);
         },
         .linux => {
@@ -2036,6 +2085,27 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all unit tests");
+    // A quick host gate for artifacts that link the desktop reply path by hand.
+    // The complete test step below also runs all four.
+    const menubar_native_step = b.step("test-menubar-native", "Verify native menu bar linkage and host bridge consumers");
+    if (target_os == .macos) {
+        menubar_native_step.dependOn(&run_ios_surface_tests.step);
+        menubar_native_step.dependOn(&run_ios_module_tests.step);
+        menubar_native_step.dependOn(&run_system_tray_tests.step);
+        menubar_native_step.dependOn(&run_system_tray_benchmark.step);
+    }
+    const metal_surface_step = b.step("test-metal-surface", "Verify bounded native Metal presentation and drawable pixels");
+    const metal_layout_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/metal_surface.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    const run_metal_layout = b.addRunArtifact(metal_layout_tests);
+    metal_surface_step.dependOn(&run_metal_layout.step);
+    test_step.dependOn(&run_metal_layout.step);
     test_step.dependOn(&run_host_fixture.step);
     const screen_sharing_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -2078,6 +2148,23 @@ pub fn build(b: *std.Build) void {
         const run_objc_returns = b.addRunArtifact(objc_return_tests);
         b.step("test-objc-runtime", "Test native Objective-C structure returns").dependOn(&run_objc_returns.step);
         test_step.dependOn(&run_objc_returns.step);
+        if (target.result.os.tag == .macos) {
+            const metal_surface_fixture = b.addExecutable(.{
+                .name = "craft-metal-surface-test",
+                .root_module = b.createModule(.{
+                    .root_source_file = b.path("test/metal_surface_test.zig"),
+                    .target = target,
+                    .optimize = optimize,
+                    .link_libc = true,
+                    .imports = &.{.{ .name = "craft", .module = craft_module }},
+                }),
+            });
+            metal_surface_fixture.root_module.linkFramework("Cocoa", .{});
+            applySdkPaths(b, metal_surface_fixture.root_module, macos_sdk);
+            const run_metal_surface = b.addRunArtifact(metal_surface_fixture);
+            metal_surface_step.dependOn(&run_metal_surface.step);
+            test_step.dependOn(&run_metal_surface.step);
+        }
     }
     test_step.dependOn(&run_ios_conformance_tests.step);
     test_step.dependOn(&run_jni_tests.step);
@@ -2463,7 +2550,7 @@ pub fn build(b: *std.Build) void {
             .flags = &.{ "-DSQLITE_THREADSAFE=1", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_ENABLE_JSON1" },
         });
         ios_device_lib.root_module.addIncludePath(b.path("vendor/sqlite"));
-        ios_device_lib.root_module.addSystemIncludePath(.{ .cwd_relative = b.fmt("{s}/usr/include", .{sdk_path}) });
+        applySdkPaths(b, ios_device_lib.root_module, sdk_path);
     } else {
         // No xcrun: the archive ships without sqlite and the db actions
         // resolve as undefined symbols at app link — loud, not silent.
@@ -2507,7 +2594,7 @@ pub fn build(b: *std.Build) void {
             .flags = &.{ "-DSQLITE_THREADSAFE=1", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_ENABLE_JSON1" },
         });
         ios_sim_arm64_lib.root_module.addIncludePath(b.path("vendor/sqlite"));
-        ios_sim_arm64_lib.root_module.addSystemIncludePath(.{ .cwd_relative = b.fmt("{s}/usr/include", .{sdk_path}) });
+        applySdkPaths(b, ios_sim_arm64_lib.root_module, sdk_path);
     } else {
         // No xcrun: the archive ships without sqlite and the db actions
         // resolve as undefined symbols at app link — loud, not silent.
@@ -2550,7 +2637,7 @@ pub fn build(b: *std.Build) void {
             .flags = &.{ "-DSQLITE_THREADSAFE=1", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_ENABLE_JSON1" },
         });
         ios_sim_x64_lib.root_module.addIncludePath(b.path("vendor/sqlite"));
-        ios_sim_x64_lib.root_module.addSystemIncludePath(.{ .cwd_relative = b.fmt("{s}/usr/include", .{sdk_path}) });
+        applySdkPaths(b, ios_sim_x64_lib.root_module, sdk_path);
     } else {
         // No xcrun: the archive ships without sqlite and the db actions
         // resolve as undefined symbols at app link — loud, not silent.
@@ -3078,6 +3165,17 @@ fn iosSdkPath(b: *std.Build, sdk_name: []const u8) ?[]const u8 {
     return trimmed;
 }
 
+/// Shared by the CLI and by host test artifacts that reach the tray indirectly.
+fn linkMenuBarVisibility(b: *std.Build, module: *std.Build.Module) void {
+    module.linkFramework("ApplicationServices", .{});
+    // Objective-C owns blocks and exception boundaries. The private framework
+    // itself is resolved at runtime and is never a linked dependency.
+    module.addCSourceFile(.{
+        .file = b.path("src/menubar_visibility.m"),
+        .flags = &.{ "-fobjc-arc", "-fblocks" },
+    });
+}
+
 fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: std.Target.Os.Tag, sdk_path: ?[]const u8) void {
     switch (target_os) {
         .macos => {
@@ -3101,7 +3199,7 @@ fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: st
             // is why the hand-linked executables below resolve it too; named
             // here so nothing depends on that chain.
             module.linkFramework("CoreServices", .{});
-            module.linkFramework("ApplicationServices", .{});
+            linkMenuBarVisibility(b, module);
             // Carbon for `macos_hotkey.zig`: `RegisterEventHotKey` is the only
             // route to a global hotkey that neither needs an Objective-C block
             // (which Zig cannot write) nor Accessibility permission (which a

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-22T18:02:20.653095+00:00",
+  "baseCommit": "44fac13d2ff6474390e36cba99a00eaf0aebe9ec",
+  "changedSource": "packages/zig/build.zig",
+  "changedSourceSha256": "ecce34d302373a01da405f5d7659a678f6a7562ba0a7efc7e03c59de35d6edf5",
+  "regression": "The shared Metal and QuartzCore declarations reached iOS static archive targets that supplied only SDK include paths. Framework resolution failed for every slice.",
+  "correction": "Apply the existing SDK path helper to each device and simulator artifact, using its own SDK for framework, library and header paths.",
+  "hostedRed": {
+    "runId": 39822837310,
+    "failedJobs": [
+      119978317601,
+      119978318279
+    ]
+  },
+  "localRed": {
+    "exitCode": 1,
+    "failedSlices": 3
+  },
+  "localGreen": {
+    "exitCode": 0,
+    "stepsSucceeded": 8,
+    "stepsTotal": 8,
+    "optimization": "ReleaseSafe",
+    "compiler": "0.18.0-dev.146+35accc06e",
+    "targets": [
+      "aarch64-ios",
+      "aarch64-ios-simulator",
+      "x86_64-ios-simulator"
+    ]
+  },
+  "archives": [
+    {
+      "name": "libcraft-ios.a",
+      "bytes": 17110664,
+      "sha256": "493764a8e9d5f3c0e1bcc8f312cb26ac4c3d6baeae1728b4031e7e9f8fcedb0c"
+    },
+    {
+      "name": "libcraft-ios-simulator-arm64.a",
+      "bytes": 17110840,
+      "sha256": "34b29ac1306d04785f2e99fce090d456aa0744e4a07a6f409d4d63ff761e74c0"
+    },
+    {
+      "name": "libcraft-ios-simulator-x64.a",
+      "bytes": 17717304,
+      "sha256": "0ddb938bddbe21eba0e051ba1ef17202f2e00c1b2a234de2ceaaa23bec49bd6e"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "mutator-stop-fix/metal-ios-sdk-path-red.log",
+      "bytes": 4710,
+      "sha256": "879f3981d567e984fb247303c6d7ac9f5d7b3883cee7f02e686683448c6d05f3"
+    },
+    {
+      "path": "mutator-stop-fix/metal-ios-sdk-path-green.log",
+      "bytes": 504,
+      "sha256": "5511ae4a3f98a6eab6ff674072a4ee65ee385eacf8c52aadb47b924d4fefdac8"
+    },
+    {
+      "path": "mutator-stop-fix/metal-source-mobile-ios-simulator.log",
+      "bytes": 41686,
+      "sha256": "7f4f577231227f99c8c98731283ebbf3d6dbc652a39e3b6bd985e44cbbb0529b"
+    },
+    {
+      "path": "mutator-stop-fix/metal-source-mobile-ios-zig-slice.log",
+      "bytes": 32318,
+      "sha256": "6604de9e7de3e8639b5a67c2eae759169410f0f2a6d7f70296e1c0ded1358b08"
+    }
+  ],
+  "limits": [
+    "Compilation and archive identity do not establish iOS runtime execution or game presentation.",
+    "Hosted acceptance must execute the corrected source; rerunning the old failing commit cannot qualify this correction."
+  ]
+}

@@ -23,6 +23,30 @@ const artifactDownload = 'actions/download-artifact@d3f86a106a0bac45b974a628896c
 const needs = (job: Job) => typeof job.needs === 'string' ? [job.needs] : job.needs ?? []
 const steps = (job: Job) => job.steps?.map(step => step.run ?? '').join('\n') ?? ''
 
+test('the Vulkan ABI matrix requires managed Git on every platform and still runs the exact compiler probe', () => {
+  const ci = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/ci.yml'), 'utf8')) as any
+  const job = ci.jobs['vulkan-abi']
+  const platforms = job.strategy.matrix.include as Array<{ os: string, tools: string }>
+  expect(platforms.map(platform => platform.os)).toEqual(['ubuntu-latest', 'macos-latest', 'windows-latest'])
+  for (const platform of platforms) {
+    expect(platform.tools).toContain('bun.com@1.4.2')
+    expect(platform.tools).toContain('ziglang.org@0.18.0-dev.146+35accc06e')
+    expect(platform.tools).toContain('git-scm.org@2.53.0')
+  }
+  expect(job.steps.find((step: any) => step.name === 'Install the pinned ABI toolchain').with.packages).toBe('${{ matrix.tools }}')
+  expect(steps(job)).toContain('zig build test:vulkan-abi')
+  expect(steps(job)).toContain('bun scripts/managed-git.ts --verify')
+  expect(job.steps.find((step: any) => step.name === 'First-party Zig dependencies').with['git-executable']).toBe('${{ steps.managed-git.outputs.executable }}')
+  const dependencies = readFileSync(join(import.meta.dir, '../.github/actions/first-party-zig-deps/action.yml'), 'utf8')
+  expect(dependencies).toContain('"$CRAFT_DEPENDENCY_GIT" -C')
+  expect(dependencies).not.toContain('git -C')
+  const checkout = job.steps.find((step: any) => step.name === 'Check out the exact Khronos SDK headers').run
+  expect(checkout).toContain('bun scripts/managed-git.ts -C .zig-cache/vulkan-headers fetch --depth 1 origin 6802bb4733b63ed5efd3adb308a6c885ef180ea1')
+  expect(checkout).toContain('bun scripts/managed-git.ts -C .zig-cache/vulkan-headers checkout --detach FETCH_HEAD')
+  expect(checkout).toContain('rev-parse HEAD')
+  expect(job.steps.find((step: any) => step.name === 'Execute the independent SDK ABI probe and C callback').if).toBeUndefined()
+})
+
 test('macOS signing reads credentials from the declared Stacks CLI, not the shared buddy binary', () => {
   const loader = release.jobs.pantry.steps?.find(step => step.name === 'Load macOS release credentials')?.run
   expect(loader).toBeTruthy()
@@ -96,6 +120,15 @@ test.each(['ci.yml', 'mobile-e2e.yml'])('%s lets Main acceptance finish while su
   // Keep one active run and GitHub's single pending slot, without adding runners.
   expect(policy.group).toContain('github.ref')
   expect(policy.queue ?? 'single').toBe('single')
+})
+
+test('cold-provisioning measurements cannot replace pending release acceptance', () => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/ci.yml'), 'utf8')) as { concurrency: { group: string } }
+  const group = (diagnostic: boolean) => workflow.concurrency.group.replace(/\$\{\{.*?\}\}/g, expression => String(runInNewContext(expression.slice(3, -2), {
+    inputs: { software_cold_provisioning_diagnostic: diagnostic },
+    github: { workflow: 'CI', head_ref: '', ref: 'refs/heads/main' },
+  })))
+  expect(group(true)).not.toBe(group(false))
 })
 
 test('mobile device jobs use the same released stx compiler version', () => {
@@ -205,24 +238,29 @@ test('mobile device jobs preserve runner diagnostics when the harness fails', ()
 })
 
 test('workflow setup uses a known Pantry CLI instead of resolving latest', () => {
-  for (const file of ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml', 'native-lifecycle.yml', 'windows-source-provenance.yml']) {
+  for (const file of ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml', 'native-lifecycle.yml', 'windows-source-provenance.yml', 'windows-managed-git.yml']) {
     const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/', file), 'utf8')) as { jobs: Record<string, Job> }
     for (const [name, job] of Object.entries(workflow.jobs)) {
       for (const step of job.steps ?? []) {
         if (step.uses?.startsWith('pantry-pm/pantry/packages/action@')) {
           // Keep each workflow on the released Pantry version it declares.
-          // Windows uses the newer workspace-link fix; the native acceptance
-          // workflows intentionally stay on their current toolchain pin.
-          const version = file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
-            ? '0.11.109'
-            : ['mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml'].includes(file)
-              ? '0.11.106'
-              : '0.11.101'
-          const source = version === '0.11.109'
-            ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9'
-            : version === '0.11.106'
-              ? 'e62755c21d946ed0f8dc8e4af39f6ea5f084537a'
-              : 'ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf'
+          // Source, release and their required mobile acceptance all use the
+          // qualified provider. An older fixture pin hit PathAlreadyExists
+          // while reconciling a restored Git cache and blocked v0.0.302.
+          const version = ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'windows-managed-git.yml'].includes(file)
+            ? '0.11.119'
+            : file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
+              ? '0.11.109'
+              : ['benchmarks.yml', 'binary-size.yml'].includes(file)
+                ? '0.11.106'
+                : '0.11.101'
+          const source = version === '0.11.119'
+            ? '6fbf7259c2764d18a12d915bf8bc68c500cb4931'
+            : version === '0.11.109'
+              ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9'
+              : version === '0.11.106'
+                ? 'e62755c21d946ed0f8dc8e4af39f6ea5f084537a'
+                : 'ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf'
           expect(step.with?.version, `${file} ${name} must pin Pantry CLI`).toBe(version)
           expect(step.uses, `${file} ${name} must pin the matching action source`).toBe(`pantry-pm/pantry/packages/action@${source}`)
         }
@@ -443,7 +481,7 @@ test('a failed native leg cannot publish a partial GitHub, Zig, or npm release',
   expect(release.jobs.npm.if).toContain("needs.prepare-npm.result == 'success'")
   expect(release.jobs.npm.if).toContain("needs.publish-release.result == 'success'")
   const zigPublish = registry.steps!.find(step => step.name === 'Publish Zig package')
-  expect(zigPublish?.with).toMatchObject({ version: '0.11.101', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
+  expect(zigPublish?.with).toMatchObject({ version: '0.11.119', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
   expect(zigPublish?.with?.release).toBeUndefined()
   expect(Object.entries(release.jobs).flatMap(([name, job]) =>
     (job.steps ?? []).filter(step => step.with?.publish === 'zig').map(() => name))).toEqual(['publish-pantry'])

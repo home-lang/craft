@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "featureSource": "6b81d28be20cd124d1b09a5b4d8d69a28940a1d0",
+  "attemptedRelease": "v0.0.302",
+  "releaseSource": "d1488a06b49b842fc55a217938babb66913c24cc",
+  "gateFailure": {
+    "workflowRun": "https://github.com/craft-native/craft/actions/runs/39907935483",
+    "job": "iOS native Metal surface",
+    "jobId": 120264517675,
+    "stage": "Install the pinned native fixture toolchain",
+    "provider": "Pantry 0.11.113",
+    "error": "git-scm.org@2.53.0 (PathAlreadyExists)",
+    "nativeFixtureExecuted": false
+  },
+  "correction": {
+    "provider": "Pantry 0.11.119",
+    "actionSource": "6fbf7259c2764d18a12d915bf8bc68c500cb4931",
+    "qualification": "docs/receipts/pantry-0.11.119.json",
+    "scope": "All Pantry steps in required mobile acceptance, matching source and release provisioning",
+    "releaseGateBypassed": false,
+    "existingReleaseTagRetargeted": false
+  }
+}

@@ -356,7 +356,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('sliderFinished')
     expect(nativeSwift).toContain('toggle.onTintColor')
     expect(nativeSwift).toContain('toggle.thumbTintColor')
-    expect(nativeSwift).toContain('toggle.onTintColor = nil')
+    expect(nativeSwift).toContain('toggle.onTintColor = color(style["color"])')
     expect(nativeSwift).toContain('imageLoadStartHandlers')
     expect(nativeSwift).toContain('imageLoadEndHandlers')
     expect(nativeSwift).toContain('imageFailure')
@@ -447,7 +447,7 @@ describe('Craft iOS builder', () => {
     expect(actionsSwift).toContain('ASAuthorizationPlatformPublicKeyCredentialProvider')
     expect(actionsSwift).toContain('import Security')
     // fetch: a URLSession task per request token, cancelled with the request.
-    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation"]')
+    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation", "nativePlatformControls"]')
     expect(actionsSwift).toContain('case ("Network", "fetch"):')
     expect(actionsSwift).toContain('let craftNativeFetchTimeoutSeconds: TimeInterval = 30')
     expect(actionsSwift).toContain('fetchTasks[requestToken] = task')
@@ -1611,16 +1611,6 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('is not available on a native screen')
   })
 
-  it('exposes the native shortcut module as an explicit unsupported result', async () => {
-    const output = createTempDir('craft-ios-native-shortcuts-')
-    await init({ runtimeDir: null, name: 'NativeShortcuts', bundleId: 'org.example.nativeshortcuts', output, config: { renderer: 'native' } as any })
-    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
-    expect(screen).toContain("keep('shortcuts', {")
-    expect(screen).toContain('set: function() { return Promise.resolve(false); }')
-    expect(screen).toContain('clear: function() { return Promise.resolve(false); }')
-    expect(screen).toContain('onShortcut: function() { return function() {}; }')
-  })
-
   it('keeps generated iOS media limits strict and finite', async () => {
     const output = createTempDir('craft-ios-native-media-numbers-')
     await init({ runtimeDir: null, name: 'NativeMediaNumbers', bundleId: 'org.example.nativemedianumbers', output })
@@ -1761,11 +1751,11 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('field.borderStyle = style["borderWidth"] != nil || style["backgroundColor"] != nil ? .none : .roundedRect')
   })
 
-  it('keeps labelled scroll views, pickers, modals, drawers and groups as containers', () => {
+  it('keeps a labelled scroll view, picker or group a container, so VoiceOver reads what it holds', () => {
     // A tour pager labelled for VoiceOver became one element and hid its pages.
     const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
     const a11y = swift.slice(swift.indexOf('private func applyAccessibility(_ props: [String: Any], type: String, to view: UIView)'))
-    expect(a11y).toContain('let container = ["ScrollView", "FlatList", "SectionList", "Picker", "Modal", "Drawer"].contains(type)')
+    expect(a11y).toContain('let container = ["ScrollView", "FlatList", "SectionList", "Picker", "SegmentedControl", "Modal", "Drawer"].contains(type)')
     expect(a11y).toContain('view.isAccessibilityElement = !container && role != "none"')
     expect(a11y).toContain('view.accessibilityContainerType = container && (view.accessibilityLabel != nil || controlledVideo) ? .semanticGroup : .none')
     expect(a11y).toContain('case "tablist": traits.insert(.tabBar)')
@@ -1968,7 +1958,7 @@ describe('Craft iOS builder', () => {
     const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
 
-    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation"]')
+    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation", "nativePlatformControls"]')
     expect(actions).toContain('if config.enablePushNotifications { values.append("push") }')
     expect(actions).toContain('if config.enableShare { values.append("share") }')
     for (const call of ['case ("Speech", "speak"):', 'case ("Push", _):', 'case ("Linking", "openURL"), ("Linking", "canOpenURL"):', 'case ("Share", "share"):'])
@@ -2542,7 +2532,7 @@ describe('Craft iOS builder', () => {
     await init({ name: 'NativeBadge', bundleId: 'org.example.nativebadge', output, config: { renderer: 'native' } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const badge = actions.slice(actions.indexOf('private static func setBadgeCount('))
-    expect(actions).toContain('"linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation"]')
+    expect(actions).toContain('"linking", "badge", "animation", "viewFocus", "viewMeasure", "viewReparent", "viewNonModalPresentation", "nativePlatformControls"]')
     expect(actions).toContain('case ("Badge", "set"):')
     expect(actions).toContain('case ("Badge", "clear"):')
     expect(badge).toContain('UNUserNotificationCenter.current().setBadgeCount(count)')

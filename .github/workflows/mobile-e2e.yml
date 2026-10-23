@@ -42,6 +42,8 @@ on:
       - packages/zig/src/platform_uuid.zig
       # Shared layout is compiled into both mobile runtimes.
       - packages/zig/src/native_layout.zig
+      - packages/zig/src/metal_surface.zig
+      - packages/zig/src/objc_runtime.zig
       - packages/zig/build.zig
       - scripts/mobile-e2e.ts
       - scripts/mobile-e2e/**
@@ -62,6 +64,8 @@ on:
       - packages/zig/src/jni*.zig
       - packages/zig/src/platform_uuid.zig
       - packages/zig/src/native_layout.zig
+      - packages/zig/src/metal_surface.zig
+      - packages/zig/src/objc_runtime.zig
       - packages/zig/build.zig
       - scripts/mobile-e2e.ts
       - scripts/mobile-e2e/**
@@ -124,9 +128,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@e62755c21d946ed0f8dc8e4af39f6ea5f084537a # v0.11.106
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.106'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -260,6 +264,38 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  ios-metal:
+    name: iOS native Metal surface
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'android' }}
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install the pinned native fixture toolchain
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
+        with:
+          version: '0.11.119'
+          install: 'false'
+          packages: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e github.com/yonaskolb/XcodeGen@2.46.0
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify actual UIKit Metal pixels and displayed frames
+        run: >-
+          bun packages/ios/scripts/test-metal-surface.ts
+          --runtime com.apple.CoreSimulator.SimRuntime.iOS-26-2
+          --xcodegen "$PWD/pantry/.bin/xcodegen"
+          --output artifacts/mobile-e2e/ios-metal
+      - name: Retain native Metal execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-native-metal-surface
+          path: artifacts/mobile-e2e/ios-metal
+          if-no-files-found: error
+          retention-days: 30
+
   ios-hybrid:
     name: iOS hybrid navigation
     if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' }}
@@ -314,9 +350,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@e62755c21d946ed0f8dc8e4af39f6ea5f084537a # v0.11.106
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.106'
+          version: '0.11.119'
 
       - name: Setup Bun for the frozen stx compiler lockfile
         uses: oven-sh/setup-bun@v2
@@ -419,9 +455,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@e62755c21d946ed0f8dc8e4af39f6ea5f084537a # v0.11.106
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.106'
+          version: '0.11.119'
 
       - name: Setup Bun for the frozen stx compiler lockfile
         uses: oven-sh/setup-bun@v2
@@ -589,9 +625,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@e62755c21d946ed0f8dc8e4af39f6ea5f084537a # v0.11.106
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.106'
+          version: '0.11.119'
 
       - name: Cache Zig artifacts
         uses: actions/cache@v5
@@ -732,7 +768,7 @@ jobs:
 
   mobile-summary:
     name: Mobile E2E summary
-    needs: [harness, ios-native, ios-hybrid, ios-simulator, android-emulator, ios-zig-slice, android-navigation, media-cache]
+    needs: [harness, ios-native, ios-metal, ios-hybrid, ios-simulator, android-emulator, ios-zig-slice, android-navigation, media-cache]
     runs-on: ubuntu-latest
     if: always()
 
@@ -750,6 +786,7 @@ jobs:
             echo "| Android native navigation | ${{ needs.android-navigation.result }} |"
             echo "| Harness unit tests | ${{ needs.harness.result }} |"
             echo "| iOS native UIKit and navigation | ${{ needs.ios-native.result }} |"
+            echo "| iOS native Metal surface | ${{ needs.ios-metal.result }} |"
             echo "| iOS hybrid navigation | ${{ needs.ios-hybrid.result }} |"
             echo "| iOS simulator (generated app) | ${{ needs.ios-simulator.result }} |"
             echo "| Android emulator (generated app) | ${{ needs.android-emulator.result }} |"

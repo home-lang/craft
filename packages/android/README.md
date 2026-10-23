@@ -158,7 +158,7 @@ craft android build --native-bundle ../native-screen.js
 
 Native mode maps STX `View`, `SafeAreaView`, `KeyboardAvoidingView`, `StatusBar`,
 `RefreshControl`, `Text`, `Button`, `Link`, `Icon`,
-`Pressable`, `TouchableOpacity`, `TouchableHighlight`, `Checkbox`, `TextInput`, `Picker`, `DatePicker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `ImageBackground`, `Video`, `Svg`, `G`, `SvgText`, `ScrollView`,
+`Pressable`, `TouchableOpacity`, `TouchableHighlight`, `Checkbox`, `TextInput`, `Picker`, `SegmentedControl`, `DatePicker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `ImageBackground`, `Video`, `Svg`, `G`, `SvgText`, `ScrollView`,
 `Map`, `SectionList`, and `FlatList` to Android views. `Map` uses the configured
 native map provider for trail polylines and marker taps; its overlays carry flat
 latitude/longitude `geometry` arrays, `strokeWidth` is expressed in logical
@@ -1097,3 +1097,22 @@ nativeFonts: {
 
 The iOS project registers the files through `UIAppFonts`. Android loads bundled
 typefaces from assets. Both work offline; a missing file fails the build.
+
+### Platform selection, clear fields and sheets
+
+`SegmentedControl` takes `items: [{value, label, disabled?}]` and a controlled
+`value`, and emits `onValueChange` with `{value, index}`. iOS uses UIKit's
+`UISegmentedControl`; Android uses a horizontal native `RadioGroup` with
+selected segments. Reconciliation does not emit a user selection.
+
+`TextInput.clearButtonMode` is `never`, `while-editing`, `unless-editing` or
+`always`. The native clear affordance emits a single text edit carrying
+`{text: '', clear: true}`; Android also exposes a TalkBack clear action.
+
+`Modal` accepts `presentationStyle: 'pageSheet' | 'formSheet'` with
+`sheetDetents: ['medium', 'large']`, `selectedDetent` and `grabberVisible`.
+iOS presents a real `UISheetPresentationController`, including system pan
+and detents; Android sizes its native bottom panel to the selected detent
+without an extra dependency. Omitting presentationStyle keeps the existing
+full-screen overlay. A native sheet's close request still belongs to its
+owner, which sets visible to false.

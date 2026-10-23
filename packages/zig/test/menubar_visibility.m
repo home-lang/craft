@@ -1,0 +1,115 @@
+// Exercises the production native lifecycle with controlled asynchronous replies.
+// No Accessibility grant or live menu-bar restriction is used by this fixture.
+#import <ApplicationServices/ApplicationServices.h>
+static Boolean trusted = true;
+static Boolean testTrusted(void) { return trusted; }
+#define AXIsProcessTrusted testTrusted
+#import "../src/menubar_visibility.m"
+#include <assert.h>
+
+@interface TestConfiguration : NSObject <CraftVisibilityConfiguration>
+@end
+@implementation TestConfiguration
+- (id)initWithAllowedSystemItems:(NSArray *)systemItems allowedBundleIdentifiers:(NSArray *)bundles {
+    assert([systemItems isKindOfClass:NSArray.class]);
+    assert([bundles isKindOfClass:NSArray.class]);
+    return [super init];
+}
+@end
+
+static BOOL throwOnActivation;
+static NSMutableArray *created;
+@interface TestAssertion : NSObject <CraftVisibilityAssertion>
+@property (copy) void (^completion)(NSError *);
+@property BOOL invalidated;
+@end
+@implementation TestAssertion
+- (void)activateWithConfiguration:(id)configuration completionHandler:(void (^)(NSError *))completion {
+    (void)configuration;
+    [created addObject:self];
+    self.completion = completion;
+    if (throwOnActivation) [NSException raise:@"TestException" format:@"Activation failed"];
+}
+- (void)invalidate { self.invalidated = YES; }
+@end
+
+static TestAssertion *begin(void) {
+    busy = YES;
+    activate(@[@0, @1], @[@"own.app"], 2, ++generation);
+    return created.lastObject;
+}
+static void drain(void) {
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.05, false);
+}
+static NSDictionary *state(void) {
+    const char *json = craft_menubar_visibility_state();
+    return [NSJSONSerialization JSONObjectWithData:[[NSString stringWithUTF8String:json] dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
+}
+int main(void) {
+    @autoreleasepool {
+        (void)available(); // Resolve once before substituting the test classes.
+        configurationClass = TestConfiguration.class;
+        assertionClass = TestAssertion.class;
+        created = [NSMutableArray array];
+        NSMutableDictionary *sections = [NSMutableDictionary dictionary];
+        CGRect left = CGRectMake(20, 0, 20, 24), right = CGRectMake(200, 0, 20, 24);
+        recordItem(sections, @"left", left, 100, NO);
+        recordItem(sections, @"right", right, 100, NO);
+        recordItem(sections, @"both", left, 100, NO);
+        recordItem(sections, @"both", right, 100, NO);
+        recordItem(sections, @"both", left, 100, NO);
+        recordItem(sections, @"unknown", left, 100, NO);
+        recordItem(sections, @"unknown", CGRectNull, 100, NO);
+        recordItem(sections, @"rtl-left", left, 100, YES);
+        recordItem(sections, @"rtl-right", right, 100, YES);
+        assert(![sections[@"left"] boolValue] && [sections[@"right"] boolValue]);
+        assert([sections[@"both"] boolValue] && [sections[@"unknown"] boolValue]);
+        assert([sections[@"rtl-left"] boolValue] && ![sections[@"rtl-right"] boolValue]);
+        sections[@"own.app"] = @NO;
+        sections[@"native.helper"] = @NO;
+        sections[@"com.apple.controlcenter"] = @NO;
+        NSUInteger hidden = 0;
+        NSArray *allowed = allowedBundles(@[@"left", @"left", @"right", @"both", @"new", @"unknown", @"own.app", @"native.helper", @"com.apple.controlcenter"], sections, @[@"own.app", @"native.helper"], &hidden);
+        assert(hidden == 1 && ![allowed containsObject:@"left"]);
+        for (NSString *bundle in @[@"right", @"both", @"new", @"unknown", @"own.app", @"native.helper", @"com.apple.controlcenter"]) assert([allowed containsObject:bundle]);
+
+        TestAssertion *first = begin();
+        assert(busy && !assertion);
+        first.completion(nil); drain();
+        assert(assertion == first && !busy && hiddenAppCount == 2);
+        assert(CFGetTypeID((__bridge CFTypeRef)state()[@"collapsed"]) == CFBooleanGetTypeID());
+        craft_menubar_visibility_expand();
+        assert(first.invalidated && !assertion && !busy && hiddenAppCount == 0);
+
+        TestAssertion *stale = begin();
+        craft_menubar_visibility_expand();
+        TestAssertion *current = begin();
+        stale.completion(nil); drain();
+        assert(stale.invalidated && !assertion && busy);
+        current.completion(nil); drain();
+        assert(assertion == current && !current.invalidated);
+        trusted = false;
+        assert([state()[@"error"] isEqual:@"permissionRequired"]);
+        assert(current.invalidated && !assertion && !busy);
+        trusted = true;
+
+        TestAssertion *failed = begin();
+        failed.completion([NSError errorWithDomain:@"test" code:1 userInfo:nil]); drain();
+        assert(failed.invalidated && !assertion && !busy && [failure isEqual:@"activationFailed"]);
+        TestAssertion *timed = begin();
+        activationDeadline(generation);
+        assert(timed.invalidated && !busy && [failure isEqual:@"activationTimeout"]);
+        timed.completion(nil); drain();
+        assert(!assertion);
+
+        throwOnActivation = YES;
+        TestAssertion *exception = begin();
+        assert(exception.invalidated && !assertion && !busy && [failure isEqual:@"activationFailed"]);
+        throwOnActivation = NO;
+        TestAssertion *quitting = begin();
+        craft_menubar_visibility_cleanup();
+        quitting.completion(nil); drain();
+        assert(quitting.invalidated && !assertion && !pendingAssertion && !busy && !marker);
+        puts("native visibility: grouping, protected owners, JSON booleans, cancellation, permission revocation, errors, timeout and quit passed");
+    }
+}

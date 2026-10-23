@@ -67,11 +67,18 @@ pub fn visit(context: anytype, comptime onWindow: anytype) !void {
             _ = AXUIElementSetMessagingTimeout(window, 0.05);
             if (provider == .dia) {
                 var reader = NativeBannerReader{ .deadline = deadline };
-                if (reader.containsBanner(window, 0)) {
+                if (reader.containsBanner(window, 0, .dia)) {
                     try onWindow(context, "Dia", "Browser tab sharing");
                     break;
                 }
                 continue;
+            }
+            if (provider == .chrome) {
+                var reader = NativeBannerReader{ .deadline = deadline };
+                if (reader.containsBanner(window, 0, .chrome)) {
+                    try onWindow(context, "Google Chrome", "Browser tab sharing");
+                    break;
+                }
             }
             if (provider == .discord or provider == .slack) {
                 var reader = NativeBannerReader{ .deadline = deadline, .remaining = 512 };
@@ -112,6 +119,15 @@ const Banner = struct {
     fn active(self: Banner) bool {
         return (self.sharing and self.stop) or (self.other_tab and self.switch_tab);
     }
+
+    fn observeChrome(self: *Banner, role: []const u8, label: []const u8) void {
+        // Chrome exposes this browser-owned infobar as a labelled group.
+        // Its wording changes when the captured tab is in the background.
+        if (std.mem.eql(u8, role, "AXGroup") and
+            ((std.mem.startsWith(u8, label, "Sharing this tab to ") and label.len > "Sharing this tab to ".len) or
+                (std.mem.startsWith(u8, label, "Sharing ") and std.mem.endsWith(u8, label, " to this tab") and label.len > "Sharing  to this tab".len))) self.sharing = true;
+        if (std.mem.eql(u8, role, "AXButton") and std.mem.eql(u8, label, "Stop sharing")) self.stop = true;
+    }
 };
 
 /// Slack's compact huddle moves capture controls into a separate app-owned
@@ -134,8 +150,10 @@ const NativeBannerReader = struct {
     deadline: i96,
     remaining: usize = 256,
 
-    fn containsBanner(self: *NativeBannerReader, element: ?*anyopaque, depth: usize) bool {
-        if (depth > 6 or self.remaining == 0 or self.expired()) return false;
+    fn containsBanner(self: *NativeBannerReader, element: ?*anyopaque, depth: usize, provider: Provider) bool {
+        // Chrome adds native window/content wrappers above its infobars.
+        // Keep the same node and IPC budgets, while allowing those wrappers.
+        if (depth > (if (provider == .chrome) @as(usize, 12) else 6) or self.remaining == 0 or self.expired()) return false;
         self.remaining -= 1;
         _ = AXUIElementSetMessagingTimeout(element, 0.05);
         const role = copyAttribute(element, "AXRole") orelse return false;
@@ -155,18 +173,20 @@ const NativeBannerReader = struct {
             defer CFRelease(child_role);
             const role_text = string(child_role) orelse continue;
             // Do not read labels from web content, including its root.
-            if (!std.mem.eql(u8, role_text, "AXStaticText") and !std.mem.eql(u8, role_text, "AXButton")) continue;
+            if (!std.mem.eql(u8, role_text, "AXStaticText") and !std.mem.eql(u8, role_text, "AXButton") and
+                !(provider == .chrome and std.mem.eql(u8, role_text, "AXGroup"))) continue;
             for ([_][:0]const u8{ "AXTitle", "AXDescription", "AXValue" }) |attribute| {
                 if (self.expired()) return false;
                 const label = copyAttribute(child, attribute) orelse continue;
                 defer CFRelease(label);
-                banner.observe(role_text, string(label) orelse continue);
+                const label_text = string(label) orelse continue;
+                if (provider == .chrome) banner.observeChrome(role_text, label_text) else banner.observe(role_text, label_text);
             }
             if (banner.active()) return true;
         }
         index = 0;
         while (index < length and !self.expired()) : (index += 1) {
-            if (self.containsBanner(CFArrayGetValueAtIndex(children, index), depth + 1)) return true;
+            if (self.containsBanner(CFArrayGetValueAtIndex(children, index), depth + 1, provider)) return true;
         }
         return false;
     }
@@ -347,6 +367,30 @@ test "Dia keeps detecting capture when another tab is selected" {
     mixed.observe("AXStaticText", "Sharing this tab");
     mixed.observe("AXButton", "Share This Tab");
     try std.testing.expect(!mixed.active());
+}
+
+test "Chrome sharing banner survives selection of the receiving Meet tab" {
+    var background = Banner{};
+    background.observeChrome("AXGroup", "Sharing 127.0.0.1:60577 to this tab");
+    try std.testing.expect(!background.active());
+    background.observeChrome("AXButton", "Stop sharing");
+    try std.testing.expect(background.active());
+
+    var foreground = Banner{};
+    foreground.observeChrome("AXGroup", "Sharing this tab to http://127.0.0.1:60577");
+    foreground.observeChrome("AXButton", "Stop sharing");
+    try std.testing.expect(foreground.active());
+
+    var page = Banner{};
+    page.observeChrome("AXStaticText", "Sharing 127.0.0.1:60577 to this tab");
+    page.observeChrome("AXButton", "Stop sharing");
+    try std.testing.expect(!page.active());
+    try std.testing.expect(!nativeContainer("AXWebArea"));
+
+    var idle = Banner{};
+    idle.observeChrome("AXGroup", "Sharing  to this tab");
+    idle.observeChrome("AXButton", "Stop sharing");
+    try std.testing.expect(!idle.active());
 }
 
 test "only trusted app identities can expose conferencing renderer controls" {

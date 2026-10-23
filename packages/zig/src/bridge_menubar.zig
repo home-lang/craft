@@ -18,7 +18,9 @@ pub const MenubarCollapseBridge = struct {
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
         if (std.mem.eql(u8, action, "init")) {
-            menubar_collapse.init();
+            if (std.mem.eql(u8, data, "nativeVisibility")) menubar_collapse.initNativeVisibility() else menubar_collapse.init();
+        } else if (std.mem.eql(u8, action, "destroy")) {
+            menubar_collapse.destroy();
         } else if (std.mem.eql(u8, action, "collapse")) {
             menubar_collapse.collapse();
         } else if (std.mem.eql(u8, action, "expand")) {
@@ -34,10 +36,14 @@ pub const MenubarCollapseBridge = struct {
             // answered held its resolver for the life of the page. The id makes
             // the key irrelevant, so the bespoke queue is gone and this is an
             // ordinary `_req`.
+            if (menubar_collapse.nativeVisibilityState()) |state| {
+                @import("bridge_error.zig").sendResultToJS(self.allocator, "getState", state);
+                return;
+            }
             var buf: [384]u8 = undefined;
             const json = std.fmt.bufPrint(
                 &buf,
-                "{{\"collapsed\":{s},\"initialized\":{s},\"separatorHidden\":{s}}}",
+                "{{\"backend\":\"legacy\",\"collapsed\":{s},\"initialized\":{s},\"separatorHidden\":{s}}}",
                 .{
                     if (menubar_collapse.isCollapsed()) "true" else "false",
                     if (menubar_collapse.isInitialized()) "true" else "false",
@@ -45,6 +51,8 @@ pub const MenubarCollapseBridge = struct {
                 },
             ) catch return;
             @import("bridge_error.zig").sendResultToJS(self.allocator, "getState", json);
+        } else if (std.mem.eql(u8, action, "requestPermission")) {
+            menubar_collapse.requestPermission();
         } else if (std.mem.eql(u8, action, "setAutoCollapse")) {
             // Parse delay from data (seconds as string)
             if (data.len > 0) {

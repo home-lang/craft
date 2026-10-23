@@ -2707,6 +2707,29 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(forgotFocus)
     }
 
+    func testPlainTextInputKeepsItsPlaceholderWithoutACustomColor() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        func document(_ placeholder: String?, color: String? = nil) -> [String: Any] {
+            var props: [String: Any] = ["key": "email"]
+            props["placeholder"] = placeholder
+            props["placeholderTextColor"] = color
+            return ["type": "TextInput", "props": props, "style": ["height": 48, "width": 300]]
+        }
+        screen.render(document("Email"))
+        let input = try XCTUnwrap(find(UITextField.self, key: "email", below: screen.view))
+        XCTAssertEqual(input.placeholder, "Email", "A normal HTML input has no custom placeholder color")
+        screen.render(document("Updated email", color: "#ff0000"))
+        XCTAssertTrue(input === find(UITextField.self, key: "email", below: screen.view))
+        XCTAssertEqual(input.placeholder, "Updated email")
+        XCTAssertEqual(input.attributedPlaceholder?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor, .red)
+        screen.render(document("Email"))
+        XCTAssertEqual(input.placeholder, "Email", "Removing a custom color restores the system placeholder")
+        XCTAssertNotEqual(input.attributedPlaceholder?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor, .red)
+        screen.render(document(nil))
+        XCTAssertNil(input.placeholder)
+    }
+
     func testTextInputsPadTheirTextAndAskForAutofill() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()
@@ -3662,5 +3685,178 @@ final class NativeRenderUnitTests: XCTestCase {
         let (second, tail) = CraftNativeEventStreams.decodeUTF8(rest + Data(bytes[7...]))
         XCTAssertEqual(first + second, "data: đ✓\n")
         XCTAssertTrue(tail.isEmpty)
+    }
+}
+
+/// Shared stx controls must terminate in UIKit controls, rather than a picture
+/// of one. Kept in the maintained native renderer fixture and exercised on iOS.
+@MainActor
+final class NativePlatformControlTests: XCTestCase {
+    private func find<T: UIView>(_ type: T.Type, below view: UIView) -> T? {
+        if let result = view as? T { return result }
+        return view.subviews.compactMap { find(type, below: $0) }.first
+    }
+
+    func testSegmentsAreUIKitControlsAndReconcileWithoutFalseChanges() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        screen.evaluateScript("globalThis.changes = []; globalThis.__stxNativeCallback = function(json) { const m = JSON.parse(json); if (m.type === 'EVENT') changes.push(m.payload.nativeEvent.value); };")
+        func document(_ value: String, _ items: [[String: Any]]) -> [String: Any] {
+            ["type": "SegmentedControl", "props": ["key": "period", "accessibilityLabel": "Period", "value": value, "items": items], "events": ["onValueChange": "selected"], "style": ["height": 32, "color": "#123456"]]
+        }
+        let items: [[String: Any]] = [["value": "day", "label": "Day"], ["value": "week", "label": "Week", "spoken": "This week, seven days"], ["value": "month", "label": "Month", "disabled": true]]
+        screen.render(document("day", items))
+        let control = try XCTUnwrap(find(UISegmentedControl.self, below: screen.view))
+        XCTAssertEqual(control.numberOfSegments, 3)
+        XCTAssertEqual(control.selectedSegmentIndex, 0)
+        XCTAssertFalse(control.isEnabledForSegment(at: 2))
+        XCTAssertTrue(control.isUserInteractionEnabled)
+        XCTAssertEqual(screen.evaluateScript("changes.length")?.toInt32(), 0)
+        XCTAssertFalse(control.isAccessibilityElement, "A labelled group must not hide its individual segments")
+        let accessible = try XCTUnwrap(control.accessibilityElements as? [UIAccessibilityElement])
+        XCTAssertEqual(accessible[1].accessibilityLabel, "This week, seven days")
+        XCTAssertTrue(accessible[0].accessibilityTraits.contains(.selected))
+        XCTAssertTrue(accessible[2].accessibilityTraits.contains(.notEnabled))
+        XCTAssertFalse(accessible[2].accessibilityActivate())
+        XCTAssertTrue(accessible[1].accessibilityActivate())
+        XCTAssertTrue(accessible[1].accessibilityTraits.contains(.selected))
+        XCTAssertFalse(accessible[0].accessibilityTraits.contains(.selected))
+        XCTAssertEqual(screen.evaluateScript("changes.join('|')")?.toString(), "week")
+        screen.render(document("week", [["value": "week", "label": "This week"], ["value": "all", "label": "All time"]]))
+        XCTAssertTrue(control === find(UISegmentedControl.self, below: screen.view))
+        XCTAssertEqual(control.numberOfSegments, 2)
+        XCTAssertEqual(control.titleForSegment(at: 0), "This week")
+        XCTAssertEqual(control.selectedSegmentIndex, 0)
+        XCTAssertEqual(screen.evaluateScript("changes.length")?.toInt32(), 1)
+        screen.render(document("", [["value": "", "label": "Any day"], ["value": "week", "label": "Week"]]))
+        XCTAssertEqual(control.selectedSegmentIndex, 0, "An empty string is a valid shared option value")
+    }
+
+    func testNativeClearEditsTheFieldExactlyOnce() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        screen.evaluateScript("globalThis.edits = []; globalThis.__stxNativeCallback = function(json) { const m = JSON.parse(json); if (m.type === 'EVENT') edits.push(m.payload.nativeEvent); };")
+        screen.render(["type": "TextInput", "props": ["value": "Training", "clearButtonMode": "while-editing"], "events": ["onChangeText": "edited"]])
+        let input = try XCTUnwrap(find(UITextField.self, below: screen.view))
+        XCTAssertEqual(input.clearButtonMode, .whileEditing)
+        XCTAssertFalse(screen.textFieldShouldClear(input))
+        XCTAssertEqual(input.text, "")
+        XCTAssertEqual(screen.evaluateScript("edits.length")?.toInt32(), 1)
+        XCTAssertEqual(screen.evaluateScript("edits[0].text")?.toString(), "")
+        XCTAssertEqual(screen.evaluateScript("edits[0].clear")?.toBool(), true)
+        screen.render(["type": "TextInput", "props": ["value": ""], "events": ["onChangeText": "edited"]])
+        XCTAssertEqual(input.clearButtonMode, .never, "A retained input forgets a removed affordance")
+    }
+
+    func testPageSheetUsesSystemDetentsAndDismissesWithTheOwner() throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        window.rootViewController = screen
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        func document(_ visible: Bool) -> [String: Any] {
+            ["type": "Modal", "props": ["key": "sheet", "visible": visible, "animationType": "none", "presentationStyle": "pageSheet", "sheetDetents": ["medium", "large"], "selectedDetent": "medium"], "events": ["onRequestClose": "closed"], "children": [["type": "TextInput", "props": ["key": "sheet-field", "value": "Hello"], "style": ["height": 44]]]]
+        }
+        screen.render(document(true))
+        let presented = expectation(description: "UIKit presents the native sheet")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { presented.fulfill() }
+        wait(for: [presented], timeout: 3)
+        let controller = try XCTUnwrap(screen.presentedViewController)
+        let sheet = try XCTUnwrap(controller.sheetPresentationController)
+        XCTAssertEqual(sheet.detents.map(\.identifier), [.medium, .large])
+        XCTAssertEqual(sheet.selectedDetentIdentifier, .medium)
+        XCTAssertTrue(sheet.prefersGrabberVisible)
+        XCTAssertFalse(controller.isModalInPresentation)
+        let input = try XCTUnwrap(find(UITextField.self, below: controller.view))
+        XCTAssertEqual(input.text, "Hello")
+        XCTAssertNotNil(input.craftScreenController, "Input services still resolve their owning screen inside the sheet")
+        screen.render(document(false))
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in screen.presentedViewController == nil }, object: nil)
+        wait(for: [dismissed], timeout: 3)
+        XCTAssertNil(screen.presentedViewController)
+    }
+}
+
+@MainActor
+final class NativeTypingEventTests: XCTestCase {
+    private func find<T: UIView>(_ type: T.Type, below view: UIView) -> T? {
+        if let found = view as? T { return found }
+        return view.subviews.lazy.compactMap { self.find(type, below: $0) }.first
+    }
+
+    func testDelayedControlledEchoCannotEraseLaterEditsButCurrentResetCan() throws {
+        let previousThread = CraftNativeScriptThread.isBackground
+        defer { CraftNativeScriptThread.isBackground = previousThread }
+        for background in [false, true] {
+            CraftNativeScriptThread.isBackground = background
+            let screen = CraftNativeScreenController(config: CraftConfig())
+            screen.loadViewIfNeeded()
+            screen.evaluateScript("globalThis.edits = []; globalThis.__stxNativeCallback = function(json) { const m = JSON.parse(json); if (m.type === 'EVENT') edits.push(m.payload.nativeEvent); };")
+            func document(_ value: String, _ count: Int) -> [String: Any] {
+                ["type": "TextInput", "props": ["key": "search", "value": value, "mostRecentEventCount": count], "events": ["onChangeText": "typed"]]
+            }
+            screen.render(document("", 0))
+            let input = try XCTUnwrap(find(UITextField.self, below: screen.view))
+            for value in ["P", "Pl", "Pla"] { input.text = value; input.sendActions(for: .editingChanged) }
+            // Pl was valid when sent, but Pla was already typed before it arrived.
+            screen.render(document("Pl", 2))
+            XCTAssertEqual(input.text, "Pla", "An older controlled echo erased an accepted character")
+            input.text = (input.text ?? "") + "n"
+            input.sendActions(for: .editingChanged)
+            screen.render(document("Pla", 3))
+            XCTAssertEqual(input.text, "Plan")
+            input.text = (input.text ?? "") + "e"
+            input.sendActions(for: .editingChanged)
+            screen.render(document("Plane", 5))
+            let start = try XCTUnwrap(input.position(from: input.beginningOfDocument, offset: 1))
+            let end = try XCTUnwrap(input.position(from: input.beginningOfDocument, offset: 3))
+            input.selectedTextRange = input.textRange(from: start, to: end)
+            screen.render(document("Plan", 4))
+            XCTAssertEqual(input.text, "Plane", "A late echo stays stale after the latest acknowledgement")
+            XCTAssertEqual(input.selectedTextRange.map { input.offset(from: input.beginningOfDocument, to: $0.start) }, 1)
+            XCTAssertEqual(input.selectedTextRange.map { input.offset(from: input.beginningOfDocument, to: $0.end) }, 3)
+            XCTAssertEqual(screen.evaluateScript("edits.map(e => e.text).join('|')")?.toString(), "P|Pl|Pla|Plan|Plane")
+            XCTAssertEqual(screen.evaluateScript("edits.map(e => e.eventCount).join('|')")?.toString(), "1|2|3|4|5")
+            screen.render(document("", 5))
+            XCTAssertEqual(input.text, "", "An intentional current reset must still apply")
+            screen.render(document("Plan", 5))
+            XCTAssertEqual(input.text, "Plan", "A current external value may equal earlier typed text")
+        }
+    }
+
+    func testMultilineUsesTheSameAcknowledgementBoundary() throws {
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        func document(_ value: String, _ count: Int) -> [String: Any] {
+            ["type": "TextInput", "props": ["key": "notes", "multiline": true, "value": value, "mostRecentEventCount": count], "events": ["onChangeText": "typed"]]
+        }
+        screen.render(document("", 0))
+        let input = try XCTUnwrap(find(UITextView.self, below: screen.view))
+        input.text = "Pl"; screen.textViewDidChange(input)
+        input.text = "Pla"; screen.textViewDidChange(input)
+        screen.render(document("Pl", 1))
+        XCTAssertEqual(input.text, "Pla")
+        screen.render(document("", 2))
+        XCTAssertEqual(input.text, "")
+    }
+
+    func testLegacyRuntimeEchoProtectionAlsoAppliesOnTheMainScriptThread() throws {
+        let previousThread = CraftNativeScriptThread.isBackground
+        CraftNativeScriptThread.isBackground = false
+        defer { CraftNativeScriptThread.isBackground = previousThread }
+        let screen = CraftNativeScreenController(config: CraftConfig())
+        screen.loadViewIfNeeded()
+        func document(_ value: String) -> [String: Any] {
+            ["type": "TextInput", "props": ["key": "legacy", "value": value], "events": ["onChangeText": "typed"]]
+        }
+        screen.render(document(""))
+        let input = try XCTUnwrap(find(UITextField.self, below: screen.view))
+        input.text = "Pl"; input.sendActions(for: .editingChanged)
+        input.text = "Pla"; input.sendActions(for: .editingChanged)
+        screen.render(document("Pl"))
+        XCTAssertEqual(input.text, "Pla")
+        screen.render(document("Reset"))
+        XCTAssertEqual(input.text, "Reset")
     }
 }

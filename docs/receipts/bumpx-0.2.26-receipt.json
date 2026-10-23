@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-23T00:33:21.498Z",
+  "sources": [
+    {
+      "repository": "stacksjs/bumpx",
+      "commit": "8e924a128fc9a779d972605862d5d50ca186adec",
+      "tag": "v0.2.26",
+      "gates": [
+        {
+          "runId": 39866466773,
+          "workflow": ".github/workflows/release.yml",
+          "requiredJobs": [
+            "npm"
+          ]
+        },
+        {
+          "runId": 39866465979,
+          "workflow": ".github/workflows/ci.yml",
+          "requiredJobs": [
+            "test",
+            "lint",
+            "typecheck",
+            "publish-commit"
+          ]
+        }
+      ],
+      "packages": [
+        {
+          "name": "@stacksjs/bumpx",
+          "version": "0.2.26",
+          "integrity": "sha512-fgoQd9bZf8u/7qY5kL2rJiHsP5wv03xu3MVb7/9c0aitTNbUu9+u/3Vk/eNUz/sKPiIuZFA0erE76Ca6nD8y/g==",
+          "tarball": "https://registry.npmjs.org/@stacksjs/bumpx/-/bumpx-0.2.26.tgz",
+          "bytes": 124428,
+          "filesSha256": "492aff8f353991d314de63a7b1e47086e630f3fe2b10be02255698e6c03077f1"
+        }
+      ],
+      "releaseCommand": "bun run release:patch",
+      "releaseScript": "./bumpx patch -r --push"
+    }
+  ],
+  "consumer": {
+    "lockfile": "bun.lock",
+    "sha256": "6658b9553744c09eeb03bbd83e1a7da1ee9344da5ee9c087f53b0436cbed2dd9",
+    "bunVersion": "1.4.2",
+    "checks": [
+      {
+        "script": "typecheck",
+        "exitCode": 0,
+        "outputSha256": "f4bd3e5ffdf746a098a423d2a605f5f5ff1c6a7e2ba77cfb640cb4adf863432a"
+      },
+      {
+        "script": "test:sdk",
+        "exitCode": 0,
+        "outputSha256": "96e933acfe2685ebd58076ac695798fdbfb4ed505d673246bee9246f389bdb52"
+      },
+      {
+        "script": "test:release",
+        "exitCode": 0,
+        "outputSha256": "f031a8f32278a1f3595c98c94200005ab8f0aa2ef781ff07574fbf04d288a03f"
+      },
+      {
+        "script": "verify:packages",
+        "exitCode": 0,
+        "outputSha256": "c0fada7aa6380f39ec91bbbcd2a8f67e1b80acb6537478e2d57eddae19cb7f95"
+      },
+      {
+        "script": "lint",
+        "exitCode": 0,
+        "outputSha256": "d037e57d4d92966999459b66819947d9bccb7c45d21b79d70750ec61fcc2b7c5"
+      }
+    ]
+  }
+}

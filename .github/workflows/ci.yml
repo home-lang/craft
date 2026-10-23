@@ -8,6 +8,10 @@ on:
         description: Measure bounded stock Play software cold provisioning; does not run release acceptance
         type: boolean
         default: false
+      software_diagnostic_virtual_cpus:
+        description: Guest CPU count for the cold-provisioning diagnostic only (1 to 4)
+        type: number
+        default: 4
   push:
     branches:
       - main
@@ -16,7 +20,7 @@ on:
       - main
 
 concurrency:
-  group: source-ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: source-ci-${{ github.workflow }}-${{ inputs.software_cold_provisioning_diagnostic && 'software-cold-provisioning-diagnostic' || (github.head_ref || github.ref) }}
   # Finish Main acceptance; newer commits replace the single pending run.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -35,9 +39,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install the managed Android toolchain
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
           install: 'false'
           packages: bun.com@1.4.3 git-scm.org@2.53.0 openjdk.org@17.0.20.8 android.com/cmdline-tools@14742923.0.0
       - name: Boot and dispose the stock Play image through the SDK
@@ -60,9 +64,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install the identical managed Android toolchain
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
           install: 'false'
           packages: bun.com@1.4.3 git-scm.org@2.53.0 openjdk.org@17.0.20.8 android.com/cmdline-tools@14742923.0.0
       - name: Verify bounded budget validation and normal readiness contracts
@@ -70,6 +74,7 @@ jobs:
       - name: Measure actual stock Play software cold provisioning
         env:
           CRAFT_ANDROID_DIAGNOSTIC_FINGERPRINT: google/sdk_gphone64_x86_64/emu64xa:15/AE3A.240806.036/12592187:user/release-keys
+          CRAFT_ANDROID_DIAGNOSTIC_VIRTUAL_CPUS: ${{ inputs.software_diagnostic_virtual_cpus }}
         run: bun scripts/verify-android-emulator.ts --cold-provisioning-diagnostic
       - name: Retain diagnostic identity, elapsed time, host CPU and cleanup
         if: always()
@@ -78,6 +83,63 @@ jobs:
           name: android-software-cold-provisioning-diagnostic
           path: artifacts/android-software-cold-provisioning
           if-no-files-found: error
+
+  vulkan-abi:
+    name: Vulkan SDK ABI (${{ matrix.os }})
+    if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            tools: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e
+          - os: macos-latest
+            tools: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e
+          - os: windows-latest
+            tools: bun.com@1.4.2 git-scm.org@2.53.0 ziglang.org@0.18.0-dev.146+35accc06e
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install the pinned ABI toolchain
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          version: '0.11.119'
+          install: 'false'
+          packages: ${{ matrix.tools }}
+      - name: Check Git is the declared Pantry provider
+        id: managed-git
+        run: bun scripts/managed-git.ts --verify
+      - name: Check the compiler identity
+        run: test "$(zig version)" = '0.18.0-dev.146+35accc06e'
+      - name: Install the native Linux development libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libgtk-3-dev libwebkit2gtk-4.1-dev
+      - name: First-party Zig dependencies
+        uses: ./.github/actions/first-party-zig-deps
+        with:
+          git-executable: ${{ steps.managed-git.outputs.executable }}
+      - name: Run the documented public graphics package consumer
+        working-directory: packages/zig/test/fixtures/graphics-package-consumer
+        run: zig build check --summary all
+      - name: Check out the exact Khronos SDK headers
+        run: |
+          bun scripts/managed-git.ts init .zig-cache/vulkan-headers
+          bun scripts/managed-git.ts -C .zig-cache/vulkan-headers remote add origin https://github.com/KhronosGroup/Vulkan-Headers.git
+          bun scripts/managed-git.ts -C .zig-cache/vulkan-headers fetch --depth 1 origin 6802bb4733b63ed5efd3adb308a6c885ef180ea1 # vulkan-sdk-1.4.363.0
+          bun scripts/managed-git.ts -C .zig-cache/vulkan-headers checkout --detach FETCH_HEAD
+          test "$(bun scripts/managed-git.ts -C .zig-cache/vulkan-headers rev-parse HEAD)" = 6802bb4733b63ed5efd3adb308a6c885ef180ea1
+      - name: Execute the independent SDK ABI probe and C callback
+        working-directory: packages/zig
+        run: |
+          VULKAN_HEADERS="$(bun -p "require('node:path').resolve('../../.zig-cache/vulkan-headers/include')")"
+          zig build test:vulkan-abi -Dvulkan-headers="$VULKAN_HEADERS" --summary all
 
   zig-core:
     if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
@@ -95,9 +157,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Verify Zig installation
         run: zig version
@@ -138,7 +200,7 @@ jobs:
         if: runner.os == 'macOS'
         env:
           CRAFT_NATIVE_TEST_BIN: ${{ github.workspace }}/packages/zig/zig-out/bin/craft
-        run: bun test ./packages/typescript/src/__tests__/bridge-origin.native.test.ts ./packages/typescript/src/__tests__/bridge-timers.native.test.ts
+        run: bun test ./packages/typescript/src/__tests__/bridge-origin.native.test.ts ./packages/typescript/src/__tests__/bridge-timers.native.test.ts ./packages/typescript/src/__tests__/menubar-visibility.native.test.ts
 
       - name: Verify standalone macOS signing entitlements
         if: runner.os == 'macOS'
@@ -186,9 +248,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun and Zig)
-        uses: pantry-pm/pantry/packages/action@d160044a6fe4ad7e8463828f80dfbc55bcdc07d9 # v0.11.109
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.109'
+          version: '0.11.119'
 
       - name: First-party Zig dependencies
         uses: ./.github/actions/first-party-zig-deps
@@ -249,9 +311,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -295,9 +357,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -322,9 +384,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -364,9 +426,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Setup Java
         uses: actions/setup-java@v6
@@ -415,9 +477,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -434,9 +496,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -461,9 +523,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -498,6 +560,9 @@ jobs:
 
       - name: Test dependency-bot job selection
         run: bun test ./scripts/buddy-schedule.test.ts ./scripts/buddy-update.test.ts
+
+      - name: Test software-provisioning diagnostic isolation
+        run: bun test ./scripts/software-provisioning-profile.test.ts
 
       - name: Test agent environment briefing
         run: bun test ./scripts/agents-guidelines.test.ts
@@ -541,9 +606,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -599,9 +664,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install Dependencies
         run: bun install

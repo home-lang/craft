@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-22T19:46:58.592925+00:00",
+  "source": "13b412c9569892aa778106f873abed3c3c5b8153",
+  "sourceDirty": false,
+  "surfaceSha256": "00fc0b983a46efdd529859dc4b7946a563dd0c12f44500b0004d657d3ff2cc2d",
+  "fixtureSources": {
+    "fixture.zig": "86a6c88dff2edd0f407eea056ce6ad2e82b63abeafebb52e5d7b6a1870506476",
+    "HostApp.swift": "13ea90c163cca56a6c1bedba333fd509d8759c36acd93702bf3fab73d93f1ef0",
+    "MetalSurfaceTests.swift": "4f059680863c191cba8a6f120feebf7083dbea55e2ad5ddf6c9183c1ac3c3bb4",
+    "MetalSurfaceUITests.swift": "d395c57b7622c6ef19c3ab263f5199874ca9c18b32a22444d1349fcea503572a"
+  },
+  "compiler": "0.18.0-dev.146+35accc06e",
+  "host": {
+    "xcode": "Xcode 26.2\nBuild version 17C52",
+    "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-26-2",
+    "device": "iPhone 17 Pro",
+    "architecture": "arm64",
+    "osVersion": "26.2"
+  },
+  "workflow": {
+    "runId": 39834702399,
+    "attempt": 2,
+    "jobId": 120033447722,
+    "event": "workflow_dispatch",
+    "scope": "ios-render",
+    "conclusion": "success",
+    "completeReleaseAcceptance": false
+  },
+  "artifact": {
+    "id": 12453851119,
+    "bytes": 244763,
+    "sha256": "fe357a6c5d041d355d7a6438b5fb3df6faf9493f87f74240e47e254830a11ba5",
+    "downloadDigestVerified": true
+  },
+  "tests": [
+    {
+      "nodeIdentifier": "MetalSurfaceTests/testNativeDrawablePixelsScaleResizeSuspendAndOwnership()",
+      "result": "Passed",
+      "durationInSeconds": 0.7747660875320435
+    },
+    {
+      "nodeIdentifier": "MetalSurfaceUITests/testDisplayedPixelsResizeAndBackgroundResume()",
+      "result": "Passed",
+      "durationInSeconds": 16.389050006866455
+    }
+  ],
+  "counts": {
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "displayEvidence": {
+    "frames": [
+      "Verified frame 60",
+      "Verified frame 61",
+      "Verified frame 62"
+    ],
+    "initialLogicalSize": [
+      256,
+      192
+    ],
+    "resizedLogicalSize": [
+      160,
+      120
+    ],
+    "checks": [
+      "all native drawable pixels across 60 unit frames plus resume",
+      "actual window backing scale",
+      "suspension and wrong-thread refusal",
+      "owned layer removed on disposal",
+      "no WebViews in the UI application",
+      "sRGB screen samples for all four quadrants",
+      "real resize and background/foreground presentation"
+    ],
+    "screenshots": [
+      {
+        "name": "Native Metal resumed frame_0_D084CC75-BB28-49DB-957A-E996C97430BD.png",
+        "file": "2D2526A9-A7DF-4140-BA26-D00598853E8A.png",
+        "bytes": 71264,
+        "sha256": "16b2848f74a8f9221db53618fecb0c5d516d318d64a283ddf3aef70bde286866",
+        "width": 1206,
+        "height": 2622,
+        "visuallyInspected": true
+      },
+      {
+        "name": "Native Metal resized frame_0_187105FF-A271-4D6E-9542-91964B32E605.png",
+        "file": "1AAAAC8E-88B4-4523-AA86-65DC12953B8D.png",
+        "bytes": 69264,
+        "sha256": "bf652c8948995f90679574023109d9d10382b4838ddc54d3714fc3546493555c",
+        "width": 1206,
+        "height": 2622,
+        "visuallyInspected": true
+      },
+      {
+        "name": "Native Metal initial frame_0_C286229B-EE30-4BAF-BE52-5EE1AA736C4F.png",
+        "file": "5C0741B3-741E-4675-AE66-2B427BAC115A.png",
+        "bytes": 69853,
+        "sha256": "3c424ab2533a47c9e67b258c76cdfc080e300440e8e78effa425adad17226fd0",
+        "width": 1206,
+        "height": 2622,
+        "visuallyInspected": true
+      }
+    ]
+  },
+  "cleanup": {
+    "simulatorDisposed": true,
+    "workspaceDisposed": true
+  },
+  "previousAttempt": {
+    "result": "failed before compilation",
+    "cause": "simctl runtime inventory exceeded its unchanged 30-second command budget",
+    "artifactId": 12452290567,
+    "artifactSha256": "8027138a391427d1ce7d463c331fa7b2520884097e797065e6f349d06020a69c"
+  },
+  "evidence": [
+    {
+      "path": "metal-ios/hosted-26-2-pass/run-G8szpy/verification.json",
+      "bytes": 156512,
+      "sha256": "3856a9f85fb465755790bc5c6f6a3f34b31172d7f634fb99ad9e8a2e6ceb11c1"
+    },
+    {
+      "path": "metal-ios/hosted-26-2-pass/tests.json",
+      "bytes": 2971,
+      "sha256": "890dac69da46f9d4ba2d2d17702bfb59dbfdeedcdbcdb89a387a97a23fba1dff"
+    },
+    {
+      "path": "metal-ios/hosted-26-2-pass/attachments/manifest.json",
+      "bytes": 1698,
+      "sha256": "d3c1f8ca908eda8389261371fde56b559e57b801b907eef40edc490685ea5d1f"
+    }
+  ],
+  "limits": [
+    "The focused dispatch does not qualify the complete release or the newer command ownership revision.",
+    "These are simulator tests, not execution on physical iOS hardware.",
+    "Screenshots contain first-party fixture colors, not original game material.",
+    "No package release, installed-consumer adoption, stx HUD integration, native game presentation or original-game parity is established here."
+  ]
+}

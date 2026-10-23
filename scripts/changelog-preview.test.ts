@@ -156,7 +156,13 @@ function nativeWorkspace(directory: string, git: (...args: string[]) => string):
 function fixtureReleaseEnvironment(git: (...args: string[]) => string): NodeJS.ProcessEnv {
   // The caller's source pin belongs to its real checkout. Rehearsals keep the
   // same guard enabled, bound to the temporary repository they actually bump.
-  return { ...process.env, BUMPX_EXPECTED_SOURCE: git('rev-parse', 'HEAD').trim() }
+  return {
+    ...process.env,
+    BUMPX_EXPECTED_SOURCE: git('rev-parse', 'HEAD').trim(),
+    // A real release may start after an abandoned tag. That range belongs
+    // to its checkout; the rehearsal's own previous release is v1.0.0.
+    CRAFT_CHANGELOG_FROM: 'v1.0.0',
+  }
 }
 
 for (const release of ['1.0.2', 'patch']) {

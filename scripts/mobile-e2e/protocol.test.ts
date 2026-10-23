@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ANDROID_DECLINE_PHRASES, androidDeclines, awaitedNeeds, deepLinkProblems, deepLinkReports, deepLinkResults, DISMISS_SHARE_MENU, elfSectionNames, evaluateRun, hasTerminated, localNotificationProblems, NOTIFICATION_ROUTE, notificationBody, notificationPayload, notificationReceiptProblems, notificationReceiptReport, notificationTapProblems, notificationTapReport, parseDriverOutput, REQUIRED_CASES, requiredCaseProblems, runtimePermissionGranted, shareMenuInFront, strippedLibraryProblems, ZIG_REFUSED_ACTIONS, ZIG_SERVED_ACTIONS, ZIG_TESTED_ACTIONS, zigDispatchedActions, zigHandBacks, zigRefusals } from './protocol'
+import { ANDROID_DECLINE_PHRASES, androidDeclines, awaitedNeeds, deepLinkProblems, deepLinkReports, deepLinkResults, DISMISS_SHARE_MENU, elfSectionNames, evaluateRun, hasTerminated, localNotificationProblems, NOTIFICATION_ROUTE, notificationBody, notificationPayload, notificationReceiptProblems, notificationReceiptReport, notificationTapProblems, notificationTapReport, parseDriverOutput, REQUIRED_CASES, requiredCaseProblems, runtimePermissionGranted, shareMenuInFront, simulatorPasteboardProblems, strippedLibraryProblems, ZIG_REFUSED_ACTIONS, ZIG_SERVED_ACTIONS, ZIG_TESTED_ACTIONS, zigDispatchedActions, zigHandBacks, zigRefusals } from './protocol'
 import { LOCAL_NOTIFICATION_DELAY_MS, NOTIFICATION_TEST_TIMEOUT_MS } from './protocol'
 
 const ESC = String.fromCharCode(27)
@@ -730,5 +730,19 @@ describe('android declines', () => {
     const dispatch = readFileSync(join(import.meta.dir, '../../packages/zig/src/android_dispatch.zig'), 'utf8')
     for (const phrase of ANDROID_DECLINE_PHRASES)
       expect(dispatch).toContain(`" ${phrase} ({s})"`)
+  })
+})
+
+
+describe('external simulator pasteboard evidence', () => {
+  it('requires the host command to succeed even when stdout contains the nonce', () => {
+    expect(simulatorPasteboardProblems({ exitCode: 0, stdout: RUN, stderr: '' }, RUN)).toEqual([])
+    expect(simulatorPasteboardProblems({ exitCode: 1, stdout: RUN, stderr: 'pasteboard service unavailable' }, RUN)).toEqual(['the simulator pasteboard read failed (exit 1): pasteboard service unavailable'])
+  })
+  it('retains the real empty-output failure instead of assuming the bridge succeeded', () => {
+    expect(simulatorPasteboardProblems({ exitCode: 0, stdout: '', stderr: '' }, RUN)).toEqual(['the simulator pasteboard does not hold the nonce this run wrote; it holds ""'])
+  })
+  it('does not accept an empty expected nonce as external evidence', () => {
+    expect(simulatorPasteboardProblems({ exitCode: 0, stdout: '', stderr: '' }, '')).toEqual(['the simulator pasteboard check has no expected run nonce'])
   })
 })
