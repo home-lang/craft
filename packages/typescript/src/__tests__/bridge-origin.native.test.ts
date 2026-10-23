@@ -189,9 +189,11 @@ nativeTest('native visibility lifecycle rejects stale replies and restores icons
   try {
     const fixture = join(import.meta.dir, '../../../zig/test/menubar_visibility.m')
     const executable = join(dir, 'visibility-test')
-    const compile = Bun.spawnSync(['xcrun', 'clang', '-fobjc-arc', '-fblocks', '-Wall', '-Wextra', '-Werror', '-framework', 'Cocoa', '-framework', 'ApplicationServices', fixture, '-o', executable])
+    const compile = Bun.spawnSync(['xcrun', 'clang', '-fobjc-arc', '-fblocks', '-Wall', '-Wextra', '-Werror', '-framework', 'Cocoa', '-framework', 'ApplicationServices', '-framework', 'Security', fixture, '-o', executable])
     expect(compile.stderr.toString()).toBe('')
     expect(compile.exitCode).toBe(0)
+    const signed = Bun.spawnSync(['codesign', '--force', '--sign', '-', '--identifier', 'dev.craft.visibility.fixture.runtime', executable])
+    expect(signed.exitCode).toBe(0)
     const run = Bun.spawnSync([executable])
     expect(run.exitCode).toBe(0)
     expect(run.stdout.toString()).toContain('permission revocation, errors, timeout and quit passed')

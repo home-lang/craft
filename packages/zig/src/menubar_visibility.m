@@ -4,7 +4,9 @@
 #import "menubar_visibility.h"
 #import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
+#import <Security/Security.h>
 #import <dlfcn.h>
+#include <unistd.h>
 
 @protocol CraftVisibilityConfiguration
 - (id)initWithAllowedSystemItems:(NSArray *)systemItems allowedBundleIdentifiers:(NSArray *)bundles;
@@ -25,6 +27,34 @@ static NSString *failure;
 static NSUInteger hiddenAppCount;
 static Class configurationClass;
 static Class assertionClass;
+
+static NSString *signingIdentifier(void) {
+    SecCodeRef code = NULL;
+    CFDictionaryRef information = NULL;
+    NSString *identifier = nil;
+    if (SecCodeCopySelf(kSecCSDefaultFlags, &code) == errSecSuccess) {
+        if (SecCodeCopySigningInformation(code, kSecCSDefaultFlags, &information) == errSecSuccess) {
+            id value = (__bridge id)CFDictionaryGetValue(information, kSecCodeInfoIdentifier);
+            if ([value isKindOfClass:NSString.class]) identifier = [value copy];
+            CFRelease(information);
+        }
+        CFRelease(code);
+    }
+    return identifier;
+}
+
+static NSArray<NSString *> *ownIdentifiers(void) {
+    NSMutableOrderedSet *identifiers = [NSMutableOrderedSet orderedSet];
+    NSString *bundle = NSBundle.mainBundle.bundleIdentifier;
+    NSString *registered = NSRunningApplication.currentApplication.bundleIdentifier;
+    NSString *signedIdentity = signingIdentifier();
+    if (bundle.length) [identifiers addObject:bundle];
+    if (registered.length) [identifiers addObject:registered];
+    // MenuBarAgent identifies a separately signed native helper by its sealed
+    // signing identifier, even when LaunchServices reports its enclosing app ID.
+    if (signedIdentity.length) [identifiers addObject:signedIdentity];
+    return identifiers.array;
+}
 
 static BOOL available(void) {
     // Sandboxed/App Store consumers must never activate this private backend.
@@ -96,6 +126,7 @@ static NSArray *allowedBundles(NSArray<NSString *> *bundles, NSDictionary *secti
     NSSet *system = [NSSet setWithArray:@[@"com.apple.MenuBarAgent", @"com.apple.controlcenter", @"com.apple.systemuiserver"]];
     NSSet *protected = [NSSet setWithArray:ownBundles];
     NSMutableSet *allowed = [protected mutableCopy];
+    [allowed addObjectsFromArray:system.allObjects];
     NSMutableSet *hidden = [NSMutableSet set];
     for (NSString *bundle in bundles) {
         if (sections[bundle] && ![sections[bundle] boolValue] && ![protected containsObject:bundle] && ![system containsObject:bundle])
@@ -164,7 +195,87 @@ static void activationDeadline(NSUInteger ticket) {
     if (ticket == generation && busy) fail(@"activationTimeout");
 }
 
-static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, NSUInteger ticket) {
+static id attribute(AXUIElementRef element, CFStringRef name) {
+    CFTypeRef value = NULL;
+    if (AXUIElementCopyAttributeValue(element, name, &value) != kAXErrorSuccess) return nil;
+    return CFBridgingRelease(value);
+}
+
+// Verify the displayed bar independently of the per-app grouping inventory.
+// A private allow-list can silently omit an allowed app (notably a mismatched
+// helper bundle), or suppress a system indicator. Such an activation is unsafe.
+static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, double boundary, BOOL rtl,
+    BOOL protectedOnly, NSMutableDictionary *items, NSUInteger *remaining) {
+    if (!depth || !*remaining) return NO;
+    (*remaining)--;
+    AXUIElementSetMessagingTimeout(node, 0.1);
+    NSString *role = attribute(node, kAXRoleAttribute);
+    NSString *identifier = attribute(node, kAXIdentifierAttribute);
+    BOOL system = [identifier isKindOfClass:NSString.class] && [identifier hasPrefix:@"com.apple.menuextra."];
+    if (system || [role isEqual:(__bridge NSString *)kAXButtonRole]) {
+        id position = attribute(node, kAXPositionAttribute), size = attribute(node, kAXSizeAttribute);
+        CGPoint point = CGPointZero;
+        CGSize dimensions = CGSizeZero;
+        if (position && size && CFGetTypeID((__bridge CFTypeRef)position) == AXValueGetTypeID()
+            && CFGetTypeID((__bridge CFTypeRef)size) == AXValueGetTypeID()
+            && AXValueGetValue((__bridge AXValueRef)position, kAXValueCGPointType, &point)
+            && AXValueGetValue((__bridge AXValueRef)size, kAXValueCGSizeType, &dimensions)
+            && isfinite(point.x) && dimensions.width > 0 && dimensions.height > 0 && dimensions.height <= 64) {
+            double middle = point.x + dimensions.width / 2;
+            // The arrow changes its label after activation. Its own native
+            // identity remains protected by the allow-list, not by text.
+            BOOL arrow = fabs(middle - boundary) < 2;
+            pid_t owner = 0;
+            AXUIElementGetPid(node, &owner);
+            BOOL visibleSide = rtl ? middle < boundary : middle > boundary;
+            if (!arrow && (!protectedOnly || system || owner == getpid() || visibleSide)) {
+                NSMutableArray *parts = [NSMutableArray arrayWithObject:role ?: @""];
+                for (id name in @[(__bridge NSString *)kAXIdentifierAttribute, (__bridge NSString *)kAXTitleAttribute,
+                    (__bridge NSString *)kAXDescriptionAttribute, (__bridge NSString *)kAXHelpAttribute]) {
+                    id value = attribute(node, (__bridge CFStringRef)name);
+                    [parts addObject:[value isKindOfClass:NSString.class] ? value : @""];
+                }
+                if (![[parts subarrayWithRange:NSMakeRange(1, 4)] componentsJoinedByString:@""].length) return NO;
+                NSString *key = [parts componentsJoinedByString:@"\x1f"];
+                items[key] = @([items[key] unsignedIntegerValue] + 1);
+            }
+        }
+    }
+    id children = attribute(node, kAXChildrenAttribute);
+    if ([children isKindOfClass:NSArray.class]) {
+        for (id child in children) {
+            if (CFGetTypeID((__bridge CFTypeRef)child) == AXUIElementGetTypeID()
+                && !snapshotItems((__bridge AXUIElementRef)child, depth - 1, boundary, rtl, protectedOnly, items, remaining)) return NO;
+        }
+    }
+    return YES;
+}
+
+static NSDictionary *barSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly) {
+    if (!agent) return nil;
+    AXUIElementRef element = AXUIElementCreateApplication(agent);
+    NSMutableDictionary *items = [NSMutableDictionary dictionary];
+    NSUInteger remaining = 256;
+    BOOL complete = snapshotItems(element, 8, boundary, rtl, protectedOnly, items, &remaining);
+    CFRelease(element);
+    return complete && items.count ? [items copy] : nil;
+}
+
+static NSDictionary *(*readBarSnapshot)(pid_t, double, BOOL, BOOL) = barSnapshot;
+
+static BOOL preservesItems(NSDictionary *expected, NSDictionary *actual) {
+    if (!expected.count || !actual.count) return NO;
+    for (NSString *key in expected)
+        if ([actual[key] unsignedIntegerValue] < [expected[key] unsignedIntegerValue]) return NO;
+    return YES;
+}
+
+static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, NSUInteger ticket,
+    pid_t agent, double boundary, BOOL rtl, NSDictionary *protectedItems) {
+    // Assessment mode can suppress system indicators even with all apps allowed.
+    // Never activate a global restriction when there is no selected app to hide.
+    if (!hidden) return fail(@"emptyGroup");
+    if (!protectedItems.count) return fail(@"layoutUnavailable");
     @try {
         id configuration = [(id<CraftVisibilityConfiguration>)[configurationClass alloc]
             initWithAllowedSystemItems:[systemItems copy] allowedBundleIdentifiers:[allowed copy]];
@@ -179,11 +290,19 @@ static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, 
                     NSLog(@"Craft menu bar activation: %@", error);
                     return fail(@"activationFailed");
                 }
-                assertion = pending;
-                pendingAssertion = nil;
-                busy = NO;
-                hiddenAppCount = hidden;
-                notify();
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC), dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                    NSDictionary *actual = readBarSnapshot(agent, boundary, rtl, NO);
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        if (ticket != generation) { invalidate(pending); return; }
+                        if (!AXIsProcessTrusted()) return fail(@"permissionRequired");
+                        if (!preservesItems(protectedItems, actual)) return fail(@"visibilityMismatch");
+                        assertion = pending;
+                        pendingAssertion = nil;
+                        busy = NO;
+                        hiddenAppCount = hidden;
+                        notify();
+                    });
+                });
             });
         }];
     } @catch (NSException *exception) {
@@ -197,12 +316,7 @@ void craft_menubar_visibility_collapse(void) {
     if (!available()) return fail(@"unavailable");
     if (!AXIsProcessTrusted()) return fail(@"permissionRequired");
     NSString *ownBundle = NSBundle.mainBundle.bundleIdentifier;
-    NSString *registeredBundle = NSRunningApplication.currentApplication.bundleIdentifier;
-    NSMutableArray *ownBundles = [NSMutableArray array];
-    if (ownBundle.length) [ownBundles addObject:ownBundle];
-    // A composite app can register its native helper under a second identity.
-    // Protect both identities regardless of where the user moves the cup.
-    if (registeredBundle.length) [ownBundles addObject:registeredBundle];
+    NSArray *ownBundles = ownIdentifiers();
     NSRect frame = marker.button.window.frame;
     if (!ownBundle.length || !marker.button.window || NSWidth(frame) <= 0) return fail(@"layoutUnavailable");
     busy = YES;
@@ -217,6 +331,9 @@ void craft_menubar_visibility_collapse(void) {
             (void)bindings;
             return [app.bundleURL.pathExtension isEqualToString:@"app"];
         }]];
+    pid_t agent = 0;
+    for (NSRunningApplication *app in apps)
+        if ([app.bundleIdentifier isEqual:@"com.apple.MenuBarAgent"]) agent = app.processIdentifier;
     notify();
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         activationDeadline(ticket);
@@ -224,6 +341,7 @@ void craft_menubar_visibility_collapse(void) {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         @autoreleasepool {
             NSDictionary *sections = inventory(apps, boundary, rtl);
+            NSDictionary *protectedItems = readBarSnapshot(agent, boundary, rtl, YES);
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (ticket != generation) return;
                 if (!AXIsProcessTrusted()) return fail(@"permissionRequired");
@@ -236,7 +354,7 @@ void craft_menubar_visibility_collapse(void) {
                 // current OS. The framework ignores unrecognized identifiers.
                 NSMutableArray *systemItems = [NSMutableArray array];
                 for (NSUInteger i = 0; i < 64; i++) [systemItems addObject:@(i)];
-                activate(systemItems, allowed, hidden, ticket);
+                activate(systemItems, allowed, hidden, ticket, agent, boundary, rtl, protectedItems);
             });
         }
     });

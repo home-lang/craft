@@ -3168,6 +3168,7 @@ fn iosSdkPath(b: *std.Build, sdk_name: []const u8) ?[]const u8 {
 /// Shared by the CLI and by host test artifacts that reach the tray indirectly.
 fn linkMenuBarVisibility(b: *std.Build, module: *std.Build.Module) void {
     module.linkFramework("ApplicationServices", .{});
+    module.linkFramework("Security", .{});
     // Objective-C owns blocks and exception boundaries. The private framework
     // itself is resolved at runtime and is never a linked dependency.
     module.addCSourceFile(.{

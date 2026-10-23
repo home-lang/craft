@@ -19,6 +19,11 @@ static Boolean testTrusted(void) { return trusted; }
 
 static BOOL throwOnActivation;
 static NSMutableArray *created;
+static NSDictionary *snapshot = nil;
+static NSDictionary *testSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly) {
+    (void)agent; (void)boundary; (void)rtl; (void)protectedOnly;
+    return snapshot;
+}
 @interface TestAssertion : NSObject <CraftVisibilityAssertion>
 @property (copy) void (^completion)(NSError *);
 @property BOOL invalidated;
@@ -35,11 +40,11 @@ static NSMutableArray *created;
 
 static TestAssertion *begin(void) {
     busy = YES;
-    activate(@[@0, @1], @[@"own.app"], 2, ++generation);
+    activate(@[@0, @1], @[@"own.app"], 2, ++generation, 1, 100, NO, @{@"right": @1});
     return created.lastObject;
 }
 static void drain(void) {
-    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.05, false);
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.35, false);
 }
 static NSDictionary *state(void) {
     const char *json = craft_menubar_visibility_state();
@@ -51,6 +56,23 @@ int main(void) {
         configurationClass = TestConfiguration.class;
         assertionClass = TestAssertion.class;
         created = [NSMutableArray array];
+        snapshot = @{@"right": @1, @"system": @1};
+        readBarSnapshot = testSnapshot;
+        assert(preservesItems(@{@"right": @1}, snapshot));
+        assert(!preservesItems(@{@"right": @2}, snapshot));
+        assert(!preservesItems(@{@"missing": @1}, snapshot));
+        assert(!preservesItems(nil, snapshot));
+        // A helper's sealed identifier differs from its app/LaunchServices ID.
+        // It must stay allowed even when its icon sits in the hidden section.
+        NSString *signedIdentity = @"dev.craft.visibility.fixture.runtime";
+        assert([signingIdentifier() isEqual:signedIdentity]);
+        NSArray *protectedIdentifiers = ownIdentifiers();
+        assert([protectedIdentifiers containsObject:signedIdentity]);
+        NSUInteger selfHidden = 0;
+        NSArray *selfAllowed = allowedBundles(@[signedIdentity, @"other.app"],
+            @{signedIdentity: @NO, @"other.app": @NO}, protectedIdentifiers, &selfHidden);
+        assert(selfHidden == 1 && [selfAllowed containsObject:signedIdentity]);
+        assert(![selfAllowed containsObject:@"other.app"]);
         NSMutableDictionary *sections = [NSMutableDictionary dictionary];
         CGRect left = CGRectMake(20, 0, 20, 24), right = CGRectMake(200, 0, 20, 24);
         recordItem(sections, @"left", left, 100, NO);
@@ -73,6 +95,10 @@ int main(void) {
         assert(hidden == 1 && ![allowed containsObject:@"left"]);
         for (NSString *bundle in @[@"right", @"both", @"new", @"unknown", @"own.app", @"native.helper", @"com.apple.controlcenter"]) assert([allowed containsObject:bundle]);
 
+        busy = YES;
+        activate(@[@0, @1], ownIdentifiers(), 0, ++generation, 1, 100, NO, snapshot);
+        assert(!busy && !assertion && created.count == 0 && [failure isEqual:@"emptyGroup"]);
+
         TestAssertion *first = begin();
         assert(busy && !assertion);
         first.completion(nil); drain();
@@ -80,6 +106,19 @@ int main(void) {
         assert(CFGetTypeID((__bridge CFTypeRef)state()[@"collapsed"]) == CFBooleanGetTypeID());
         craft_menubar_visibility_expand();
         assert(first.invalidated && !assertion && !busy && hiddenAppCount == 0);
+
+        snapshot = @{@"unexpected": @1};
+        TestAssertion *unsafe = begin();
+        unsafe.completion(nil); drain();
+        assert(unsafe.invalidated && !assertion && !busy && [failure isEqual:@"visibilityMismatch"]);
+        snapshot = @{@"right": @1, @"system": @1};
+
+        TestAssertion *checking = begin();
+        checking.completion(nil);
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, false);
+        craft_menubar_visibility_expand();
+        drain();
+        assert(checking.invalidated && !assertion && !busy);
 
         TestAssertion *stale = begin();
         craft_menubar_visibility_expand();
