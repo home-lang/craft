@@ -1,5 +1,21 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.303...v0.0.304)
+
+## 🐛 Bug Fixes
+
+- **bridge**: reject empty menu bar backend selections ([acb2a30](https://github.com/craft-native/craft/commit/acb2a30)) _(by Chris Breuer)_
+- **build**: link native visibility in every host test consumer ([1f12f39](https://github.com/craft-native/craft/commit/1f12f39)) _(by Chris Breuer)_
+- **macos**: protect controller identities and unknown menu bar items ([ac55211](https://github.com/craft-native/craft/commit/ac55211)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **macos**: verify packaged native group assertions ([e636743](https://github.com/craft-native/craft/commit/e636743)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.302...v0.0.303)
 
 ## 🐛 Bug Fixes
