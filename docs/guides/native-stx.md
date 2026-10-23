@@ -1364,8 +1364,10 @@ shared MIME, UTI, and common extension filters to `ACTION_OPEN_DOCUMENT`, copies
 each selected document into the same app-owned directory, and enforces the
 shared 512 MiB default/per-file limit before publishing a descriptor. A
 dismissed picker resolves with an empty array; a canceled or oversized copy
-never leaves a partial file behind. Use this for GPX, TCX, FIT, PDF, or other
-documents that are not photos or videos.
+never leaves a partial file behind. The same cancellation cleanup applies while
+Android is decoding a picked image or copying a video, so a request canceled
+after the picker closes cannot publish or leak an app-owned file. Use this for
+GPX, TCX, FIT, PDF, or other documents that are not photos or videos.
 
 `craft.audio` playback is screen-owned on both hosts. Android requests audio
 focus before preparing a player, reports a denied request as `AUDIO_FOCUS_DENIED`,

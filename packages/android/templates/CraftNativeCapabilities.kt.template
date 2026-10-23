@@ -475,9 +475,10 @@ internal class CraftNativeCapabilities(
     }
 
     /** Copy with a bound even when a cloud provider does not report its size. */
-    private fun copyVideo(uri: Uri, limit: Long): CraftNativeCapabilityResult {
+    private fun copyVideo(requestToken: String, uri: Uri, limit: Long): CraftNativeCapabilityResult {
         var target: File? = null
         return try {
+            if (cancelled.contains(requestToken)) throw IllegalStateException("CANCELLED: Video selection was cancelled")
             val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
                 if (it.moveToFirst()) it.getString(0) else null
             } ?: "video.mp4"
@@ -494,6 +495,7 @@ internal class CraftNativeCapabilities(
                     while (true) {
                         val count = source.read(buffer)
                         if (count < 0) break
+                        if (cancelled.contains(requestToken)) throw IllegalStateException("CANCELLED: Video selection was cancelled")
                         size += count
                         require(size <= limit) { "Choose a video under ${limit / 1024 / 1024}MB." }
                         output.write(buffer, 0, count)
@@ -504,7 +506,9 @@ internal class CraftNativeCapabilities(
             success(descriptor(destination, type))
         } catch (error: Exception) {
             target?.parentFile?.deleteRecursively()
-            failure("READ_ERROR", error.message ?: "The video could not be read")
+            val message = error.message ?: "The video could not be read"
+            if (message.startsWith("CANCELLED:")) failure("CANCELLED", message.removePrefix("CANCELLED:").trim())
+            else failure("READ_ERROR", message)
         }
     }
 
@@ -628,7 +632,7 @@ internal class CraftNativeCapabilities(
         }
         if (pending.source == "video") {
             networkExecutor.execute {
-                val result = data?.data?.let { copyVideo(it, pending.videoLimit) }
+                val result = data?.data?.let { copyVideo(pending.requestToken, it, pending.videoLimit) }
                     ?: failure("PICKER_FAILED", "The selected video could not be read")
                 complete(pending.requestToken, result, pending.completion)
             }
@@ -647,18 +651,26 @@ internal class CraftNativeCapabilities(
             }
             return true
         }
-        val descriptor = if (pending.source == "camera") {
-            val bitmap = data?.extras?.get("data") as? Bitmap
-            bitmap?.let { writeImage(it, pending.maxPixels, pending.quality, "photo.jpg") }
-        } else {
-            val uri = data?.data
-            uri?.let { copyUri(it, pending.maxPixels, pending.quality) }
+        networkExecutor.execute {
+            val descriptor = if (pending.source == "camera") {
+                val bitmap = data?.extras?.get("data") as? Bitmap
+                bitmap?.let { writeImage(it, pending.maxPixels, pending.quality, "photo.jpg", pending.requestToken) }
+            } else {
+                val uri = data?.data
+                uri?.let { copyUri(pending.requestToken, it, pending.maxPixels, pending.quality) }
+            }
+            complete(
+                pending.requestToken,
+                descriptor?.let(::success) ?: if (cancelled.contains(pending.requestToken)) failure("CANCELLED", "Image selection was cancelled")
+                else failure("PICKER_FAILED", "The selected image could not be read"),
+                pending.completion,
+            )
         }
-        complete(pending.requestToken, descriptor?.let(::success) ?: failure("PICKER_FAILED", "The selected image could not be read"), pending.completion)
         return true
     }
 
-    private fun copyUri(uri: Uri, maxPixels: Int, quality: Float): JSONObject? {
+    private fun copyUri(requestToken: String, uri: Uri, maxPixels: Int, quality: Float): JSONObject? {
+        if (cancelled.contains(requestToken)) return null
         val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
             if (it.moveToFirst()) it.getString(0) else null
         } ?: "photo"
@@ -669,7 +681,7 @@ internal class CraftNativeCapabilities(
         while (max(bounds.outWidth / sample, bounds.outHeight / sample) > maxPixels * 2) sample *= 2
         val options = BitmapFactory.Options().apply { inSampleSize = sample }
         val bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
-        return writeImage(bitmap, maxPixels, quality, jpegName(name))
+        return writeImage(bitmap, maxPixels, quality, jpegName(name), requestToken)
     }
 
     private fun copyDocuments(requestToken: String, uris: List<Uri>, limit: Long): CraftNativeCapabilityResult {
@@ -732,7 +744,11 @@ internal class CraftNativeCapabilities(
         else -> "application/octet-stream"
     }
 
-    private fun writeImage(bitmap: Bitmap, maxPixels: Int, quality: Float, name: String): JSONObject? {
+    private fun writeImage(bitmap: Bitmap, maxPixels: Int, quality: Float, name: String, requestToken: String? = null): JSONObject? {
+        if (requestToken != null && cancelled.contains(requestToken)) {
+            bitmap.recycle()
+            return null
+        }
         val longest = max(bitmap.width, bitmap.height)
         val scale = if (longest > maxPixels) maxPixels.toFloat() / longest else 1f
         val output = if (scale < 1f) Bitmap.createScaledBitmap(
@@ -749,7 +765,15 @@ internal class CraftNativeCapabilities(
         }.getOrDefault(false)
         if (output !== bitmap) output.recycle()
         bitmap.recycle()
-        return if (written) descriptor(file, "image/jpeg").put("width", width).put("height", height) else null
+        if (!written) {
+            file.parentFile?.deleteRecursively()
+            return null
+        }
+        if (requestToken != null && cancelled.contains(requestToken)) {
+            file.parentFile?.deleteRecursively()
+            return null
+        }
+        return descriptor(file, "image/jpeg").put("width", width).put("height", height)
     }
 
     private fun store(bytes: ByteArray, name: String, type: String): CraftNativeCapabilityResult {

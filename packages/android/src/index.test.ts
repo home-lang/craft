@@ -822,6 +822,11 @@ describe('Craft Android builder', () => {
     expect(capabilities).toContain('CANCELLED: File selection was cancelled')
     expect(capabilities).toContain('ownedFile(it)?.parentFile?.deleteRecursively()')
     expect(capabilities).toContain('application/vnd.garmin.tcx+xml')
+    expect(capabilities).toContain('copyVideo(pending.requestToken, it, pending.videoLimit)')
+    expect(capabilities).toContain('CANCELLED: Video selection was cancelled')
+    expect(capabilities).toContain('copyUri(pending.requestToken, it, pending.maxPixels, pending.quality)')
+    expect(capabilities).toContain('networkExecutor.execute {')
+    expect(capabilities).toContain('file.parentFile?.deleteRecursively()')
   })
 
   it('hands native wallet passes to Google Wallet through an opt-in save URL', async () => {
