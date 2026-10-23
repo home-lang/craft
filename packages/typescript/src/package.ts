@@ -231,12 +231,17 @@ export interface PackageConfig {
     teamId?: string
 
     /**
+     * Native Craft provider for a server-backed app. Embeds a separately
+     * identified agent app so AppKit, Accessibility and MenuBarAgent resolve
+     * the GUI process to its own CFBundleExecutable.
+     */
+    nativeRuntimePath?: string
+
+    /**
      * Extra executables copied into `Contents/MacOS/` beside the app binary.
      *
-     * A server-backed app (a Bun program driving a Craft webview, say) spawns a
-     * helper at runtime; bundle it here so the installed `.app` is
-     * self-contained. Resolve it relative to the running executable — on macOS
-     * the helper lands next to `process.execPath`.
+     * Use nativeRuntimePath for the GUI provider. This option is for non-GUI
+     * command line helpers, resolved beside process.execPath.
      */
     additionalExecutables?: string[]
 
@@ -408,6 +413,7 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
     iconPath: config.iconPath,
     provisioningProfile: opts.provisioningProfile,
     additionalExecutables: opts.additionalExecutables,
+    nativeRuntimePath: opts.nativeRuntimePath,
     outputPath: appBundlePath,
   })
 
@@ -678,6 +684,8 @@ async function packageLinux(config: PackageConfig, outDir: string): Promise<Pack
 
 export interface MacOSBundleMetadata {
   name: string
+  /** Actual executable basename when it differs from the app's display name. */
+  executableName?: string
   version: string
   bundleId: string
   /** `CFBundleVersion`. Defaults to `version`. */
@@ -785,7 +793,7 @@ ${schemes.length ? `MimeType=${schemes.map(scheme => `x-scheme-handler/${scheme.
  */
 export function macOSInfoPlist(metadata: MacOSBundleMetadata): string {
   const entries: Array<[string, string | true]> = [
-    ['CFBundleExecutable', metadata.name],
+    ['CFBundleExecutable', metadata.executableName || metadata.name],
     ['CFBundleIdentifier', metadata.bundleId],
     ['CFBundleName', metadata.name],
     ['CFBundleShortVersionString', metadata.version],
@@ -954,6 +962,11 @@ function copyMacOSAppBundle(source: string, destination: string): { success: boo
 /**
  * Helper: Create macOS app bundle
  */
+/** The native GUI agent's location, shared with desktop launchers. */
+export function macOSRuntimeExecutablePath(appBundlePath: string): string {
+  return join(appBundlePath, 'Contents', 'Helpers', 'CraftRuntime.app', 'Contents', 'MacOS', 'craft')
+}
+
 function createMacOSAppBundle(opts: MacOSBundleMetadata & {
   binaryPath: string
   /** Path to a `.icns` file copied into `Contents/Resources` */
@@ -962,6 +975,7 @@ function createMacOSAppBundle(opts: MacOSBundleMetadata & {
   provisioningProfile?: string
   /** Extra executables copied beside the app binary in `Contents/MacOS/` */
   additionalExecutables?: string[]
+  nativeRuntimePath?: string
   outputPath: string
 }): { success: boolean; error?: string } {
   try {
@@ -987,6 +1001,25 @@ function createMacOSAppBundle(opts: MacOSBundleMetadata & {
       const destination = join(macOS, basename(executable))
       copyFileSync(executable, destination)
       chmodSync(destination, 0o755)
+    }
+
+    if (opts.nativeRuntimePath) {
+      const helper = macOSRuntimeExecutablePath(outputPath)
+      const helperContents = resolve(helper, '..', '..')
+      mkdirSync(join(helperContents, 'MacOS'), { recursive: true })
+      copyFileSync(opts.nativeRuntimePath, helper)
+      chmodSync(helper, 0o755)
+      if (iconPath) {
+        mkdirSync(join(helperContents, 'Resources'), { recursive: true })
+        copyFileSync(iconPath, join(helperContents, 'Resources', 'icon.icns'))
+      }
+      // Keep permission prompts recognizable as the enclosing application.
+      writeFileSync(join(helperContents, 'Info.plist'), macOSInfoPlist({
+        name, executableName: 'craft', version: opts.version,
+        bundleId: `${opts.bundleId}.runtime`, buildNumber: opts.buildNumber,
+        minimumSystemVersion: opts.minimumSystemVersion, menuBarOnly: true,
+        iconName: iconPath ? 'icon' : undefined,
+      }))
     }
 
     // Copy the icon into Resources so CFBundleIconFile resolves
