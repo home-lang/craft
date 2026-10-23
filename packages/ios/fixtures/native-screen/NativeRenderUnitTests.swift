@@ -2529,10 +2529,13 @@ final class NativeRenderUnitTests: XCTestCase {
     /// caret in view on the next turn of the run loop, and a fixed wait can
     /// end before that turn while a loaded simulator brings its keyboard up:
     /// the test then measured a text view not yet laid out for its new text.
-    private func drainMainQueue() {
+    /// Suspending releases the main actor; a synchronous XCTest wait inside
+    /// a main-queue block cannot drain another block queued on that queue.
+    private func drainMainQueue() async {
         let drained = expectation(description: "the main queue reached this block")
         DispatchQueue.main.async { drained.fulfill() }
-        wait(for: [drained], timeout: 5)
+        let result = await XCTWaiter.fulfillment(of: [drained], timeout: 5)
+        XCTAssertEqual(result, .completed, "the main queue reached this block")
     }
 
     func testImagesLoadOverHttpOnlyFromThisMachine() {
@@ -2656,7 +2659,7 @@ final class NativeRenderUnitTests: XCTestCase {
     /// The caret stays where it can be seen as an input at the bottom of a
     /// screen grows: only the field was scrolled into view, when editing
     /// began, so the words typed after that went under the keyboard.
-    func testTheCaretStaysInViewAsAnInputGrows() throws {
+    func testTheCaretStaysInViewAsAnInputGrows() async throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
         window.rootViewController = controller
@@ -2675,8 +2678,7 @@ final class NativeRenderUnitTests: XCTestCase {
         input.text = (1...10).map { "line \($0)" }.joined(separator: "\n")
         input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
         input.delegate?.textViewDidChange?(input)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        drainMainQueue()
+        await drainMainQueue()
         let end = try XCTUnwrap(input.selectedTextRange?.end)
         let caret = input.convert(input.caretRect(for: end), to: form)
         let visible = form.bounds.inset(by: form.adjustedContentInset)
@@ -2689,7 +2691,7 @@ final class NativeRenderUnitTests: XCTestCase {
     /// was scrolled into view, so its last lines and the caret stayed under
     /// the keyboard. The caret is above the keyboard when it comes up, and
     /// after a line is typed.
-    func testALongInputWithoutAMaxHeightKeepsItsCaretAboveTheKeyboard() throws {
+    func testALongInputWithoutAMaxHeightKeepsItsCaretAboveTheKeyboard() async throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
         window.rootViewController = controller
@@ -2727,8 +2729,7 @@ final class NativeRenderUnitTests: XCTestCase {
             UIResponder.keyboardAnimationCurveUserInfoKey: 0,
         ])
         controller.view.layoutIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        drainMainQueue()
+        await drainMainQueue()
         XCTAssertTrue(window.bounds.intersects(currentKeyboard), "the observed keyboard covers part of this window")
         XCTAssertGreaterThan(input.bounds.height, currentKeyboard.minY - window.safeAreaInsets.top, "taller than the part the keyboard leaves")
         func caret() throws -> CGRect {
@@ -2742,8 +2743,7 @@ final class NativeRenderUnitTests: XCTestCase {
         input.text = long + "\n31) and one more line"
         input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
         input.delegate?.textViewDidChange?(input)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        drainMainQueue()
+        await drainMainQueue()
         shown = try caret()
         XCTAssertLessThanOrEqual(shown.maxY, currentKeyboard.minY + 0.5, "typed: caret \(shown) above the keyboard at \(currentKeyboard.minY)")
         XCTAssertGreaterThanOrEqual(shown.minY, window.safeAreaInsets.top - 0.5, "typed: caret \(shown) on screen")
@@ -2754,8 +2754,7 @@ final class NativeRenderUnitTests: XCTestCase {
         input.text += "\n" + (32...41).map { "\($0)) continuing the answer" }.joined(separator: "\n")
         input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
         input.delegate?.textViewDidChange?(input)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        drainMainQueue()
+        await drainMainQueue()
         shown = try caret()
         XCTAssertTrue(window.bounds.intersects(currentKeyboard))
         XCTAssertLessThanOrEqual(shown.maxY, currentKeyboard.minY + 0.5, "continued: caret \(shown) above the keyboard at \(currentKeyboard.minY)")
@@ -2953,7 +2952,7 @@ final class NativeRenderUnitTests: XCTestCase {
     /// as a layout moves it: a footer under a form shrank while the keyboard
     /// was up, the form grew down under the keyboard, and the inset measured
     /// where it used to end left its last fields there with nothing to scroll.
-    func testAScrollViewKeepsItsKeyboardInsetAsALayoutMovesIt() throws {
+    func testAScrollViewKeepsItsKeyboardInsetAsALayoutMovesIt() async throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let window = try hostWindow()
         window.rootViewController = controller
@@ -2980,13 +2979,13 @@ final class NativeRenderUnitTests: XCTestCase {
             UIResponder.keyboardAnimationCurveUserInfoKey: 0,
         ])
         controller.view.layoutIfNeeded()
-        drainMainQueue()
+        await drainMainQueue()
         func covered() -> CGFloat { max(0, form.convert(form.bounds, to: window).maxY - keyboard.minY) }
         XCTAssertEqual(form.contentInset.bottom, covered(), accuracy: 0.5, "inset for what the keyboard covers")
 
         controller.render(document(screen(footer: 0)))
         controller.view.layoutIfNeeded()
-        drainMainQueue()
+        await drainMainQueue()
         XCTAssertGreaterThan(covered(), 50, "the form now ends under the keyboard")
         XCTAssertEqual(form.contentInset.bottom, covered(), accuracy: 0.5, "the inset follows the form to where it ends now")
         XCTAssertEqual(form.verticalScrollIndicatorInsets.bottom, covered(), accuracy: 0.5)
@@ -2997,7 +2996,7 @@ final class NativeRenderUnitTests: XCTestCase {
         ])
         controller.render(document(screen(footer: 120)))
         controller.view.layoutIfNeeded()
-        drainMainQueue()
+        await drainMainQueue()
         XCTAssertEqual(form.contentInset.bottom, 0, "no keyboard, no inset")
     }
 
