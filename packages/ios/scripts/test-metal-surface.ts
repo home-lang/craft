@@ -5,6 +5,7 @@ import { parseArgs } from 'node:util'
 import { resolveZig } from '../../../scripts/zig'
 import { tempDirPrefix } from '../../typescript/src/temp-dir'
 import { nativeFixtureCommand } from './native-fixture-command'
+import { metalXCTestSteps } from './metal-xctest-steps'
 
 const { values } = parseArgs({ args: process.argv.slice(2), strict: true, options: { runtime: { type: 'string' }, xcodegen: { type: 'string' }, output: { type: 'string' } } })
 if (process.platform !== 'darwin' || !values.runtime || !values.xcodegen || !isAbsolute(values.xcodegen))
@@ -27,10 +28,11 @@ const proof: Record<string, unknown> = { purpose: 'native UIKit Metal surface ac
 let simulator: string | undefined
 let failure: unknown
 function save(): void { writeFileSync(join(evidence, 'verification.json'), `${JSON.stringify(proof, null, 2)}\n`) }
-async function capture(args: string[], options: { allowFailure?: boolean, cleanup?: boolean } = {}): Promise<string> {
-  const result = await nativeFixtureCommand(args, { cwd: workspace, timeoutMs: 30_000, signal: options.cleanup ? undefined : interruption.signal })
+async function capture(args: string[], options: { allowFailure?: boolean, cleanup?: boolean, timeoutMs?: number } = {}): Promise<string> {
+  const timeoutMs = options.timeoutMs ?? 30_000
+  const result = await nativeFixtureCommand(args, { cwd: workspace, timeoutMs, signal: options.cleanup ? undefined : interruption.signal })
   const { code, stdout, stderr } = result
-  ;(proof.commands as unknown[]).push({ args, ...result })
+  ;(proof.commands as unknown[]).push({ args, timeoutMs, ...result })
   save()
   if ((code !== 0 || result.timedOut || result.cancelled) && !options.allowFailure) throw new Error(`Command failed (${code}): ${args[0]}: ${stderr}`)
   return stdout.trim()
@@ -41,12 +43,14 @@ async function run(name: string, args: string[], timeoutMs: number): Promise<voi
   proof.currentStep = name
   save()
   const result = await nativeFixtureCommand(args, { cwd: workspace, timeoutMs, logPath: log, signal: interruption.signal })
-  ;(proof.commands as unknown[]).push({ name, args, ...result, startedAt, finishedAt: new Date().toISOString(), log })
+  ;(proof.commands as unknown[]).push({ name, args, timeoutMs, ...result, startedAt, finishedAt: new Date().toISOString(), log })
   save()
   if (result.code !== 0 || result.timedOut || result.cancelled) throw new Error(`${name} failed (${result.code}); see ${log}`)
 }
 try {
-  const runtimes = JSON.parse(await capture(['xcrun', 'simctl', 'list', 'runtimes', '--json'])).runtimes as { identifier: string, isAvailable: boolean }[]
+  // The first CoreSimulator query may start its service and migrate metadata.
+  // Later metadata commands retain their normal 30-second deadline.
+  const runtimes = JSON.parse(await capture(['xcrun', 'simctl', 'list', 'runtimes', '--json'], { timeoutMs: 120_000 })).runtimes as { identifier: string, isAvailable: boolean }[]
   if (!runtimes.some(runtime => runtime.identifier === values.runtime && runtime.isAvailable)) throw new Error('The requested iOS runtime must be installed and available')
   const sdk = await capture(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'])
   proof.xcode = await capture(['xcodebuild', '-version'])
@@ -143,7 +147,8 @@ schemes:
   await capture(['xcrun', 'simctl', 'boot', simulator])
   await run('boot-owned-simulator', ['xcrun', 'simctl', 'bootstatus', simulator, '-b'], 180_000)
   const results = join(evidence, 'TestResults.xcresult')
-  await run('native-uikit-tests', ['xcodebuild', '-project', 'MetalSurfaceFixture.xcodeproj', '-scheme', 'MetalSurfaceFixture', '-destination', `platform=iOS Simulator,id=${simulator}`, '-derivedDataPath', join(workspace, 'DerivedData'), '-resultBundlePath', results, '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'CODE_SIGNING_ALLOWED=NO', 'ONLY_ACTIVE_ARCH=YES', 'test'], 300_000)
+  for (const step of metalXCTestSteps(simulator, join(workspace, 'DerivedData'), results))
+    await run(step.name, step.args, step.timeoutMs)
   const summary = JSON.parse(await capture(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', results]))
   proof.xctest = summary
   if (summary.result !== 'Passed' || summary.totalTestCount < 2 || summary.passedTests !== summary.totalTestCount || summary.failedTests !== 0 || summary.skippedTests !== 0) throw new Error('Native Metal acceptance requires both suites to execute successfully without skips')
