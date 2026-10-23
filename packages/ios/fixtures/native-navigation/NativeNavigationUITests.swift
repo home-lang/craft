@@ -367,6 +367,42 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Home"].isSelected)
     }
 
+    func testTabBarAccessibilityChromeStaysWithinStandardSizeWhileBodyScales() throws {
+        let app = XCUIApplication()
+        let tabs = [("/", "Home"), ("/details", "Details"), ("/third", "Third"), ("/fourth", "Fourth"), ("/fifth", "Fifth")]
+        func launch(_ category: String) -> ([CGRect], CGFloat) {
+            app.terminate()
+            app.launchArguments = ["-UIPreferredContentSizeCategoryName", category]
+            app.launch()
+            let body = app.staticTexts["home-title"]
+            XCTAssertTrue(body.waitForExistence(timeout: 15))
+            let frames = tabs.map { id, title -> CGRect in
+                let button = app.buttons["craft-tab-\(id)"]
+                XCTAssertTrue(button.waitForExistence(timeout: 10), "Missing tab \(title)")
+                XCTAssertEqual(button.label, title, "The complete tab title must remain accessible")
+                XCTAssertTrue(button.isHittable)
+                return button.frame
+            }
+            let image = XCTAttachment(screenshot: app.screenshot())
+            image.name = "Native chrome \(category)"
+            image.lifetime = .keepAlways
+            add(image)
+            return (frames, body.frame.height)
+        }
+        let (standard, standardBody) = launch("UICTContentSizeCategoryXXXL")
+        let (accessible, accessibleBody) = launch("UICTContentSizeCategoryAccessibilityXXXL")
+        XCTAssertGreaterThan(accessibleBody, standardBody + 1, "Only compact navigation chrome is capped; page text must still grow")
+        for index in tabs.indices {
+            XCTAssertEqual(accessible[index].height, standard[index].height, accuracy: 1, "Tab chrome must stop growing at the largest standard size")
+            XCTAssertEqual(accessible[index].width, standard[index].width, accuracy: 1)
+            XCTAssertGreaterThanOrEqual(accessible[index].width, 44)
+            if index > 0 {
+                XCTAssertGreaterThanOrEqual(accessible[index].minX, accessible[index - 1].maxX - 1, "Neighboring tab slots must not overlap")
+            }
+        }
+        XCTAssertFalse(app.webViews.firstMatch.exists)
+    }
+
     func testSwipesAcrossAllFiveNativeTabsAndBack() {
         let app = XCUIApplication()
         app.launch()
