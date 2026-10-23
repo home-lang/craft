@@ -1,5 +1,22 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.315...v0.0.316)
+
+## 🧪 Tests
+
+- **ios**: align hybrid fixture request with startup budget ([6ab7afe](https://github.com/craft-native/craft/commit/6ab7afe)) _(by Chris Breuer)_
+- **ios**: call fixture signal in legacy native conditions ([734c84f](https://github.com/craft-native/craft/commit/734c84f)) _(by Chris Breuer)_
+- **ios**: capture held fixture without display RPC mutations ([44b7278](https://github.com/craft-native/craft/commit/44b7278)) _(by Chris Breuer)_
+- **ios**: record live compositor frames for held system viewer ([1fa4e06](https://github.com/craft-native/craft/commit/1fa4e06)) _(by Chris Breuer)_
+- **ios**: await complete native multiline edit delivery ([024439a](https://github.com/craft-native/craft/commit/024439a)) _(by Chris Breuer)_
+- use fixture build deadline for native extractor compilation ([ddaa2f9](https://github.com/craft-native/craft/commit/ddaa2f9)) _(by Chris Breuer)_
+- **ios**: cover viewer holds late in long recordings ([de6e01d](https://github.com/craft-native/craft/commit/de6e01d)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.314...v0.0.315)
 
 ## 🧪 Tests
