@@ -1,5 +1,22 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.299...v0.0.301)
+
+## 🐛 Bug Fixes
+
+- **ios**: preserve system text input placeholders ([b219fa3](https://github.com/craft-native/craft/commit/b219fa3)) _(by Chris Breuer)_
+- **ci**: verify managed Git with native filesystem path rules ([2aa3d83](https://github.com/craft-native/craft/commit/2aa3d83)) _(by Chris)_
+
+## 🧹 Chores
+
+- release v0.0.300 ([0296d9d](https://github.com/craft-native/craft/commit/0296d9d)) _(by Chris)_
+- **ci**: adopt qualified Pantry 0.11.119 in source and release jobs ([7605dc8](https://github.com/craft-native/craft/commit/7605dc8)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.299...v0.0.300)
 
 ## 🐛 Bug Fixes
