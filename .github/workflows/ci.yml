@@ -39,9 +39,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install the managed Android toolchain
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
           install: 'false'
           packages: bun.com@1.4.3 git-scm.org@2.53.0 openjdk.org@17.0.20.8 android.com/cmdline-tools@14742923.0.0
       - name: Boot and dispose the stock Play image through the SDK
@@ -64,9 +64,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install the identical managed Android toolchain
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
           install: 'false'
           packages: bun.com@1.4.3 git-scm.org@2.53.0 openjdk.org@17.0.20.8 android.com/cmdline-tools@14742923.0.0
       - name: Verify bounded budget validation and normal readiness contracts
@@ -157,9 +157,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Verify Zig installation
         run: zig version
@@ -248,9 +248,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun and Zig)
-        uses: pantry-pm/pantry/packages/action@d160044a6fe4ad7e8463828f80dfbc55bcdc07d9 # v0.11.109
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.109'
+          version: '0.11.119'
 
       - name: First-party Zig dependencies
         uses: ./.github/actions/first-party-zig-deps
@@ -311,9 +311,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -357,9 +357,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -384,9 +384,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -426,9 +426,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Setup Java
         uses: actions/setup-java@v6
@@ -477,9 +477,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -496,9 +496,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -523,9 +523,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -606,9 +606,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install dependencies
         run: bun install
@@ -664,9 +664,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: pantry-pm/pantry/packages/action@ae59a7b7fc5f4e6f7b8041a75e6b5772680bebdf # v0.11.101
+        uses: pantry-pm/pantry/packages/action@6fbf7259c2764d18a12d915bf8bc68c500cb4931 # v0.11.119
         with:
-          version: '0.11.101'
+          version: '0.11.119'
 
       - name: Install Dependencies
         run: bun install

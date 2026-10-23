@@ -162,5 +162,33 @@
     "Owning source CI independently passed native Windows x64 Git execution. Craft must also pass its own matrix using the published Node24 Action.",
     "The generic native CLI Windows Git dependency graph remains separate.",
     "The Android software diagnostic does not satisfy normal release acceptance; its unchanged image and deadline must pass under the integrated two-CPU profile."
-  ]
+  ],
+  "downstreamManagedGitExecution": {
+    "sourceCommit": "2aa3d832632e8d563e8c61bd9212ae6d03b3fb6e",
+    "runId": 39884946404,
+    "conclusion": "success",
+    "artifactId": 12471788622,
+    "artifactSha256": "4599fc20ab2652ec7a63d1a3c25e55812aa496e394c00ba730ad213368e48583",
+    "platform": "windows-x64",
+    "nodeAction": "published Node24 Action at the release source",
+    "provider": "pantry/git-scm.org/v2.53.0+windows.1/cmd/git.exe",
+    "executedVersion": "git version 2.53.0.windows.1",
+    "exactHttpsFetch": "zig-utils/zig-regex@fdd9c2e333ea6ac2fd06d080d939ef7f11d61b1b",
+    "limit": "This proves provider selection and source fetch, not graphics or native game presentation."
+  },
+  "pipelineAdoption": {
+    "workflows": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/release.yml"
+    ],
+    "status": "source change awaiting hosted acceptance",
+    "priorFailure": {
+      "runId": 39883666211,
+      "jobId": 120187287110,
+      "pantryVersion": "0.11.101",
+      "stage": "Setup Pantry",
+      "error": "NameServerFailure"
+    },
+    "limit": "Adopting the qualified provider does not by itself prove the earlier DNS failure is resolved."
+  }
 }

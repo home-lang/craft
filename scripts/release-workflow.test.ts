@@ -244,9 +244,9 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
       for (const step of job.steps ?? []) {
         if (step.uses?.startsWith('pantry-pm/pantry/packages/action@')) {
           // Keep each workflow on the released Pantry version it declares.
-          // Windows uses the newer workspace-link fix; the native acceptance
-          // workflows intentionally stay on their current toolchain pin.
-          const version = file === 'windows-managed-git.yml' || (file === 'ci.yml' && name === 'vulkan-abi')
+          // The main source and release pipelines adopt the fully qualified
+          // provider together; other native workflows keep their declared pins.
+          const version = ['ci.yml', 'release.yml', 'windows-managed-git.yml'].includes(file)
             ? '0.11.119'
             : file === 'mobile-e2e.yml' && name === 'ios-metal'
               ? '0.11.113'
@@ -484,7 +484,7 @@ test('a failed native leg cannot publish a partial GitHub, Zig, or npm release',
   expect(release.jobs.npm.if).toContain("needs.prepare-npm.result == 'success'")
   expect(release.jobs.npm.if).toContain("needs.publish-release.result == 'success'")
   const zigPublish = registry.steps!.find(step => step.name === 'Publish Zig package')
-  expect(zigPublish?.with).toMatchObject({ version: '0.11.101', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
+  expect(zigPublish?.with).toMatchObject({ version: '0.11.119', install: 'false', publish: 'zig', 'package-dir': 'packages/zig' })
   expect(zigPublish?.with?.release).toBeUndefined()
   expect(Object.entries(release.jobs).flatMap(([name, job]) =>
     (job.steps ?? []).filter(step => step.with?.publish === 'zig').map(() => name))).toEqual(['publish-pantry'])
