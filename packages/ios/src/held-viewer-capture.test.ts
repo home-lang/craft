@@ -97,6 +97,34 @@ describe('independent held viewer capture', () => {
     finally { removeTempDir(dir) }
   })
 
+  test('failed screenshot retains timeout, status, signal and both output streams', async () => {
+    const dir = createTempDir('craft-held-capture-test-')
+    const commandResult = {
+      code: 143, signal: 'SIGTERM', timedOut: true, cancelled: false,
+      stdout: 'capture started', stderr: '', processGroup: 123, groupDisposed: true as const,
+    }
+    try {
+      const log = join(dir, 'live.log'), done = join(dir, 'done'), output = join(dir, 'evidence')
+      writeFileSync(log, begin + gesture)
+      await expect(captureHeldViewer({ log, done, output, simulator, timeoutMs: 2000 }, {
+        now: () => 102,
+        command: async (args, options) => {
+          expect(args.slice(0, 5)).toEqual(['xcrun', 'simctl', 'io', simulator, 'screenshot'])
+          expect(options.timeoutMs).toBe(5000)
+          return commandResult
+        },
+      })).rejects.toThrow('"timedOut":true')
+      const receipt = JSON.parse(readFileSync(join(output, 'receipt.json'), 'utf8'))
+      expect(receipt.verifiedDuringHold).toBe(false)
+      expect(receipt.screenshotCommand).toEqual(commandResult)
+      expect(receipt.screenshotCommandTimeoutMs).toBe(5000)
+      expect(receipt.timing.captureStartedAt).toBe(102)
+      expect(receipt.timing.captureFinishedAt).toBe(102)
+      expect(receipt.captureDelayMs).toBe(750)
+    }
+    finally { removeTempDir(dir) }
+  })
+
   test('missing markers, corrupt PNG and cancellation fail closed', async () => {
     const dir = createTempDir('craft-held-capture-test-')
     try {
