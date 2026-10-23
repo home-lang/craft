@@ -1,5 +1,26 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.301...v0.0.302)
+
+## 🚀 Features
+
+- **sdk**: type native visibility capabilities and lifecycle ([6ff06cf](https://github.com/craft-native/craft/commit/6ff06cf)) _(by Chris Breuer)_
+- **bridge**: expose explicit native menu bar grouping ([d803a3d](https://github.com/craft-native/craft/commit/d803a3d)) _(by Chris Breuer)_
+- **macos**: add native menu bar visibility engine ([739365d](https://github.com/craft-native/craft/commit/739365d)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **e2e**: retain simulator pasteboard command failures ([a4a9804](https://github.com/craft-native/craft/commit/a4a9804)) _(by Chris)_
+
+## 🧪 Tests
+
+- **macos**: verify native visibility cancellation and recovery ([6b81d28](https://github.com/craft-native/craft/commit/6b81d28)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.299...v0.0.301)
 
 ## 🐛 Bug Fixes
