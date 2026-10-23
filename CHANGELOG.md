@@ -1,5 +1,82 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.304...v0.0.311)
+
+## 🚀 Features
+
+- **native**: add controlled paging and platform font stacks ([26be292](https://github.com/craft-native/craft/commit/26be292)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **menubar**: verify native status items without scanning app windows ([16e7e54](https://github.com/craft-native/craft/commit/16e7e54)) _(by Chris Breuer)_
+- **menubar**: keep unbundled native helpers visible ([ae553e3](https://github.com/craft-native/craft/commit/ae553e3)) _(by Chris Breuer)_
+- **menubar**: preserve visible apps by native signing identity ([ce4df3b](https://github.com/craft-native/craft/commit/ce4df3b)) _(by Chris Breuer)_
+- adopt upstream compiler-cache and publisher corrections ([e116e12](https://github.com/craft-native/craft/commit/e116e12)) _(by Chris)_
+- **ios**: retain accessibility size for tab content viewers ([cb84784](https://github.com/craft-native/craft/commit/cb84784)) _(by Chris Breuer)_
+- **ios**: align sticky headers with retargeted scroll offsets ([fa33362](https://github.com/craft-native/craft/commit/fa33362)) _(by Chris Breuer)_
+- **ios**: cap tab chrome before resolving Dynamic Type metrics ([c194017](https://github.com/craft-native/craft/commit/c194017)) _(by Chris Breuer)_
+- **menubar**: verify unlabeled icons by native accessibility identity ([cd5118c](https://github.com/craft-native/craft/commit/cd5118c)) _(by Chris Breuer)_
+- **ci**: exclude downloaded Zig package caches from source lint ([ab73bf3](https://github.com/craft-native/craft/commit/ab73bf3)) _(by Chris Breuer)_
+- **android**: finish native page snapping before reporting selection ([9d7986f](https://github.com/craft-native/craft/commit/9d7986f)) _(by Chris Breuer)_
+- **ios**: preserve authored bounce options when restoring scroll axis ([d5de31d](https://github.com/craft-native/craft/commit/d5de31d)) _(by Chris Breuer)_
+- **packaging**: give bundled native runtimes an agent app identity ([2c925f1](https://github.com/craft-native/craft/commit/2c925f1)) _(by Chris Breuer)_
+- **menubar**: restore icons when native visibility changes the wrong group ([09e86f9](https://github.com/craft-native/craft/commit/09e86f9)) _(by Chris Breuer)_
+- **ios**: retain paging axis and custom font weight ([4eb6256](https://github.com/craft-native/craft/commit/4eb6256)) _(by Chris Breuer)_
+- **native**: initialize pager gesture tracking with its host ([e16dea0](https://github.com/craft-native/craft/commit/e16dea0)) _(by Chris Breuer)_
+- **ci**: use the native Windows source archiver ([47ca70f](https://github.com/craft-native/craft/commit/47ca70f)) _(by Chris)_
+- **ci**: resolve Zig packages through their native manifest ([b5770e3](https://github.com/craft-native/craft/commit/b5770e3)) _(by Chris)_
+- **zig**: ship portable dependencies and complete native sources ([7ca7646](https://github.com/craft-native/craft/commit/7ca7646)) _(by Chris)_
+
+## 📚 Documentation
+
+- describe portable Zig package verification ([621bf49](https://github.com/craft-native/craft/commit/621bf49)) _(by Chris)_
+
+## 🧪 Tests
+
+- retain static native viewer frames during held input ([9df77bc](https://github.com/craft-native/craft/commit/9df77bc)) _(by Chris Breuer)_
+- **ios**: retain original video sample timestamps ([586ab26](https://github.com/craft-native/craft/commit/586ab26)) _(by Chris Breuer)_
+- **ios**: compile held-frame extractor against the macOS SDK ([0ebb073](https://github.com/craft-native/craft/commit/0ebb073)) _(by Chris Breuer)_
+- **ios**: verify actual recorded frames during held tab gestures ([8e8ab58](https://github.com/craft-native/craft/commit/8e8ab58)) _(by Chris Breuer)_
+- **ios**: own public screen recording through movie finalization ([6e51192](https://github.com/craft-native/craft/commit/6e51192)) _(by Chris Breuer)_
+- **ios**: qualify actual recorded frames within native holds ([0e69abd](https://github.com/craft-native/craft/commit/0e69abd)) _(by Chris Breuer)_
+- **ios**: reuse verified simctl for held screenshots ([e4c8217](https://github.com/craft-native/craft/commit/e4c8217)) _(by Chris Breuer)_
+- **ios**: qualify public driver held-tab capture markers ([a8201ed](https://github.com/craft-native/craft/commit/a8201ed)) _(by Chris Breuer)_
+- **ios**: share screenshot preflight command deadline ([5631427](https://github.com/craft-native/craft/commit/5631427)) _(by Chris Breuer)_
+- **ios**: wait for screenshot control before viewer gesture ([00e2a54](https://github.com/craft-native/craft/commit/00e2a54)) _(by Chris Breuer)_
+- **ios**: verify screenshot positive control before held capture ([c9d6e1a](https://github.com/craft-native/craft/commit/c9d6e1a)) _(by Chris Breuer)_
+- retain the verified Craft tooling adoption ([e4d96e1](https://github.com/craft-native/craft/commit/e4d96e1)) _(by Chris)_
+- **ios**: retain bounded viewer screenshot failure details ([1778c09](https://github.com/craft-native/craft/commit/1778c09)) _(by Chris Breuer)_
+- **ios**: capture tab content viewer during native hold ([b92159d](https://github.com/craft-native/craft/commit/b92159d)) _(by Chris Breuer)_
+- **ios**: hold native tab for independent content viewer capture ([657c2b4](https://github.com/craft-native/craft/commit/657c2b4)) _(by Chris Breuer)_
+- support bounded standard XCTest holds on native tabs ([8a1a975](https://github.com/craft-native/craft/commit/8a1a975)) _(by Chris Breuer)_
+- **ios**: retain sticky header geometry across day retargets ([8d7cf02](https://github.com/craft-native/craft/commit/8d7cf02)) _(by Chris Breuer)_
+- **ios**: verify tab chrome at maximum accessibility text size ([06c7c48](https://github.com/craft-native/craft/commit/06c7c48)) _(by Chris Breuer)_
+- align native scroll contract with paging host visibility ([9e86890](https://github.com/craft-native/craft/commit/9e86890)) _(by Chris Breuer)_
+- await native pager settlement between geometry commands ([ed2c365](https://github.com/craft-native/craft/commit/ed2c365)) _(by Chris Breuer)_
+- preserve pager bounce options and custom input font traits ([f7ba8d3](https://github.com/craft-native/craft/commit/f7ba8d3)) _(by Chris Breuer)_
+- retain pager selection through held and locked gestures ([9cf0747](https://github.com/craft-native/craft/commit/9cf0747)) _(by Chris Breuer)_
+- exercise native pager geometry gestures and font families ([9e7c53b](https://github.com/craft-native/craft/commit/9e7c53b)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- preserve v0.0.310 release metadata with host SDK checks ([91b4011](https://github.com/craft-native/craft/commit/91b4011)) _(by Chris Breuer)_
+- release v0.0.310 ([7601def](https://github.com/craft-native/craft/commit/7601def)) _(by Chris Breuer)_
+- integrate current Craft release metadata ([9e390f2](https://github.com/craft-native/craft/commit/9e390f2)) _(by Chris Breuer)_
+- release v0.0.309 ([e4e92a1](https://github.com/craft-native/craft/commit/e4e92a1)) _(by Chris)_
+- release v0.0.308 ([35cebb2](https://github.com/craft-native/craft/commit/35cebb2)) _(by Chris Breuer)_
+- release v0.0.307 ([281c47d](https://github.com/craft-native/craft/commit/281c47d)) _(by Chris Breuer)_
+- release v0.0.306 ([4ac50d7](https://github.com/craft-native/craft/commit/4ac50d7)) _(by Chris Breuer)_
+- release v0.0.305 ([25e15e2](https://github.com/craft-native/craft/commit/25e15e2)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' into codex/settlers-metal-surface ([3c2bdb8](https://github.com/craft-native/craft/commit/3c2bdb8)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.309...v0.0.310)
 
 ## 🐛 Bug Fixes
