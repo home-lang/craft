@@ -4976,7 +4976,7 @@ class MainActivity : AppCompatActivity() {
         val bars = chrome ?: return
         val depth = screens.indexOf(screen).coerceAtLeast(0)
         val fallback = if (depth == 0) routes.tabs.getOrNull(currentTab)?.title else null
-        bars.apply(screen.options, depth, fallback)
+        bars.apply(screen.options, depth, fallback, screen.path)
     }
 
     /** Applies a screen-specific background, falling back to the dynamic app colour. */
