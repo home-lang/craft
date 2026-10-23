@@ -4,6 +4,12 @@ description: >
   (zig-js and its zig-regex / zig-gc) into the directory build.zig.zon
   resolves to, at the revisions pinned in pins.env.
 
+inputs:
+  git-executable:
+    description: Verified Git executable used for every dependency command
+    required: false
+    default: git
+
 runs:
   using: composite
   steps:
@@ -21,6 +27,8 @@ runs:
     # build step. A checkout already at the pinned revision is left alone; one
     # at any other revision is replaced, so a stale cache cannot silently win.
     - shell: bash
+      env:
+        CRAFT_DEPENDENCY_GIT: ${{ inputs.git-executable }}
       run: |
         set -euo pipefail
 
@@ -33,19 +41,19 @@ runs:
         fetch_pinned() {
           local repo="$1" sha="$2" dest="$deps/$1"
 
-          if [ -d "$dest/.git" ] && [ "$(git -C "$dest" rev-parse HEAD)" = "$sha" ]; then
+          if [ -d "$dest/.git" ] && [ "$("$CRAFT_DEPENDENCY_GIT" -C "$dest" rev-parse HEAD)" = "$sha" ]; then
             echo "$repo already at $sha"
             return
           fi
 
           rm -rf "$dest"
-          git init --quiet "$dest"
-          git -C "$dest" remote add origin "https://github.com/zig-utils/$repo"
+          "$CRAFT_DEPENDENCY_GIT" init --quiet "$dest"
+          "$CRAFT_DEPENDENCY_GIT" -C "$dest" remote add origin "https://github.com/zig-utils/$repo"
           # Fetch the one commit rather than the branch: the pin may point at
           # something that is no longer the tip, and --depth 1 on a branch would
           # not reach it.
-          git -C "$dest" fetch --quiet --depth 1 origin "$sha"
-          git -C "$dest" checkout --quiet FETCH_HEAD
+          "$CRAFT_DEPENDENCY_GIT" -C "$dest" fetch --quiet --depth 1 origin "$sha"
+          "$CRAFT_DEPENDENCY_GIT" -C "$dest" checkout --quiet FETCH_HEAD
           echo "$repo pinned at $sha"
         }
 
