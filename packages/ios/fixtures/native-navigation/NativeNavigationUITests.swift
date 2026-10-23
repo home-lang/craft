@@ -509,6 +509,14 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(selectAll.waitForExistence(timeout: 5), "The text area must retain its native selection menu")
         selectAll.tap()
         notes.typeText("Draft edited")
+        // XCTest can return from key synthesis before UIKit has delivered
+        // every character. Await the exact edit, preserving the native focus
+        // and scroll assertions below rather than accepting a partial value.
+        let edited = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "Draft edited"),
+            object: notes
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [edited], timeout: 5), .completed, "The complete native edit must arrive")
         XCTAssertEqual(notes.value as? String, "Draft edited")
         notes.tap()
         XCTAssertTrue(app.keyboards.firstMatch.exists, "Tapping the text area again must preserve editing")
