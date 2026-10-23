@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test'
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { captureHeldViewerVideo } from '../scripts/held-viewer-capture'
+import { buildHeldViewerExtractor } from '../scripts/held-viewer-extractor'
+import type { nativeFixtureCommand } from '../scripts/native-fixture-command'
 import { createTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 const simulator = '9E10C320-E7FF-4D3E-ADE8-9A75FC60EC16'
@@ -13,14 +15,12 @@ for (const alteredAnchor of [false, true]) {
     try {
       const output = join(dir, 'evidence'), log = join(dir, 'log'), ready = join(dir, 'ready'), swiftc = join(dir, 'swiftc'), macosSdk = join(dir, 'MacOSX.sdk')
       writeFileSync(swiftc, 'synthetic compiler')
+      mkdirSync(macosSdk)
       writeFileSync(log, '')
       const calls: string[][] = []
       const completed = { code: 0, signal: null, stdout: '', stderr: '', timedOut: false, cancelled: false, processGroup: 123, groupDisposed: true as const }
       const now = 102
-      const run = captureHeldViewerVideo({ output, log, done: join(dir, 'done'), ready, simulator, timeoutMs: 5000 }, {
-        prepare: async () => ({ simctl: '/synthetic/simctl', simctlSha256: 'verified-tool' }),
-        xcrun: '/usr/bin/xcrun', now: () => now,
-        command: async (args) => {
+      const command: typeof nativeFixtureCommand = async (args) => {
           calls.push(args)
           if (args[1] === 'status_bar') {
             if (args.includes('override')) appendFileSync(log, 'CRAFT_TAB_LCV_HOLD_END 108\n')
@@ -36,6 +36,8 @@ for (const alteredAnchor of [false, true]) {
           }
           if (args[0] === swiftc) {
             expect(args).toEqual([swiftc, '-sdk', macosSdk, join(import.meta.dir, '../scripts/held-viewer-frame.swift'), '-o', join(output, 'held-viewer-frame')])
+            await Bun.write(args.at(-1)!, 'built extractor bytes')
+          chmodSync(args.at(-1)!, 0o700)
             return completed
           }
           if (args[1]?.endsWith('held-viewer-record.ts')) {
@@ -59,7 +61,12 @@ for (const alteredAnchor of [false, true]) {
             pngSha256: hash(pixel), movieSha256: hash('actual synthetic movie'),
           }))
           return completed
-        },
+      }
+      const extractorManifest = await buildHeldViewerExtractor({ output }, { command, xcrun: '/usr/bin/xcrun' })
+      const buildCallCount = calls.length
+      const run = captureHeldViewerVideo({ output, log, done: join(dir, 'done'), ready, simulator, timeoutMs: 5000, extractorManifest }, {
+        prepare: async () => ({ simctl: '/synthetic/simctl', simctlSha256: 'verified-tool' }),
+        now: () => now, command,
       })
       const deadline = performance.now() + 2000
       while (!existsSync(ready) && performance.now() < deadline) await Bun.sleep(10)
@@ -72,6 +79,9 @@ for (const alteredAnchor of [false, true]) {
       if (alteredAnchor) await expect(run).rejects.toThrow('Frame timing does not match')
       else await run
       expect(calls.some(args => args.includes('screenshot'))).toBe(false)
+      // Capture admission verifies the owned artifact; it never launches a
+      // compiler inside the independent public recording-readiness deadline.
+      expect(calls.slice(buildCallCount).some(args => args[0] === swiftc || args[0] === '/usr/bin/xcrun')).toBe(false)
       const receipt = JSON.parse(readFileSync(join(output, 'receipt.json'), 'utf8'))
       expect(receipt.verifiedDuringHold).toBe(!alteredAnchor)
       expect(receipt.ownedDisplayStimulus.restored).toBe(true)

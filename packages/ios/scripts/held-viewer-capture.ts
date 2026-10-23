@@ -3,6 +3,7 @@ import { isAbsolute, join } from 'node:path'
 import { nativeFixtureCommand } from './native-fixture-command'
 import { validateHeldVideoFrame } from './held-viewer-video'
 import { HeldViewerStatusBar } from './held-viewer-status'
+import { verifyHeldViewerExtractor } from './held-viewer-extractor'
 
 export const heldViewerTest = 'NativeNavigationUITests/NativeNavigationUITests/testTabBarLargeContentViewerDuringAccessibilityHold'
 
@@ -101,6 +102,7 @@ interface CaptureOptions {
   timeoutMs?: number
   parentPid?: number
   ready?: string
+  extractorManifest?: string
 }
 
 async function pngHash(path: string): Promise<string> {
@@ -278,7 +280,6 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
 export async function captureHeldViewerVideo(options: CaptureOptions, dependencies: {
   command?: typeof nativeFixtureCommand
   prepare?: () => Promise<ResolvedScreenshotTool>
-  xcrun?: string
   now?: () => number
 } = {}): Promise<void> {
   if (![options.log, options.output, options.done].every(isAbsolute) || !/^[\da-f-]{36}$/i.test(options.simulator))
@@ -294,12 +295,12 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
   const png = join(options.output, 'during-hold.png'), movie = join(options.output, 'held-screen.mov')
   const recordReady = join(options.output, 'recording-ready'), recordStop = join(options.output, 'recording-stop')
   const recordReceipt = join(options.output, 'recording.json'), frameReceipt = join(options.output, 'frame.json')
-  const extractor = join(options.output, 'held-viewer-frame')
+  let extractor: string | undefined, extractorBuild: Awaited<ReturnType<typeof verifyHeldViewerExtractor>> | undefined
   const setupDeadline = performance.now() + 30_000
   const deadline = performance.now() + (options.timeoutMs ?? 45 * 60_000)
   let recordingResult: Awaited<ReturnType<typeof nativeFixtureCommand>> | undefined
   let recordingFailure: unknown, recording: Promise<void> | undefined
-  let tool: ResolvedScreenshotTool | undefined, swiftc: string | undefined, swiftcSha256: string | undefined, macosSdk: string | undefined
+  let tool: ResolvedScreenshotTool | undefined
   let remainder = '', doneAt: number | undefined
   let status: HeldViewerStatusBar | undefined, statusReady: Promise<void> | undefined
   let statusFailure: unknown, redrawFailure: unknown, restorationFailure: unknown
@@ -307,7 +308,7 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
   const receipt = (verifiedDuringHold: boolean, error?: string) => ({
     verifiedDuringHold, error, method: 'public-simctl-recordVideo-decoded-frame', timing,
     simulator: options.simulator, screenshot: png, movie, recording: recordReceipt, frame: frameReceipt,
-    recordingResult, resolvedTool: tool, swiftc, swiftcSha256, macosSdk,
+    recordingResult, resolvedTool: tool, extractorBuild, extractorManifest: options.extractorManifest,
     ownedDisplayStimulus: { calls: status?.calls, restored: status?.restored, redrawDelayMs, restorationFailure: restorationFailure ? String(restorationFailure) : undefined },
     preflight: join(options.output, 'preflight.json'),
     beforeAfter: ['XCTest attachment: Large content viewer before hold', 'XCTest attachment: Large content viewer after release'],
@@ -324,22 +325,18 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
   try {
     const publicReady = options.ready ?? join(options.output, 'preflight-ready')
     if (!isAbsolute(publicReady)) throw new Error('Viewer readiness path must be absolute')
-    if ([publicReady, movie, recordReady, recordStop, recordReceipt, frameReceipt, extractor].some(existsSync))
+    if ([publicReady, movie, recordReady, recordStop, recordReceipt, frameReceipt].some(existsSync))
       throw new Error('Viewer recording evidence already exists; use a fresh result directory')
+    if (!options.extractorManifest || !isAbsolute(options.extractorManifest))
+      throw new Error('Viewer capture requires its verified fixture-build extractor manifest')
+    extractorBuild = await verifyHeldViewerExtractor(options.extractorManifest, options.output)
+    extractor = extractorBuild.path
     // Keep the runner blocked until both the old positive control and actual
     // recording first-frame acknowledgement succeed within the same setup budget.
     tool = await (dependencies.prepare ?? (() => prepareHeldViewerCapture({ ...options, signal, ready: join(options.output, 'screenshot-control-ready') })))()
     status = new HeldViewerStatusBar({ simctl: tool.simctl, simulator: options.simulator, cwd: options.output }, command)
     // This independent read shares the same setup deadline with compilation.
     statusReady = status.prepare(setupCommand).catch(error => { statusFailure = error })
-    const xcrun = dependencies.xcrun ?? Bun.which('xcrun')
-    if (!xcrun || !isAbsolute(xcrun)) throw new Error('Cannot resolve public Apple compiler tools')
-    swiftc = (await setupCommand([xcrun, '--sdk', 'macosx', '--find', 'swiftc'])).stdout.trim()
-    if (!isAbsolute(swiftc)) throw new Error('Apple compiler resolver returned a relative path')
-    swiftcSha256 = new Bun.CryptoHasher('sha256').update(await Bun.file(swiftc).arrayBuffer()).digest('hex')
-    macosSdk = (await setupCommand([xcrun, '--sdk', 'macosx', '--show-sdk-path'])).stdout.trim()
-    if (!isAbsolute(macosSdk)) throw new Error('Apple compiler resolver returned a relative macOS SDK path')
-    await setupCommand([swiftc, '-sdk', macosSdk, join(import.meta.dir, 'held-viewer-frame.swift'), '-o', extractor])
     recording = command([process.execPath, join(import.meta.dir, 'held-viewer-record.ts'), tool.simctl,
       options.simulator, movie, recordReady, recordStop, recordReceipt], {
       cwd: options.output, timeoutMs: Math.max(1, Math.floor(deadline - performance.now())), signal,
@@ -453,14 +450,14 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
 }
 
 if (import.meta.main) {
-  const [log, simulator, output, done, rawOffset, rawParent, ready] = process.argv.slice(2)
+  const [log, simulator, output, done, rawOffset, rawParent, ready, extractorManifest] = process.argv.slice(2)
   const controller = new AbortController()
   const cancel = () => controller.abort()
   process.once('SIGTERM', cancel)
   process.once('SIGINT', cancel)
   try {
     if (!log || !simulator || !output || !done) throw new Error('Expected live log, simulator, evidence directory, completion marker and offset')
-    await captureHeldViewerVideo({ log, simulator, output, done, startOffset: Number(rawOffset ?? 0), parentPid: Number(rawParent) || undefined, signal: controller.signal, ready })
+    await captureHeldViewerVideo({ log, simulator, output, done, startOffset: Number(rawOffset ?? 0), parentPid: Number(rawParent) || undefined, signal: controller.signal, ready, extractorManifest })
   }
   catch (error) { console.error(error); process.exitCode = 1 }
   finally { process.off('SIGTERM', cancel); process.off('SIGINT', cancel) }
