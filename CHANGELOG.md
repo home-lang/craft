@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.302...v0.0.303)
+
+## 🐛 Bug Fixes
+
+- **ci**: qualify Pantry across required mobile acceptance ([9d5abe7](https://github.com/craft-native/craft/commit/9d5abe7)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.301...v0.0.302)
 
 ## 🚀 Features
