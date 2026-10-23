@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.312...v0.0.313)
+
+## 🧪 Tests
+
+- **ios**: give each Metal suite its own execution lifecycle ([a141b01](https://github.com/craft-native/craft/commit/a141b01)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.311...v0.0.312)
 
 ## 🚀 Features
