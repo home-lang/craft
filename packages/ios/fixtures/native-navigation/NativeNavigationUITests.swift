@@ -403,6 +403,33 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertFalse(app.webViews.firstMatch.exists)
     }
 
+    func testTabBarLargeContentViewerDuringAccessibilityHold() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["home-title"].waitForExistence(timeout: 15))
+        let tab = app.buttons["craft-tab-/"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 10))
+        XCTAssertTrue(tab.isHittable)
+        let before = XCTAttachment(screenshot: app.screenshot())
+        before.name = "Large content viewer before hold"
+        before.lifetime = .keepAlways
+        add(before)
+
+        // The independent host capture watches this activity's actual
+        // synthesized press and records the screen while the finger is down.
+        // An after-release image alone cannot prove this transient UI.
+        FileHandle.standardOutput.write(Data("CRAFT_TAB_LCV_HOLD_BEGIN \(Date().timeIntervalSince1970)\n".utf8))
+        tab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 6)
+        FileHandle.standardOutput.write(Data("CRAFT_TAB_LCV_HOLD_END \(Date().timeIntervalSince1970)\n".utf8))
+        let after = XCTAttachment(screenshot: app.screenshot())
+        after.name = "Large content viewer after release"
+        after.lifetime = .keepAlways
+        add(after)
+        XCTAssertTrue(app.staticTexts["home-title"].exists)
+        XCTAssertFalse(app.webViews.firstMatch.exists)
+    }
+
     func testSwipesAcrossAllFiveNativeTabsAndBack() {
         let app = XCUIApplication()
         app.launch()
