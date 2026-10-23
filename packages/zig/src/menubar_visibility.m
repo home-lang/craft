@@ -255,19 +255,39 @@ static id attribute(AXUIElementRef element, CFStringRef name) {
     return CFBridgingRelease(value);
 }
 
+static id (*readAttribute)(AXUIElementRef, CFStringRef) = attribute;
+
 // Verify the displayed bar independently of the per-app grouping inventory.
 // A private allow-list can silently omit an allowed app (notably a mismatched
 // helper bundle), or suppress a system indicator. Such an activation is unsafe.
-static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, double boundary, BOOL rtl,
+static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, double boundary, BOOL rtl,
     BOOL protectedOnly, NSMutableDictionary *items, NSUInteger *remaining) {
     if (!depth || !*remaining) return NO;
     (*remaining)--;
     AXUIElementSetMessagingTimeout(node, 0.1);
-    NSString *role = attribute(node, kAXRoleAttribute);
-    NSString *identifier = attribute(node, kAXIdentifierAttribute);
+    NSString *role = readAttribute(node, kAXRoleAttribute);
+    // MenuBarAgent's remote app nodes expose the entire app, including its
+    // windows and application menus. Only its extras belong to this bar.
+    // Walking a webview here can exhaust the budget or count unrelated buttons.
+    if (!root && [role isEqual:(__bridge NSString *)kAXApplicationRole]) {
+        id extras = readAttribute(node, CFSTR("AXExtrasMenuBar"));
+        if (extras && CFGetTypeID((__bridge CFTypeRef)extras) == AXUIElementGetTypeID())
+            return snapshotItems((__bridge AXUIElementRef)extras, depth - 1, NO, boundary, rtl, protectedOnly, items, remaining);
+        // Keep an unreadable remote app protected by its native presence.
+        // Its ordinary window controls cannot stand in for a status item.
+        pid_t owner = 0;
+        if (AXUIElementGetPid(node, &owner) != kAXErrorSuccess || owner <= 0) return NO;
+        NSString *key = [NSString stringWithFormat:@"application:%d", owner];
+        items[key] = @([items[key] unsignedIntegerValue] + 1);
+        return YES;
+    }
+    // An open status menu is below the bar, not another status item.
+    if ([role isEqual:(__bridge NSString *)kAXMenuRole]) return YES;
+    NSString *identifier = readAttribute(node, kAXIdentifierAttribute);
     BOOL system = [identifier isKindOfClass:NSString.class] && [identifier hasPrefix:@"com.apple.menuextra."];
-    if (system || [role isEqual:(__bridge NSString *)kAXButtonRole]) {
-        id position = attribute(node, kAXPositionAttribute), size = attribute(node, kAXSizeAttribute);
+    if (system || [role isEqual:(__bridge NSString *)kAXButtonRole]
+        || [role isEqual:(__bridge NSString *)kAXMenuBarItemRole]) {
+        id position = readAttribute(node, kAXPositionAttribute), size = readAttribute(node, kAXSizeAttribute);
         CGPoint point = CGPointZero;
         CGSize dimensions = CGSizeZero;
         if (position && size && CFGetTypeID((__bridge CFTypeRef)position) == AXValueGetTypeID()
@@ -283,31 +303,26 @@ static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, double boundary
             AXUIElementGetPid(node, &owner);
             BOOL visibleSide = rtl ? middle < boundary : middle > boundary;
             if (!arrow && (!protectedOnly || system || owner == getpid() || visibleSide)) {
-                NSMutableArray *parts = [NSMutableArray arrayWithObject:role ?: @""];
-                for (id name in @[(__bridge NSString *)kAXIdentifierAttribute, (__bridge NSString *)kAXTitleAttribute,
-                    (__bridge NSString *)kAXDescriptionAttribute, (__bridge NSString *)kAXHelpAttribute]) {
-                    id value = attribute(node, (__bridge CFStringRef)name);
-                    [parts addObject:[value isKindOfClass:NSString.class] ? value : @""];
-                }
-                if (![[parts subarrayWithRange:NSMakeRange(1, 4)] componentsJoinedByString:@""].length) {
-                    // An icon is allowed to omit every text attribute. Retain
-                    // its native AX identity across the verification interval:
-                    // labels and coordinates cannot identify this item safely.
-                    NSMutableArray *anonymous = items[@"anonymous"];
-                    if (!anonymous) items[@"anonymous"] = anonymous = [NSMutableArray array];
-                    [anonymous addObject:(__bridge id)node];
-                } else {
-                    NSString *key = [parts componentsJoinedByString:@"\x1f"];
+                if ([identifier isKindOfClass:NSString.class] && identifier.length && owner > 0) {
+                    // Descriptions, titles and help can change while a status
+                    // meter updates. The native identifier and owner do not.
+                    NSString *key = [NSString stringWithFormat:@"item:%d:%@", owner, identifier];
                     items[key] = @([items[key] unsignedIntegerValue] + 1);
+                } else {
+                    // Named and unnamed items without a stable identifier use
+                    // their retained AX identity, never their current label.
+                    NSMutableArray *elements = items[@"elements"];
+                    if (!elements) items[@"elements"] = elements = [NSMutableArray array];
+                    [elements addObject:(__bridge id)node];
                 }
             }
         }
     }
-    id children = attribute(node, kAXChildrenAttribute);
+    id children = readAttribute(node, kAXChildrenAttribute);
     if ([children isKindOfClass:NSArray.class]) {
         for (id child in children) {
             if (CFGetTypeID((__bridge CFTypeRef)child) == AXUIElementGetTypeID()
-                && !snapshotItems((__bridge AXUIElementRef)child, depth - 1, boundary, rtl, protectedOnly, items, remaining)) return NO;
+                && !snapshotItems((__bridge AXUIElementRef)child, depth - 1, NO, boundary, rtl, protectedOnly, items, remaining)) return NO;
         }
     }
     return YES;
@@ -318,7 +333,7 @@ static NSDictionary *barSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL pr
     AXUIElementRef element = AXUIElementCreateApplication(agent);
     NSMutableDictionary *items = [NSMutableDictionary dictionary];
     NSUInteger remaining = 256;
-    BOOL complete = snapshotItems(element, 8, boundary, rtl, protectedOnly, items, &remaining);
+    BOOL complete = snapshotItems(element, 8, YES, boundary, rtl, protectedOnly, items, &remaining);
     CFRelease(element);
     return complete && items.count ? [items copy] : nil;
 }
@@ -328,7 +343,7 @@ static NSDictionary *(*readBarSnapshot)(pid_t, double, BOOL, BOOL) = barSnapshot
 static BOOL preservesItems(NSDictionary *expected, NSDictionary *actual) {
     if (!expected.count || !actual.count) return NO;
     for (NSString *key in expected) {
-        if ([key isEqual:@"anonymous"]) {
+        if ([key isEqual:@"elements"]) {
             NSMutableArray *remaining = [actual[key] mutableCopy];
             for (id element in expected[key]) {
                 NSUInteger match = [remaining indexOfObjectPassingTest:^BOOL(id candidate, NSUInteger index, BOOL *stop) {

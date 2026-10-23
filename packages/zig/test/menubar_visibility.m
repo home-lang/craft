@@ -26,6 +26,99 @@ static NSDictionary *testSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL p
     (void)agent; (void)boundary; (void)rtl; (void)protectedOnly;
     return snapshot;
 }
+
+static NSMutableDictionary *nodeAttributes;
+static id testAttribute(AXUIElementRef node, CFStringRef name) {
+    return nodeAttributes[[NSValue valueWithPointer:node]][(__bridge NSString *)name];
+}
+static id testNode(NSDictionary *attributes) {
+    static pid_t next = 1000000;
+    id node = CFBridgingRelease(AXUIElementCreateApplication(next++));
+    nodeAttributes[[NSValue valueWithPointer:(__bridge void *)node]] = attributes;
+    return node;
+}
+static void verifyStatusItemScope(void) {
+    nodeAttributes = [NSMutableDictionary dictionary];
+    CGPoint point = CGPointMake(200, 0);
+    CGSize size = CGSizeMake(20, 24);
+    id position = CFBridgingRelease(AXValueCreate(kAXValueCGPointType, &point));
+    id dimensions = CFBridgingRelease(AXValueCreate(kAXValueCGSizeType, &size));
+    id status = testNode(@{
+        (__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXMenuBarItemRole,
+        (__bridge NSString *)kAXIdentifierAttribute: @"right.status",
+        (__bridge NSString *)kAXTitleAttribute: @"Right",
+        (__bridge NSString *)kAXPositionAttribute: position,
+        (__bridge NSString *)kAXSizeAttribute: dimensions,
+    });
+    NSMutableArray *windowButtons = [NSMutableArray array];
+    for (NSUInteger i = 0; i < 300; i++) {
+        [windowButtons addObject:testNode(@{
+            (__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXButtonRole,
+            (__bridge NSString *)kAXIdentifierAttribute: [NSString stringWithFormat:@"window.%lu", (unsigned long)i],
+            (__bridge NSString *)kAXPositionAttribute: position,
+            (__bridge NSString *)kAXSizeAttribute: dimensions,
+        })];
+    }
+    id window = testNode(@{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXWindowRole,
+        (__bridge NSString *)kAXChildrenAttribute: windowButtons});
+    id menu = testNode(@{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXMenuRole,
+        (__bridge NSString *)kAXChildrenAttribute: windowButtons});
+    id extras = testNode(@{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXMenuBarRole,
+        (__bridge NSString *)kAXChildrenAttribute: @[status, menu]});
+    id app = testNode(@{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXApplicationRole,
+        (__bridge NSString *)kAXChildrenAttribute: @[window, menu, extras], @"AXExtrasMenuBar": extras});
+    id root = testNode(@{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXApplicationRole,
+        (__bridge NSString *)kAXChildrenAttribute: @[app]});
+    readAttribute = testAttribute;
+    NSMutableDictionary *items = [NSMutableDictionary dictionary];
+    NSUInteger remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)root, 8, YES, 100, NO, YES, items, &remaining));
+    assert(remaining > 240 && items.count == 1);
+    pid_t statusOwner = 0;
+    assert(AXUIElementGetPid((__bridge AXUIElementRef)status, &statusOwner) == kAXErrorSuccess);
+    NSString *key = [NSString stringWithFormat:@"item:%d:right.status", statusOwner];
+    assert([items[key] unsignedIntegerValue] == 1);
+    NSDictionary *expected = [items copy];
+    NSMutableDictionary *statusAttributes = [nodeAttributes[[NSValue valueWithPointer:(__bridge void *)status]] mutableCopy];
+    statusAttributes[(__bridge NSString *)kAXTitleAttribute] = @"Right changed";
+    statusAttributes[(__bridge NSString *)kAXDescriptionAttribute] = @"Updated meter";
+    nodeAttributes[[NSValue valueWithPointer:(__bridge void *)status]] = statusAttributes;
+    [items removeAllObjects]; remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)root, 8, YES, 100, NO, NO, items, &remaining));
+    assert(preservesItems(expected, items));
+
+    // Without an identifier, a changing title still describes the same item.
+    NSMutableDictionary *meterAttributes = [statusAttributes mutableCopy];
+    [meterAttributes removeObjectForKey:(__bridge NSString *)kAXIdentifierAttribute];
+    id meter = testNode(meterAttributes);
+    NSMutableDictionary *extrasAttributes = [nodeAttributes[[NSValue valueWithPointer:(__bridge void *)extras]] mutableCopy];
+    extrasAttributes[(__bridge NSString *)kAXChildrenAttribute] = @[status, meter, menu];
+    nodeAttributes[[NSValue valueWithPointer:(__bridge void *)extras]] = extrasAttributes;
+    [items removeAllObjects]; remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)root, 8, YES, 100, NO, YES, items, &remaining));
+    expected = [items copy];
+    meterAttributes[(__bridge NSString *)kAXTitleAttribute] = @"Meter changed again";
+    [items removeAllObjects]; remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)root, 8, YES, 100, NO, NO, items, &remaining));
+    assert(preservesItems(expected, items));
+    extrasAttributes[(__bridge NSString *)kAXChildrenAttribute] = @[status, menu];
+    [items removeAllObjects]; remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)root, 8, YES, 100, NO, NO, items, &remaining));
+    assert(!preservesItems(expected, items));
+    // Unreadable extras preserve the app's native presence, never its window
+    // controls. This keeps an unknown app protected without walking its UI.
+    id ordinaryApp = testNode(@{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXApplicationRole,
+        (__bridge NSString *)kAXChildrenAttribute: @[window, menu]});
+    [items removeAllObjects]; remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)ordinaryApp, 8, NO, 100, NO, NO, items, &remaining));
+    assert(items.count == 1 && remaining == 255);
+    pid_t owner = 0;
+    assert(AXUIElementGetPid((__bridge AXUIElementRef)ordinaryApp, &owner) == kAXErrorSuccess);
+    NSString *applicationKey = [NSString stringWithFormat:@"application:%d", owner];
+    assert([items[applicationKey] unsignedIntegerValue] == 1);
+    readAttribute = attribute;
+    nodeAttributes = nil;
+}
 @interface TestAssertion : NSObject <CraftVisibilityAssertion>
 @property (copy) void (^completion)(NSError *);
 @property BOOL invalidated;
@@ -58,6 +151,7 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     @autoreleasepool {
+        verifyStatusItemScope();
         (void)available(); // Resolve once before substituting the test classes.
         configurationClass = TestConfiguration.class;
         assertionClass = TestAssertion.class;
@@ -73,11 +167,11 @@ int main(int argc, char *argv[]) {
         AXUIElementRef anonymous = AXUIElementCreateApplication(getpid());
         AXUIElementRef same = AXUIElementCreateApplication(getpid());
         AXUIElementRef other = AXUIElementCreateApplication(getpid() + 1);
-        NSDictionary *expectedAnonymous = @{@"anonymous": @[(__bridge id)anonymous]};
-        assert(preservesItems(expectedAnonymous, @{@"anonymous": @[(__bridge id)same]}));
-        assert(!preservesItems(expectedAnonymous, @{@"anonymous": @[(__bridge id)other]}));
+        NSDictionary *expectedAnonymous = @{@"elements": @[(__bridge id)anonymous]};
+        assert(preservesItems(expectedAnonymous, @{@"elements": @[(__bridge id)same]}));
+        assert(!preservesItems(expectedAnonymous, @{@"elements": @[(__bridge id)other]}));
         assert(!preservesItems(expectedAnonymous, snapshot));
-        assert(!preservesItems(@{@"anonymous": @[(__bridge id)anonymous, (__bridge id)anonymous]}, expectedAnonymous));
+        assert(!preservesItems(@{@"elements": @[(__bridge id)anonymous, (__bridge id)anonymous]}, expectedAnonymous));
         CFRelease(anonymous); CFRelease(same); CFRelease(other);
         // A helper's sealed identifier differs from its app/LaunchServices ID.
         // It must stay allowed even when its icon sits in the hidden section.
