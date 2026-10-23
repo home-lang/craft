@@ -2,6 +2,8 @@ package {{PACKAGE_NAME}}
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Handler
@@ -23,11 +25,23 @@ internal class CraftNativeSounds(private val context: Context) {
         val player: MediaPlayer,
         var volume: Float,
         var paused: Boolean = false,
+        var interrupted: Boolean = false,
         var fade: Runnable? = null,
     )
 
     private val main = Handler(Looper.getMainLooper())
     private val sounds = mutableMapOf<String, Sound>()
+    private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    private val focusRequest by lazy {
+        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build())
+            .setAcceptsDelayedFocusGain(false)
+            .setOnAudioFocusChangeListener({ change -> onAudioFocusChange(change) }, main)
+            .build()
+    }
 
     /** `{ id, event: "ended" | "error", message? }` for the screen bridge. */
     var emit: ((JSONObject) -> Unit)? = null
@@ -57,6 +71,13 @@ internal class CraftNativeSounds(private val context: Context) {
             remove(id)
             settle(failure("AUDIO_ERROR", message))
             emit?.invoke(JSONObject().put("id", id).put("event", "error").put("message", message))
+        }
+
+        if (audioManager.requestAudioFocus(focusRequest) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            remove(id)
+            settle(failure("AUDIO_FOCUS_DENIED", "Audio focus was denied by the operating system"))
+            emit?.invoke(JSONObject().put("id", id).put("event", "error").put("message", "Audio focus was denied by the operating system"))
+            return
         }
 
         runCatching {
@@ -105,6 +126,7 @@ internal class CraftNativeSounds(private val context: Context) {
         val sound = sounds[id] ?: return false
         runCatching { sound.player.start() }.onFailure { return false }
         sound.paused = false
+        sound.interrupted = false
         return true
     }
 
@@ -158,6 +180,37 @@ internal class CraftNativeSounds(private val context: Context) {
             sound.player.stop()
         }
         sound.player.release()
+        if (sounds.isEmpty()) audioManager.abandonAudioFocusRequest(focusRequest)
+    }
+
+    private fun onAudioFocusChange(change: Int) {
+        when (change) {
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                sounds.keys.toList().forEach { id ->
+                    if (sounds[id] != null) {
+                        remove(id)
+                        emit?.invoke(JSONObject().put("id", id).put("event", "error").put("message", "Audio focus was lost"))
+                    }
+                }
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> sounds.values.toList().forEach { sound ->
+                if (!sound.paused && runCatching { sound.player.isPlaying }.getOrDefault(false)) {
+                    sound.interrupted = true
+                    runCatching { sound.player.pause() }
+                }
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> sounds.values.toList().forEach { sound ->
+                runCatching { sound.player.setVolume(sound.volume * 0.2f, sound.volume * 0.2f) }
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> sounds.values.toList().forEach { sound ->
+                if (sound.interrupted) {
+                    sound.interrupted = false
+                    runCatching { sound.player.start() }
+                } else {
+                    runCatching { sound.player.setVolume(sound.volume, sound.volume) }
+                }
+            }
+        }
     }
 
     private fun ramp(sound: Sound, target: Float, seconds: Double, done: (() -> Unit)? = null) {

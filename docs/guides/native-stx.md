@@ -1367,6 +1367,14 @@ dismissed picker resolves with an empty array; a canceled or oversized copy
 never leaves a partial file behind. Use this for GPX, TCX, FIT, PDF, or other
 documents that are not photos or videos.
 
+`craft.audio` playback is screen-owned on both hosts. Android requests audio
+focus before preparing a player, reports a denied request as `AUDIO_FOCUS_DENIED`,
+pauses on a transient interruption and resumes on focus gain, ducks during a
+duckable interruption, and releases focus when the last sound ends or the
+screen closes. A permanent focus loss releases every player and sends each
+sound's error event; replacement, decode failure, cancellation, and teardown
+also release their player resources.
+
 The `media` capability (iOS) keeps video and audio on the phone for offline,
 in Application Support rather than the temporary directory, left out of
 iCloud backups. `craft.media.keep(url, { headers })` downloads the file once
