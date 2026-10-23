@@ -55,6 +55,18 @@ class NativeFlatListTest {
         lateinit var pager: CraftNativeScrollView
         val reports = mutableListOf<Pair<Int, Int>>()
         val handler: (Int, Int) -> Unit = { index, count -> reports.add(index to count) }
+        fun awaitReport(expected: Pair<Int, Int>) {
+            val deadline = SystemClock.uptimeMillis() + 5000
+            while (SystemClock.uptimeMillis() < deadline) {
+                var settled = false
+                // Native quiescence callbacks need the main queue. Never wait
+                // inside onActivity while its 80ms settle is still pending.
+                scenario.onActivity { settled = reports.lastOrNull() == expected }
+                if (settled) return
+                SystemClock.sleep(25)
+            }
+            scenario.onActivity { assertEquals("Native pager did not settle within 5000ms", expected, reports.lastOrNull()) }
+        }
         try {
             scenario.onActivity { activity ->
                 val host = FrameLayout(activity)
@@ -73,7 +85,7 @@ class NativeFlatListTest {
                 pager.configurePager(1, handler)
                 layoutPager(pager, 320)
             }
-            instrumentation.waitForIdleSync()
+            awaitReport(1 to 3)
             scenario.onActivity {
                 layoutPager(pager, 320)
                 val scroller = requireNotNull(horizontalScroller(pager))
@@ -100,17 +112,28 @@ class NativeFlatListTest {
                 assertEquals(reported, reports.size)
                 pager.configurePager(99, handler)
                 layoutPager(pager, 480)
-                assertEquals(960, scroller.scrollX)
+            }
+            awaitReport(2 to 3)
+            scenario.onActivity {
+                assertEquals(960, requireNotNull(horizontalScroller(pager)).scrollX)
                 assertEquals(2 to 3, reports.last())
                 pager.content.removeViews(1, 2)
                 layoutPager(pager, 480)
-                assertEquals(0, scroller.scrollX)
+            }
+            awaitReport(0 to 1)
+            scenario.onActivity {
+                assertEquals(0, requireNotNull(horizontalScroller(pager)).scrollX)
                 assertEquals(480, pager.content.width)
                 assertEquals(0 to 1, reports.last())
                 pager.content.removeAllViews()
                 pager.configurePager(-1, handler)
                 layoutPager(pager, 480)
+            }
+            awaitReport(0 to 0)
+            scenario.onActivity {
                 assertEquals(0 to 0, reports.last())
+                assertEquals("Reconciliation and resize must not add selected events",
+                    listOf(1 to 3, 2 to 3, 0 to 1, 0 to 0), reports)
             }
         } finally { scenario.close() }
     }
