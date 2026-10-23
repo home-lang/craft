@@ -109,11 +109,16 @@ async function pngHash(path: string): Promise<string> {
 }
 
 /** Positive control completes before the runner may begin XCTest's held gesture. */
+export interface ResolvedScreenshotTool {
+  simctl: string
+  simctlSha256: string
+}
+
 export async function prepareHeldViewerCapture(options: CaptureOptions, dependencies: {
   command?: typeof nativeFixtureCommand
   xcrun?: string
   monotonicNow?: () => number
-} = {}): Promise<void> {
+} = {}): Promise<ResolvedScreenshotTool> {
   const ready = options.ready ?? join(options.output, 'preflight-ready')
   if (!isAbsolute(ready)) throw new Error('Viewer readiness path must be absolute')
   if (existsSync(ready)) throw new Error('Viewer readiness evidence already exists; use a fresh result directory')
@@ -150,10 +155,11 @@ export async function prepareHeldViewerCapture(options: CaptureOptions, dependen
     simctl = resolved.stdout.trim()
     if (!isAbsolute(simctl)) throw new Error('xcrun did not resolve an absolute simctl executable')
     simctlSha256 = new Bun.CryptoHasher('sha256').update(await Bun.file(simctl).arrayBuffer()).digest('hex')
-    await run([xcrun, 'simctl', 'io', options.simulator, 'screenshot', baseline])
+    await run([simctl, 'io', options.simulator, 'screenshot', baseline])
     sha256 = await pngHash(baseline)
     await Bun.write(join(options.output, 'preflight.json'), JSON.stringify(receipt(true), null, 2))
     await Bun.write(ready, 'Screenshot positive control verified\n')
+    return { simctl, simctlSha256 }
   }
   catch (error) {
     await Bun.write(join(options.output, 'preflight.json'), JSON.stringify(receipt(false, String(error)), null, 2))
@@ -166,7 +172,7 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
   now?: () => number
   capture?: (png: string, signal: AbortSignal) => Promise<void>
   command?: typeof nativeFixtureCommand
-  prepare?: () => Promise<void>
+  prepare?: () => Promise<ResolvedScreenshotTool>
 } = {}): Promise<void> {
   if (![options.log, options.output, options.done].every(isAbsolute) || !/^[\da-f-]{36}$/i.test(options.simulator))
     throw new Error('Viewer capture needs absolute evidence paths and a simulator UUID')
@@ -178,9 +184,11 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
   const stop = new AbortController()
   const signal = options.signal ? AbortSignal.any([stop.signal, options.signal]) : stop.signal
   const png = join(options.output, 'during-hold.png')
+  let resolvedTool: ResolvedScreenshotTool | undefined
   let screenshotCommand: Awaited<ReturnType<typeof nativeFixtureCommand>> | undefined
   const capture = dependencies.capture ?? (async (path, abort) => {
-    const result = await (dependencies.command ?? nativeFixtureCommand)(['xcrun', 'simctl', 'io', options.simulator, 'screenshot', path], {
+    if (!resolvedTool || !isAbsolute(resolvedTool.simctl)) throw new Error('Held capture requires the verified absolute simctl tool')
+    const result = await (dependencies.command ?? nativeFixtureCommand)([resolvedTool.simctl, 'io', options.simulator, 'screenshot', path], {
       cwd: options.output, timeoutMs: 5000, signal: abort,
     })
     screenshotCommand = result
@@ -193,12 +201,12 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
   const receipt = (verifiedDuringHold: boolean, error?: string) => ({
     verifiedDuringHold, error, timing, simulator: options.simulator,
     screenshot: png, captureDelayMs: 750, screenshotCommandTimeoutMs: 5000, screenshotCommand,
-    preflight: join(options.output, 'preflight.json'),
+    preflight: join(options.output, 'preflight.json'), resolvedTool,
     beforeAfter: ['XCTest attachment: Large content viewer before hold', 'XCTest attachment: Large content viewer after release'],
     visualReviewRequired: 'The during-hold PNG must show the actual system Large Content Viewer.',
   })
   try {
-    await (dependencies.prepare ?? (() => prepareHeldViewerCapture({ ...options, signal })))()
+    resolvedTool = await (dependencies.prepare ?? (() => prepareHeldViewerCapture({ ...options, signal })))()
     while (performance.now() < deadline) {
       signal.throwIfAborted()
       if (options.parentPid) {

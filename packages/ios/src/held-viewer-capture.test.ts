@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { captureHeldViewer, HeldViewerTiming, heldViewerTest, includesHeldViewer, prepareHeldViewerCapture, waitForHeldViewerReady } from '../scripts/held-viewer-capture'
 import { createTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
+const syntheticTool = { simctl: '/synthetic/Xcode/simctl', simctlSha256: 'synthetic-tool-hash' }
 const simulator = '9E10C320-E7FF-4D3E-ADE8-9A75FC60EC16'
 const begin = 'CRAFT_TAB_LCV_HOLD_BEGIN 100\n'
 const gesture = 't = 1.0s Press Home for 6 seconds\nt = 1.1s Synthesize event\n'
@@ -19,6 +20,39 @@ function ready(): HeldViewerTiming {
 }
 
 describe('independent held viewer capture', () => {
+  test('baseline and held screenshot execute the same resolved hashed absolute simctl binary', async () => {
+    const dir = createTempDir('craft-held-capture-test-')
+    const started = performance.now()
+    try {
+      const log = join(dir, 'log'), done = join(dir, 'done'), output = join(dir, 'evidence'), simctl = join(dir, 'Xcode-simctl')
+      const options = { log, done, output, simulator, timeoutMs: 2500 }
+      writeFileSync(log, begin + gesture)
+      writeFileSync(simctl, 'verified synthetic simctl')
+      const screenshotBinaries: string[] = []
+      const command: NonNullable<Parameters<typeof prepareHeldViewerCapture>[1]>['command'] = async (args) => {
+        if (args.includes('--find')) {
+          expect(args).toEqual(['/usr/bin/xcrun', '--find', 'simctl'])
+        }
+        else {
+          expect(args.slice(0, 4)).toEqual([simctl, 'io', simulator, 'screenshot'])
+          screenshotBinaries.push(args[0]!)
+          await Bun.write(args.at(-1)!, pixel)
+          if (args.at(-1)!.endsWith('during-hold.png')) appendFileSync(log, 'CRAFT_TAB_LCV_HOLD_END 108\n')
+        }
+        return { code: 0, signal: null, stdout: args.includes('--find') ? simctl : '', stderr: '', timedOut: false, cancelled: false, processGroup: 123, groupDisposed: true }
+      }
+      await captureHeldViewer(options, {
+        prepare: () => prepareHeldViewerCapture(options, { command, xcrun: '/usr/bin/xcrun' }), command,
+        now: () => 102 + (performance.now() - started) / 1000,
+      })
+      expect(screenshotBinaries).toEqual([simctl, simctl])
+      const receipt = JSON.parse(readFileSync(join(output, 'receipt.json'), 'utf8'))
+      expect(receipt.resolvedTool).toEqual({ simctl, simctlSha256: new Bun.CryptoHasher('sha256').update('verified synthetic simctl').digest('hex') })
+      expect(receipt.verifiedDuringHold).toBe(true)
+    }
+    finally { removeTempDir(dir) }
+  })
+
   test('positive control records exact tool/device and writes readiness only after verified PNG', async () => {
     const dir = createTempDir('craft-held-capture-test-')
     try {
@@ -36,7 +70,7 @@ describe('independent held viewer capture', () => {
           return { code: 0, signal: null, stdout: args.includes('--find') ? `${simctl}\n` : '', stderr: '', timedOut: false, cancelled: false, processGroup: 123, groupDisposed: true }
         },
       })
-      expect(calls).toEqual([['/usr/bin/xcrun', '--find', 'simctl'], ['/usr/bin/xcrun', 'simctl', 'io', simulator, 'screenshot', join(output, 'baseline.png')]])
+      expect(calls).toEqual([['/usr/bin/xcrun', '--find', 'simctl'], [simctl, 'io', simulator, 'screenshot', join(output, 'baseline.png')]])
       expect(existsSync(ready)).toBe(true)
       const receipt = JSON.parse(readFileSync(join(output, 'preflight.json'), 'utf8'))
       expect(receipt.verified).toBe(true)
@@ -112,7 +146,7 @@ describe('independent held viewer capture', () => {
       const log = join(dir, 'log'), done = join(dir, 'done'), output = join(dir, 'evidence'), ready = join(dir, 'ready')
       writeFileSync(log, begin + gesture)
       await captureHeldViewer({ log, done, output, simulator, timeoutMs: 2500 }, {
-        prepare: async () => { await Bun.sleep(25); await Bun.write(ready, 'positive control verified') },
+        prepare: async () => { await Bun.sleep(25); await Bun.write(ready, 'positive control verified'); return syntheticTool },
         now: () => 102 + (performance.now() - started) / 1000,
         capture: async path => {
           expect(existsSync(ready)).toBe(true)
@@ -216,7 +250,7 @@ describe('independent held viewer capture', () => {
       const log = join(dir, 'log'), done = join(dir, 'done'), output = join(dir, 'evidence')
       writeFileSync(log, 'DRIVER BEGIN holdtab Today | 6.0 | 100\n' + gesture)
       await captureHeldViewer({ log, done, output, simulator, timeoutMs: 2500 }, {
-        prepare: async () => {},
+        prepare: async () => syntheticTool,
         now: () => 102 + (performance.now() - started) / 1000,
         capture: async path => {
           await Bun.write(path, pixel)
@@ -252,7 +286,7 @@ describe('independent held viewer capture', () => {
     try {
       writeFileSync(log, `old unrelated output\n${begin}t = 1s Press Home for 6 seconds\nt = 2s Synthesize`)
       const capture = captureHeldViewer({ log, done, output, simulator, startOffset: 'old unrelated output\n'.length, timeoutMs: 3000 }, {
-        prepare: async () => {},
+        prepare: async () => syntheticTool,
         now: () => 102 + (performance.now() - started) / 1000,
         capture: async (path) => {
           captureCount++
@@ -281,7 +315,7 @@ describe('independent held viewer capture', () => {
       const log = join(dir, 'live.log'), done = join(dir, 'done'), output = join(dir, 'evidence')
       writeFileSync(log, `${begin}${gesture}CRAFT_TAB_LCV_HOLD_END 108\n`)
       await expect(captureHeldViewer({ log, done, output, simulator, timeoutMs: 2000 }, {
-        prepare: async () => {},
+        prepare: async () => syntheticTool,
         now: () => 109,
         capture: async () => { captured = true },
       })).rejects.toThrow('Hold ended before')
@@ -301,10 +335,10 @@ describe('independent held viewer capture', () => {
       const log = join(dir, 'live.log'), done = join(dir, 'done'), output = join(dir, 'evidence')
       writeFileSync(log, begin + gesture)
       await expect(captureHeldViewer({ log, done, output, simulator, timeoutMs: 2000 }, {
-        prepare: async () => {},
+        prepare: async () => syntheticTool,
         now: () => 102,
         command: async (args, options) => {
-          expect(args.slice(0, 5)).toEqual(['xcrun', 'simctl', 'io', simulator, 'screenshot'])
+          expect(args.slice(0, 4)).toEqual([syntheticTool.simctl, 'io', simulator, 'screenshot'])
           expect(options.timeoutMs).toBe(5000)
           return commandResult
         },
@@ -326,15 +360,15 @@ describe('independent held viewer capture', () => {
       const log = join(dir, 'live.log'), done = join(dir, 'done')
       writeFileSync(log, 'No held gesture\n')
       writeFileSync(done, 'finished')
-      await expect(captureHeldViewer({ log, done, output: join(dir, 'missing'), simulator, timeoutMs: 1200 }, { prepare: async () => {} })).rejects.toThrow('without a synthesized')
+      await expect(captureHeldViewer({ log, done, output: join(dir, 'missing'), simulator, timeoutMs: 1200 }, { prepare: async () => syntheticTool })).rejects.toThrow('without a synthesized')
       writeFileSync(log, begin + gesture)
       await expect(captureHeldViewer({ log, done, output: join(dir, 'corrupt'), simulator, timeoutMs: 2000 }, {
-        prepare: async () => {},
+        prepare: async () => syntheticTool,
         now: () => 102,
         capture: async path => { await Bun.write(path, 'not a PNG') },
       })).rejects.toThrow('did not produce a PNG')
       const controller = new AbortController()
-      const cancelled = captureHeldViewer({ log, done, output: join(dir, 'cancelled'), simulator, signal: controller.signal }, { prepare: async () => {} })
+      const cancelled = captureHeldViewer({ log, done, output: join(dir, 'cancelled'), simulator, signal: controller.signal }, { prepare: async () => syntheticTool })
       controller.abort(new Error('Owned test cancelled'))
       await expect(cancelled).rejects.toThrow('Owned test cancelled')
     }
