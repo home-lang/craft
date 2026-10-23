@@ -15,7 +15,7 @@ type Job = {
   if?: string
   uses?: string
   with?: { enforce_high?: boolean, 'release-draft'?: string, release?: string, version?: string }
-  steps?: { name?: string, run?: string, uses?: string, 'working-directory'?: string, env?: Record<string, string>, with?: { 'version'?: string, 'bun-version'?: string, 'publish'?: string, 'release-draft'?: string, release?: string, 'package-dir'?: string, install?: string } }[]
+  steps?: { name?: string, if?: string, run?: string, uses?: string, 'working-directory'?: string, env?: Record<string, string>, with?: { 'version'?: string, 'bun-version'?: string, 'publish'?: string, 'release-draft'?: string, release?: string, 'package-dir'?: string, install?: string } }[]
   strategy?: { 'fail-fast'?: boolean, matrix: { platform: { name: string, os: string }[] } }
 }
 const release = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/release.yml'), 'utf8')) as { jobs: Record<string, Job> }
@@ -187,6 +187,38 @@ test('native iOS suites and protocol checks have independent required jobs', () 
   expect(summary.steps?.find(step => step.name === 'Fail if any leg failed')?.if).toContain('needs.ios-native.result')
   for (const name of ['ios-native', 'ios-hybrid', 'ios-simulator', 'ios-zig-slice'])
     expect(workflow.jobs[name].env?.DEVELOPER_DIR).toBe('/Applications/Xcode_26.2.app/Contents/Developer')
+})
+
+test('hybrid diagnostics isolate their fixture while complete release scopes retain every required leg', () => {
+  const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as {
+    on: { workflow_dispatch: { inputs: { scope: { options: string[] } } } }
+    jobs: Record<string, Job>
+  }
+  expect(workflow.on.workflow_dispatch.inputs.scope.options).toContain('ios-hybrid')
+  const legs = ['media-cache', 'harness', 'ios-native', 'ios-metal', 'ios-hybrid', 'ios-simulator', 'android-emulator', 'ios-zig-slice', 'android-navigation']
+  const evaluate = (expression: string | undefined, scope: string, outcomes: Record<string, string> = {}) => expression === undefined || runInNewContext(expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/\bneeds\.([\w-]+)\.result/g, 'needs["$1"].result'), {
+    inputs: { scope },
+    needs: Object.fromEntries(legs.map(name => [name, { result: outcomes[name] ?? 'success' }])),
+    fromJSON: JSON.parse,
+    contains: (values: string[], value: string) => values.includes(value),
+  }, { timeout: 100 })
+  const reject = workflow.jobs['mobile-summary'].steps?.find(step => step.name === 'Fail if any leg failed')?.if
+  expect(reject).toBeDefined()
+  for (const scope of ['', 'all']) {
+    expect(legs.filter(name => evaluate(workflow.jobs[name].if, scope))).toEqual(legs)
+    for (const name of legs) {
+      expect(evaluate(reject, scope, { [name]: 'failure' })).toBe(true)
+      expect(evaluate(reject, scope, { [name]: 'skipped' })).toBe(true)
+    }
+    expect(evaluate(reject, scope)).toBe(false)
+  }
+  expect(legs.filter(name => evaluate(workflow.jobs[name].if, 'ios-hybrid'))).toEqual(['harness', 'ios-hybrid'])
+  const skipped = Object.fromEntries(legs.filter(name => name !== 'harness' && name !== 'ios-hybrid').map(name => [name, 'skipped']))
+  expect(evaluate(reject, 'ios-hybrid', skipped)).toBe(false)
+  for (const name of ['harness', 'ios-hybrid']) {
+    expect(evaluate(reject, 'ios-hybrid', { ...skipped, [name]: 'failure' })).toBe(true)
+    expect(evaluate(reject, 'ios-hybrid', { ...skipped, [name]: 'skipped' })).toBe(true)
+  }
 })
 
 test('navigation shards retain both complete XCTest targets and focused selection', () => {

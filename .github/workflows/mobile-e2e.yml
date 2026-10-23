@@ -77,9 +77,9 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: Test all mobile suites or focused Android/rendering/navigation suites
+        description: Test all mobile suites or focused Android/rendering/navigation/hybrid suites
         type: choice
-        options: [all, android, ios-render, ios-navigation, android-navigation]
+        options: [all, android, ios-render, ios-navigation, ios-hybrid, android-navigation]
         default: all
       android_suite:
         description: Android native fixture coverage for the android-navigation scope
@@ -111,7 +111,7 @@ env:
 
 jobs:
   media-cache:
-    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'android' && inputs.scope != 'ios-render' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'android' && inputs.scope != 'ios-render' && inputs.scope != 'ios-hybrid' }}
     uses: ./.github/workflows/media-cache.yml
 
   # The transcript reader and the required-case list are the part of this
@@ -142,7 +142,7 @@ jobs:
         run: bun test ./scripts/mobile-e2e/protocol.test.ts
 
   ios-native:
-    if: ${{ inputs.scope != 'android-navigation' && inputs.scope != 'android' }}
+    if: ${{ inputs.scope != 'android-navigation' && inputs.scope != 'android' && inputs.scope != 'ios-hybrid' }}
     name: iOS native UI (${{ matrix.suite }})
     strategy:
       fail-fast: false
@@ -267,7 +267,7 @@ jobs:
 
   ios-metal:
     name: iOS native Metal surface
-    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'android' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'android' && inputs.scope != 'ios-hybrid' }}
     runs-on: macos-15
     timeout-minutes: 25
     env:
@@ -314,6 +314,12 @@ jobs:
         run: brew install xcodegen
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Typecheck the hybrid fixture harness
+        run: >-
+          bun x --bun tsc --noEmit --ignoreConfig --strict --skipLibCheck
+          --target esnext --module preserve --moduleResolution bundler
+          --types bun --lib esnext,dom --allowImportingTsExtensions
+          packages/ios/scripts/test-hybrid-navigation.ts
       - name: Checkout stx compiler
         uses: actions/checkout@v6
         with:
@@ -338,7 +344,7 @@ jobs:
 
   ios-simulator:
     name: iOS simulator
-    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' && inputs.scope != 'ios-hybrid' }}
     runs-on: macos-15
     # Keep protocol acceptance separate from hybrid XCTest. Both are required;
     # combining them exhausted this budget after all app assertions passed.
@@ -446,7 +452,7 @@ jobs:
 
   android-emulator:
     name: Android emulator
-    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'ios-hybrid' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -616,7 +622,7 @@ jobs:
   # passing, and wired into no workflow.
   ios-zig-slice:
     name: iOS Zig runtime slice
-    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' && inputs.scope != 'ios-hybrid' }}
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -682,7 +688,7 @@ jobs:
     env:
       CRAFT_ANDROID_NATIVE_SUITE: ${{ inputs.scope != 'android-navigation' && 'full' || inputs.android_suite || 'focused' }}
       CRAFT_ANDROID_TEST_CLASS: ${{ inputs.scope == 'android-navigation' && inputs.android_suite == 'accessibility' && 'dev.craft.navigationtest.NativeNavigationTest#nativeTestIdsRemainQueryableWithoutReplacingVisibleLabels' || inputs.scope == 'android-navigation' && inputs.android_suite == 'maps' && 'dev.craft.navigationtest.NativeMapTest#keyFreeBasemapsKeepTheRecordedRouteAndDirectionSignsVisible,dev.craft.navigationtest.NativeMapTest#nativeMapStrokeWidthsStayInLogicalPointsAcrossDensities,dev.craft.navigationtest.NativeMapTest#nativeMapMutationsUpdateThePinAndCameraWithoutReloadingTheStyle,dev.craft.navigationtest.NativeMapTest#showingTheLocationDotDoesNotRequestPermissionDuringRendering,dev.craft.navigationtest.NativeMapTest#controlledRegionEchoPreservesTheCameraAfterANativeDrag,dev.craft.navigationtest.NativeMapTest#backgroundAndResumeKeepTheNativeMapAndCamera' || inputs.scope == 'android-navigation' && inputs.android_suite == 'identity' && 'dev.craft.navigationtest.NativeNavigationTest#repeatedTestIdsKeepDistinctProtocolViewsAcrossReorders' || inputs.scope == 'android-navigation' && inputs.android_suite == 'system-bars' && 'dev.craft.navigationtest.NativeNavigationTest#nativeScreenBackgroundOptionAppliesAndResets' || inputs.scope == 'android-navigation' && inputs.android_suite != 'full' && 'dev.craft.navigationtest.NativeNavigationTest#outgoingTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#thirdTabTapWinsOverSettlingSwipe,dev.craft.navigationtest.NativeNavigationTest#cancelledSwipeTargetIsVisibleWhenSelectedLater,dev.craft.navigationtest.NativeNavigationTest#completedReverseSwipeKeepsRetainedTabVisible,dev.craft.navigationtest.NativeNavigationTest#nativePullToRefreshSurvivesViewReattachment,dev.craft.navigationtest.NativeFlatListTest#refreshAppearanceUsesTheScreenContrastFallback,dev.craft.navigationtest.NativeNavigationTest#pushedScreenTabAccessoryOpensNativeRouteAndClearsOnBack,dev.craft.navigationtest.NativeNavigationTest#nativeDatePickerKeepsFollowingControlsMounted,dev.craft.navigationtest.NativeNavigationTest#safeAreaInsetsPreserveAuthoredPaddingWhenRetained' || '' }}
-    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'ios-render' }}
+    if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'ios-hybrid' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -806,10 +812,12 @@ jobs:
       - name: Fail if any leg failed
         if: >-
           contains(fromJSON('["failure", "skipped"]'), needs.harness.result)
-          || (inputs.scope != 'ios-navigation' && inputs.scope != 'ios-render' && contains(fromJSON('["failure", "skipped"]'), needs.android-navigation.result))
-          || (inputs.scope != 'android-navigation' && inputs.scope != 'android' && contains(fromJSON('["failure", "skipped"]'), needs.ios-native.result))
+          || (inputs.scope != 'ios-hybrid' && inputs.scope != 'ios-navigation' && inputs.scope != 'ios-render' && contains(fromJSON('["failure", "skipped"]'), needs.android-navigation.result))
+          || (inputs.scope != 'ios-hybrid' && inputs.scope != 'android-navigation' && inputs.scope != 'android' && contains(fromJSON('["failure", "skipped"]'), needs.ios-native.result))
           || (inputs.scope == 'android' && contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result))
-          || (inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' && (
+          || (inputs.scope == 'ios-hybrid' && contains(fromJSON('["failure", "skipped"]'), needs.ios-hybrid.result))
+          || (inputs.scope != 'ios-hybrid' && inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'android' && contains(fromJSON('["failure", "skipped"]'), needs.ios-metal.result))
+          || (inputs.scope != 'ios-hybrid' && inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'ios-render' && inputs.scope != 'android' && (
             contains(fromJSON('["failure", "skipped"]'), needs.ios-simulator.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.ios-hybrid.result)
             || contains(fromJSON('["failure", "skipped"]'), needs.android-emulator.result)

@@ -19,7 +19,10 @@ final class HybridNavigationUnitTests: XCTestCase {
         let ready = await wait(timeout: 120) {
             hybrid.pageReady && hybrid.controller != nil && !CraftChrome.shared.splashVisible
         }
-        XCTAssertTrue(ready, "the real fixture page must load before navigation")
+        guard ready else {
+            XCTFail("the real fixture page must load before navigation: pageReady=\(hybrid.pageReady), pagePath=\(String(describing: hybrid.pagePath)), splashVisible=\(CraftChrome.shared.splashVisible), URL=\(String(describing: hybrid.webView?.url)), loading=\(String(describing: hybrid.webView?.isLoading))")
+            return
+        }
         let controller = try XCTUnwrap(hybrid.controller)
         let nav = try XCTUnwrap(controller.children.compactMap { $0 as? UINavigationController }.first)
         let source = try XCTUnwrap(nav.topViewController as? CraftHybridWebSlot)
