@@ -1,8 +1,10 @@
+import { nativeFixtureBuildTimeoutMs } from './native-fixture-command'
+
 /** Compilation and each native suite own independent bounded command lifetimes. */
 export function metalXCTestSteps(simulator: string, derivedData: string, results: string): { name: string, args: string[], timeoutMs: number, resultBundle?: string }[] {
   const common = ['xcodebuild', '-project', 'MetalSurfaceFixture.xcodeproj', '-scheme', 'MetalSurfaceFixture', '-destination', `platform=iOS Simulator,id=${simulator}`, '-derivedDataPath', derivedData, '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'CODE_SIGNING_ALLOWED=NO', 'ONLY_ACTIVE_ARCH=YES']
   return [
-    { name: 'build-native-uikit-tests', args: [...common, 'build-for-testing'], timeoutMs: 300_000 },
+    { name: 'build-native-uikit-tests', args: [...common, 'build-for-testing'], timeoutMs: nativeFixtureBuildTimeoutMs },
     ...['MetalSurfaceUnitTests', 'MetalSurfaceUITests'].map(suite => {
       const resultBundle = `${results}.${suite}`
       return { name: suite, args: [...common, `-only-testing:${suite}`, '-resultBundlePath', resultBundle, 'test-without-building'], timeoutMs: 300_000, resultBundle }

@@ -1,5 +1,8 @@
 import { closeSync, openSync } from 'node:fs'
 
+/** Normal native fixture compilation phase; separate from test/capture admission. */
+export const nativeFixtureBuildTimeoutMs = 300_000
+
 export interface NativeFixtureCommandOptions {
   cwd: string
   timeoutMs: number
