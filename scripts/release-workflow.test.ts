@@ -36,10 +36,10 @@ test('the Vulkan ABI matrix requires managed Git on every platform and still run
   expect(job.steps.find((step: any) => step.name === 'Install the pinned ABI toolchain').with.packages).toBe('${{ matrix.tools }}')
   expect(steps(job)).toContain('zig build test:vulkan-abi')
   expect(steps(job)).toContain('bun scripts/managed-git.ts --verify')
-  expect(job.steps.find((step: any) => step.name === 'First-party Zig dependencies').with['git-executable']).toBe('${{ steps.managed-git.outputs.executable }}')
   const dependencies = readFileSync(join(import.meta.dir, '../.github/actions/first-party-zig-deps/action.yml'), 'utf8')
-  expect(dependencies).toContain('"$CRAFT_DEPENDENCY_GIT" -C')
+  expect(dependencies).toContain('bun scripts/zig.ts --core build --fetch')
   expect(dependencies).not.toContain('git -C')
+  expect(steps(job)).toContain('bun scripts/verify-zig-package-consumer.ts')
   const checkout = job.steps.find((step: any) => step.name === 'Check out the exact Khronos SDK headers').run
   expect(checkout).toContain('bun scripts/managed-git.ts -C .zig-cache/vulkan-headers fetch --depth 1 origin 6802bb4733b63ed5efd3adb308a6c885ef180ea1')
   expect(checkout).toContain('bun scripts/managed-git.ts -C .zig-cache/vulkan-headers checkout --detach FETCH_HEAD')
