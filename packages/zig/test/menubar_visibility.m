@@ -205,6 +205,20 @@ int main(int argc, char *argv[]) {
         craft_menubar_visibility_cleanup();
         quitting.completion(nil); drain();
         assert(quitting.invalidated && !assertion && !pendingAssertion && !busy && !marker);
+
+        // Unbundled native GUI processes are unknown, visible owners. Their
+        // inventory keys must never be sent to the native bundle allow-list.
+        [NSApplication.sharedApplication setActivationPolicy:NSApplicationActivationPolicyAccessory];
+        NSRunningApplication *selfApp = NSRunningApplication.currentApplication;
+        NSDictionary *selfIdentities = applicationIdentities(@[selfApp]);
+        NSString *selfKey = selfApp.bundleIdentifier.length ? selfApp.bundleIdentifier
+            : [NSString stringWithFormat:@"process:%d", getpid()];
+        assert([selfIdentities[selfKey] containsObject:signedIdentity]);
+        NSUInteger rawHidden = 0;
+        NSArray *rawAllowed = allowedBundles(@[@"left", @"process:42"], @{@"left": @NO},
+            @{@"left": @[@"left", @"shared.runtime"], @"process:42": @[@"shared.runtime"]}, @[], &rawHidden);
+        assert(rawHidden == 0 && [rawAllowed containsObject:@"left"] && [rawAllowed containsObject:@"shared.runtime"]);
+        assert(![rawAllowed containsObject:@"process:42"]);
         puts("native visibility: grouping, protected owners, JSON booleans, cancellation, permission revocation, errors, timeout and quit passed");
     }
 }

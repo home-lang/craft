@@ -64,10 +64,14 @@ static NSDictionary *applicationIdentities(NSArray<NSRunningApplication *> *apps
     NSMutableDictionary *identities = [NSMutableDictionary dictionary];
     for (NSRunningApplication *app in apps) {
         NSString *bundle = app.bundleIdentifier;
-        if (!bundle.length) continue;
-        NSMutableSet *aliases = identities[bundle];
-        if (!aliases) identities[bundle] = aliases = [NSMutableSet setWithObject:bundle];
         NSString *signedIdentity = processSigningIdentifier(app.processIdentifier);
+        if (!bundle.length && !signedIdentity.length) continue;
+        // An unbundled GUI process still has a native signing identity. Its
+        // unknown position stays visible; this process key is inventory-only.
+        NSString *key = bundle.length ? bundle : [NSString stringWithFormat:@"process:%d", app.processIdentifier];
+        NSMutableSet *aliases = identities[key];
+        if (!aliases) identities[key] = aliases = [NSMutableSet set];
+        if (bundle.length) [aliases addObject:bundle];
         if (signedIdentity.length) [aliases addObject:signedIdentity];
     }
     NSMutableDictionary *result = [NSMutableDictionary dictionary];
@@ -181,11 +185,6 @@ static NSArray *allowedBundles(NSArray<NSString *> *bundles, NSDictionary *secti
             }
         }
     } while (updated);
-    // The native API is an allow-list: all identities belonging to a visible
-    // app must be included, even if LaunchServices names only its outer app.
-    for (NSString *bundle in bundles) {
-        if (![hidden containsObject:bundle]) [allowed addObject:bundle];
-    }
     *hiddenCount = hidden.count;
     return allowed.allObjects;
 }
@@ -418,9 +417,7 @@ void craft_menubar_visibility_collapse(void) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (ticket != generation) return;
                 if (!AXIsProcessTrusted()) return fail(@"permissionRequired");
-                NSMutableArray *bundles = [NSMutableArray array];
-                for (NSRunningApplication *app in apps)
-                    if (app.bundleIdentifier) [bundles addObject:app.bundleIdentifier];
+                NSArray *bundles = identities.allKeys;
                 NSUInteger hidden = 0;
                 NSArray *allowed = allowedBundles(bundles, sections, identities, ownBundles, &hidden);
                 // Keep all system controls, including identifiers added by the
