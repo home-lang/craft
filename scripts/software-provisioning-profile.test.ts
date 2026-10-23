@@ -2,12 +2,12 @@ import { expect, test } from 'bun:test'
 import { softwareProvisioningCpus } from './software-provisioning-profile'
 
 test('the release acceptance CPU profile cannot be overridden by a diagnostic input', () => {
-  expect(softwareProvisioningCpus(false, undefined)).toBe(4)
-  expect(softwareProvisioningCpus(false, '1')).toBe(4)
+  expect(softwareProvisioningCpus(false, undefined)).toBe(2)
+  expect(softwareProvisioningCpus(false, '1')).toBe(2)
 })
 
 test('diagnostics select an explicit bounded CPU count and retain the control by default', () => {
-  expect(softwareProvisioningCpus(true, undefined)).toBe(4)
+  expect(softwareProvisioningCpus(true, undefined)).toBe(2)
   for (const cpu of [1, 2, 3, 4]) expect(softwareProvisioningCpus(true, String(cpu))).toBe(cpu)
 })
 

@@ -19,11 +19,11 @@ const bootTimeoutMs = 1_200_000
 // a SystemUI ANR. Give the unmodified stock image an explicit 4 GB guest;
 // readiness, software acceleration and the boot deadline stay intact.
 const memoryMb = 4096
-// Intel software-emulation runners have the same four host threads as the
-// passing AMD profile but starve SystemUI with the helper's two-CPU default.
-// Keep the public helper default unchanged while giving this cold profile all
-// four guest CPUs so startup ANRs remain a real failure rather than a timeout.
-// Diagnostics may vary this one dimension; release acceptance keeps four.
+// Keep two guest CPUs on the four-thread TCG runners: a retained four-CPU
+// stock-image run stalled in a SystemUI ANR, while the matching two-CPU
+// diagnostic reached readiness within the unchanged deadline. Receipts retain
+// the host model because runner variation also affects this bounded profile.
+// Diagnostic overrides never change release acceptance.
 const virtualCpus = softwareProvisioningCpus(diagnostic, process.env.CRAFT_ANDROID_DIAGNOSTIC_VIRTUAL_CPUS)
 const expectedFingerprint = diagnostic ? process.env.CRAFT_ANDROID_DIAGNOSTIC_FINGERPRINT : undefined
 if (diagnostic && !expectedFingerprint)

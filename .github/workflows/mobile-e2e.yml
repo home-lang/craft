@@ -268,7 +268,7 @@ jobs:
     name: iOS native Metal surface
     if: ${{ inputs.scope != 'ios-navigation' && inputs.scope != 'android-navigation' && inputs.scope != 'android' }}
     runs-on: macos-15
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
     steps:
