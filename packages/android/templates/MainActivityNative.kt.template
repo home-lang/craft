@@ -2354,6 +2354,10 @@ internal class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(cont
         // configured. Interception is gated below instead.
         isEnabled = true
         setHorizontal(false)
+        // Paging is owned by this native control even before an Activity
+        // supplies optional bridge callbacks. Its normal configuration may
+        // replace these listeners without changing gesture ownership.
+        setScrollListeners(null, null, null, null, null, "none", null)
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
