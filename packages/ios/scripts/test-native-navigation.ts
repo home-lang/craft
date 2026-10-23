@@ -196,7 +196,7 @@ try {
         let timer: ReturnType<typeof setTimeout> | undefined
         const watcherCode = await Promise.race([
           watcher.exited,
-          new Promise<undefined>(resolve => { timer = setTimeout(() => resolve(undefined), 5500) }),
+          new Promise<undefined>(resolve => { timer = setTimeout(() => resolve(undefined), 65_000) }),
         ])
         clearTimeout(timer)
         if (watcherCode === undefined) {
@@ -207,7 +207,7 @@ try {
         }
         process.off('exit', stopWatcher)
         if (watcherCode !== 0) {
-          const error = new Error(`During-hold screenshot qualification failed (exit ${watcherCode ?? 'timeout'}); see ${captureOutput}`)
+          const error = new Error(`During-hold frame qualification failed (exit ${watcherCode ?? 'timeout'}); see ${captureOutput}`)
           if (testFailure) console.error(error)
           else testFailure = error
         }

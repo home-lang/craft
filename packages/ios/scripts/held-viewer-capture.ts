@@ -1,6 +1,7 @@
 import { closeSync, existsSync, mkdirSync, openSync, readSync, statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { nativeFixtureCommand } from './native-fixture-command'
+import { validateHeldVideoFrame } from './held-viewer-video'
 
 export const heldViewerTest = 'NativeNavigationUITests/NativeNavigationUITests/testTabBarLargeContentViewerDuringAccessibilityHold'
 
@@ -269,6 +270,156 @@ export async function captureHeldViewer(options: CaptureOptions, dependencies: {
   }
 }
 
+/** Record before XCTest is released, then extract an actual frame captured during its real hold.
+ * Screenshot RPCs can block while XCTest synthesizes a held touch; public simctl video
+ * retains independently timestamped frames without making that RPC during the gesture.
+ */
+export async function captureHeldViewerVideo(options: CaptureOptions, dependencies: {
+  command?: typeof nativeFixtureCommand
+  prepare?: () => Promise<ResolvedScreenshotTool>
+  xcrun?: string
+  now?: () => number
+} = {}): Promise<void> {
+  if (![options.log, options.output, options.done].every(isAbsolute) || !/^[\da-f-]{36}$/i.test(options.simulator))
+    throw new Error('Viewer capture needs absolute evidence paths and a simulator UUID')
+  let offset = options.startOffset ?? 0
+  if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid live log offset')
+  mkdirSync(options.output, { recursive: true })
+  const timing = new HeldViewerTiming()
+  const command = dependencies.command ?? nativeFixtureCommand
+  const now = dependencies.now ?? (() => Date.now() / 1000)
+  const stop = new AbortController()
+  const signal = options.signal ? AbortSignal.any([stop.signal, options.signal]) : stop.signal
+  const png = join(options.output, 'during-hold.png'), movie = join(options.output, 'held-screen.mov')
+  const recordReady = join(options.output, 'recording-ready'), recordStop = join(options.output, 'recording-stop')
+  const recordReceipt = join(options.output, 'recording.json'), frameReceipt = join(options.output, 'frame.json')
+  const extractor = join(options.output, 'held-viewer-frame')
+  const setupDeadline = performance.now() + 30_000
+  const deadline = performance.now() + (options.timeoutMs ?? 45 * 60_000)
+  let recordingResult: Awaited<ReturnType<typeof nativeFixtureCommand>> | undefined
+  let recordingFailure: unknown, recording: Promise<void> | undefined
+  let tool: ResolvedScreenshotTool | undefined, swiftc: string | undefined, swiftcSha256: string | undefined
+  let remainder = '', doneAt: number | undefined
+  const receipt = (verifiedDuringHold: boolean, error?: string) => ({
+    verifiedDuringHold, error, method: 'public-simctl-recordVideo-decoded-frame', timing,
+    simulator: options.simulator, screenshot: png, movie, recording: recordReceipt, frame: frameReceipt,
+    recordingResult, resolvedTool: tool, swiftc, swiftcSha256,
+    preflight: join(options.output, 'preflight.json'),
+    beforeAfter: ['XCTest attachment: Large content viewer before hold', 'XCTest attachment: Large content viewer after release'],
+    visualReviewRequired: 'The actual decoded during-hold PNG must show the system Large Content Viewer.',
+  })
+  const setupCommand = async (args: string[]) => {
+    const timeoutMs = Math.floor(setupDeadline - performance.now())
+    if (timeoutMs <= 0) throw new Error('Viewer recording setup exhausted its shared 30-second budget')
+    const result = await command(args, { cwd: options.output, timeoutMs, signal })
+    if (result.code !== 0 || result.timedOut || result.cancelled)
+      throw new Error(`Viewer recording setup failed: ${JSON.stringify(result)}`)
+    return result
+  }
+  try {
+    const publicReady = options.ready ?? join(options.output, 'preflight-ready')
+    if (!isAbsolute(publicReady)) throw new Error('Viewer readiness path must be absolute')
+    if ([publicReady, movie, recordReady, recordStop, recordReceipt, frameReceipt, extractor].some(existsSync))
+      throw new Error('Viewer recording evidence already exists; use a fresh result directory')
+    // Keep the runner blocked until both the old positive control and actual
+    // recording first-frame acknowledgement succeed within the same setup budget.
+    tool = await (dependencies.prepare ?? (() => prepareHeldViewerCapture({ ...options, signal, ready: join(options.output, 'screenshot-control-ready') })))()
+    const xcrun = dependencies.xcrun ?? Bun.which('xcrun')
+    if (!xcrun || !isAbsolute(xcrun)) throw new Error('Cannot resolve public Apple compiler tools')
+    swiftc = (await setupCommand([xcrun, '--find', 'swiftc'])).stdout.trim()
+    if (!isAbsolute(swiftc)) throw new Error('Apple compiler resolver returned a relative path')
+    swiftcSha256 = new Bun.CryptoHasher('sha256').update(await Bun.file(swiftc).arrayBuffer()).digest('hex')
+    await setupCommand([swiftc, join(import.meta.dir, 'held-viewer-frame.swift'), '-o', extractor])
+    recording = command([process.execPath, join(import.meta.dir, 'held-viewer-record.ts'), tool.simctl,
+      options.simulator, movie, recordReady, recordStop, recordReceipt], {
+      cwd: options.output, timeoutMs: Math.max(1, Math.floor(deadline - performance.now())), signal,
+    }).then(result => { recordingResult = result }, error => { recordingFailure = error })
+    while (!existsSync(recordReady)) {
+      signal.throwIfAborted()
+      if (recordingFailure) throw recordingFailure
+      if (recordingResult) throw new Error(`Public recording exited before readiness: ${JSON.stringify(recordingResult)}`)
+      if (performance.now() >= setupDeadline) throw new Error('Public recording was not ready within its shared setup budget')
+      await Bun.sleep(25)
+    }
+    await Bun.write(publicReady, 'Screenshot control and public recording first frame verified\n')
+    while (performance.now() < deadline) {
+      signal.throwIfAborted()
+      if (recordingFailure) throw recordingFailure
+      if (recordingResult) throw new Error(`Public recording ended before the held gesture: ${JSON.stringify(recordingResult)}`)
+      if (options.parentPid) {
+        try { process.kill(options.parentPid, 0) }
+        catch { throw new Error('Native test harness exited before video evidence completed') }
+      }
+      if (existsSync(options.log)) {
+        const size = statSync(options.log).size
+        if (size < offset) throw new Error('Live navigation log was truncated during capture')
+        if (size > offset) {
+          const file = openSync(options.log, 'r'), chunk = Buffer.alloc(size - offset)
+          let read = 0
+          try { read = readSync(file, chunk, 0, chunk.length, offset) }
+          finally { closeSync(file) }
+          offset += read
+          const lines = (remainder + chunk.subarray(0, read).toString()).split('\n')
+          remainder = lines.pop()!
+          for (const line of lines) timing.line(line, now())
+        }
+      }
+      if (timing.releasedAt !== undefined) {
+        const { beganAt, synthesisObservedAt, releasedAt } = timing
+        if (beganAt === undefined || synthesisObservedAt === undefined
+          || beganAt > synthesisObservedAt || releasedAt - synthesisObservedAt < 5.5)
+          throw new Error('Missing actual six-second synthesized hold evidence')
+        await Bun.write(recordStop, 'Actual synthesized hold released\n')
+        await recording
+        if (recordingFailure) throw recordingFailure
+        const finalized = recordingResult as Awaited<ReturnType<typeof nativeFixtureCommand>> | undefined
+        if (!finalized || finalized.code !== 0 || finalized.timedOut || finalized.cancelled)
+          throw new Error(`Public recording did not finalize normally: ${JSON.stringify(finalized)}`)
+        const record = await Bun.file(recordReceipt).json()
+        if (!record.completed || !Number.isFinite(record.spawnWall) || !Number.isFinite(record.readyWall)
+          || record.readyWall >= synthesisObservedAt)
+          throw new Error('Recording first frame did not precede actual synthesized hold')
+        const result = await command([extractor, movie, png, frameReceipt,
+          String(record.spawnWall), String(record.readyWall), String(synthesisObservedAt), String(releasedAt)], {
+          cwd: options.output, timeoutMs: 30_000, signal,
+        })
+        if (result.code !== 0 || result.timedOut || result.cancelled)
+          throw new Error(`Actual during-hold frame extraction failed: ${JSON.stringify(result)}`)
+        const frame = await Bun.file(frameReceipt).json()
+        if (!frame.verified) throw new Error('Video extractor did not verify an actual during-hold frame')
+        if (frame.recordSpawnWall !== record.spawnWall || frame.recordingStartedObservedWall !== record.readyWall
+          || frame.synthesisWall !== synthesisObservedAt || frame.releasedWall !== releasedAt)
+          throw new Error('Frame timing does not match the original recording and held gesture')
+        const validated = validateHeldVideoFrame(frame)
+        const sha256 = await pngHash(png)
+        if (sha256 !== frame.pngSha256) throw new Error('Extracted PNG differs from the frame receipt')
+        const movieHasher = new Bun.CryptoHasher('sha256')
+        for await (const chunk of Bun.file(movie).stream()) movieHasher.update(chunk)
+        const movieSha256 = movieHasher.digest('hex')
+        if (movieSha256 !== frame.movieSha256) throw new Error('Original movie differs from the frame receipt')
+        await Bun.write(join(options.output, 'receipt.json'), JSON.stringify({ ...receipt(true), sha256, movieSha256, validated }, null, 2))
+        return
+      }
+      if (existsSync(options.done)) {
+        doneAt ??= performance.now()
+        if (performance.now() - doneAt > 500) throw new Error('XCTest finished without a complete synthesized viewer hold')
+      }
+      await Bun.sleep(25)
+    }
+    throw new Error('Independent video capture exceeded the native job backstop')
+  }
+  catch (error) {
+    stop.abort()
+    await recording
+    await Bun.write(join(options.output, 'receipt.json'), JSON.stringify(receipt(false, String(error)), null, 2))
+    throw error
+  }
+  finally {
+    stop.abort()
+    await recording
+  }
+}
+
 if (import.meta.main) {
   const [log, simulator, output, done, rawOffset, rawParent, ready] = process.argv.slice(2)
   const controller = new AbortController()
@@ -277,7 +428,7 @@ if (import.meta.main) {
   process.once('SIGINT', cancel)
   try {
     if (!log || !simulator || !output || !done) throw new Error('Expected live log, simulator, evidence directory, completion marker and offset')
-    await captureHeldViewer({ log, simulator, output, done, startOffset: Number(rawOffset ?? 0), parentPid: Number(rawParent) || undefined, signal: controller.signal, ready })
+    await captureHeldViewerVideo({ log, simulator, output, done, startOffset: Number(rawOffset ?? 0), parentPid: Number(rawParent) || undefined, signal: controller.signal, ready })
   }
   catch (error) { console.error(error); process.exitCode = 1 }
   finally { process.off('SIGTERM', cancel); process.off('SIGINT', cancel) }
