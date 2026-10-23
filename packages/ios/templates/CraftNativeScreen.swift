@@ -4687,11 +4687,13 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
         craftScrollGesture(gestureRecognizer, runsWith: otherGestureRecognizer)
     }
 
-    func setAxis(_ axis: NSLayoutConstraint.Axis) {
+    func setAxis(_ axis: NSLayoutConstraint.Axis, resetBounce: Bool = true) {
         if contentStack.axis != axis { setContentNeedsLayout() }
         contentStack.axis = axis
-        alwaysBounceVertical = axis == .vertical
-        alwaysBounceHorizontal = axis == .horizontal
+        if resetBounce {
+            alwaysBounceVertical = axis == .vertical
+            alwaysBounceHorizontal = axis == .horizontal
+        }
     }
 }
 
@@ -8567,8 +8569,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
             configureStack(scroll.contentStack, style: contentStyle)
             // Content-style defaults are vertical; the scroll host's explicit
-            // axis must survive that shared container configuration.
-            scroll.setAxis(direction)
+            // axis must survive that shared container configuration without
+            // resetting the authored bounce options applied above.
+            scroll.setAxis(direction, resetBounce: false)
             reconcileChildren(children.filter {
                 guard let child = $0 as? [String: Any] else { return true }
                 return canonicalType(child["type"] as? String ?? "") != "RefreshControl"
