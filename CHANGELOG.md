@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.314...v0.0.315)
+
+## 🧪 Tests
+
+- **ios**: decode held frames from original sample timestamps ([0786b0b](https://github.com/craft-native/craft/commit/0786b0b)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.313...v0.0.314)
 
 ## 🐛 Bug Fixes
