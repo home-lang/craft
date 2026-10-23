@@ -244,22 +244,19 @@ test('workflow setup uses a known Pantry CLI instead of resolving latest', () =>
       for (const step of job.steps ?? []) {
         if (step.uses?.startsWith('pantry-pm/pantry/packages/action@')) {
           // Keep each workflow on the released Pantry version it declares.
-          // The main source and release pipelines adopt the fully qualified
-          // provider together; other native workflows keep their declared pins.
-          const version = ['ci.yml', 'release.yml', 'windows-managed-git.yml'].includes(file)
+          // Source, release and their required mobile acceptance all use the
+          // qualified provider. An older fixture pin hit PathAlreadyExists
+          // while reconciling a restored Git cache and blocked v0.0.302.
+          const version = ['ci.yml', 'release.yml', 'mobile-e2e.yml', 'windows-managed-git.yml'].includes(file)
             ? '0.11.119'
-            : file === 'mobile-e2e.yml' && name === 'ios-metal'
-              ? '0.11.113'
-              : file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
+            : file === 'windows-source-provenance.yml' || (file === 'ci.yml' && name === 'windows-multi-window')
               ? '0.11.109'
-              : ['mobile-e2e.yml', 'benchmarks.yml', 'binary-size.yml'].includes(file)
+              : ['benchmarks.yml', 'binary-size.yml'].includes(file)
                 ? '0.11.106'
                 : '0.11.101'
           const source = version === '0.11.119'
             ? '6fbf7259c2764d18a12d915bf8bc68c500cb4931'
-            : version === '0.11.113'
-              ? '3a37ec776aa9e37e17bd8e3aea2d457cdbd02c36'
-              : version === '0.11.109'
+            : version === '0.11.109'
               ? 'd160044a6fe4ad7e8463828f80dfbc55bcdc07d9'
               : version === '0.11.106'
                 ? 'e62755c21d946ed0f8dc8e4af39f6ea5f084537a'
