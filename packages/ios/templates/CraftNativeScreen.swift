@@ -4492,6 +4492,10 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
         if !stickyIndices.isEmpty || pendingScrollTarget != nil { contentStack.layoutIfNeeded() }
         updateStickyHeaders()
         scrollToPendingTarget()
+        // A nonanimated target changes the offset synchronously inside this
+        // layout pass. Rebase the headers against that actual viewport, not
+        // the viewport from before the target was applied.
+        updateStickyHeaders()
     }
 
     // MARK: Sticky headers
@@ -4514,7 +4518,7 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
         view.center.y - view.bounds.height / 2
     }
 
-    private func updateStickyHeaders() {
+    fileprivate func updateStickyHeaders() {
         let children = contentStack.arrangedSubviews
         let headers = isVertical ? stickyIndices.compactMap { $0 < children.count ? children[$0] : nil }.filter { !$0.isHidden } : []
         for view in stickyViews where !headers.contains(where: { $0 === view }) {
@@ -10600,6 +10604,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        // Sticky positioning is a native scroll behavior and must also run
+        // without a JavaScript onScroll subscription, including animations.
+        (scrollView as? CraftNativeScrollView)?.updateStickyHeaders()
         guard let handler = scrollHandlers[ObjectIdentifier(scrollView)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": scrollEvent(scrollView)])
     }
