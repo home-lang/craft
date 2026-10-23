@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.306...v0.0.307)
+
+## 🐛 Bug Fixes
+
+- **android**: finish native page snapping before reporting selection ([9d7986f](https://github.com/craft-native/craft/commit/9d7986f)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.305...v0.0.306)
 
 ## 🐛 Bug Fixes
