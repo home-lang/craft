@@ -2744,6 +2744,7 @@ final class CraftNativeCelebration {
 }
 
 private class CraftNativeFlowView: UIStackView {
+    var pageViewport: CGSize? { didSet { if pageViewport != oldValue { invalidateMeasurements() } } }
     var celebration: CraftNativeCelebration?
     func configureCelebration(_ raw: Any?) {
         if raw != nil && celebration == nil { celebration = CraftNativeCelebration(view: self) }
@@ -2966,6 +2967,7 @@ private class CraftNativeFlowView: UIStackView {
     }
 
     func measure(width: CGFloat?, height: CGFloat?, maxWidth: CGFloat, maxHeight: CGFloat) -> CGSize {
+        if let page = pageViewport { return CGSize(width: page.width * CGFloat(arrangedSubviews.filter { !$0.isHidden }.count), height: page.height) }
         let key = MeasureKey(width: width, height: height, maxWidth: maxWidth, maxHeight: maxHeight)
         if let cached = measurements[key] { return cached }
         let size = layout(width: width, height: height, maxWidth: maxWidth, maxHeight: maxHeight, place: false).size
@@ -2977,6 +2979,12 @@ private class CraftNativeFlowView: UIStackView {
         super.layoutSubviews()
         craftApplyCornerRadius()
         celebration?.layout()
+        if let page = pageViewport {
+            for (index, child) in arrangedSubviews.filter({ !$0.isHidden }).enumerated() {
+                child.frame = CGRect(x: CGFloat(index) * page.width, y: 0, width: page.width, height: page.height)
+            }
+            return
+        }
         let scale = window?.screen.scale ?? traitCollection.displayScale
         let result = layout(width: bounds.width, height: bounds.height, maxWidth: bounds.width, maxHeight: bounds.height, place: true)
         var moved = false
@@ -4344,6 +4352,46 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
     private var laidOutSize: CGSize = .zero
     private let pullToRefresh = UIRefreshControl()
     private var refreshHandler: (() -> Void)?
+    private var authoredPageIndex: Int?
+    private var pendingPageIndex: Int?
+    private var currentPageIndex = 0
+    private var pageAnimating = false
+    private var reportedPage: (Int, Int)?
+    private var pageHandler: ((Int, Int) -> Void)?
+
+    /// Opt-in viewport-sized pages. Ordinary horizontal scroll strips retain
+    /// their intrinsic widths; only a controlled pageIndex enables this mode.
+    func configurePager(_ raw: Any?, onSelect: ((Int, Int) -> Void)?) {
+        let next = craftNativeNumber(raw).flatMap { number -> Int? in
+            let value = number.doubleValue
+            return value.isFinite ? Int(min(Double(Int.max / 2), max(0, value))) : nil
+        }
+        if next != authoredPageIndex { pendingPageIndex = next; contentNeedsLayout = true }
+        authoredPageIndex = next
+        pageHandler = onSelect
+        if next == nil { contentStack.pageViewport = nil; reportedPage = nil; pageAnimating = false }
+        setNeedsLayout()
+    }
+
+    func beginPageDrag() { pageAnimating = false }
+
+    func finishPageMotion() {
+        pageAnimating = false
+        DispatchQueue.main.async { [weak self] in self?.settlePage() }
+    }
+
+    func settlePage() {
+        guard authoredPageIndex != nil, bounds.width > 0, !pageAnimating,
+              !isTracking, !isDragging, !isDecelerating else { return }
+        let pages = contentStack.arrangedSubviews.filter { !$0.isHidden }
+        let index = min(max(0, Int((contentOffset.x / bounds.width).rounded())), max(0, pages.count - 1))
+        currentPageIndex = index
+        for (i, child) in pages.enumerated() { child.accessibilityElementsHidden = i != index }
+        if reportedPage?.0 != index || reportedPage?.1 != pages.count {
+            reportedPage = (index, pages.count)
+            pageHandler?(index, pages.count)
+        }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -4384,6 +4432,11 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
     /// The size of the content laid out across the visible width (or, sideways,
     /// height), which is also the scroll view's own size when nothing fixes it.
     func contentFitting(width: CGFloat?, height: CGFloat?) -> CGSize {
+        if authoredPageIndex != nil && !isVertical {
+            let pageWidth = max(0, width ?? bounds.width)
+            let pageHeight = max(0, height ?? bounds.height)
+            return CGSize(width: pageWidth * CGFloat(contentStack.arrangedSubviews.filter { !$0.isHidden }.count), height: pageHeight)
+        }
         if isVertical {
             let contentWidth = max(0, (width ?? bounds.width) - adjustedContentInset.left - adjustedContentInset.right)
             return contentStack.measure(width: contentWidth, height: nil, maxWidth: contentWidth, maxHeight: CraftNativeFlexLayout.unbounded)
@@ -4406,7 +4459,9 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
         craftApplyCornerRadius()
         if contentNeedsLayout || laidOutSize != bounds.size {
             contentNeedsLayout = false
+            let resized = laidOutSize != bounds.size
             laidOutSize = bounds.size
+            if authoredPageIndex != nil && !isVertical { contentStack.pageViewport = bounds.size }
             var size = contentFitting(width: bounds.width, height: bounds.height)
             if isVertical {
                 size.width = max(0, bounds.width - adjustedContentInset.left - adjustedContentInset.right)
@@ -4416,6 +4471,21 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
             let frame = CGRect(origin: .zero, size: size)
             if contentStack.frame != frame { contentStack.frame = frame }
             if contentSize != size { contentSize = size }
+            if authoredPageIndex != nil && !isVertical {
+                contentStack.layoutIfNeeded()
+                let count = contentStack.arrangedSubviews.filter { !$0.isHidden }.count
+                let index = min(max(0, pendingPageIndex ?? currentPageIndex), max(0, count - 1))
+                let target = CGPoint(x: CGFloat(index) * bounds.width, y: 0)
+                let moves = pendingPageIndex != nil || resized || index != currentPageIndex
+                let animated = moves && target != contentOffset && !resized && !UIAccessibility.isReduceMotionEnabled
+                if moves {
+                    pageAnimating = animated
+                    setContentOffset(target, animated: animated)
+                }
+                pendingPageIndex = nil
+                currentPageIndex = index
+                if !animated && !isTracking && !isDragging && !isDecelerating { settlePage() }
+            }
         }
         // A scroll view lays out on every frame of a scroll: the sticky
         // headers follow it here, over content placed by this same pass.
@@ -8461,6 +8531,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             scroll.isScrollEnabled = props["scrollEnabled"] as? Bool != false
             scroll.bounces = props["bounces"] as? Bool ?? true
             scroll.isPagingEnabled = props["pagingEnabled"] as? Bool ?? false
+            let pageHandler = nonEmptyHandler(events["onPageSelected"])
+            scroll.configurePager(props["pageIndex"], onSelect: pageHandler.map { handler in
+                { [weak self] index, count in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["index": index, "count": count]]) }
+            })
             scroll.keyboardDismissMode = keyboardDismissMode(props["keyboardDismissMode"])
             scroll.setKeyboardShouldPersistTaps(props["keyboardShouldPersistTaps"])
             scroll.showsVerticalScrollIndicator = props["showsVerticalScrollIndicator"] as? Bool != false
@@ -9712,10 +9786,25 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             for: size,
             compatibleWith: traitCollection
         )
-        var font = (style["fontFamily"] as? String).flatMap { UIFont(name: $0, size: scaledSize) }
-            ?? .systemFont(ofSize: scaledSize, weight: weight)
+        let families = (style["fontFamily"] as? String ?? "").split(separator: ",").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        }
+        let selectedFont = families.lazy.compactMap { family -> UIFont? in
+            switch family.lowercased() {
+            case "monospace", "ui-monospace": return .monospacedSystemFont(ofSize: scaledSize, weight: weight)
+            case "serif", "ui-serif":
+                let system = UIFont.systemFont(ofSize: scaledSize, weight: weight)
+                return system.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: scaledSize) }
+            case "sans-serif", "ui-sans-serif", "system-ui", "-apple-system": return .systemFont(ofSize: scaledSize, weight: weight)
+            default:
+                guard let custom = UIFont(name: family, size: scaledSize) else { return nil }
+                let descriptor = custom.fontDescriptor.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight.rawValue]])
+                return UIFont(descriptor: descriptor, size: scaledSize)
+            }
+        }.first
+        var font = selectedFont ?? .systemFont(ofSize: scaledSize, weight: weight)
         if style["fontStyle"] as? String == "italic",
-           let descriptor = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
+           let descriptor = font.fontDescriptor.withSymbolicTraits(font.fontDescriptor.symbolicTraits.union(.traitItalic)) {
             font = UIFont(descriptor: descriptor, size: scaledSize)
         }
         return font
@@ -10510,12 +10599,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
         CraftFramePacing.shared.begin(pacingName)
+        (scrollView as? CraftNativeScrollView)?.beginPageDrag()
         guard let handler = scrollBeginHandlers[ObjectIdentifier(scrollView)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": scrollEvent(scrollView)])
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        if !decelerate { CraftFramePacing.shared.end(pacingName) }
+        if !decelerate { CraftFramePacing.shared.end(pacingName); (scrollView as? CraftNativeScrollView)?.finishPageMotion() }
         guard let handler = scrollEndHandlers[ObjectIdentifier(scrollView)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": scrollEvent(scrollView)])
     }
@@ -10527,8 +10617,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         CraftFramePacing.shared.end(pacingName)
+        (scrollView as? CraftNativeScrollView)?.finishPageMotion()
         guard let handler = scrollMomentumEndHandlers[ObjectIdentifier(scrollView)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": scrollEvent(scrollView)])
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        (scrollView as? CraftNativeScrollView)?.finishPageMotion()
     }
 
     private func scrollEvent(_ scrollView: UIScrollView) -> [String: Any] {

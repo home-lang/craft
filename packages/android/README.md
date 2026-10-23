@@ -1116,3 +1116,21 @@ and detents; Android sizes its native bottom panel to the selected detent
 without an extra dependency. Omitting presentationStyle keeps the existing
 full-screen overlay. A native sheet's close request still belongs to its
 owner, which sets visible to false.
+
+
+### Controlled native paging and font families
+
+A horizontal `ScrollView` with `pagingEnabled: true` and a numeric `pageIndex`
+uses viewport-sized direct children. The host advertises `nativePager` and emits
+`onPageSelected` with `{ index, count }` after initial layout, count changes and
+settled user selection. Updates to `pageIndex` select a page; removed pages clamp
+the index and resizing preserves it. Offscreen pages stay mounted but are hidden
+from native accessibility. `scrollEnabled: false` locks swiping while retaining
+controls in the selected page. Without `pageIndex`, scroll content keeps its
+ordinary intrinsic layout; this is an opt-in contract for a shared Pager.
+
+Text `fontFamily` accepts a CSS fallback list. Bundled/custom fonts take priority
+when available. `monospace`/`ui-monospace`, `serif`/`ui-serif` and
+`sans-serif`/`ui-sans-serif`/`system-ui` select platform fonts, retaining requested
+weight, italic style and system text scaling. A missing custom face falls through
+to the next family rather than silently replacing a requested mono font with sans.

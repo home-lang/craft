@@ -864,6 +864,7 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         super.onWindowVisibilityChanged(visibility)
         if (visibility != View.VISIBLE) celebration?.stop()
     }
+    var pageViewport: Pair<Int, Int>? = null
     var onLayoutChanged: (() -> Unit)? = null
     private val styles = mutableMapOf<View, CraftNativeLayoutStyle>()
     private var wrap = false
@@ -1839,6 +1840,12 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        pageViewport?.let { (pageWidth, pageHeight) ->
+            val pages = (0 until childCount).map { getChildAt(it) }.filter { it.visibility != View.GONE }
+            pages.forEach { it.measure(MeasureSpec.makeMeasureSpec(pageWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(pageHeight, MeasureSpec.EXACTLY)) }
+            setMeasuredDimension(pageWidth * pages.size, pageHeight)
+            return
+        }
         val unboundedHorizontal = unboundedWidth && orientation == HORIZONTAL
         val widthMode = if (unboundedHorizontal) View.MeasureSpec.UNSPECIFIED else View.MeasureSpec.getMode(widthMeasureSpec)
         widthDefinite = widthMode == View.MeasureSpec.EXACTLY
@@ -1875,6 +1882,12 @@ internal class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         celebration?.layout()
+        pageViewport?.let { (pageWidth, pageHeight) ->
+            val pages = (0 until childCount).map { getChildAt(it) }.filter { it.visibility != View.GONE }
+            pages.forEachIndexed { index, child -> child.layout(index * pageWidth, 0, (index + 1) * pageWidth, pageHeight) }
+            onLayoutChanged?.invoke()
+            return
+        }
         widthDefinite = true
         if (grid) {
             val layout = gridLayout(width, height)
@@ -2237,15 +2250,83 @@ private class CraftNativeKeyboardAvoidingView(context: Context) : FrameLayout(co
     }
 }
 
-private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context) {
+/** CSS family fallback order, using bundled app fonts before platform families. */
+internal fun craftNativeFontFamily(family: String?, bundledFonts: Map<String, Typeface> = emptyMap()): Typeface =
+    family?.split(',')?.asSequence()?.map { it.trim().trim('"', '\'') }?.mapNotNull { name ->
+        bundledFonts[name] ?: when (name.lowercase()) {
+            "monospace", "ui-monospace" -> Typeface.MONOSPACE
+            "serif", "ui-serif" -> Typeface.SERIF
+            "sans-serif", "ui-sans-serif", "system-ui", "-apple-system" -> Typeface.SANS_SERIF
+            else -> Typeface.create(name, Typeface.NORMAL).takeUnless { it == Typeface.DEFAULT }
+        }
+    }?.firstOrNull() ?: Typeface.DEFAULT
+
+internal class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context) {
     val content = CraftNativeFlexLayout(context)
     // Keep one refresh target across axis changes. Replacing all children of
     // SwipeRefreshLayout would also detach its own animated indicator.
     private val scrollContainer = FrameLayout(context)
-    private val vertical = ScrollView(context)
-    private val horizontal = HorizontalScrollView(context)
+    private val vertical = object : ScrollView(context) {
+        override fun onInterceptTouchEvent(event: MotionEvent): Boolean = isEnabled && super.onInterceptTouchEvent(event)
+        override fun onTouchEvent(event: MotionEvent): Boolean = isEnabled && super.onTouchEvent(event)
+    }
+    private val horizontal = object : HorizontalScrollView(context) {
+        override fun onInterceptTouchEvent(event: MotionEvent): Boolean = isEnabled && super.onInterceptTouchEvent(event)
+        override fun onTouchEvent(event: MotionEvent): Boolean = isEnabled && super.onTouchEvent(event)
+    }
     private var horizontalMode: Boolean? = null
     private var pagingEnabled = false
+    private var authoredPageIndex: Int? = null
+    private var pendingPageIndex: Int? = null
+    private var currentPageIndex = 0
+    private var reportedPage: Pair<Int, Int>? = null
+    private var pageHandler: ((Int, Int) -> Unit)? = null
+    private var pageSettleGeneration = 0
+    private var pageDragging = false
+    private var pageInMotion = false
+
+    private fun schedulePageSettle(scroller: View) {
+        val generation = ++pageSettleGeneration
+        scroller.postDelayed({
+            if (generation == pageSettleGeneration && !pageDragging) {
+                pageInMotion = false
+                settlePage()
+            }
+        }, 80L)
+    }
+
+    fun configurePager(value: Any?, onSelect: ((Int, Int) -> Unit)?) {
+        val next = (value as? Number)?.toDouble()?.takeIf { it.isFinite() }?.coerceIn(0.0, (Int.MAX_VALUE / 2).toDouble())?.toInt()
+        if (next != authoredPageIndex) pendingPageIndex = next
+        authoredPageIndex = next
+        pageHandler = onSelect
+        if (next == null) { content.pageViewport = null; reportedPage = null }
+        requestLayout()
+    }
+
+    private fun settlePage() {
+        if (authoredPageIndex == null || horizontal.width <= 0 || pageDragging || pageInMotion) return
+        val pages = (0 until content.childCount).map { content.getChildAt(it) }.filter { it.visibility != View.GONE }
+        val index = (horizontal.scrollX.toFloat() / horizontal.width).roundToInt().coerceIn(0, max(0, pages.size - 1))
+        currentPageIndex = index
+        pages.forEachIndexed { i, page -> page.importantForAccessibility = if (i == index) View.IMPORTANT_FOR_ACCESSIBILITY_AUTO else View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS }
+        val report = index to pages.size
+        if (report != reportedPage) { reportedPage = report; pageHandler?.invoke(index, pages.size) }
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        val oldWidth = horizontal.width
+        super.onLayout(changed, left, top, right, bottom)
+        if (authoredPageIndex != null && horizontalMode == true && horizontal.width > 0) {
+            val count = (0 until content.childCount).count { content.getChildAt(it).visibility != View.GONE }
+            val index = (pendingPageIndex ?: currentPageIndex).coerceIn(0, max(0, count - 1))
+            if (pendingPageIndex != null || oldWidth != horizontal.width || index != currentPageIndex) horizontal.scrollTo(index * horizontal.width, 0)
+            pendingPageIndex = null
+            currentPageIndex = index
+            settlePage()
+        }
+    }
+
     private var bounces = true
     private var alwaysBounceVertical = true
     private var alwaysBounceHorizontal = true
@@ -2301,6 +2382,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         val unspecified = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
         val horizontalPadding = paddingLeft + paddingRight
         val verticalPadding = paddingTop + paddingBottom
+        content.pageViewport = if (authoredPageIndex != null && sideways) max(0, widthSize - horizontalPadding) to max(0, heightSize - verticalPadding) else null
         content.measure(
             if (sideways || widthMode == MeasureSpec.UNSPECIFIED) unspecified
             else MeasureSpec.makeMeasureSpec(max(0, widthSize - horizontalPadding), MeasureSpec.EXACTLY),
@@ -2316,7 +2398,7 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
-            params.width = max(params.width, content.measuredWidth)
+            params.width = if (authoredPageIndex != null) content.measuredWidth else max(params.width, content.measuredWidth)
             content.layoutParams = params
         }
         fun fit(mode: Int, size: Int, wanted: Int): Int = when (mode) {
@@ -2648,11 +2730,18 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
 
             scroller.setOnScrollChangeListener { _, x, y, _, _ ->
                 if (horizontalMode != true) updateStickyHeaders()
+                if (authoredPageIndex != null) {
+                    pageInMotion = true
+                    schedulePageSettle(scroller)
+                }
                 onScroll?.invoke(x, y)
             }
             scroller.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     android.view.MotionEvent.ACTION_DOWN -> {
+                        pageDragging = true
+                        pageInMotion = false
+                        pageSettleGeneration += 1
                         if (momentumActive) {
                             momentumActive = false
                             onMomentumEnd?.invoke()
@@ -2674,6 +2763,8 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
                         }
                         onEndDrag?.invoke()
                         if (pagingEnabled) snapToPage(scroller)
+                        pageDragging = false
+                        if (authoredPageIndex != null) schedulePageSettle(scroller)
                         if (moved && !momentumActive) {
                             momentumActive = true
                             lastX = scroller.scrollX
@@ -2692,6 +2783,10 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
 
     fun clearScrollListeners() {
         scrollListenerGeneration += 1
+        pageSettleGeneration += 1
+        pageDragging = false
+        pageInMotion = false
+        pageHandler = null
         vertical.setOnScrollChangeListener(null)
         vertical.setOnTouchListener(null)
         horizontal.setOnScrollChangeListener(null)
@@ -4932,6 +5027,7 @@ class MainActivity : AppCompatActivity() {
         put("viewReparent")
         put("viewNonModalPresentation")
         put("nativePlatformControls")
+        put("nativePager")
     }
 
     private fun appVersion(): Pair<String, String> = runCatching {
@@ -6095,6 +6191,10 @@ class MainActivity : AppCompatActivity() {
                     craftNativeBoolean(props.opt("alwaysBounceHorizontal"), horizontal),
                 )
                 setPagingEnabled(craftNativeBoolean(props.opt("pagingEnabled")))
+                val pageHandler = craftNativeEventName(events, "onPageSelected").takeIf { it.isNotBlank() }
+                configurePager(props.opt("pageIndex"), pageHandler?.let { handler ->
+                    { index, count -> send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject().put("index", index).put("count", count))) }
+                })
                 val refreshNode = (0 until children.length()).asSequence()
                     .mapNotNull { children.optJSONObject(it) }
                     .firstOrNull { canonicalType(it.optString("type")) == "RefreshControl" }
@@ -6916,7 +7016,7 @@ class MainActivity : AppCompatActivity() {
         }
         val italic = craftNativeOptionalString(style.opt("fontStyle")) == "italic"
         val family = craftNativeOptionalString(style.opt("fontFamily"))?.takeIf { it.isNotBlank() }
-        val base = family?.let { bundledFonts[it] } ?: Typeface.create(family, Typeface.NORMAL)
+        val base = craftNativeFontFamily(family, bundledFonts)
         view.typeface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             Typeface.create(base, weight, italic)
         } else Typeface.create(base, (if (weight >= 600) Typeface.BOLD else Typeface.NORMAL) or
