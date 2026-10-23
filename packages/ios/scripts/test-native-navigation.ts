@@ -6,7 +6,7 @@ import { nativeNavigationGroup, verifyNativeNavigationResults } from './native-n
 import { nativeNavigationResultBundle } from './native-navigation-result'
 import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 import { includesHeldViewer, waitForHeldViewerReady } from './held-viewer-capture'
-import { buildHeldViewerExtractor } from './held-viewer-build'
+import { buildHeldViewerExtractor } from './held-viewer-extractor'
 
 const fixture = join(import.meta.dir, '..', 'fixtures', 'native-navigation')
 // The @stacksjs/stx CLI (`stx native compile`), from a sibling checkout unless CI pins one.
@@ -167,10 +167,13 @@ try {
     const captureOutput = `${resultBundle}.large-content-viewer`
     const done = join(captureOutput, 'xcode-finished')
     const ready = join(captureOutput, `preflight-ready-${process.pid}-${Date.now()}`)
-    if (captureViewer) await buildHeldViewerExtractor(captureOutput)
+    if (captureViewer) mkdirSync(captureOutput, { recursive: true })
+    // Compilation belongs to fixture construction. Capture's independent
+    // readiness budget only admits verified tools, a control and recording.
+    const extractorManifest = captureViewer ? await buildHeldViewerExtractor({ output: captureOutput }) : undefined
     const watcher = captureViewer ? Bun.spawn([
       process.execPath, join(import.meta.dir, 'held-viewer-capture.ts'), liveLog!, device.udid,
-      captureOutput, done, String(statSync(liveLog!).size), String(process.pid), ready,
+      captureOutput, done, String(statSync(liveLog!).size), String(process.pid), ready, extractorManifest!,
     ], { stdout: 'inherit', stderr: 'inherit' }) : undefined
     const stopWatcher = () => watcher?.kill('SIGTERM')
     if (watcher) process.once('exit', stopWatcher)

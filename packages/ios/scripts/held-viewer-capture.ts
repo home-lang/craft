@@ -3,7 +3,7 @@ import { isAbsolute, join } from 'node:path'
 import { nativeFixtureCommand } from './native-fixture-command'
 import { validateHeldVideoFrame } from './held-viewer-video'
 import { HeldViewerStatusBar } from './held-viewer-status'
-import { verifyHeldViewerExtractor } from './held-viewer-build'
+import { verifyHeldViewerExtractor } from './held-viewer-extractor'
 
 export const heldViewerTest = 'NativeNavigationUITests/NativeNavigationUITests/testTabBarLargeContentViewerDuringAccessibilityHold'
 
@@ -102,6 +102,7 @@ interface CaptureOptions {
   timeoutMs?: number
   parentPid?: number
   ready?: string
+  extractorManifest?: string
 }
 
 async function pngHash(path: string): Promise<string> {
@@ -294,7 +295,7 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
   const png = join(options.output, 'during-hold.png'), movie = join(options.output, 'held-screen.mov')
   const recordReady = join(options.output, 'recording-ready'), recordStop = join(options.output, 'recording-stop')
   const recordReceipt = join(options.output, 'recording.json'), frameReceipt = join(options.output, 'frame.json')
-  const extractor = join(options.output, 'held-viewer-frame')
+  let extractor: string | undefined, extractorBuild: Awaited<ReturnType<typeof verifyHeldViewerExtractor>> | undefined
   const setupDeadline = performance.now() + 30_000
   const deadline = performance.now() + (options.timeoutMs ?? 45 * 60_000)
   let recordingResult: Awaited<ReturnType<typeof nativeFixtureCommand>> | undefined
@@ -307,7 +308,7 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
   const receipt = (verifiedDuringHold: boolean, error?: string) => ({
     verifiedDuringHold, error, method: 'public-simctl-recordVideo-decoded-frame', timing,
     simulator: options.simulator, screenshot: png, movie, recording: recordReceipt, frame: frameReceipt,
-    recordingResult, resolvedTool: tool, extractorBuild: join(options.output, 'extractor-build.json'),
+    recordingResult, resolvedTool: tool, extractorBuild, extractorManifest: options.extractorManifest,
     ownedDisplayStimulus: { calls: status?.calls, restored: status?.restored, redrawDelayMs, restorationFailure: restorationFailure ? String(restorationFailure) : undefined },
     preflight: join(options.output, 'preflight.json'),
     beforeAfter: ['XCTest attachment: Large content viewer before hold', 'XCTest attachment: Large content viewer after release'],
@@ -326,7 +327,10 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
     if (!isAbsolute(publicReady)) throw new Error('Viewer readiness path must be absolute')
     if ([publicReady, movie, recordReady, recordStop, recordReceipt, frameReceipt].some(existsSync))
       throw new Error('Viewer recording evidence already exists; use a fresh result directory')
-    await verifyHeldViewerExtractor(options.output)
+    if (!options.extractorManifest || !isAbsolute(options.extractorManifest))
+      throw new Error('Viewer capture requires its verified fixture-build extractor manifest')
+    extractorBuild = await verifyHeldViewerExtractor(options.extractorManifest, options.output)
+    extractor = extractorBuild.path
     // Keep the runner blocked until both the old positive control and actual
     // recording first-frame acknowledgement succeed within the same setup budget.
     tool = await (dependencies.prepare ?? (() => prepareHeldViewerCapture({ ...options, signal, ready: join(options.output, 'screenshot-control-ready') })))()
@@ -446,14 +450,14 @@ export async function captureHeldViewerVideo(options: CaptureOptions, dependenci
 }
 
 if (import.meta.main) {
-  const [log, simulator, output, done, rawOffset, rawParent, ready] = process.argv.slice(2)
+  const [log, simulator, output, done, rawOffset, rawParent, ready, extractorManifest] = process.argv.slice(2)
   const controller = new AbortController()
   const cancel = () => controller.abort()
   process.once('SIGTERM', cancel)
   process.once('SIGINT', cancel)
   try {
     if (!log || !simulator || !output || !done) throw new Error('Expected live log, simulator, evidence directory, completion marker and offset')
-    await captureHeldViewerVideo({ log, simulator, output, done, startOffset: Number(rawOffset ?? 0), parentPid: Number(rawParent) || undefined, signal: controller.signal, ready })
+    await captureHeldViewerVideo({ log, simulator, output, done, startOffset: Number(rawOffset ?? 0), parentPid: Number(rawParent) || undefined, signal: controller.signal, ready, extractorManifest })
   }
   catch (error) { console.error(error); process.exitCode = 1 }
   finally { process.off('SIGTERM', cancel); process.off('SIGINT', cancel) }

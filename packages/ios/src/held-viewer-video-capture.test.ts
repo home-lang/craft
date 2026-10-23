@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test'
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { captureHeldViewerVideo } from '../scripts/held-viewer-capture'
-import { buildHeldViewerExtractor, verifyHeldViewerExtractor } from '../scripts/held-viewer-build'
+import { buildHeldViewerExtractor } from '../scripts/held-viewer-extractor'
+import type { nativeFixtureCommand } from '../scripts/native-fixture-command'
 import { createTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 
 const simulator = '9E10C320-E7FF-4D3E-ADE8-9A75FC60EC16'
@@ -14,12 +15,12 @@ for (const alteredAnchor of [false, true]) {
     try {
       const output = join(dir, 'evidence'), log = join(dir, 'log'), ready = join(dir, 'ready'), swiftc = join(dir, 'swiftc'), macosSdk = join(dir, 'MacOSX.sdk')
       writeFileSync(swiftc, 'synthetic compiler')
+      mkdirSync(macosSdk)
       writeFileSync(log, '')
       const calls: string[][] = []
       const completed = { code: 0, signal: null, stdout: '', stderr: '', timedOut: false, cancelled: false, processGroup: 123, groupDisposed: true as const }
       const now = 102
-      let prepared = false
-      const command = async (args: string[]) => {
+      const command: typeof nativeFixtureCommand = async (args) => {
         calls.push(args)
         if (args[1] === 'status_bar') {
           if (args.includes('override')) appendFileSync(log, 'CRAFT_TAB_LCV_HOLD_END 108\n')
@@ -35,8 +36,8 @@ for (const alteredAnchor of [false, true]) {
         }
         if (args[0] === swiftc) {
           expect(args).toEqual([swiftc, '-sdk', macosSdk, join(import.meta.dir, '../scripts/held-viewer-frame.swift'), '-o', join(output, 'held-viewer-frame')])
-          expect(prepared).toBe(false)
-          await Bun.write(join(output, 'held-viewer-frame'), 'synthetic host executable')
+          await Bun.write(args.at(-1)!, 'built extractor bytes')
+          chmodSync(args.at(-1)!, 0o700)
           return completed
         }
         if (args[1]?.endsWith('held-viewer-record.ts')) {
@@ -61,9 +62,10 @@ for (const alteredAnchor of [false, true]) {
         }))
         return completed
       }
-      await buildHeldViewerExtractor(output, { command, xcrun: '/usr/bin/xcrun' })
-      const run = captureHeldViewerVideo({ output, log, done: join(dir, 'done'), ready, simulator, timeoutMs: 5000 }, {
-        prepare: async () => { prepared = true; return { simctl: '/synthetic/simctl', simctlSha256: 'verified-tool' } },
+      const extractorManifest = await buildHeldViewerExtractor({ output }, { command, xcrun: '/usr/bin/xcrun' })
+      const buildCallCount = calls.length
+      const run = captureHeldViewerVideo({ output, log, done: join(dir, 'done'), ready, simulator, timeoutMs: 5000, extractorManifest }, {
+        prepare: async () => ({ simctl: '/synthetic/simctl', simctlSha256: 'verified-tool' }),
         now: () => now, command,
       })
       const deadline = performance.now() + 2000
@@ -77,6 +79,9 @@ for (const alteredAnchor of [false, true]) {
       if (alteredAnchor) await expect(run).rejects.toThrow('Frame timing does not match')
       else await run
       expect(calls.some(args => args.includes('screenshot'))).toBe(false)
+      // Capture admission verifies the owned artifact; it never launches a
+      // compiler inside the independent public recording-readiness deadline.
+      expect(calls.slice(buildCallCount).some(args => args[0] === swiftc || args[0] === '/usr/bin/xcrun')).toBe(false)
       const receipt = JSON.parse(readFileSync(join(output, 'receipt.json'), 'utf8'))
       expect(receipt.verifiedDuringHold).toBe(!alteredAnchor)
       expect(receipt.ownedDisplayStimulus.restored).toBe(true)
@@ -91,79 +96,20 @@ for (const alteredAnchor of [false, true]) {
 }
 
 
-test('capture refuses missing host build evidence before starting live simulator setup', async () => {
+test('capture refuses a missing host build manifest before starting live simulator setup', async () => {
   const dir = createTempDir('craft-held-unbuilt-')
   try {
-    let prepared = false
+    let prepared = false, commands = 0
     const capture = captureHeldViewerVideo({ output: join(dir, 'evidence'), log: join(dir, 'log'), done: join(dir, 'done'), simulator }, {
       prepare: async () => { prepared = true; return { simctl: '/synthetic/simctl', simctlSha256: 'tool' } },
-      command: async () => ({ code: 1, signal: null, stdout: '', stderr: 'unexpected live compiler', timedOut: false, cancelled: false, processGroup: 123, groupDisposed: true }),
-    })
-    await expect(capture).rejects.toThrow('extractor build receipt')
-    expect(prepared).toBe(false)
-  }
-  finally { removeTempDir(dir) }
-})
-
-
-test('a retained host build rejects a changed binary or source identity', async () => {
-  const dir = createTempDir('craft-held-build-identity-')
-  try {
-    const extractor = join(dir, 'held-viewer-frame')
-    const hash = (bytes: string) => new Bun.CryptoHasher('sha256').update(bytes).digest('hex')
-    writeFileSync(extractor, 'host executable')
-    const source = join(import.meta.dir, '../scripts/held-viewer-frame.swift')
-    const receipt = { verified: true, extractor, source, sourceSha256: hash(readFileSync(source, 'utf8')), extractorSha256: hash('host executable') }
-    writeFileSync(join(dir, 'extractor-build.json'), JSON.stringify(receipt))
-    expect(await verifyHeldViewerExtractor(dir)).toBe(extractor)
-    writeFileSync(extractor, 'substituted host executable')
-    await expect(verifyHeldViewerExtractor(dir)).rejects.toThrow('does not match')
-    writeFileSync(extractor, 'host executable')
-    writeFileSync(join(dir, 'extractor-build.json'), JSON.stringify({ ...receipt, sourceSha256: hash('stale Swift source') }))
-    await expect(verifyHeldViewerExtractor(dir)).rejects.toThrow('does not match')
-  }
-  finally { removeTempDir(dir) }
-})
-
-test('failed host compiler retains its command result and never produces an accepted build receipt', async () => {
-  const dir = createTempDir('craft-held-build-failure-')
-  try {
-    const swiftc = join(dir, 'swiftc')
-    writeFileSync(swiftc, 'synthetic compiler')
-    await expect(buildHeldViewerExtractor(dir, {
-      xcrun: '/synthetic/xcrun', command: async args => ({
-        code: args[0] === swiftc ? 143 : 0, signal: args[0] === swiftc ? 'SIGTERM' : null,
-        stdout: args.includes('--find') ? swiftc : '/synthetic/MacOSX.sdk', stderr: '',
-        timedOut: args[0] === swiftc, cancelled: false, processGroup: 123, groupDisposed: true,
-      }),
-    })).rejects.toThrow('Extractor build failed')
-    const receipt = JSON.parse(readFileSync(join(dir, 'extractor-build.json'), 'utf8'))
-    expect(receipt.verified).toBe(false)
-    expect(receipt.calls.at(-1).result).toMatchObject({ code: 143, timedOut: true, groupDisposed: true })
-    await expect(verifyHeldViewerExtractor(dir)).rejects.toThrow('does not match')
-  }
-  finally { removeTempDir(dir) }
-})
-
-
-test('host build resolution and compilation share one finite build budget', async () => {
-  const dir = createTempDir('craft-held-build-deadline-')
-  try {
-    let elapsed = 0, calls = 0
-    const swiftc = join(dir, 'swiftc')
-    writeFileSync(swiftc, 'synthetic compiler')
-    await expect(buildHeldViewerExtractor(dir, {
-      xcrun: '/synthetic/xcrun', monotonicNow: () => elapsed,
       command: async () => {
-        calls++
-        elapsed = 120_001
-        return { code: 0, signal: null, stdout: swiftc, stderr: '', timedOut: false, cancelled: false, processGroup: 123, groupDisposed: true }
+        commands++
+        throw new Error('Unexpected native command before build admission')
       },
-    })).rejects.toThrow('shared build budget')
-    expect(calls).toBe(1)
-    const receipt = JSON.parse(readFileSync(join(dir, 'extractor-build.json'), 'utf8'))
-    expect(receipt.verified).toBe(false)
-    expect(receipt.totalBuildBudgetMs).toBe(120_000)
+    })
+    await expect(capture).rejects.toThrow('fixture-build extractor manifest')
+    expect(prepared).toBe(false)
+    expect(commands).toBe(0)
   }
   finally { removeTempDir(dir) }
 })
