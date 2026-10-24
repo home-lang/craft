@@ -29,15 +29,22 @@ defaults:
     shell: bash
 
 jobs:
-  android-software-emulator:
+  android-sdk-emulator:
     if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
-    name: Android software emulator
+    name: Android SDK emulator
     runs-on: ubuntu-latest
-    # Managed tool setup + bounded 20-minute stock Play software provisioning
-    # + owned cleanup. Hardware and app/performance budgets are unchanged.
+    # Use the supported KVM backend for stock Play acceptance. Unaccelerated
+    # TCG remains an explicit diagnostic, separate from release acceptance.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+      - name: Enable owned runner access to KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
       - name: Install the managed Android toolchain
         uses: pantry-pm/pantry/packages/action@3de609e1a7e305393b3d94e2848d859b39c5b5de # v0.11.120
         with:
@@ -50,8 +57,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-software-emulator
-          path: artifacts/android-software-emulator
+          name: android-sdk-emulator
+          path: artifacts/android-sdk-emulator
           if-no-files-found: error
 
   android-software-cold-provisioning-diagnostic:
@@ -659,7 +666,7 @@ jobs:
 
   publish-commit:
     if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
-    needs: [android-software-emulator, zig-core, windows-multi-window, typescript-sdk, ios-builder, ios-native-templates, android-builder, create-craft, ts-maps, lint, integration]
+    needs: [android-sdk-emulator, zig-core, windows-multi-window, typescript-sdk, ios-builder, ios-native-templates, android-builder, create-craft, ts-maps, lint, integration]
     runs-on: ubuntu-latest
 
     steps:

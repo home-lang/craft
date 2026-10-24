@@ -183,6 +183,8 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
           // event stream. Require a complete history read so a partial transport
           // read cannot admit the device before its first health check.
           const events = await run([adb, '-s', serial, 'logcat', '-b', 'events', '-d', '-v', 'threadtime'], undefined, probeTimeout(), true)
+          if (events.code === 0 && /^\S+\s+\S+\s+\d+\s+\d+\s+[A-Z]\s+am_(?:anr|crash)\s*:/m.test(events.stdout))
+            throw new Error(`Android emulator reported a platform ANR or crash during boot; inspect ${artifacts}`)
           // AOSP's first boot can report all those services ready while its
           // automatic SDK setup activity still owns HOME. Launching HOME then
           // opens that transient activity; after it finishes UI automation has
