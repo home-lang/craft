@@ -1,5 +1,25 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.328...v0.0.329)
+
+## 🐛 Bug Fixes
+
+- **ci**: wait for KVM device permission updates ([26efe04](https://github.com/craft-native/craft/commit/26efe04)) _(by Chris)_
+- require healthy accelerated Android SDK acceptance ([1ee5523](https://github.com/craft-native/craft/commit/1ee5523)) _(by Chris)_
+
+## 🧪 Tests
+
+- **menubar**: retain native lifecycle failure diagnostics ([fc7debc](https://github.com/craft-native/craft/commit/fc7debc)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- **ci**: retain failed Pantry toolchain state ([e311629](https://github.com/craft-native/craft/commit/e311629)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.327...v0.0.328)
 
 ## 🧪 Tests
