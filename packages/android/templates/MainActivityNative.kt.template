@@ -7668,6 +7668,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        if (::services.isInitialized) services.pauseVoice()
         nativeAppState = "inactive"
         publish("APP_STATE", JSONObject().put("state", nativeAppState))
         super.onPause()

@@ -162,6 +162,7 @@ export interface CraftAndroidConfig {
   backgroundColor?: string
   backgroundColorDark?: string
   enableSpeechRecognition?: boolean
+  enableAudioRecording?: boolean
   enableHaptics?: boolean
   enableShare?: boolean
   enableCamera?: boolean
@@ -441,6 +442,7 @@ const DEFAULT_CONFIG: Omit<CraftAndroidConfig, 'appName' | 'packageName'> = {
   darkMode: true,
   backgroundColor: '#0b1712',
   enableSpeechRecognition: false,
+  enableAudioRecording: false,
   enableHaptics: false,
   enableShare: false,
   enableCamera: false,
@@ -768,7 +770,7 @@ export function syncAndroidWebAssets(source: string, output: string): void {
 
 export function renderAndroidPermissions(config: CraftAndroidConfig): string {
   const permissions = new Set(['android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE'])
-  if (config.enableSpeechRecognition) permissions.add('android.permission.RECORD_AUDIO')
+  if (config.enableSpeechRecognition || config.enableAudioRecording) permissions.add('android.permission.RECORD_AUDIO')
   if (config.enableCamera) permissions.add('android.permission.CAMERA')
   if (config.enableHaptics) permissions.add('android.permission.VIBRATE')
   if (config.enableBiometric) permissions.add('android.permission.USE_BIOMETRIC')
