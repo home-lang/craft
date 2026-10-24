@@ -4159,13 +4159,14 @@ describe('native renderer component contract', () => {
 
 describe('mobile acceptance scopes', () => {
   const workflow = readFileSync(join(root, '.github/workflows/mobile-e2e.yml'), 'utf8')
-  const legs = ['harness', 'ios-native', 'ios-hybrid', 'ios-simulator', 'android-emulator', 'ios-zig-slice', 'android-navigation', 'media-cache']
+  const legs = ['harness', 'ios-native', 'ios-metal', 'ios-hybrid', 'ios-simulator', 'android-emulator', 'ios-zig-slice', 'android-navigation', 'media-cache']
   const selected: Record<string, string[]> = {
     '': legs,
     'all': legs,
     'android': ['harness', 'android-emulator', 'android-navigation'],
-    'ios-render': ['harness', 'ios-native'],
+    'ios-render': ['harness', 'ios-native', 'ios-metal'],
     'ios-navigation': ['harness', 'ios-native'],
+    'ios-hybrid': ['harness', 'ios-hybrid'],
     'android-navigation': ['harness', 'android-navigation'],
   }
   const summary = workflow.match(/- name: Fail if any leg failed\n\s+if: >-\n([\s\S]*?)\n\s+run:/)?.[1]
