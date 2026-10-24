@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { bootSimulator, build, init, pickSimulator } from '../src/index'
 import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './insert-project-targets'
 import { nativeNavigationGroup, verifyNativeNavigationResults } from './native-navigation-groups'
-import { nativeNavigationResultBundle } from './native-navigation-result'
+import { nativeTestResultBundle } from './native-test-result'
 import { createTempDir, keepTempDir, removeTempDir } from '../../typescript/src/temp-dir'
 import { includesHeldViewer, waitForHeldViewerReady } from './held-viewer-capture'
 import { buildHeldViewerExtractor } from './held-viewer-extractor'
@@ -139,7 +139,7 @@ try {
     await bootSimulator(device)
     // Write directly into retained evidence: a CI cancellation can terminate
     // this process before any post-test copy or finally block can run.
-    const resultBundle = nativeNavigationResultBundle(workspace, process.env.CRAFT_NATIVE_NAVIGATION_RESULT)
+    const resultBundle = nativeTestResultBundle(workspace, process.env.CRAFT_NATIVE_NAVIGATION_RESULT, 'NativeNavigation.xcresult')
     const selectedTest = process.env.CRAFT_NATIVE_NAVIGATION_TEST
     const selectedTarget = process.env.CRAFT_ONLY_TESTING
     const group = process.env.CRAFT_NATIVE_NAVIGATION_GROUP

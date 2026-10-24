@@ -194,6 +194,7 @@ jobs:
         id: uikit
         if: ${{ matrix.suite == 'uikit' }}
         env:
+          CRAFT_NATIVE_RENDER_RESULT: ${{ github.workspace }}/artifacts/mobile-e2e/ios-native/uikit.xcresult
           CRAFT_ONLY_TESTING: ${{ inputs.scope == 'ios-render' && inputs.selectors || '' }}
         run: |
           mkdir -p artifacts/mobile-e2e/ios-native

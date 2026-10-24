@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import { requiredReleaseAssets } from './release-manifest'
 import { createTempDir, removeAllTempDirs } from '../packages/typescript/src/temp-dir'
-import { nativeNavigationResultBundle } from '../packages/ios/scripts/native-navigation-result'
+import { nativeTestResultBundle } from '../packages/ios/scripts/native-test-result'
 
 // Every scratch directory this file made goes when the file is done (#357).
 afterAll(removeAllTempDirs)
@@ -106,11 +106,11 @@ test.each(['microphone', 'location', 'kTCCServiceSpeechRecognition'])('the Zig s
   expect(result.stdout.toString()).not.toContain('launched app')
 })
 
-test('interrupted native navigation results survive temporary workspace cleanup', () => {
+test.each(['navigation', 'uikit'])('interrupted %s results survive temporary workspace cleanup', (suite) => {
   const workspace = createTempDir('craft-navigation-work-')
   const evidence = createTempDir('craft-navigation-evidence-')
-  const destination = join(evidence, 'ios-native', 'navigation.xcresult')
-  const actual = nativeNavigationResultBundle(workspace, destination)
+  const destination = join(evidence, 'ios-native', `${suite}.xcresult`)
+  const actual = nativeTestResultBundle(workspace, destination)
   expect(existsSync(actual)).toBe(false)
   mkdirSync(actual)
   writeFileSync(join(actual, 'progress.log'), 'unfinished XCTest evidence')
