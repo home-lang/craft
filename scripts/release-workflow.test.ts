@@ -23,6 +23,16 @@ const artifactDownload = 'actions/download-artifact@d3f86a106a0bac45b974a628896c
 const needs = (job: Job) => typeof job.needs === 'string' ? [job.needs] : job.needs ?? []
 const steps = (job: Job) => job.steps?.map(step => step.run ?? '').join('\n') ?? ''
 
+test('release rehearsals include the actual host-neutral native CI contract', () => {
+  const ci = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/ci.yml'), 'utf8')) as { jobs: Record<string, Job> }
+  const contract = ci.jobs.lint.steps?.find(step => step.name === 'Test host-neutral native renderer contract')?.run
+  expect(contract).toBeDefined()
+  const invocation = contract?.match(/^bun test (\.\/scripts\/[\w-]+\.test\.ts)$/)
+  expect(invocation).not.toBeNull()
+  const manifest = JSON.parse(readFileSync(join(import.meta.dir, '../package.json'), 'utf8'))
+  expect(manifest.scripts['test:release'].split(/\s+/)).toContain(invocation![1])
+})
+
 test('the Vulkan ABI matrix requires managed Git on every platform and still runs the exact compiler probe', () => {
   const ci = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/ci.yml'), 'utf8')) as any
   const job = ci.jobs['vulkan-abi']
