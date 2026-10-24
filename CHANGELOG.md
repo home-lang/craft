@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.323...v0.0.324)
+
+## 🐛 Bug Fixes
+
+- bind microphone capture to the native screen lifetime ([61aca0f](https://github.com/craft-native/craft/commit/61aca0f)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.322...v0.0.323)
 
 ## 🚀 Features
