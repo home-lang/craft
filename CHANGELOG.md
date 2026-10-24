@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.320...v0.0.321)
+
+## 🐛 Bug Fixes
+
+- close native activity runtimes and await switch updates ([69afbf5](https://github.com/craft-native/craft/commit/69afbf5)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.319...v0.0.320)
 
 ## 🚀 Features
