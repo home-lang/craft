@@ -199,8 +199,8 @@ nativeTest('native visibility lifecycle rejects stale replies and restores icons
     expect(compile.exitCode).toBe(0)
     const signed = Bun.spawnSync(['codesign', '--force', '--sign', '-', '--identifier', 'dev.craft.visibility.fixture.runtime', executable])
     expect(signed.exitCode).toBe(0)
-    const run = Bun.spawnSync([executable])
-    expect(run.exitCode).toBe(0)
+    const run = Bun.spawnSync([executable], { timeout: 10000 })
+    expect(run.exitCode, `Native visibility fixture (${run.signalCode || 'normal exit'}):\n${run.stdout.toString()}\n${run.stderr.toString()}`).toBe(0)
     expect(run.stdout.toString()).toContain('permission revocation, errors, timeout and quit passed')
   }
   finally {
