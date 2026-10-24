@@ -22,20 +22,7 @@ struct CraftActivityAttributes: ActivityAttributes {
         var remainingSeconds: Double?
         var heartRate: Double?
         var showsDistance: Bool?
-        var transitions: [Transition]?
 
-        /// Catch up missed boundaries in one update, preserving their clock anchors.
-        mutating func advance(to milliseconds: Double) {
-            while let next = transitions?.first, next.at <= milliseconds {
-                transitions = Array((transitions ?? []).dropFirst())
-                detail = next.detail
-                timerStartedAt = next.duration == nil ? sessionStartedAt : next.at
-                timerEndsAt = next.duration.map { next.at + $0 * 1000 }
-                remainingSeconds = next.duration.map { max(0, $0 - (milliseconds - next.at) / 1000) }
-                progress = 0
-                if next.duration == 0 { status = next.detail; paused = true; progress = 1 }
-            }
-        }
     }
 
     let activityId: String
@@ -43,4 +30,24 @@ struct CraftActivityAttributes: ActivityAttributes {
     var symbol: String?
     var deepLink: String?
     var tint: String?
+}
+
+
+/// The whole plan stays in the app process. Only ContentState crosses
+/// ActivityKit's 4 KB payload boundary, regardless of the workout's length.
+@available(iOS 16.1, *)
+struct CraftActivityTimeline {
+    var pending: [CraftActivityAttributes.Transition]
+
+    mutating func advance(_ state: inout CraftActivityAttributes.ContentState, to milliseconds: Double) {
+        let due = pending.prefix { $0.at <= milliseconds }
+        guard let next = due.last else { return }
+        pending.removeFirst(due.count)
+        state.detail = next.detail
+        state.timerStartedAt = next.duration == nil ? state.sessionStartedAt : next.at
+        state.timerEndsAt = next.duration.map { next.at + $0 * 1000 }
+        state.remainingSeconds = next.duration.map { max(0, $0 - (milliseconds - next.at) / 1000) }
+        state.progress = 0
+        if next.duration == 0 { state.status = next.detail; state.paused = true; state.progress = 1 }
+    }
 }

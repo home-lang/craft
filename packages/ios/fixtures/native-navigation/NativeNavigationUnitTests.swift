@@ -10,21 +10,36 @@ final class NativeNavigationUnitTests: XCTestCase {
     func testActivityTransitionsCatchUpWithoutThePlayerAndStopAtCompletion() {
         var state = CraftActivityAttributes.ContentState(status: "Training", distanceMeters: 0, durationSeconds: 0, progress: 0)
         state.detail = "Leg cradles"
-        state.transitions = [
+        var timeline = CraftActivityTimeline(pending: [
             .init(at: 1000, detail: "Lunges", duration: 20),
             .init(at: 21000, detail: "Squats", duration: 30),
             .init(at: 51000, detail: "Complete", duration: 0),
-        ]
-        state.advance(to: 25000)
+        ])
+        timeline.advance(&state, to: 25000)
         XCTAssertEqual(state.detail, "Squats")
         XCTAssertEqual(state.timerEndsAt, 51000)
         XCTAssertEqual(state.remainingSeconds, 26)
-        XCTAssertEqual(state.transitions?.count, 1)
-        state.advance(to: 60000)
+        XCTAssertEqual(timeline.pending.count, 1)
+        timeline.advance(&state, to: 60000)
         XCTAssertEqual(state.detail, "Complete")
         XCTAssertEqual(state.paused, true)
         XCTAssertEqual(state.remainingSeconds, 0)
-        XCTAssertTrue(state.transitions?.isEmpty == true)
+        XCTAssertTrue(timeline.pending.isEmpty)
+    }
+
+    @available(iOS 16.1, *)
+    func testLongActivityPlanNeverGrowsTheLockScreenPayload() throws {
+        var state = CraftActivityAttributes.ContentState(status: "Training", distanceMeters: 0, durationSeconds: 0, progress: 0)
+        var timeline = CraftActivityTimeline(pending: (1...100).map {
+            .init(at: Double($0 * 30000), detail: "Exercise \($0)", duration: 30)
+        })
+        timeline.advance(&state, to: 1805000)
+        XCTAssertEqual(state.detail, "Exercise 60")
+        XCTAssertEqual(state.timerEndsAt, 1830000)
+        XCTAssertEqual(timeline.pending.count, 40)
+        let payload = try JSONEncoder().encode(state)
+        XCTAssertLessThan(payload.count, 1024)
+        XCTAssertFalse(String(data: payload, encoding: .utf8)!.contains("Exercise 61"))
     }
 
     private final class Pan: UIPanGestureRecognizer {

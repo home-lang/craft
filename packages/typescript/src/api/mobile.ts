@@ -3713,7 +3713,7 @@ export const health = {
 }
 
 export interface LiveActivityState {
-  /** Native step boundaries; at most 12, with detail limited to 96 characters. */
+  /** Native step boundaries retained on device; at most 1000, with detail limited to 96 characters. Only the current state is sent to the widget. */
   transitions?: Array<{ at: number, detail: string, duration?: number | null }>
   /** An actual HealthKit workout (iOS 26+, already authorised) owns background updates. */
   workoutType?: string

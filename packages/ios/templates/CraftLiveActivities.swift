@@ -40,7 +40,7 @@ enum CraftLiveActivities {
                     if let existing = activities.first(where: { $0.attributes.activityId == key }) {
                         await existing.update(ActivityContent(state: state, staleDate: staleDate(body)))
                         watch(existing)
-                        schedule(existing)
+                        schedule(existing, plan: plan(body))
                         startWorkout(existing, body: body, enabled: healthEnabled)
                         completion(.success(["id": existing.id]))
                         return
@@ -48,7 +48,7 @@ enum CraftLiveActivities {
                     let attributes = CraftActivityAttributes(activityId: key, title: String(title.prefix(160)), symbol: body["symbol"] as? String, deepLink: safeURL(body["deepLink"] as? String), tint: body["tint"] as? String)
                     let activity = try Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: staleDate(body)), pushType: nil)
                     watch(activity)
-                    schedule(activity)
+                    schedule(activity, plan: plan(body))
                     startWorkout(activity, body: body, enabled: healthEnabled)
                     completion(.success(["id": activity.id]))
                 case "update", "end":
@@ -69,7 +69,7 @@ enum CraftLiveActivities {
                         completion(.success(["ended": true]))
                     } else {
                         await activity.update(ActivityContent(state: state, staleDate: staleDate(body)))
-                        schedule(activity)
+                        schedule(activity, plan: plan(body))
                         if let owner = workoutOwner, owner.key == activity.attributes.activityId, previous.paused != state.paused {
                             if state.paused == true { CraftHealth.shared.pauseWorkout { _ in } }
                             else { CraftHealth.shared.resumeWorkout { _ in } }
@@ -135,22 +135,34 @@ enum CraftLiveActivities {
     /// HealthKit, GPS and BLE use their documented background execution;
     /// without permission iOS may suspend updates until the next app wake.
     @available(iOS 16.2, *)
-    @MainActor private static func schedule(_ activity: Activity<CraftActivityAttributes>) {
+    @MainActor private static func schedule(_ activity: Activity<CraftActivityAttributes>, plan: [CraftActivityAttributes.Transition]) {
         scheduled.removeValue(forKey: activity.id)?.cancel()
-        guard activity.content.state.paused != true, !(activity.content.state.transitions ?? []).isEmpty else { return }
+        guard activity.content.state.paused != true, !plan.isEmpty else { return }
         scheduled[activity.id] = Task { @MainActor in
-            while !Task.isCancelled, let next = activity.content.state.transitions?.first {
+            var timeline = CraftActivityTimeline(pending: plan)
+            while !Task.isCancelled, let next = timeline.pending.first {
                 let delay = max(0, next.at / 1000 - Date().timeIntervalSince1970)
                 do { try await Task.sleep(nanoseconds: UInt64(min(delay, 86400) * 1_000_000_000)) }
                 catch { return }
                 guard !Task.isCancelled, activity.activityState == .active || activity.activityState == .stale else { return }
                 var state = activity.content.state
-                state.advance(to: Date().timeIntervalSince1970 * 1000)
+                timeline.advance(&state, to: Date().timeIntervalSince1970 * 1000)
                 if state.paused == true { stopWorkout(activity.attributes.activityId) }
-                await activity.update(ActivityContent(state: state, staleDate: state.transitions?.last.map { Date(timeIntervalSince1970: $0.at / 1000 + ($0.duration ?? 8 * 3600) + 1) }))
+                await activity.update(ActivityContent(state: state, staleDate: timeline.pending.last.map { Date(timeIntervalSince1970: $0.at / 1000 + ($0.duration ?? 8 * 3600) + 1) }))
             }
             scheduled.removeValue(forKey: activity.id)
         }
+    }
+
+    @available(iOS 16.1, *)
+    private static func plan(_ body: [String: Any]) -> [CraftActivityAttributes.Transition] {
+        let steps = (body["transitions"] as? [[String: Any]] ?? []).prefix(1000).compactMap { item -> CraftActivityAttributes.Transition? in
+            guard let at = finite(item, "at"), let detail = item["detail"] as? String else { return nil }
+            return .init(at: at, detail: String(detail.prefix(96)), duration: finite(item, "duration"))
+        }.sorted { $0.at < $1.at }
+        // An untimed exercise waits for the athlete. Never infer its completion.
+        if let stop = steps.firstIndex(where: { $0.duration == nil || $0.duration == 0 }) { return Array(steps.prefix(stop + 1)) }
+        return steps
     }
 
     private static func safeURL(_ value: String?) -> String? {
@@ -184,11 +196,7 @@ enum CraftLiveActivities {
             paused: body["paused"] as? Bool ?? previous?.paused,
             remainingSeconds: finite(body, "remainingSeconds", previous?.remainingSeconds),
             heartRate: finite(body, "heartRate", previous?.heartRate),
-            showsDistance: body["showsDistance"] as? Bool ?? previous?.showsDistance,
-            transitions: (body["transitions"] as? [[String: Any]] ?? []).prefix(12).compactMap { item in
-                guard let at = finite(item, "at"), let detail = item["detail"] as? String else { return nil }
-                return CraftActivityAttributes.Transition(at: at, detail: String(detail.prefix(96)), duration: finite(item, "duration"))
-            }.sorted { $0.at < $1.at }
+            showsDistance: body["showsDistance"] as? Bool ?? previous?.showsDistance
         )
     }
 }
