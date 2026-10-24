@@ -15,9 +15,8 @@ const diagnostic = args.length === 1
 // ten-minute hardware budget. Unsupported TCG measurements stay diagnostic.
 const acceleration = diagnostic ? 'software' : 'hardware'
 const bootTimeoutMs = diagnostic ? 1_200_000 : 600_000
-// Both retained 2 GB-profile failures show low-memory/process-death churn and
-// a SystemUI ANR. Give the unmodified stock image an explicit 4 GB guest;
-// readiness, software acceleration and the boot deadline stay intact.
+// Keep the same unmodified stock image and explicit 4 GB guest for acceptance
+// and diagnostics. Their backend-specific boot budgets are set above.
 const memoryMb = 4096
 // Diagnostic CPU overrides never change the acceptance profile. Receipts
 // retain the host model, actual guest resources and the selected backend.
