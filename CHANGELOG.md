@@ -1,5 +1,21 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.322...v0.0.323)
+
+## 🚀 Features
+
+- record owned voice messages on Android ([ec8a511](https://github.com/craft-native/craft/commit/ec8a511)) _(by Chris Breuer)_
+- record bounded private voice messages on iOS ([01934f1](https://github.com/craft-native/craft/commit/01934f1)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- allow for audio encoder padding within recording limits ([dfbc9da](https://github.com/craft-native/craft/commit/dfbc9da)) _(by Chris Breuer)_
+- report emulator exits before boot accurately ([15f8203](https://github.com/craft-native/craft/commit/15f8203)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.321...v0.0.322)
 
 ## 🐛 Bug Fixes
