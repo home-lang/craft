@@ -688,7 +688,7 @@ internal class CraftNativeServices(
                 recorder.setAudioChannels(1)
                 recorder.setAudioSamplingRate(16000)
                 recorder.setAudioEncodingBitRate(32000)
-                recorder.setMaxDuration(seconds * 1000)
+                recorder.setMaxDuration(seconds * 1000 - 250)
                 recorder.setMaxFileSize(12L * 1024 * 1024)
                 recorder.setOutputFile(file.absolutePath)
                 recorder.setOnInfoListener { current, what, _ ->

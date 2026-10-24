@@ -58,13 +58,13 @@ final class CraftVoiceRecording {
                 guard allowed else { self.clear(); fail("PERMISSION_DENIED", "Microphone permission was refused"); return }
                 do {
                     let session = AVAudioSession.sharedInstance()
-                    try session.setCategory(.record, mode: .spokenAudio)
+                    try session.setCategory(.record, mode: .measurement)
                     try session.setActive(true)
                     let file = try CraftNativeFiles.newFile(named: "voice-feedback.m4a")
                     self.file = file
                     let recorder = try AVAudioRecorder(url: file, settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 32000])
                     self.recorder = recorder
-                    guard recorder.record(forDuration: seconds) else { throw CraftNativeActionError(code: "RECORDING_FAILED", message: "The microphone could not start") }
+                    guard recorder.record(forDuration: max(0.5, seconds - 0.25)) else { throw CraftNativeActionError(code: "RECORDING_FAILED", message: "The microphone could not start") }
                     completion(.success(true))
                 }
                 catch { self.clear(); fail("RECORDING_FAILED", "The microphone could not start") }
