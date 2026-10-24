@@ -9,6 +9,18 @@ static Boolean testTrusted(void) { return trusted; }
 #include <spawn.h>
 #include <sys/wait.h>
 
+static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, double boundary, BOOL rtl,
+    BOOL protectedOnly, NSMutableDictionary *items, NSUInteger *remaining) {
+    return collectSnapshotItems(node, depth, root, boundary, rtl, protectedOnly, 0, items, nil, remaining);
+}
+
+@interface TestRunningApplication : NSObject
+@property (copy) NSString *bundleIdentifier;
+@property pid_t processIdentifier;
+@end
+@implementation TestRunningApplication
+@end
+
 @interface TestConfiguration : NSObject <CraftVisibilityConfiguration>
 @end
 @implementation TestConfiguration
@@ -36,6 +48,122 @@ static id testNode(NSDictionary *attributes) {
     id node = CFBridgingRelease(AXUIElementCreateApplication(next++));
     nodeAttributes[[NSValue valueWithPointer:(__bridge void *)node]] = attributes;
     return node;
+}
+static AXError testOwner(AXUIElementRef node, pid_t *pid) {
+    NSNumber *owner = nodeAttributes[[NSValue valueWithPointer:node]][@"testOwner"];
+    if (!owner) return AXUIElementGetPid(node, pid);
+    *pid = owner.intValue;
+    return kAXErrorSuccess;
+}
+static void verifyRecreatedAnonymousItems(void) {
+    nodeAttributes = [NSMutableDictionary dictionary];
+    CGPoint point = CGPointMake(200, 0);
+    CGSize size = CGSizeMake(20, 24);
+    NSMutableDictionary *attributes = [@{
+        (__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXMenuBarItemRole,
+        (__bridge NSString *)kAXTitleAttribute: @"Original meter",
+        (__bridge NSString *)kAXPositionAttribute: CFBridgingRelease(AXValueCreate(kAXValueCGPointType, &point)),
+        (__bridge NSString *)kAXSizeAttribute: CFBridgingRelease(AXValueCreate(kAXValueCGSizeType, &size)),
+        @"testOwner": @1234,
+    } mutableCopy];
+    id before = testNode([attributes copy]);
+    point.x = 300;
+    attributes[(__bridge NSString *)kAXPositionAttribute] = CFBridgingRelease(AXValueCreate(kAXValueCGPointType, &point));
+    attributes[(__bridge NSString *)kAXTitleAttribute] = @"Updated meter";
+    id after = testNode([attributes copy]);
+    assert(!CFEqual((__bridge CFTypeRef)before, (__bridge CFTypeRef)after));
+    NSMutableDictionary *overlapAttributes = [attributes mutableCopy];
+    CGPoint overlapped = CGPointMake(95, 0);
+    overlapAttributes[(__bridge NSString *)kAXPositionAttribute] = CFBridgingRelease(AXValueCreate(kAXValueCGPointType, &overlapped));
+    id overlapping = testNode(overlapAttributes);
+    readAttribute = testAttribute;
+    readOwner = testOwner;
+    NSMutableDictionary *overlappingItems = [NSMutableDictionary dictionary];
+    NSUInteger overlapRemaining = 256;
+    assert(!collectSnapshotItems((__bridge AXUIElementRef)overlapping, 8, NO, 100, NO, YES, 0, overlappingItems, nil, &overlapRemaining));
+
+    NSMutableDictionary *systemItems = [NSMutableDictionary dictionary];
+    readAttribute = testAttribute;
+    readOwner = testOwner;
+    preserveSystemItems = NO;
+    NSUInteger systemRemaining = 256;
+    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 1234, systemItems, nil, &systemRemaining));
+    assert(!systemItems.count);
+    preserveSystemItems = YES;
+    systemRemaining = 256;
+    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 1234, systemItems, nil, &systemRemaining));
+    assert(systemItems.count == 1);
+
+    readAttribute = testAttribute;
+    readOwner = testOwner;
+    NSMutableDictionary *expected = [NSMutableDictionary dictionary], *actual = [NSMutableDictionary dictionary];
+    NSUInteger remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, expected, &remaining));
+    remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)after, 8, NO, 100, NO, NO, actual, &remaining));
+    assert(preservesItems(expected, actual));
+    // Grouping consumes the exact displayed owner positions used to protect
+    // icons. An app's separate, potentially stale AX geometry is never read.
+    NSMutableDictionary *owners = [NSMutableDictionary dictionary];
+    [expected removeAllObjects]; remaining = 256;
+    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 0, expected, owners, &remaining));
+    assert([owners[@1234] boolValue]);
+    TestRunningApplication *visibleApp = [TestRunningApplication new];
+    visibleApp.bundleIdentifier = @"visible.app"; visibleApp.processIdentifier = 1234;
+    point.x = 20;
+    attributes[(__bridge NSString *)kAXPositionAttribute] = CFBridgingRelease(AXValueCreate(kAXValueCGPointType, &point));
+    attributes[@"testOwner"] = @7890;
+    id left = testNode([attributes copy]);
+    remaining = 256;
+    assert(collectSnapshotItems((__bridge AXUIElementRef)left, 8, NO, 100, NO, YES, 0, expected, owners, &remaining));
+    assert(owners[@7890] && ![owners[@7890] boolValue]);
+    TestRunningApplication *hiddenApp = [TestRunningApplication new];
+    hiddenApp.bundleIdentifier = @"hidden.app"; hiddenApp.processIdentifier = 7890;
+    NSDictionary *sections = inventory((id)@[visibleApp, hiddenApp], owners);
+    assert([sections[@"visible.app"] boolValue] && ![sections[@"hidden.app"] boolValue]);
+    hiddenApp.bundleIdentifier = @"visible.app";
+    sections = inventory((id)@[visibleApp, hiddenApp], owners);
+    assert([sections[@"visible.app"] boolValue]);
+    hiddenApp.processIdentifier = 9876;
+    hiddenApp.bundleIdentifier = @"unknown.app";
+    sections = inventory((id)@[hiddenApp], owners);
+    assert(!sections[@"unknown.app"]);
+    expected[@"anonymous:1234"] = @2;
+    assert(!preservesItems(expected, actual));
+    expected[@"anonymous:1234"] = @1;
+    attributes[@"testOwner"] = @5678;
+    id unrelated = testNode(attributes);
+    [actual removeAllObjects]; remaining = 256;
+    assert(snapshotItems((__bridge AXUIElementRef)unrelated, 8, NO, 100, NO, NO, actual, &remaining));
+    assert(!preservesItems(expected, actual));
+    readOwner = AXUIElementGetPid;
+    readAttribute = attribute;
+    nodeAttributes = nil;
+}
+static void verifyButtonBoundary(void) {
+    [NSApplication sharedApplication];
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(100, 100, 200, 24)
+        styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+    window.releasedWhenClosed = NO;
+    NSView *container = [[NSView alloc] initWithFrame:NSMakeRect(12, 0, 180, 24)];
+    [window.contentView addSubview:container];
+    NSButton *button = [[NSButton alloc] initWithFrame:NSMakeRect(8, 0, 20, 24)];
+    [container addSubview:button];
+    // The hosting window can span both status items. The group boundary is
+    // the arrow's own button, whichever side of the app icon it occupies.
+    for (NSNumber *offset in @[@8, @108]) {
+        button.frame = NSMakeRect(offset.doubleValue, 0, 20, 24);
+        NSRect frame = buttonScreenFrame(button);
+        assert(fabs(frame.origin.x - (112 + offset.doubleValue)) < 0.01);
+        assert(fabs(frame.size.width - 20) < 0.01);
+        NSMutableDictionary *sections = [NSMutableDictionary dictionary];
+        recordItem(sections, @"left", CGRectMake(NSMinX(frame) - 30, 0, 20, 24), NSMidX(frame), NO);
+        recordItem(sections, @"right", CGRectMake(NSMaxX(frame) + 10, 0, 20, 24), NSMidX(frame), NO);
+        assert(![sections[@"left"] boolValue] && [sections[@"right"] boolValue]);
+    }
+    [button removeFromSuperview];
+    assert(NSIsEmptyRect(buttonScreenFrame(button)));
+    [window close];
 }
 static void verifyStatusItemScope(void) {
     nodeAttributes = [NSMutableDictionary dictionary];
@@ -177,6 +305,8 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     @autoreleasepool {
+        verifyButtonBoundary();
+        verifyRecreatedAnonymousItems();
         verifyStatusItemScope();
         (void)available(); // Resolve once before substituting the test classes.
         configurationClass = TestConfiguration.class;
@@ -188,17 +318,6 @@ int main(int argc, char *argv[]) {
         assert(!preservesItems(@{@"right": @2}, snapshot));
         assert(!preservesItems(@{@"missing": @1}, snapshot));
         assert(!preservesItems(nil, snapshot));
-        // Unlabeled items are matched by retained AX identity, not by a shared
-        // empty string or a position that changes when the bar reflows.
-        AXUIElementRef anonymous = AXUIElementCreateApplication(getpid());
-        AXUIElementRef same = AXUIElementCreateApplication(getpid());
-        AXUIElementRef other = AXUIElementCreateApplication(getpid() + 1);
-        NSDictionary *expectedAnonymous = @{@"elements": @[(__bridge id)anonymous]};
-        assert(preservesItems(expectedAnonymous, @{@"elements": @[(__bridge id)same]}));
-        assert(!preservesItems(expectedAnonymous, @{@"elements": @[(__bridge id)other]}));
-        assert(!preservesItems(expectedAnonymous, snapshot));
-        assert(!preservesItems(@{@"elements": @[(__bridge id)anonymous, (__bridge id)anonymous]}, expectedAnonymous));
-        CFRelease(anonymous); CFRelease(same); CFRelease(other);
         // A helper's sealed identifier differs from its app/LaunchServices ID.
         // It must stay allowed even when its icon sits in the hidden section.
         NSString *signedIdentity = @"dev.craft.visibility.fixture.runtime";

@@ -153,7 +153,7 @@ void craft_menubar_visibility_request_permission(void) {
 
 // Keep incomplete geometry visible. A bundle with icons on both sides belongs
 // to the visible group, because macOS hides by owning application.
-static void recordItem(NSMutableDictionary *sections, NSString *bundle, CGRect frame, double boundary, BOOL rtl) {
+static void recordItem(NSMutableDictionary *sections, id bundle, CGRect frame, double boundary, BOOL rtl) {
     BOOL valid = !CGRectIsNull(frame) && frame.size.width > 0 && frame.size.height > 0
         && isfinite(frame.origin.x) && isfinite(frame.size.width);
     BOOL visible = !valid || (rtl ? CGRectGetMidX(frame) < boundary : CGRectGetMidX(frame) > boundary);
@@ -191,58 +191,15 @@ static NSArray *allowedBundles(NSArray<NSString *> *bundles, NSDictionary *secti
     return allowed.allObjects;
 }
 
-// AX is queried off the AppKit run loop. Each app has a bounded timeout. A
-// missing/incomplete inventory entry is kept visible, never guessed as hidden.
-static NSDictionary<NSString *, NSNumber *> *inventory(NSArray<NSRunningApplication *> *apps, double boundary, BOOL rtl) {
+// Use MenuBarAgent's displayed positions for grouping and verification alike.
+// Per-app AXExtrasMenuBar geometry can be stale after native reordering.
+static NSDictionary<NSString *, NSNumber *> *inventory(NSArray<NSRunningApplication *> *apps, NSDictionary *owners) {
     NSMutableDictionary *sections = [NSMutableDictionary dictionary];
-    NSSet *system = [NSSet setWithArray:@[@"com.apple.MenuBarAgent", @"com.apple.controlcenter", @"com.apple.systemuiserver"]];
     for (NSRunningApplication *app in apps) {
         NSString *bundle = app.bundleIdentifier;
-        // Helpers without an app bundle stay allowed without spending an AX
-        // timeout on each one. Their identities still participate below.
-        if (!bundle || ![app.bundleURL.pathExtension isEqualToString:@"app"] || [system containsObject:bundle]) continue;
-        AXUIElementRef element = AXUIElementCreateApplication(app.processIdentifier);
-        AXUIElementSetMessagingTimeout(element, 0.1);
-        CFTypeRef bar = NULL;
-        if (AXUIElementCopyAttributeValue(element, CFSTR("AXExtrasMenuBar"), &bar) == kAXErrorSuccess && bar) {
-            if (CFGetTypeID(bar) != AXUIElementGetTypeID()) {
-                CFRelease(bar);
-                CFRelease(element);
-                continue;
-            }
-            CFTypeRef children = NULL;
-            AXUIElementSetMessagingTimeout((AXUIElementRef)bar, 0.1);
-            if (AXUIElementCopyAttributeValue((AXUIElementRef)bar, kAXChildrenAttribute, &children) == kAXErrorSuccess && children) {
-                if (CFGetTypeID(children) != CFArrayGetTypeID()) {
-                    CFRelease(children);
-                    CFRelease(bar);
-                    CFRelease(element);
-                    continue;
-                }
-                for (id child in (__bridge NSArray *)children) {
-                    if (CFGetTypeID((__bridge CFTypeRef)child) != AXUIElementGetTypeID()) continue;
-                    CFTypeRef position = NULL, size = NULL;
-                    AXUIElementRef item = (__bridge AXUIElementRef)child;
-                    AXUIElementSetMessagingTimeout(item, 0.1);
-                    AXError p = AXUIElementCopyAttributeValue(item, kAXPositionAttribute, &position);
-                    AXError s = AXUIElementCopyAttributeValue(item, kAXSizeAttribute, &size);
-                    CGPoint point = CGPointZero;
-                    CGSize dimensions = CGSizeZero;
-                    if (p == kAXErrorSuccess && s == kAXErrorSuccess && position && size
-                        && CFGetTypeID(position) == AXValueGetTypeID() && CFGetTypeID(size) == AXValueGetTypeID()
-                        && AXValueGetValue(position, kAXValueCGPointType, &point)
-                        && AXValueGetValue(size, kAXValueCGSizeType, &dimensions)
-                        && dimensions.width > 0 && dimensions.height > 0 && isfinite(point.x)) {
-                        recordItem(sections, bundle, (CGRect){point, dimensions}, boundary, rtl);
-                    } else recordItem(sections, bundle, CGRectNull, boundary, rtl);
-                    if (position) CFRelease(position);
-                    if (size) CFRelease(size);
-                }
-                CFRelease(children);
-            }
-            CFRelease(bar);
-        }
-        CFRelease(element);
+        NSNumber *visible = owners[@(app.processIdentifier)];
+        if (!bundle.length || !visible) continue;
+        sections[bundle] = @([sections[bundle] boolValue] || visible.boolValue);
     }
     return sections;
 }
@@ -258,13 +215,14 @@ static id attribute(AXUIElementRef element, CFStringRef name) {
 }
 
 static id (*readAttribute)(AXUIElementRef, CFStringRef) = attribute;
+static AXError (*readOwner)(AXUIElementRef, pid_t *) = AXUIElementGetPid;
 
-// Verify the displayed bar independently of the per-app grouping inventory.
+// Capture the displayed bar; derive grouping and protection from this one layout.
 // A private allow-list can silently omit an allowed app (notably a mismatched
 // helper bundle), or suppress a system indicator. System preservation is an
 // explicit consumer policy; unselected application icons are always protected.
-static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, double boundary, BOOL rtl,
-    BOOL protectedOnly, NSMutableDictionary *items, NSUInteger *remaining) {
+static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, double boundary, BOOL rtl,
+    BOOL protectedOnly, pid_t agent, NSMutableDictionary *items, NSMutableDictionary *owners, NSUInteger *remaining) {
     if (!depth || !*remaining) return NO;
     (*remaining)--;
     AXUIElementSetMessagingTimeout(node, 0.1);
@@ -275,13 +233,14 @@ static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, doub
     if (!root && [role isEqual:(__bridge NSString *)kAXApplicationRole]) {
         id extras = readAttribute(node, CFSTR("AXExtrasMenuBar"));
         if (extras && CFGetTypeID((__bridge CFTypeRef)extras) == AXUIElementGetTypeID())
-            return snapshotItems((__bridge AXUIElementRef)extras, depth - 1, NO, boundary, rtl, protectedOnly, items, remaining);
+            return collectSnapshotItems((__bridge AXUIElementRef)extras, depth - 1, NO, boundary, rtl, protectedOnly, agent, items, owners, remaining);
         // Keep an unreadable remote app protected by its native presence.
         // Its ordinary window controls cannot stand in for a status item.
         pid_t owner = 0;
-        if (AXUIElementGetPid(node, &owner) != kAXErrorSuccess || owner <= 0) return NO;
+        if (readOwner(node, &owner) != kAXErrorSuccess || owner <= 0) return NO;
         NSString *key = [NSString stringWithFormat:@"application:%d", owner];
         items[key] = @([items[key] unsignedIntegerValue] + 1);
+        owners[@(owner)] = @YES;
         return YES;
     }
     // An open status menu is below the bar, not another status item.
@@ -304,10 +263,21 @@ static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, doub
             double middle = point.x + dimensions.width / 2;
             // The arrow changes its label after activation. Its own native
             // identity remains protected by the allow-list, not by text.
-            BOOL arrow = fabs(middle - boundary) < 2;
             pid_t owner = 0;
-            AXUIElementGetPid(node, &owner);
+            // MenuBarAgent also owns anonymous Apple modules without a
+            // com.apple.menuextra identifier (for example Focus). Apply the
+            // same explicit system-item policy to those native owners.
+            if (readOwner(node, &owner) != kAXErrorSuccess || owner <= 0) return NO;
+            system = system || owner == agent;
+            if (protectedOnly && system && !preserveSystemItems) return YES;
+            BOOL arrow = owner == getpid() && fabs(middle - boundary) < 2;
+            // Collapsed native overflow reports several icons stacked at the
+            // same x coordinate. Those frames cannot identify a section. Refuse
+            // the capture before applying any restriction; a visible arrow can
+            // never overlap another status button's horizontal interior.
+            if (protectedOnly && !system && !arrow && point.x < boundary && point.x + dimensions.width > boundary) return NO;
             BOOL visibleSide = rtl ? middle < boundary : middle > boundary;
+            recordItem(owners, @(owner), (CGRect){point, dimensions}, boundary, rtl);
             if (!arrow && (!protectedOnly || system || owner == getpid() || visibleSide)) {
                 if ([identifier isKindOfClass:NSString.class] && identifier.length && owner > 0) {
                     // Descriptions, titles and help can change while a status
@@ -315,11 +285,12 @@ static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, doub
                     NSString *key = [NSString stringWithFormat:@"item:%d:%@", owner, identifier];
                     items[key] = @([items[key] unsignedIntegerValue] + 1);
                 } else {
-                    // Named and unnamed items without a stable identifier use
-                    // their retained AX identity, never their current label.
-                    NSMutableArray *elements = items[@"elements"];
-                    if (!elements) items[@"elements"] = elements = [NSMutableArray array];
-                    [elements addObject:(__bridge id)node];
+                    // MenuBarAgent can recreate an anonymous AX proxy while its
+                    // app stays visible. Visibility is controlled per owning
+                    // application, so verify its native owner and icon count,
+                    // not a proxy object, changing label or screen position.
+                    NSString *key = [NSString stringWithFormat:@"anonymous:%d", owner];
+                    items[key] = @([items[key] unsignedIntegerValue] + 1);
                 }
             }
         }
@@ -328,20 +299,24 @@ static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, doub
     if ([children isKindOfClass:NSArray.class]) {
         for (id child in children) {
             if (CFGetTypeID((__bridge CFTypeRef)child) == AXUIElementGetTypeID()
-                && !snapshotItems((__bridge AXUIElementRef)child, depth - 1, NO, boundary, rtl, protectedOnly, items, remaining)) return NO;
+                && !collectSnapshotItems((__bridge AXUIElementRef)child, depth - 1, NO, boundary, rtl, protectedOnly, agent, items, owners, remaining)) return NO;
         }
     }
     return YES;
 }
 
-static NSDictionary *barSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly) {
+static NSDictionary *barLayout(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly) {
     if (!agent) return nil;
     AXUIElementRef element = AXUIElementCreateApplication(agent);
-    NSMutableDictionary *items = [NSMutableDictionary dictionary];
+    NSMutableDictionary *items = [NSMutableDictionary dictionary], *owners = [NSMutableDictionary dictionary];
     NSUInteger remaining = 256;
-    BOOL complete = snapshotItems(element, 8, YES, boundary, rtl, protectedOnly, items, &remaining);
+    BOOL complete = collectSnapshotItems(element, 8, YES, boundary, rtl, protectedOnly, agent, items, owners, &remaining);
     CFRelease(element);
-    return complete && items.count ? [items copy] : nil;
+    return complete && items.count ? @{ @"items": [items copy], @"owners": [owners copy] } : nil;
+}
+
+static NSDictionary *barSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly) {
+    return barLayout(agent, boundary, rtl, protectedOnly)[@"items"];
 }
 
 static NSDictionary *(*readBarSnapshot)(pid_t, double, BOOL, BOOL) = barSnapshot;
@@ -349,19 +324,13 @@ static NSDictionary *(*readBarSnapshot)(pid_t, double, BOOL, BOOL) = barSnapshot
 static BOOL preservesItems(NSDictionary *expected, NSDictionary *actual) {
     if (!expected.count || !actual.count) return NO;
     for (NSString *key in expected) {
-        if ([key isEqual:@"elements"]) {
-            NSMutableArray *remaining = [actual[key] mutableCopy];
-            for (id element in expected[key]) {
-                NSUInteger match = [remaining indexOfObjectPassingTest:^BOOL(id candidate, NSUInteger index, BOOL *stop) {
-                    (void)index; (void)stop;
-                    return CFEqual((__bridge CFTypeRef)element, (__bridge CFTypeRef)candidate);
-                }];
-                if (!remaining || match == NSNotFound) return NO;
-                [remaining removeObjectAtIndex:match];
-            }
-            continue;
+        if ([actual[key] unsignedIntegerValue] < [expected[key] unsignedIntegerValue]) {
+            NSArray *identity = [key componentsSeparatedByString:@":"];
+            pid_t owner = identity.count > 1 ? [identity[1] intValue] : 0;
+            NSLog(@"Craft menu bar: protected owner %d lost status items (expected %lu, actual %lu)",
+                owner, (unsigned long)[expected[key] unsignedIntegerValue], (unsigned long)[actual[key] unsignedIntegerValue]);
+            return NO;
         }
-        if ([actual[key] unsignedIntegerValue] < [expected[key] unsignedIntegerValue]) return NO;
     }
     return YES;
 }
@@ -407,13 +376,21 @@ static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, 
     }
 }
 
+static NSRect buttonScreenFrame(NSView *button) {
+    if (!button.window) return NSZeroRect;
+    // A native status host can contain several buttons. Its window frame is
+    // not the arrow's position, and changes meaning when the user reorders
+    // the arrow and the app icon. Convert the button's own bounds instead.
+    return [button.window convertRectToScreen:[button convertRect:button.bounds toView:nil]];
+}
+
 void craft_menubar_visibility_collapse(void) {
     if (assertion || busy) return;
     if (!available()) return fail(@"unavailable");
     if (!AXIsProcessTrusted()) return fail(@"permissionRequired");
     NSString *ownBundle = NSBundle.mainBundle.bundleIdentifier;
     NSArray *ownBundles = ownIdentifiers();
-    NSRect frame = marker.button.window.frame;
+    NSRect frame = buttonScreenFrame(marker.button);
     if (!ownBundle.length || !marker.button.window || NSWidth(frame) <= 0) return fail(@"layoutUnavailable");
     busy = YES;
     failure = nil;
@@ -432,12 +409,14 @@ void craft_menubar_visibility_collapse(void) {
     });
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         @autoreleasepool {
-            NSDictionary *sections = inventory(apps, boundary, rtl);
+            NSDictionary *layout = barLayout(agent, boundary, rtl, YES);
+            NSDictionary *sections = inventory(apps, layout[@"owners"]);
             NSDictionary *identities = applicationIdentities(apps);
-            NSDictionary *protectedItems = readBarSnapshot(agent, boundary, rtl, YES);
+            NSDictionary *protectedItems = layout[@"items"];
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (ticket != generation) return;
                 if (!AXIsProcessTrusted()) return fail(@"permissionRequired");
+                if (!layout) return fail(@"layoutUnavailable");
                 NSArray *bundles = identities.allKeys;
                 NSUInteger hidden = 0;
                 NSArray *allowed = allowedBundles(bundles, sections, identities, ownBundles, &hidden);
