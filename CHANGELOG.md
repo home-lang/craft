@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.329...v0.0.330)
+
+## 🧪 Tests
+
+- verify displayed macOS Metal frames and disposal ([354d8c9](https://github.com/craft-native/craft/commit/354d8c9)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.328...v0.0.329)
 
 ## 🐛 Bug Fixes
