@@ -11,14 +11,14 @@ final class NativeRenderUITests: XCTestCase {
     @discardableResult
     private func waitForValue(_ element: XCUIElement, _ expected: String, timeout: TimeInterval = 3, file: StaticString = #filePath, line: UInt = #line) -> Bool {
         let matched = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: element)], timeout: timeout) == .completed
-        XCTAssertTrue(matched, "\(element.identifier) reads \"\(String(describing: element.value))\", not \"\(expected)\", \(timeout)s after typing", file: file, line: line)
+        XCTAssertTrue(matched, "\(element.identifier) reads \"\(String(describing: element.value))\", not \"\(expected)\", \(timeout)s after input", file: file, line: line)
         return matched
     }
 
     @discardableResult
     private func waitForLabel(_ element: XCUIElement, _ expected: String, timeout: TimeInterval = 10, file: StaticString = #filePath, line: UInt = #line) -> Bool {
         let matched = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: element)], timeout: timeout) == .completed
-        XCTAssertTrue(matched, "\(element.identifier) reads \(String(reflecting: element.label)), not \(String(reflecting: expected)), \(timeout)s after typing", file: file, line: line)
+        XCTAssertTrue(matched, "\(element.identifier) reads \(String(reflecting: element.label)), not \(String(reflecting: expected)), \(timeout)s after input", file: file, line: line)
         return matched
     }
 
@@ -97,8 +97,20 @@ final class NativeRenderUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 15))
         XCTAssertEqual(toggle.value as? String, "0")
         toggle.tap()
-        XCTAssertEqual(toggle.value as? String, "1")
-        XCTAssertEqual(app.staticTexts["switch-result"].label, "Switch on")
+        // UIKit's accessibility snapshot and the script-thread echo settle
+        // independently. One tap must reach both states, without retrying it.
+        let nativeChanged = waitForValue(toggle, "1")
+        let modelChanged = waitForLabel(app.staticTexts["switch-result"], "Switch on")
+        if !nativeChanged || !modelChanged {
+            XCTContext.runActivity(named: "Switch state after one tap") { context in
+                let screenshot = XCTAttachment(screenshot: app.screenshot())
+                screenshot.lifetime = .keepAlways
+                context.add(screenshot)
+                let hierarchy = XCTAttachment(string: app.debugDescription)
+                hierarchy.lifetime = .keepAlways
+                context.add(hierarchy)
+            }
+        }
     }
 
     func testSwitchInsideScrollViewTakesOneTap() throws {
@@ -108,8 +120,20 @@ final class NativeRenderUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 15))
         XCTAssertEqual(toggle.value as? String, "0")
         toggle.tap()
-        XCTAssertEqual(toggle.value as? String, "1")
-        XCTAssertEqual(app.staticTexts["switch-result"].label, "Switch on")
+        // UIKit's accessibility snapshot and the script-thread echo settle
+        // independently. One tap must reach both states, without retrying it.
+        let nativeChanged = waitForValue(toggle, "1")
+        let modelChanged = waitForLabel(app.staticTexts["switch-result"], "Switch on")
+        if !nativeChanged || !modelChanged {
+            XCTContext.runActivity(named: "Switch state after one tap") { context in
+                let screenshot = XCTAttachment(screenshot: app.screenshot())
+                screenshot.lifetime = .keepAlways
+                context.add(screenshot)
+                let hierarchy = XCTAttachment(string: app.debugDescription)
+                hierarchy.lifetime = .keepAlways
+                context.add(hierarchy)
+            }
+        }
     }
 
     /// A drag that starts on a button scrolls the page, and presses nothing.

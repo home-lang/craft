@@ -6,6 +6,7 @@ import HealthKit
 /// A stable application activityId reattaches after a screen or app restart.
 enum CraftLiveActivities {
     private static var scheduled: [String: Task<Void, Never>] = [:]
+    private static var watching: [String: Task<Void, Never>] = [:]
     private static var workoutOwner: (key: String, id: String)?
     private static var startingWorkout: String?
 
@@ -38,6 +39,7 @@ enum CraftLiveActivities {
                     let state = content(body)
                     if let existing = activities.first(where: { $0.attributes.activityId == key }) {
                         await existing.update(ActivityContent(state: state, staleDate: staleDate(body)))
+                        watch(existing)
                         schedule(existing)
                         startWorkout(existing, body: body, enabled: healthEnabled)
                         completion(.success(["id": existing.id]))
@@ -45,6 +47,7 @@ enum CraftLiveActivities {
                     }
                     let attributes = CraftActivityAttributes(activityId: key, title: String(title.prefix(160)), symbol: body["symbol"] as? String, deepLink: safeURL(body["deepLink"] as? String), tint: body["tint"] as? String)
                     let activity = try Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: staleDate(body)), pushType: nil)
+                    watch(activity)
                     schedule(activity)
                     startWorkout(activity, body: body, enabled: healthEnabled)
                     completion(.success(["id": activity.id]))
@@ -59,6 +62,7 @@ enum CraftLiveActivities {
                     let previous = activity.content.state
                     let state = content(body, previous: previous)
                     if method == "end" {
+                        watching.removeValue(forKey: activity.id)?.cancel()
                         scheduled.removeValue(forKey: activity.id)?.cancel()
                         stopWorkout(activity.attributes.activityId)
                         await activity.end(ActivityContent(state: state, staleDate: nil), dismissalPolicy: .immediate)
@@ -76,6 +80,24 @@ enum CraftLiveActivities {
                 }
             } catch let error as CraftNativeActionError { completion(.failure(error)) }
             catch { completion(.failure(CraftNativeActionError(code: "ACTIVITY_ERROR", message: error.localizedDescription))) }
+        }
+    }
+
+    /// Dismissing a Live Activity must release its own background workout
+    /// runtime as well, even though it no longer appears in the active list.
+    @available(iOS 16.2, *)
+    @MainActor private static func watch(_ activity: Activity<CraftActivityAttributes>) {
+        guard watching[activity.id] == nil else { return }
+        watching[activity.id] = Task { @MainActor in
+            for await state in activity.activityStateUpdates {
+                if Task.isCancelled { return }
+                if state == .ended || state == .dismissed {
+                    scheduled.removeValue(forKey: activity.id)?.cancel()
+                    stopWorkout(activity.attributes.activityId)
+                    watching.removeValue(forKey: activity.id)
+                    return
+                }
+            }
         }
     }
 
