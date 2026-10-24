@@ -8281,7 +8281,7 @@ struct CraftWebView: UIViewRepresentable {
         // MARK: - Live Activities
         private func liveActivity(method: String, args: [Any], callbackId: String?) {
             let token = armDeadline(Coordinator.liveActivityDeadline, callbackId: callbackId, error: "Live Activity request timed out")
-            CraftLiveActivities.perform(method: method, args: args, enabled: config.enableLiveActivities, appName: config.appName) { [weak self] result in
+            CraftLiveActivities.perform(method: method, args: args, enabled: config.enableLiveActivities, appName: config.appName, healthEnabled: config.enableHealthKit) { [weak self] result in
                 guard let self, self.claimDeadline(token) else { return }
                 switch result {
                 case .success(let value): self.resolveCallback(callbackId, result: value)

@@ -6,6 +6,27 @@ import XCTest
 /// including frames while the finger is down. UI tests cover touch routing.
 @MainActor
 final class NativeNavigationUnitTests: XCTestCase {
+    @available(iOS 16.1, *)
+    func testActivityTransitionsCatchUpWithoutThePlayerAndStopAtCompletion() {
+        var state = CraftActivityAttributes.ContentState(status: "Training", distanceMeters: 0, durationSeconds: 0, progress: 0)
+        state.detail = "Leg cradles"
+        state.transitions = [
+            .init(at: 1000, detail: "Lunges", duration: 20),
+            .init(at: 21000, detail: "Squats", duration: 30),
+            .init(at: 51000, detail: "Complete", duration: 0),
+        ]
+        state.advance(to: 25000)
+        XCTAssertEqual(state.detail, "Squats")
+        XCTAssertEqual(state.timerEndsAt, 51000)
+        XCTAssertEqual(state.remainingSeconds, 26)
+        XCTAssertEqual(state.transitions?.count, 1)
+        state.advance(to: 60000)
+        XCTAssertEqual(state.detail, "Complete")
+        XCTAssertEqual(state.paused, true)
+        XCTAssertEqual(state.remainingSeconds, 0)
+        XCTAssertTrue(state.transitions?.isEmpty == true)
+    }
+
     private final class Pan: UIPanGestureRecognizer {
         var phase: UIGestureRecognizer.State = .changed
         var distance: CGFloat = 0

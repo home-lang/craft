@@ -373,7 +373,7 @@ enum CraftNativeActions {
             }
             return
         case ("LiveActivities", _):
-            CraftLiveActivities.perform(method: method, args: args, enabled: config.enableLiveActivities, appName: config.appName) { result in
+            CraftLiveActivities.perform(method: method, args: args, enabled: config.enableLiveActivities, appName: config.appName, healthEnabled: config.enableHealthKit) { result in
                 complete(requestToken, result, completion)
             }
             return
