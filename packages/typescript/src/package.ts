@@ -470,6 +470,14 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
     return [{ success: false, platform: 'macos', format: 'app', error: (error as Error).message }]
   }
 
+  // Staple the app itself before copying it into any container. A ticket on
+  // the DMG alone is lost when an updater extracts the bundle for replacement.
+  if (opts.notarize && !opts.appStore) {
+    const notarized = await notarizeIfRequested(opts, appBundlePath, 'app')
+    results.push(...notarized)
+    if (notarized.some(result => !result.success)) return results
+  }
+
   results.push({ success: true, platform: 'macos', format: 'app', outputPath: appBundlePath })
 
   // Create DMG
@@ -535,25 +543,40 @@ async function notarizeIfRequested(
     }]
   }
 
-  const submitted = await runTool('xcrun', notarytoolArguments({
-    artifactPath,
-    appleId: opts.appleId,
-    applePassword: opts.applePassword,
-    teamId: opts.teamId,
-    keychainProfile: opts.notaryKeychainProfile,
-    apiKey: opts.notaryApiKey,
-  }))
-  if (!submitted.success)
-    return [{ success: false, platform: 'macos', format: `${format} (notarize)`, error: submitted.error }]
+  // notarytool accepts archives, not a raw .app directory. Preserve the
+  // signed bundle with Apple's archive tool, then attach its returned ticket
+  // to the original bundle before it is distributed.
+  const scratch = format === 'app' ? createTempDir('craft-notarize-') : undefined
+  try {
+    const submission = scratch ? join(scratch, 'app.zip') : artifactPath
+    if (scratch) {
+      const zipped = await runTool('ditto', ['-c', '-k', '--keepParent', artifactPath, submission])
+      if (!zipped.success)
+        return [{ success: false, platform: 'macos', format: `${format} (notarize)`, error: zipped.error }]
+    }
+    const submitted = await runTool('xcrun', notarytoolArguments({
+      artifactPath: submission,
+      appleId: opts.appleId,
+      applePassword: opts.applePassword,
+      teamId: opts.teamId,
+      keychainProfile: opts.notaryKeychainProfile,
+      apiKey: opts.notaryApiKey,
+    }))
+    if (!submitted.success)
+      return [{ success: false, platform: 'macos', format: `${format} (notarize)`, error: submitted.error }]
 
-  const stapled = await runTool('xcrun', ['stapler', 'staple', artifactPath])
-  return [{
-    success: stapled.success,
-    platform: 'macos',
-    format: `${format} (notarize)`,
-    outputPath: stapled.success ? artifactPath : undefined,
-    error: stapled.success ? undefined : stapled.error,
-  }]
+    const stapled = await runTool('xcrun', ['stapler', 'staple', artifactPath])
+    return [{
+      success: stapled.success,
+      platform: 'macos',
+      format: `${format} (notarize)`,
+      outputPath: stapled.success ? artifactPath : undefined,
+      error: stapled.success ? undefined : stapled.error,
+    }]
+  }
+  finally {
+    if (scratch) removeTempDir(scratch)
+  }
 }
 
 /**
