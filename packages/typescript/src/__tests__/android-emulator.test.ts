@@ -387,3 +387,15 @@ test('a foreign focused window cannot admit an otherwise ready emulator', async 
   }
   finally { await session?.dispose(); rmSync(root, { recursive: true, force: true }) }
 }, 10_000)
+
+
+test('an emulator process that exits before boot reports its exit instead of a fictitious timeout', async () => {
+  const { root, options } = fixture(true)
+  writeFileSync(join(options.sdkRoot, 'emulator/emulator'), '#!/bin/sh\nif [ "$1" = -accel-check ]; then exit 0; fi\necho "Insufficient disk space" >&2\nexit 28\n', { mode: 0o755 })
+  try {
+    await expect(createAndroidEmulator(options)).rejects.toThrow('exited with code 28 before boot')
+    expect(readFileSync(join(options.artifactsDirectory, 'emulator.log'), 'utf8')).toContain('Insufficient disk space')
+    expect(existsSync(join(options.sdkRoot, 'deleted'))).toBe(true)
+  }
+  finally { rmSync(root, { recursive: true, force: true }) }
+})

@@ -215,6 +215,7 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
       }
       await Bun.sleep(Math.min(2000, Math.max(0, deadline - Date.now())))
     }
+    if (child.exitCode !== null) throw new Error(`The owned Android emulator exited with code ${child.exitCode} before boot; inspect ${join(artifacts, 'emulator.log')}`)
     throw new Error(`The owned Android emulator did not boot within ${bootTimeoutMs}ms; inspect ${artifacts}`)
   }
   catch (error) {
