@@ -103,7 +103,12 @@ static void verifyRecreatedAnonymousItems(void) {
     NSMutableDictionary *systemSections = [NSMutableDictionary dictionary];
     NSUInteger wifiRemaining = 256;
     preserveSystemItems = NO;
-    assert(collectSnapshotItems((__bridge AXUIElementRef)wifi, 8, NO, 400, NO, YES, 1234, overlappingItems, nil, systemSections, &wifiRemaining));
+    id systemHost = testNode(@{
+        (__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXGroupRole,
+        (__bridge NSString *)kAXIdentifierAttribute: @"com.apple.menuextra.wifi",
+        (__bridge NSString *)kAXChildrenAttribute: @[wifi],
+    });
+    assert(collectSnapshotItems((__bridge AXUIElementRef)systemHost, 8, NO, 400, NO, YES, 1234, overlappingItems, nil, systemSections, &wifiRemaining));
     assert(systemSections[@6] && ![systemSections[@6] boolValue]);
     wifiRemaining = 256;
     assert(collectSnapshotItems((__bridge AXUIElementRef)wifi, 8, NO, 100, NO, YES, 1234, overlappingItems, nil, systemSections, &wifiRemaining));
@@ -223,6 +228,13 @@ static void verifyStatusItemScope(void) {
         (__bridge NSString *)kAXChildrenAttribute: @[window, menu, extras], @"AXExtrasMenuBar": extras});
     id root = testNode(@{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXApplicationRole,
         (__bridge NSString *)kAXChildrenAttribute: @[app]});
+    // A roleless native host still exposes its actual status-item descendants.
+    id roleless = testNode(@{(__bridge NSString *)kAXChildrenAttribute: @[app]});
+    root = testNode(@{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXApplicationRole,
+        (__bridge NSString *)kAXChildrenAttribute: @[roleless]});
+    NSMutableDictionary *statusWithSubview = [nodeAttributes[[NSValue valueWithPointer:(__bridge void *)status]] mutableCopy];
+    statusWithSubview[(__bridge NSString *)kAXChildrenAttribute] = windowButtons;
+    nodeAttributes[[NSValue valueWithPointer:(__bridge void *)status]] = statusWithSubview;
     readAttribute = testAttribute;
     NSMutableDictionary *items = [NSMutableDictionary dictionary];
     NSUInteger remaining = 256;

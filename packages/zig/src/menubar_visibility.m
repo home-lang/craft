@@ -27,6 +27,7 @@ static BOOL preserveSystemItems = YES;
 static NSString *failure;
 static NSUInteger hiddenAppCount;
 static NSUInteger hiddenSystemItemCount;
+static NSTimeInterval operationStarted;
 static Class configurationClass;
 static Class assertionClass;
 
@@ -325,6 +326,10 @@ static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL roo
                     items[key] = @([items[key] unsignedIntegerValue] + 1);
                 }
             }
+            // A status item with valid bar geometry is one entry. Its custom
+            // subviews and popup content cannot add another owner or section.
+            // Nonvisual system hosts still need traversal to their actual item.
+            return YES;
         }
     }
     id children = readAttribute(node, kAXChildrenAttribute);
@@ -398,6 +403,10 @@ static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, 
                         busy = NO;
                         hiddenAppCount = hidden;
                         hiddenSystemItemCount = systemHidden;
+                        if (operationStarted > 0)
+                            NSLog(@"Craft menu bar: grouped %lu apps and %lu system controls at x=%.1f in %.3fs",
+                                (unsigned long)hidden, (unsigned long)systemHidden, boundary,
+                                NSProcessInfo.processInfo.systemUptime - operationStarted);
                         notify();
                     });
                 });
@@ -418,6 +427,7 @@ static NSRect buttonScreenFrame(NSView *button) {
 }
 
 void craft_menubar_visibility_collapse(void) {
+    NSTimeInterval started = NSProcessInfo.processInfo.systemUptime;
     if (assertion || busy) return;
     if (!available()) return fail(@"unavailable");
     if (!AXIsProcessTrusted()) return fail(@"permissionRequired");
@@ -425,6 +435,7 @@ void craft_menubar_visibility_collapse(void) {
     NSArray *ownBundles = ownIdentifiers();
     NSRect frame = buttonScreenFrame(marker.button);
     if (!ownBundle.length || !marker.button.window || NSWidth(frame) <= 0) return fail(@"layoutUnavailable");
+    operationStarted = started;
     busy = YES;
     failure = nil;
     const NSUInteger ticket = ++generation;
