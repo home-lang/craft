@@ -287,6 +287,30 @@ jobs:
             bun scripts/verify-packaged-app.ts packages/zig/zig-out/bin/craft "$VERSION"
           fi
 
+      - name: Install the pinned native display fixture generator
+        if: matrix.os == 'macos-latest'
+        uses: pantry-pm/pantry/packages/action@3de609e1a7e305393b3d94e2848d859b39c5b5de # v0.11.120
+        with:
+          version: '0.11.120'
+          install: 'false'
+          packages: github.com/yonaskolb/XcodeGen@2.46.0
+
+      - name: Verify displayed AppKit Metal frames
+        if: matrix.os == 'macos-latest'
+        run: >-
+          bun scripts/test-metal-surface-macos.ts
+          --xcodegen "$PWD/pantry/.bin/xcodegen"
+          --output artifacts/native-metal-macos
+
+      - name: Retain native macOS Metal display evidence
+        if: always() && matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-native-metal-surface
+          path: artifacts/native-metal-macos
+          if-no-files-found: error
+          retention-days: 30
+
   windows-multi-window:
     if: ${{ inputs.software_cold_provisioning_diagnostic != true }}
     runs-on: windows-2025
