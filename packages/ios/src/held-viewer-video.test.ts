@@ -63,24 +63,45 @@ import Foundation
 import VideoToolbox
 let writer = try AVAssetWriter(outputURL: URL(fileURLWithPath: CommandLine.arguments[1]), fileType: .mov)
 let input = AVAssetWriterInput(mediaType: .video, outputSettings: [AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 64, AVVideoHeightKey: 64, AVVideoEncoderSpecificationKey: [kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String: false]])
-let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB, kCVPixelBufferWidthKey as String: 64, kCVPixelBufferHeightKey as String: 64])
+// Supply the encoder's native NV12 planes directly, without a GPU colour conversion.
+let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, kCVPixelBufferWidthKey as String: 64, kCVPixelBufferHeightKey as String: 64])
 writer.add(input)
 guard writer.startWriting() else { fatalError("Cannot write synthetic media") }
 writer.startSession(atSourceTime: .zero)
 let mode = CommandLine.arguments[2]
 let originalSamples = mode == "static" ? [0] : mode == "dense-late" ? Array(0..<15013) : mode == "late" ? [0, 1104, 1106] : mode == "sparse" ? [0, 4, 6] : Array(0..<7)
 let timescale: CMTimeScale = mode == "dense-late" ? 12 : 1
-for index in originalSamples {
-    while !input.isReadyForMoreMediaData { Thread.sleep(forTimeInterval: 0.001) }
+guard let pool = adaptor.pixelBufferPool else { fatalError("No pixel buffer pool") }
+// Immutable source pictures can be retained by multiple pending encodes.
+// The dense fixture tests original sample timing, not repeated allocation.
+let pictures: [CVPixelBuffer] = (0..<7).map { index in
     var buffer: CVPixelBuffer?
-    guard CVPixelBufferPoolCreatePixelBuffer(nil, adaptor.pixelBufferPool!, &buffer) == kCVReturnSuccess, let buffer else { fatalError("No pixel buffer") }
+    guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer) == kCVReturnSuccess, let buffer else { fatalError("No pixel buffer") }
     CVPixelBufferLockBaseAddress(buffer, [])
-    memset(CVPixelBufferGetBaseAddress(buffer), Int32(20 + (index % 7) * 30), CVPixelBufferGetDataSize(buffer))
+    memset(CVPixelBufferGetBaseAddressOfPlane(buffer, 0), Int32(20 + index * 30), CVPixelBufferGetBytesPerRowOfPlane(buffer, 0) * CVPixelBufferGetHeightOfPlane(buffer, 0))
+    memset(CVPixelBufferGetBaseAddressOfPlane(buffer, 1), 128, CVPixelBufferGetBytesPerRowOfPlane(buffer, 1) * CVPixelBufferGetHeightOfPlane(buffer, 1))
     CVPixelBufferUnlockBaseAddress(buffer, [])
-    guard adaptor.append(buffer, withPresentationTime: CMTime(value: Int64(index), timescale: timescale)) else { fatalError("Cannot append synthetic frame") }
+    return buffer
 }
-writer.endSession(atSourceTime: CMTime(value: mode == "dense-late" ? 15013 : mode == "late" ? 1107 : 7, timescale: timescale))
-input.markAsFinished()
+await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+    let queue = DispatchQueue(label: "craft.held-frame-fixture")
+    var next = 0, finished = false
+    input.requestMediaDataWhenReady(on: queue) {
+        if finished { return }
+        while input.isReadyForMoreMediaData {
+            if next == originalSamples.count {
+                finished = true
+                writer.endSession(atSourceTime: CMTime(value: mode == "dense-late" ? 15013 : mode == "late" ? 1107 : 7, timescale: timescale))
+                input.markAsFinished()
+                continuation.resume()
+                return
+            }
+            let index = originalSamples[next]
+            guard adaptor.append(pictures[index % 7], withPresentationTime: CMTime(value: Int64(index), timescale: timescale)) else { fatalError("Cannot append synthetic frame") }
+            next += 1
+        }
+    }
+}
 await writer.finishWriting()
 guard writer.status == .completed else { fatalError("Synthetic movie incomplete") }
 `)
@@ -90,7 +111,9 @@ guard writer.status == .completed else { fatalError("Synthetic movie incomplete"
     }
     for (const mode of ['sparse', 'moving', 'late', 'dense-late', 'static']) {
       const movie = join(dir, `${mode}.mov`), png = join(dir, `${mode}.png`), receipt = join(dir, `${mode}.json`)
+      const generatedAt = performance.now()
       const media = run([movieTool, movie, mode])
+      console.log(`Generated ${mode} native H.264 fixture in ${(performance.now() - generatedAt).toFixed(0)}ms`)
       expect(media.exitCode, `${mode} generation (${media.signalCode || 'normal exit'}): ${media.stderr.toString()}`).toBe(0)
       const dense = mode === 'dense-late', late = mode === 'late' || dense
       const result = run([extractor, movie, png, receipt, '100', '100.25', dense ? '1201.125' : late ? '1201' : '101', dense ? '1207.125' : late ? '1207' : '107'])
