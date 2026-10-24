@@ -1,5 +1,28 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.319...v0.0.320)
+
+## 🚀 Features
+
+- advance timed live activities with native workouts ([d1bdac9](https://github.com/craft-native/craft/commit/d1bdac9)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- connect native workout activity lifecycles ([d823280](https://github.com/craft-native/craft/commit/d823280)) _(by Chris Breuer)_
+
+## ⚡ Performance Improvements
+
+- pack native sources and optimise release binaries ([39d9d99](https://github.com/craft-native/craft/commit/39d9d99)) _(by Chris Breuer)_
+- omit unused ML models from native Android builds ([6ecee9a](https://github.com/craft-native/craft/commit/6ecee9a)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **ios**: retain UIKit results outside temporary projects ([16f8363](https://github.com/craft-native/craft/commit/16f8363)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.304...v0.0.319)
 
 ## 🚀 Features
