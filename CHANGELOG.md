@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.321...v0.0.322)
+
+## 🐛 Bug Fixes
+
+- retain complete workout timelines outside activity payloads ([7a6ed0d](https://github.com/craft-native/craft/commit/7a6ed0d)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.320...v0.0.321)
 
 ## 🐛 Bug Fixes
