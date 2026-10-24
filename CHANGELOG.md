@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.325...v0.0.326)
+
+## ⚡ Performance Improvements
+
+- **ios**: read held-frame timing from native sample cursors ([13c6616](https://github.com/craft-native/craft/commit/13c6616)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.324...v0.0.325)
 
 ## 🚀 Features
