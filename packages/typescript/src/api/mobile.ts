@@ -3713,6 +3713,11 @@ export const health = {
 }
 
 export interface LiveActivityState {
+  /** Native step boundaries; at most 12, with detail limited to 96 characters. */
+  transitions?: Array<{ at: number, detail: string, duration?: number | null }>
+  /** An actual HealthKit workout (iOS 26+, already authorised) owns background updates. */
+  workoutType?: string
+  sessionStartedAt?: number
   /** What to show once staleAt passes without fresh app state. */
   staleStatus?: string
   /** Current step, interval or session detail. */

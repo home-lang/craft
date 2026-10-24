@@ -1,10 +1,15 @@
 import ActivityKit
 import Foundation
+import HealthKit
 
 /// ActivityKit belongs to the process, not a web view or a retained STX screen.
 /// A stable application activityId reattaches after a screen or app restart.
 enum CraftLiveActivities {
-    static func perform(method: String, args: [Any], enabled: Bool, appName: String, completion: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
+    private static var scheduled: [String: Task<Void, Never>] = [:]
+    private static var workoutOwner: (key: String, id: String)?
+    private static var startingWorkout: String?
+
+    static func perform(method: String, args: [Any], enabled: Bool, appName: String, healthEnabled: Bool = false, completion: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
         guard enabled else {
             if method == "isAvailable" { completion(.success(false)); return }
             completion(.failure(CraftNativeActionError(code: "CAPABILITY_DISABLED", message: "Live Activities are disabled")))
@@ -33,11 +38,15 @@ enum CraftLiveActivities {
                     let state = content(body)
                     if let existing = activities.first(where: { $0.attributes.activityId == key }) {
                         await existing.update(ActivityContent(state: state, staleDate: staleDate(body)))
+                        schedule(existing)
+                        startWorkout(existing, body: body, enabled: healthEnabled)
                         completion(.success(["id": existing.id]))
                         return
                     }
                     let attributes = CraftActivityAttributes(activityId: key, title: String(title.prefix(160)), symbol: body["symbol"] as? String, deepLink: safeURL(body["deepLink"] as? String), tint: body["tint"] as? String)
                     let activity = try Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: staleDate(body)), pushType: nil)
+                    schedule(activity)
+                    startWorkout(activity, body: body, enabled: healthEnabled)
                     completion(.success(["id": activity.id]))
                 case "update", "end":
                     let id = args.first as? String
@@ -47,18 +56,78 @@ enum CraftLiveActivities {
                         throw CraftNativeActionError(code: "NOT_FOUND", message: "No matching Live Activity is running")
                     }
                     let body = args.count > 1 ? args[1] as? [String: Any] ?? [:] : [:]
-                    let state = content(body, previous: activity.content.state)
+                    let previous = activity.content.state
+                    let state = content(body, previous: previous)
                     if method == "end" {
+                        scheduled.removeValue(forKey: activity.id)?.cancel()
+                        stopWorkout(activity.attributes.activityId)
                         await activity.end(ActivityContent(state: state, staleDate: nil), dismissalPolicy: .immediate)
                         completion(.success(["ended": true]))
                     } else {
                         await activity.update(ActivityContent(state: state, staleDate: staleDate(body)))
+                        schedule(activity)
+                        if let owner = workoutOwner, owner.key == activity.attributes.activityId, previous.paused != state.paused {
+                            if state.paused == true { CraftHealth.shared.pauseWorkout { _ in } }
+                            else { CraftHealth.shared.resumeWorkout { _ in } }
+                        }
                         completion(.success(["updated": true]))
                     }
                 default: throw CraftNativeActionError(code: "UNKNOWN_ACTION", message: "Unsupported Live Activities method")
                 }
             } catch let error as CraftNativeActionError { completion(.failure(error)) }
             catch { completion(.failure(CraftNativeActionError(code: "ACTIVITY_ERROR", message: error.localizedDescription))) }
+        }
+    }
+
+    /// The real HealthKit workout owns background execution on iOS 26. It
+    /// collects while training; the caller's existing save path writes the
+    /// final workout once. Never stop an unrelated HealthKit session.
+    @available(iOS 16.2, *)
+    @MainActor private static func startWorkout(_ activity: Activity<CraftActivityAttributes>, body: [String: Any], enabled: Bool) {
+        guard enabled, #available(iOS 26.0, *), let type = body["workoutType"] as? String,
+              workoutOwner == nil, startingWorkout == nil,
+              HKHealthStore().authorizationStatus(for: .workoutType()) == .sharingAuthorized else { return }
+        let key = activity.attributes.activityId
+        startingWorkout = key
+        CraftHealth.shared.startWorkout(body: ["type": type]) { result in
+            Task { @MainActor in
+                startingWorkout = nil
+                guard case .success(let value) = result, let value = value as? [String: Any], let id = value["id"] as? String else { return }
+                guard activity.activityState == .active || activity.activityState == .stale else {
+                    CraftHealth.shared.discardActivityWorkout(expectedID: id)
+                    return
+                }
+                workoutOwner = (key, id)
+                if activity.content.state.paused == true { CraftHealth.shared.pauseWorkout { _ in } }
+            }
+        }
+    }
+
+    @MainActor private static func stopWorkout(_ key: String) {
+        guard let owner = workoutOwner, owner.key == key else { return }
+        workoutOwner = nil
+        CraftHealth.shared.discardActivityWorkout(expectedID: owner.id)
+    }
+
+    /// Step boundaries, independently of a retained screen or JS timer.
+    /// HealthKit, GPS and BLE use their documented background execution;
+    /// without permission iOS may suspend updates until the next app wake.
+    @available(iOS 16.2, *)
+    @MainActor private static func schedule(_ activity: Activity<CraftActivityAttributes>) {
+        scheduled.removeValue(forKey: activity.id)?.cancel()
+        guard activity.content.state.paused != true, !(activity.content.state.transitions ?? []).isEmpty else { return }
+        scheduled[activity.id] = Task { @MainActor in
+            while !Task.isCancelled, let next = activity.content.state.transitions?.first {
+                let delay = max(0, next.at / 1000 - Date().timeIntervalSince1970)
+                do { try await Task.sleep(nanoseconds: UInt64(min(delay, 86400) * 1_000_000_000)) }
+                catch { return }
+                guard !Task.isCancelled, activity.activityState == .active || activity.activityState == .stale else { return }
+                var state = activity.content.state
+                state.advance(to: Date().timeIntervalSince1970 * 1000)
+                if state.paused == true { stopWorkout(activity.attributes.activityId) }
+                await activity.update(ActivityContent(state: state, staleDate: state.transitions?.last.map { Date(timeIntervalSince1970: $0.at / 1000 + ($0.duration ?? 8 * 3600) + 1) }))
+            }
+            scheduled.removeValue(forKey: activity.id)
         }
     }
 
@@ -87,12 +156,17 @@ enum CraftLiveActivities {
             progress: min(finite(body, "progress", previous?.progress) ?? 0, 1),
             staleStatus: body["staleStatus"] as? String ?? previous?.staleStatus,
             detail: body["detail"] as? String ?? previous?.detail,
+            sessionStartedAt: finite(body, "sessionStartedAt", previous?.sessionStartedAt),
             timerStartedAt: finite(body, "timerStartedAt", previous?.timerStartedAt),
             timerEndsAt: finite(body, "timerEndsAt", previous?.timerEndsAt),
             paused: body["paused"] as? Bool ?? previous?.paused,
             remainingSeconds: finite(body, "remainingSeconds", previous?.remainingSeconds),
             heartRate: finite(body, "heartRate", previous?.heartRate),
-            showsDistance: body["showsDistance"] as? Bool ?? previous?.showsDistance
+            showsDistance: body["showsDistance"] as? Bool ?? previous?.showsDistance,
+            transitions: (body["transitions"] as? [[String: Any]] ?? []).prefix(12).compactMap { item in
+                guard let at = finite(item, "at"), let detail = item["detail"] as? String else { return nil }
+                return CraftActivityAttributes.Transition(at: at, detail: String(detail.prefix(96)), duration: finite(item, "duration"))
+            }.sorted { $0.at < $1.at }
         )
     }
 }
