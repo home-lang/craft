@@ -1,8 +1,12 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { gunzipSync } from 'node:zlib'
 import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { afterAll, describe, expect, it } from 'bun:test'
 import { addSchemeBuildTargets, addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from '../scripts/insert-project-targets'
 import {
+  compressNativeSources,
   associatedDomainEntries,
   build,
   init,
@@ -2957,4 +2961,22 @@ describe('crash reporting (CraftCrashReporter.swift)', () => {
     // The test crash exists only in Debug builds.
     expect(source).toMatch(/#if DEBUG\n {4}\/\/\/ `-CraftCrashTest/)
   })
+})
+
+it('packs large native sources losslessly and idempotently without touching small assets', () => {
+  const root = mkdtempSync(join(tmpdir(), 'craft-source-compression-'))
+  try {
+    const source = 'globalThis.ready = true;\n'.repeat(5000)
+    const file = join(root, 'screen.js')
+    writeFileSync(file, source)
+    writeFileSync(join(root, 'config.json'), '{}')
+    compressNativeSources(root)
+    const packed = readFileSync(file)
+    expect(packed.length).toBeLessThan(source.length / 5)
+    expect(gunzipSync(packed).toString()).toBe(source)
+    expect(readFileSync(join(root, 'config.json'), 'utf8')).toBe('{}')
+    compressNativeSources(root)
+    expect(readFileSync(file)).toEqual(packed)
+  }
+  finally { rmSync(root, { recursive: true, force: true }) }
 })

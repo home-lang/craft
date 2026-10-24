@@ -1,4 +1,5 @@
 import Foundation
+import zlib
 import CoreFoundation
 import ImageIO
 import AVFoundation
@@ -5550,10 +5551,36 @@ enum CraftNativeBundle {
         return read(url)
     }
 
+    /// gzip assets are immutable, decoded lazily and held in the same bounded cache.
+    private static func unpack(_ bytes: Data) -> Data? {
+        guard bytes.starts(with: [0x1f, 0x8b]) else { return bytes }
+        return bytes.withUnsafeBytes { raw -> Data? in
+            var stream = z_stream()
+            guard inflateInit2_(&stream, 15 + 32, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else { return nil }
+            defer { inflateEnd(&stream) }
+            stream.next_in = UnsafeMutablePointer<Bytef>(mutating: raw.bindMemory(to: Bytef.self).baseAddress)
+            stream.avail_in = uInt(bytes.count)
+            var result = Data()
+            var chunk = [UInt8](repeating: 0, count: 32768)
+            var status = Z_OK
+            repeat {
+                status = chunk.withUnsafeMutableBytes { output in
+                    stream.next_out = output.bindMemory(to: Bytef.self).baseAddress
+                    stream.avail_out = uInt(output.count)
+                    return inflate(&stream, Z_NO_FLUSH)
+                }
+                guard status == Z_OK || status == Z_STREAM_END else { return nil }
+                result.append(contentsOf: chunk.prefix(chunk.count - Int(stream.avail_out)))
+                guard result.count <= 64 << 20 else { return nil }
+            } while status != Z_STREAM_END
+            return result
+        }
+    }
+
     private static func read(_ url: URL) -> (source: String, url: URL)? {
         let key = url.path as NSString
         if let cached = sources.object(forKey: key) { return (cached as String, url) }
-        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        guard let bytes = try? Data(contentsOf: url), let decoded = unpack(bytes), let text = String(data: decoded, encoding: .utf8) else { return nil }
         sources.setObject(text as NSString, forKey: key, cost: text.utf8.count)
         return (text, url)
     }
