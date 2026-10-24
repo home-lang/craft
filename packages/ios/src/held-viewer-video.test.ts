@@ -55,11 +55,14 @@ test.skipIf(process.platform !== 'darwin')('public AVFoundation extractor verifi
     const generator = join(dir, 'media.swift'), movieTool = join(dir, 'media'), extractor = join(dir, 'extract')
     // Synthetic media only: these pixels test source-frame identity, not a
     // native Large Content Viewer, an app, a gesture, or simulator acceptance.
+    // Use software H.264 explicitly; the dense sample-table regression must
+    // not depend on a virtual runner's hardware video encoder.
     writeFileSync(generator, `import AVFoundation
 import CoreVideo
 import Foundation
+import VideoToolbox
 let writer = try AVAssetWriter(outputURL: URL(fileURLWithPath: CommandLine.arguments[1]), fileType: .mov)
-let input = AVAssetWriterInput(mediaType: .video, outputSettings: [AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 64, AVVideoHeightKey: 64])
+let input = AVAssetWriterInput(mediaType: .video, outputSettings: [AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 64, AVVideoHeightKey: 64, AVVideoEncoderSpecificationKey: [kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String: false]])
 let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB, kCVPixelBufferWidthKey as String: 64, kCVPixelBufferHeightKey as String: 64])
 writer.add(input)
 guard writer.startWriting() else { fatalError("Cannot write synthetic media") }
@@ -88,7 +91,7 @@ guard writer.status == .completed else { fatalError("Synthetic movie incomplete"
     for (const mode of ['sparse', 'moving', 'late', 'dense-late', 'static']) {
       const movie = join(dir, `${mode}.mov`), png = join(dir, `${mode}.png`), receipt = join(dir, `${mode}.json`)
       const media = run([movieTool, movie, mode])
-      expect(media.exitCode, media.stderr.toString()).toBe(0)
+      expect(media.exitCode, `${mode} generation (${media.signalCode || 'normal exit'}): ${media.stderr.toString()}`).toBe(0)
       const dense = mode === 'dense-late', late = mode === 'late' || dense
       const result = run([extractor, movie, png, receipt, '100', '100.25', dense ? '1201.125' : late ? '1201' : '101', dense ? '1207.125' : late ? '1207' : '107'])
       const evidence = JSON.parse(readFileSync(receipt, 'utf8'))
