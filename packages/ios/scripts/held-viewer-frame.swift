@@ -33,29 +33,23 @@ func timeData(_ time: CMTime) throws -> [String: Any] {
     return ["value": time.value, "timescale": time.timescale]
 }
 
-// Read the original stored samples without changing their timestamps or
-// decompressing an entire long-running XCTest recording just to find a frame.
-// https://developer.apple.com/documentation/avfoundation/avassetreadertrackoutput/outputsettings
-func recordedTimes(_ asset: AVAsset, _ track: AVAssetTrack) throws -> [CMTime] {
-    let reader = try AVAssetReader(asset: asset)
-    let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
-    output.alwaysCopiesSampleData = false
-    try require(reader.canAdd(output), "Cannot read the recorded video track")
-    reader.add(output)
-    try require(reader.startReading(), "AVFoundation could not read the recording: \(String(describing: reader.error))")
-    var times: [CMTime] = []
-    while let sample = output.copyNextSampleBuffer() {
-        // A stored-format buffer can batch many frames. CoreMedia expands
-        // each sample's original timing, including reordered H.264 pictures.
-        for index in 0..<CMSampleBufferGetNumSamples(sample) {
-            var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: .invalid, decodeTimeStamp: .invalid)
-            try require(CMSampleBufferGetSampleTimingInfo(sample, at: index, timingInfoOut: &timing) == noErr,
-                        "Cannot read original video sample timing")
-            _ = try timeData(timing.presentationTimeStamp)
-            times.append(timing.presentationTimeStamp)
-        }
+// Traverse the original sample table, without reading every compressed video
+// payload in a long XCTest recording. A sample cursor preserves stored PTS;
+// seeking or trimming an asset reader can instead invent a boundary timestamp.
+// https://developer.apple.com/documentation/avfoundation/avsamplecursor
+func recordedTimes(_ track: AVAssetTrack) throws -> [CMTime] {
+    guard let cursor = track.makeSampleCursorAtFirstSampleInDecodeOrder() else {
+        throw FrameFailure.invalid("Recording has no video sample cursor")
     }
-    try require(reader.status == .completed, "AVFoundation did not finish reading original samples: \(String(describing: reader.error))")
+    var times: [CMTime] = []
+    while true {
+        let pts = cursor.presentationTimeStamp
+        _ = try timeData(pts)
+        times.append(pts)
+        let stepped = cursor.stepInDecodeOrder(byCount: 1)
+        try require(stepped == 0 || stepped == 1, "Sample cursor could not advance through the original recording")
+        if stepped == 0 { break }
+    }
     // Stored H.264 samples arrive in decode order; presentation order can differ.
     return times.sorted { CMTimeCompare($0, $1) < 0 }
 }
@@ -79,10 +73,15 @@ do {
     try require(spawn <= ready && ready <= synthesis && end - synthesis >= 5.5,
                 "Recording must acknowledge its first frame before the six-second synthesized hold")
     receipt["movieSha256"] = try digest(movie)
-    let asset = AVURLAsset(url: URL(fileURLWithPath: movie))
+    let asset = AVURLAsset(url: URL(fileURLWithPath: movie), options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
     let tracks = try await asset.loadTracks(withMediaType: .video)
     guard let track = tracks.first else { throw FrameFailure.invalid("Recording has no video track") }
-    let samples = try recordedTimes(asset, track)
+    let timingStarted = ProcessInfo.processInfo.systemUptime
+    let samples = try recordedTimes(track)
+    let timingElapsed = ProcessInfo.processInfo.systemUptime - timingStarted
+    receipt["sampleTimingMethod"] = "AVSampleCursor"
+    receipt["sampleTimingElapsedSeconds"] = timingElapsed
+    fputs("Read \(samples.count) original sample timestamps via AVSampleCursor in \(timingElapsed)s\n", stderr)
     receipt["samplePTS"] = try samples.map { try timeData($0) }
     guard let firstSample = samples.first else { throw FrameFailure.invalid("Recording has no video sample") }
     let generator = AVAssetImageGenerator(asset: asset)

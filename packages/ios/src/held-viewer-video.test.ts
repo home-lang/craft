@@ -65,7 +65,8 @@ writer.add(input)
 guard writer.startWriting() else { fatalError("Cannot write synthetic media") }
 writer.startSession(atSourceTime: .zero)
 let mode = CommandLine.arguments[2]
-let originalSamples = mode == "static" ? [0] : mode == "late" ? [0, 1104, 1106] : mode == "sparse" ? [0, 4, 6] : Array(0..<7)
+let originalSamples = mode == "static" ? [0] : mode == "dense-late" ? Array(0..<15013) : mode == "late" ? [0, 1104, 1106] : mode == "sparse" ? [0, 4, 6] : Array(0..<7)
+let timescale: CMTimeScale = mode == "dense-late" ? 12 : 1
 for index in originalSamples {
     while !input.isReadyForMoreMediaData { Thread.sleep(forTimeInterval: 0.001) }
     var buffer: CVPixelBuffer?
@@ -73,9 +74,9 @@ for index in originalSamples {
     CVPixelBufferLockBaseAddress(buffer, [])
     memset(CVPixelBufferGetBaseAddress(buffer), Int32(20 + (index % 7) * 30), CVPixelBufferGetDataSize(buffer))
     CVPixelBufferUnlockBaseAddress(buffer, [])
-    guard adaptor.append(buffer, withPresentationTime: CMTime(value: Int64(index), timescale: 1)) else { fatalError("Cannot append synthetic frame") }
+    guard adaptor.append(buffer, withPresentationTime: CMTime(value: Int64(index), timescale: timescale)) else { fatalError("Cannot append synthetic frame") }
 }
-writer.endSession(atSourceTime: CMTime(value: mode == "late" ? 1107 : 7, timescale: 1))
+writer.endSession(atSourceTime: CMTime(value: mode == "dense-late" ? 15013 : mode == "late" ? 1107 : 7, timescale: timescale))
 input.markAsFinished()
 await writer.finishWriting()
 guard writer.status == .completed else { fatalError("Synthetic movie incomplete") }
@@ -84,18 +85,18 @@ guard writer.status == .completed else { fatalError("Synthetic movie incomplete"
       const result = run(args)
       expect(result.exitCode, result.stderr.toString()).toBe(0)
     }
-    for (const mode of ['sparse', 'moving', 'late', 'static']) {
+    for (const mode of ['sparse', 'moving', 'late', 'dense-late', 'static']) {
       const movie = join(dir, `${mode}.mov`), png = join(dir, `${mode}.png`), receipt = join(dir, `${mode}.json`)
       const media = run([movieTool, movie, mode])
       expect(media.exitCode, media.stderr.toString()).toBe(0)
-      const late = mode === 'late'
-      const result = run([extractor, movie, png, receipt, '100', '100.25', late ? '1201' : '101', late ? '1207' : '107'])
+      const dense = mode === 'dense-late', late = mode === 'late' || dense
+      const result = run([extractor, movie, png, receipt, '100', '100.25', dense ? '1201.125' : late ? '1201' : '101', dense ? '1207.125' : late ? '1207' : '107'])
       const evidence = JSON.parse(readFileSync(receipt, 'utf8'))
       // Trimming a sparse source to a hold range can invent a boundary PTS
       // for the old picture. Retain original stored times even when the
       // hold happens eighteen minutes into a long test-suite recording.
       expect(evidence.samplePTS.map((time: { value: number, timescale: number }) => time.value / time.timescale))
-        .toEqual(mode === 'static' ? [0] : mode === 'late' ? [0, 1104, 1106] : mode === 'sparse' ? [0, 4, 6] : [0, 1, 2, 3, 4, 5, 6])
+        .toEqual(mode === 'static' ? [0] : dense ? Array.from({ length: 15013 }, (_, index) => index / 12) : late ? [0, 1104, 1106] : mode === 'sparse' ? [0, 4, 6] : [0, 1, 2, 3, 4, 5, 6])
       if (mode !== 'static') {
         expect(result.exitCode, result.stderr.toString()).toBe(0)
         expect(evidence.verified).toBe(true)
