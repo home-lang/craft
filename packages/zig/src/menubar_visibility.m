@@ -26,6 +26,7 @@ static BOOL requestedPermission;
 static BOOL preserveSystemItems = YES;
 static NSString *failure;
 static NSUInteger hiddenAppCount;
+static NSUInteger hiddenSystemItemCount;
 static Class configurationClass;
 static Class assertionClass;
 
@@ -126,6 +127,7 @@ static void fail(NSString *reason) {
     assertion = nil;
     busy = NO;
     hiddenAppCount = 0;
+    hiddenSystemItemCount = 0;
     failure = reason;
     notify();
 }
@@ -158,6 +160,35 @@ static void recordItem(NSMutableDictionary *sections, id bundle, CGRect frame, d
         && isfinite(frame.origin.x) && isfinite(frame.size.width);
     BOOL visible = !valid || (rtl ? CGRectGetMidX(frame) < boundary : CGRectGetMidX(frame) > boundary);
     sections[bundle] = @([sections[bundle] boolValue] || visible);
+}
+
+// Native MBSystemItemIdentifier raw values in MenuBarClientCore. These are
+// system item identities, distinct from the owning MenuBarAgent process.
+static NSNumber *systemItemIdentifier(NSString *identifier) {
+    if (![identifier isKindOfClass:NSString.class]) return nil;
+    NSDictionary *identifiers = @{
+        @"com.apple.menuextra.battery": @0,
+        @"com.apple.menuextra.bluetooth": @1,
+        @"com.apple.menuextra.clock": @2,
+        @"com.apple.menuextra.displays": @3,
+        @"com.apple.menuextra.textinput": @4,
+        @"com.apple.menuextra.volume": @5,
+        @"com.apple.menuextra.wifi": @6,
+        @"com.apple.menuextra.screenmirroring": @7,
+        @"com.apple.menuextra.controlcenter": @8,
+    };
+    return identifiers[identifier];
+}
+
+static NSArray *allowedSystemItems(NSDictionary *sections, NSUInteger *hiddenCount) {
+    NSMutableArray *allowed = [NSMutableArray array];
+    *hiddenCount = 0;
+    // Unknown and unreadable items stay allowed, including future native IDs.
+    for (NSUInteger i = 0; i < 64; i++) {
+        if (!preserveSystemItems && sections[@(i)] && ![sections[@(i)] boolValue]) (*hiddenCount)++;
+        else [allowed addObject:@(i)];
+    }
+    return allowed;
 }
 
 static NSArray *allowedBundles(NSArray<NSString *> *bundles, NSDictionary *sections, NSDictionary *identities,
@@ -222,7 +253,7 @@ static AXError (*readOwner)(AXUIElementRef, pid_t *) = AXUIElementGetPid;
 // helper bundle), or suppress a system indicator. System preservation is an
 // explicit consumer policy; unselected application icons are always protected.
 static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, double boundary, BOOL rtl,
-    BOOL protectedOnly, pid_t agent, NSMutableDictionary *items, NSMutableDictionary *owners, NSUInteger *remaining) {
+    BOOL protectedOnly, pid_t agent, NSMutableDictionary *items, NSMutableDictionary *owners, NSMutableDictionary *systemSections, NSUInteger *remaining) {
     if (!depth || !*remaining) return NO;
     (*remaining)--;
     AXUIElementSetMessagingTimeout(node, 0.1);
@@ -233,7 +264,7 @@ static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL roo
     if (!root && [role isEqual:(__bridge NSString *)kAXApplicationRole]) {
         id extras = readAttribute(node, CFSTR("AXExtrasMenuBar"));
         if (extras && CFGetTypeID((__bridge CFTypeRef)extras) == AXUIElementGetTypeID())
-            return collectSnapshotItems((__bridge AXUIElementRef)extras, depth - 1, NO, boundary, rtl, protectedOnly, agent, items, owners, remaining);
+            return collectSnapshotItems((__bridge AXUIElementRef)extras, depth - 1, NO, boundary, rtl, protectedOnly, agent, items, owners, systemSections, remaining);
         // Keep an unreadable remote app protected by its native presence.
         // Its ordinary window controls cannot stand in for a status item.
         pid_t owner = 0;
@@ -249,7 +280,6 @@ static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL roo
     BOOL system = [identifier isKindOfClass:NSString.class] && [identifier hasPrefix:@"com.apple.menuextra."];
     // MenuBarClientCore can suppress Apple modules even when allowed. Consumers
     // may explicitly accept that behavior without disabling app verification.
-    if (protectedOnly && system && !preserveSystemItems) return YES;
     if (system || [role isEqual:(__bridge NSString *)kAXButtonRole]
         || [role isEqual:(__bridge NSString *)kAXMenuBarItemRole]) {
         id position = readAttribute(node, kAXPositionAttribute), size = readAttribute(node, kAXSizeAttribute);
@@ -269,6 +299,8 @@ static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL roo
             // same explicit system-item policy to those native owners.
             if (readOwner(node, &owner) != kAXErrorSuccess || owner <= 0) return NO;
             system = system || owner == agent;
+            NSNumber *systemIdentifier = systemItemIdentifier(identifier);
+            if (systemIdentifier) recordItem(systemSections, systemIdentifier, (CGRect){point, dimensions}, boundary, rtl);
             if (protectedOnly && system && !preserveSystemItems) return YES;
             BOOL arrow = owner == getpid() && fabs(middle - boundary) < 2;
             // Collapsed native overflow reports several icons stacked at the
@@ -299,7 +331,7 @@ static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL roo
     if ([children isKindOfClass:NSArray.class]) {
         for (id child in children) {
             if (CFGetTypeID((__bridge CFTypeRef)child) == AXUIElementGetTypeID()
-                && !collectSnapshotItems((__bridge AXUIElementRef)child, depth - 1, NO, boundary, rtl, protectedOnly, agent, items, owners, remaining)) return NO;
+                && !collectSnapshotItems((__bridge AXUIElementRef)child, depth - 1, NO, boundary, rtl, protectedOnly, agent, items, owners, systemSections, remaining)) return NO;
         }
     }
     return YES;
@@ -308,11 +340,11 @@ static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL roo
 static NSDictionary *barLayout(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly) {
     if (!agent) return nil;
     AXUIElementRef element = AXUIElementCreateApplication(agent);
-    NSMutableDictionary *items = [NSMutableDictionary dictionary], *owners = [NSMutableDictionary dictionary];
+    NSMutableDictionary *items = [NSMutableDictionary dictionary], *owners = [NSMutableDictionary dictionary], *systemSections = [NSMutableDictionary dictionary];
     NSUInteger remaining = 256;
-    BOOL complete = collectSnapshotItems(element, 8, YES, boundary, rtl, protectedOnly, agent, items, owners, &remaining);
+    BOOL complete = collectSnapshotItems(element, 8, YES, boundary, rtl, protectedOnly, agent, items, owners, systemSections, &remaining);
     CFRelease(element);
-    return complete && items.count ? @{ @"items": [items copy], @"owners": [owners copy] } : nil;
+    return complete && items.count ? @{ @"items": [items copy], @"owners": [owners copy], @"system": [systemSections copy] } : nil;
 }
 
 static NSDictionary *barSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly) {
@@ -335,11 +367,11 @@ static BOOL preservesItems(NSDictionary *expected, NSDictionary *actual) {
     return YES;
 }
 
-static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, NSUInteger ticket,
+static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, NSUInteger systemHidden, NSUInteger ticket,
     pid_t agent, double boundary, BOOL rtl, NSDictionary *protectedItems) {
     // Assessment mode can suppress system indicators even with all apps allowed.
     // Never activate a global restriction when there is no selected app to hide.
-    if (!hidden) return fail(@"emptyGroup");
+    if (!hidden && !systemHidden) return fail(@"emptyGroup");
     if (!protectedItems.count) return fail(@"layoutUnavailable");
     @try {
         id configuration = [(id<CraftVisibilityConfiguration>)[configurationClass alloc]
@@ -365,6 +397,7 @@ static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, 
                         pendingAssertion = nil;
                         busy = NO;
                         hiddenAppCount = hidden;
+                        hiddenSystemItemCount = systemHidden;
                         notify();
                     });
                 });
@@ -420,11 +453,9 @@ void craft_menubar_visibility_collapse(void) {
                 NSArray *bundles = identities.allKeys;
                 NSUInteger hidden = 0;
                 NSArray *allowed = allowedBundles(bundles, sections, identities, ownBundles, &hidden);
-                // Keep all system controls, including identifiers added by the
-                // current OS. The framework ignores unrecognized identifiers.
-                NSMutableArray *systemItems = [NSMutableArray array];
-                for (NSUInteger i = 0; i < 64; i++) [systemItems addObject:@(i)];
-                activate(systemItems, allowed, hidden, ticket, agent, boundary, rtl, protectedItems);
+                NSUInteger systemHidden = 0;
+                NSArray *systemItems = allowedSystemItems(layout[@"system"], &systemHidden);
+                activate(systemItems, allowed, hidden, systemHidden, ticket, agent, boundary, rtl, protectedItems);
             });
         }
     });
@@ -439,6 +470,7 @@ void craft_menubar_visibility_expand(void) {
     busy = NO;
     failure = nil;
     hiddenAppCount = 0;
+    hiddenSystemItemCount = 0;
     notify();
 }
 
@@ -457,7 +489,7 @@ const char *craft_menubar_visibility_state(void) {
         @"backend": @"nativeVisibility", @"initialized": @((bool)(marker != nil)),
         @"collapsed": @((bool)(assertion != nil)), @"separatorHidden": @NO,
         @"available": @(available()), @"authorized": @((bool)AXIsProcessTrusted()),
-        @"busy": @(busy), @"hiddenAppCount": @(hiddenAppCount),
+        @"busy": @(busy), @"hiddenAppCount": @(hiddenAppCount), @"hiddenSystemItemCount": @(hiddenSystemItemCount),
         @"preserveSystemItems": @(preserveSystemItems),
         @"markerWidth": @(marker.length), @"error": failure ?: (id)NSNull.null,
     };

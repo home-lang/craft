@@ -586,9 +586,10 @@ fn drawMarker(item: objc.id, widened: bool) void {
     if (item == null) return;
     const button = msgSend0(item, "button");
     if (button == null) return;
-    const label = if (widened) "Show menu bar items" else "Hide menu bar items";
+    const pending = native_visibility and visibility.craft_menubar_visibility_busy();
+    const label = if (pending) "Cancel hiding menu bar items" else if (widened) "Show menu bar items" else "Hide menu bar items";
     msgSendVoid1(button, "setAlignment:", NSTextAlignmentRight);
-    msgSendVoid1(button, "setTitle:", createNSString(if (widened) "›" else if (native_visibility) "‹" else if (separator_hidden) "" else MARKER_GLYPH));
+    msgSendVoid1(button, "setTitle:", createNSString(if (pending) "…" else if (widened) "›" else if (native_visibility) "‹" else if (separator_hidden) "" else MARKER_GLYPH));
     msgSendVoid1(button, "setToolTip:", createNSString(label));
     msgSendVoid1(button, "setAccessibilityLabel:", createNSString(label));
     clearHighlight(button);

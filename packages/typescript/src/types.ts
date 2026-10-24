@@ -2624,8 +2624,8 @@ export interface CraftTimersAPI {
 /** Native grouping policy. Unselected application icons are always protected. */
 export interface MenubarInitOptions {
   backend?: 'legacy' | 'nativeVisibility'
-  /** Defaults to true. False accepts native suppression of Apple modules,
-   * including Focus, Now Playing and camera/microphone indicators. */
+  /** Defaults to true. False groups identifiable Apple controls by position
+   * and accepts native suppression of Focus, Now Playing and privacy indicators. */
   preserveSystemItems?: boolean
 }
 
@@ -2639,6 +2639,7 @@ export interface MenubarState {
   authorized?: boolean
   busy?: boolean
   hiddenAppCount?: number
+  hiddenSystemItemCount?: number
   preserveSystemItems?: boolean
   markerWidth?: number
   error?: 'unavailable' | 'permissionRequired' | 'layoutUnavailable' | 'emptyGroup' | 'visibilityMismatch' | 'activationFailed' | 'activationTimeout' | null

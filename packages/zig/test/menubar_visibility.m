@@ -11,7 +11,7 @@ static Boolean testTrusted(void) { return trusted; }
 
 static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, double boundary, BOOL rtl,
     BOOL protectedOnly, NSMutableDictionary *items, NSUInteger *remaining) {
-    return collectSnapshotItems(node, depth, root, boundary, rtl, protectedOnly, 0, items, nil, remaining);
+    return collectSnapshotItems(node, depth, root, boundary, rtl, protectedOnly, 0, items, nil, nil, remaining);
 }
 
 @interface TestRunningApplication : NSObject
@@ -55,6 +55,21 @@ static AXError testOwner(AXUIElementRef node, pid_t *pid) {
     *pid = owner.intValue;
     return kAXErrorSuccess;
 }
+static void verifySystemGrouping(void) {
+    assert([systemItemIdentifier(@"com.apple.menuextra.battery") isEqual:@0]);
+    assert([systemItemIdentifier(@"com.apple.menuextra.wifi") isEqual:@6]);
+    assert([systemItemIdentifier(@"com.apple.menuextra.controlcenter") isEqual:@8]);
+    assert(!systemItemIdentifier(@"com.apple.menuextra.future"));
+    NSUInteger hidden = 0;
+    preserveSystemItems = NO;
+    NSArray *allowed = allowedSystemItems(@{@0: @NO, @6: @NO, @2: @YES}, &hidden);
+    assert(hidden == 2 && ![allowed containsObject:@0] && ![allowed containsObject:@6]);
+    assert([allowed containsObject:@2] && [allowed containsObject:@8] && [allowed containsObject:@63]);
+    preserveSystemItems = YES;
+    allowed = allowedSystemItems(@{@0: @NO, @6: @NO}, &hidden);
+    assert(hidden == 0 && allowed.count == 64);
+}
+
 static void verifyRecreatedAnonymousItems(void) {
     nodeAttributes = [NSMutableDictionary dictionary];
     CGPoint point = CGPointMake(200, 0);
@@ -80,18 +95,29 @@ static void verifyRecreatedAnonymousItems(void) {
     readOwner = testOwner;
     NSMutableDictionary *overlappingItems = [NSMutableDictionary dictionary];
     NSUInteger overlapRemaining = 256;
-    assert(!collectSnapshotItems((__bridge AXUIElementRef)overlapping, 8, NO, 100, NO, YES, 0, overlappingItems, nil, &overlapRemaining));
+    assert(!collectSnapshotItems((__bridge AXUIElementRef)overlapping, 8, NO, 100, NO, YES, 0, overlappingItems, nil, nil, &overlapRemaining));
 
+    NSMutableDictionary *systemAttributes = [attributes mutableCopy];
+    systemAttributes[(__bridge NSString *)kAXIdentifierAttribute] = @"com.apple.menuextra.wifi";
+    id wifi = testNode(systemAttributes);
+    NSMutableDictionary *systemSections = [NSMutableDictionary dictionary];
+    NSUInteger wifiRemaining = 256;
+    preserveSystemItems = NO;
+    assert(collectSnapshotItems((__bridge AXUIElementRef)wifi, 8, NO, 400, NO, YES, 1234, overlappingItems, nil, systemSections, &wifiRemaining));
+    assert(systemSections[@6] && ![systemSections[@6] boolValue]);
+    wifiRemaining = 256;
+    assert(collectSnapshotItems((__bridge AXUIElementRef)wifi, 8, NO, 100, NO, YES, 1234, overlappingItems, nil, systemSections, &wifiRemaining));
+    assert([systemSections[@6] boolValue]);
     NSMutableDictionary *systemItems = [NSMutableDictionary dictionary];
     readAttribute = testAttribute;
     readOwner = testOwner;
     preserveSystemItems = NO;
     NSUInteger systemRemaining = 256;
-    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 1234, systemItems, nil, &systemRemaining));
+    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 1234, systemItems, nil, nil, &systemRemaining));
     assert(!systemItems.count);
     preserveSystemItems = YES;
     systemRemaining = 256;
-    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 1234, systemItems, nil, &systemRemaining));
+    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 1234, systemItems, nil, nil, &systemRemaining));
     assert(systemItems.count == 1);
 
     readAttribute = testAttribute;
@@ -106,7 +132,7 @@ static void verifyRecreatedAnonymousItems(void) {
     // icons. An app's separate, potentially stale AX geometry is never read.
     NSMutableDictionary *owners = [NSMutableDictionary dictionary];
     [expected removeAllObjects]; remaining = 256;
-    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 0, expected, owners, &remaining));
+    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 0, expected, owners, nil, &remaining));
     assert([owners[@1234] boolValue]);
     TestRunningApplication *visibleApp = [TestRunningApplication new];
     visibleApp.bundleIdentifier = @"visible.app"; visibleApp.processIdentifier = 1234;
@@ -115,7 +141,7 @@ static void verifyRecreatedAnonymousItems(void) {
     attributes[@"testOwner"] = @7890;
     id left = testNode([attributes copy]);
     remaining = 256;
-    assert(collectSnapshotItems((__bridge AXUIElementRef)left, 8, NO, 100, NO, YES, 0, expected, owners, &remaining));
+    assert(collectSnapshotItems((__bridge AXUIElementRef)left, 8, NO, 100, NO, YES, 0, expected, owners, nil, &remaining));
     assert(owners[@7890] && ![owners[@7890] boolValue]);
     TestRunningApplication *hiddenApp = [TestRunningApplication new];
     hiddenApp.bundleIdentifier = @"hidden.app"; hiddenApp.processIdentifier = 7890;
@@ -289,7 +315,7 @@ static void verifyStatusItemScope(void) {
 
 static TestAssertion *begin(void) {
     busy = YES;
-    activate(@[@0, @1], @[@"own.app"], 2, ++generation, 1, 100, NO, @{@"right": @1});
+    activate(@[@0, @1], @[@"own.app"], 2, 0, ++generation, 1, 100, NO, @{@"right": @1});
     return created.lastObject;
 }
 static void drain(void) {
@@ -306,6 +332,7 @@ int main(int argc, char *argv[]) {
     }
     @autoreleasepool {
         verifyButtonBoundary();
+        verifySystemGrouping();
         verifyRecreatedAnonymousItems();
         verifyStatusItemScope();
         (void)available(); // Resolve once before substituting the test classes.
@@ -391,7 +418,7 @@ int main(int argc, char *argv[]) {
         assert(hidden == 2 && ![sharedHidden containsObject:@"shared.first"] && ![sharedHidden containsObject:@"shared.second"]);
 
         busy = YES;
-        activate(@[@0, @1], ownIdentifiers(), 0, ++generation, 1, 100, NO, snapshot);
+        activate(@[@0, @1], ownIdentifiers(), 0, 0, ++generation, 1, 100, NO, snapshot);
         assert(!busy && !assertion && created.count == 0 && [failure isEqual:@"emptyGroup"]);
 
         TestAssertion *first = begin();
