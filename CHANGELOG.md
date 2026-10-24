@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.327...v0.0.328)
+
+## 🧪 Tests
+
+- **ios**: stream native video fixtures with encoder backpressure ([63e9a27](https://github.com/craft-native/craft/commit/63e9a27)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.326...v0.0.327)
 
 ## 🧪 Tests
