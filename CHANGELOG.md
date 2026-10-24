@@ -1,5 +1,26 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.324...v0.0.325)
+
+## 🚀 Features
+
+- **menubar**: group native Apple controls by position ([b73034a](https://github.com/craft-native/craft/commit/b73034a)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **menubar**: scope grouping to the arrow display ([dba5a33](https://github.com/craft-native/craft/commit/dba5a33)) _(by Chris Breuer)_
+- **packaging**: staple app tickets before creating installers ([e7262ad](https://github.com/craft-native/craft/commit/e7262ad)) _(by Chris Breuer)_
+- **updater**: retry downloads after cached manifest responses ([f6c9851](https://github.com/craft-native/craft/commit/f6c9851)) _(by Chris Breuer)_
+- **menubar**: group from the native arrow and displayed owners ([704d338](https://github.com/craft-native/craft/commit/704d338)) _(by Chris Breuer)_
+
+## ⚡ Performance Improvements
+
+- **menubar**: stop inventory at native status entries ([de39c1b](https://github.com/craft-native/craft/commit/de39c1b)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.323...v0.0.324)
 
 ## 🐛 Bug Fixes
