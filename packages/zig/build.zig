@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const desktop_host = b.option(bool, "desktop-host", "Link Craft desktop window/WebView hosting; disable for caller-owned native surfaces") orelse true;
     // Zig renamed these tags during the 0.17 development cycle. Craft's
     // pinned CI compiler uses `.debug` / `.small`, while newer snapshots use
     // `.Debug` / `.ReleaseSmall`; tag-name comparisons keep both buildable.
@@ -139,7 +140,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{.{ .name = "js_backend", .module = js_backend_module }},
     });
-    linkPlatformLibraries(b, public_craft_module, target.result.os.tag, macos_sdk);
+    linkPlatformLibrariesMode(b, public_craft_module, target.result.os.tag, macos_sdk, desktop_host);
     if (target.result.os.tag == .macos or target.result.os.tag == .ios) {
         public_craft_module.linkFramework("Metal", .{});
         public_craft_module.linkFramework("QuartzCore", .{});
@@ -2107,6 +2108,15 @@ pub fn build(b: *std.Build) void {
     metal_surface_step.dependOn(&run_metal_layout.step);
     test_step.dependOn(&run_metal_layout.step);
     test_step.dependOn(&run_host_fixture.step);
+    const vulkan_surface_tests = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/vulkan_surface.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    }) });
+    const run_vulkan_surface_tests = b.addRunArtifact(vulkan_surface_tests);
+    b.step("test:vulkan-surface", "Verify native Vulkan ownership and frame validation").dependOn(&run_vulkan_surface_tests.step);
+    test_step.dependOn(&run_vulkan_surface_tests.step);
     const screen_sharing_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/sharing_accessibility.zig"),
@@ -3178,7 +3188,18 @@ fn linkMenuBarVisibility(b: *std.Build, module: *std.Build.Module) void {
 }
 
 fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: std.Target.Os.Tag, sdk_path: ?[]const u8) void {
-    switch (target_os) {
+    linkPlatformLibrariesMode(b, module, target_os, sdk_path, true);
+}
+fn linkPlatformLibrariesMode(b: *std.Build, module: *std.Build.Module, target_os: std.Target.Os.Tag, sdk_path: ?[]const u8, desktop_host: bool) void {
+    // Raw graphics and caller-owned native surfaces do not create Craft's
+    // desktop Window/WebView host. Preserve one public module and its type
+    // ownership without imposing a browser or GTK on those consumers.
+    if (!desktop_host) {
+        if (target_os == .macos or target_os == .ios) {
+            module.linkSystemLibrary("objc", .{});
+            applySdkPaths(b, module, sdk_path);
+        }
+    } else switch (target_os) {
         .macos => {
             module.linkFramework("Cocoa", .{});
             module.linkFramework("WebKit", .{});
