@@ -124,11 +124,13 @@ export async function createAndroidEmulator(options: AndroidEmulatorOptions): Pr
     mkdirSync(env.ANDROID_AVD_HOME!, { recursive: true })
     mkdirSync(env.ANDROID_USER_HOME!, { recursive: true })
     if (options.acceptLicenses) await run([options.sdkmanager, `--sdk_root=${sdk}`, '--licenses'], 'y\n'.repeat(100))
-    await run([options.sdkmanager, `--sdk_root=${sdk}`, 'platform-tools', 'emulator'], options.acceptLicenses ? 'y\n'.repeat(100) : undefined)
+    // Preserve the vendor download URL and exception details in the command
+    // artifact when SDK provisioning fails before an emulator can start.
+    await run([options.sdkmanager, `--sdk_root=${sdk}`, '--verbose', 'platform-tools', 'emulator'], options.acceptLicenses ? 'y\n'.repeat(100) : undefined)
     const acceleration = await run([executable, '-accel-check'], undefined, 30_000, true)
     if (options.acceleration === 'hardware' && acceleration.code !== 0)
       throw new Error(`Android hardware acceleration is unavailable; inspect ${artifacts}`)
-    await run([options.sdkmanager, `--sdk_root=${sdk}`, options.image], options.acceptLicenses ? 'y\n'.repeat(100) : undefined)
+    await run([options.sdkmanager, `--sdk_root=${sdk}`, '--verbose', options.image], options.acceptLicenses ? 'y\n'.repeat(100) : undefined)
     const devices = (await run([adb, 'devices'], undefined, 10_000)).stdout
     if (devices.split('\n').some(line => line.startsWith(`${serial}\t`))) throw new Error(`${serial} is already in use`)
     await run([options.avdmanager, 'create', 'avd', '--name', name, '--package', options.image, '--device', 'pixel_6'], 'no\n')
