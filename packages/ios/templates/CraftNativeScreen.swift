@@ -5727,6 +5727,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// itself to be in front and acts on it: a sign-in guard on a prepared
     /// Record tab pushed Login over the Feed at launch.
     private var reportedVisible: Bool?
+    private var voiceRecordingOwner: String?
     private let capabilityScope = UUID().uuidString
     private var pendingCapabilityRequests = Set<String>()
     private var pendingCapabilityDeadlines: [String: DispatchWorkItem] = [:]
@@ -5997,6 +5998,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func disposeRuntime() {
         guard !runtimeDisposed else { return }
         runtimeDisposed = true
+        if let owner = voiceRecordingOwner {
+            voiceRecordingOwner = nil
+            CraftVoiceRecording.shared.perform(method: "cancel", args: [owner]) { _ in }
+        }
         frameWanted = false
         CraftNativeFrameClock.shared.cancel(self)
         disposeRenderedTree()
@@ -7701,6 +7706,24 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         let id = args.first as? String ?? ""
         switch (module, method) {
+        case ("AudioRecording", _):
+            guard config.enableAudioRecording else {
+                reply(.failure(CraftNativeActionError(code: "CAPABILITY_DISABLED", message: "Audio recording is disabled")))
+                return true
+            }
+            if method == "start" {
+                guard voiceRecordingOwner == nil else {
+                    reply(.failure(CraftNativeActionError(code: "RECORDING_BUSY", message: "This screen already owns a recording")))
+                    return true
+                }
+                voiceRecordingOwner = id
+            }
+            if method == "cancel", voiceRecordingOwner == id { voiceRecordingOwner = nil }
+            CraftVoiceRecording.shared.perform(method: method, args: args, isActive: { [weak self] in self?.runtimeDisposed == false }) { [weak self] result in
+                if case .failure = result, self?.voiceRecordingOwner == id { self?.voiceRecordingOwner = nil }
+                reply(result)
+            }
+            return true
         case ("View", "focus"):
             let options = args.first as? [String: Any]
             let nodeId = options?["nodeId"] as? String ?? (args.first as? String) ?? ""

@@ -801,6 +801,7 @@ internal class CraftNativeServices(
     }
 
     fun close() {
+        cancelVoice()
         watchCallback?.let(locationClient::removeLocationUpdates)
         watchCallback = null
         pendingLocationPermission = null

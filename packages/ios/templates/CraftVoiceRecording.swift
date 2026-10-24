@@ -24,11 +24,11 @@ final class CraftVoiceRecording {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    func perform(method: String, args: [Any], completion: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
-        DispatchQueue.main.async { self.performOnMain(method: method, args: args, completion: completion) }
+    func perform(method: String, args: [Any], isActive: @escaping () -> Bool = { true }, completion: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
+        DispatchQueue.main.async { self.performOnMain(method: method, args: args, isActive: isActive, completion: completion) }
     }
 
-    private func performOnMain(method: String, args: [Any], completion: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
+    private func performOnMain(method: String, args: [Any], isActive: @escaping () -> Bool, completion: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
         func fail(_ code: String, _ message: String) { completion(.failure(CraftNativeActionError(code: code, message: message))) }
         guard let key = args.first as? String, UUID(uuidString: key) != nil else { fail("INVALID_ARGUMENT", "A recording owner UUID is required"); return }
         if method == "cancel" {
@@ -47,6 +47,7 @@ final class CraftVoiceRecording {
             return
         }
         guard method == "start" else { fail("UNKNOWN_ACTION", "Unknown voice recording action"); return }
+        guard isActive() else { fail("RECORDING_CANCELLED", "The requesting screen has closed"); return }
         guard owner == nil else { fail("RECORDING_BUSY", "Another microphone session is still active"); return }
         let options = args.count > 1 ? args[1] as? [String: Any] ?? [:] : [:]
         let seconds = (options["maxSeconds"] as? NSNumber)?.doubleValue ?? 300
@@ -54,7 +55,7 @@ final class CraftVoiceRecording {
         owner = key
         AVAudioSession.sharedInstance().requestRecordPermission { allowed in
             DispatchQueue.main.async {
-                guard self.owner == key else { fail("RECORDING_CANCELLED", "Recording was cancelled"); return }
+                guard self.owner == key, isActive() else { if self.owner == key { self.clear() }; fail("RECORDING_CANCELLED", "Recording was cancelled"); return }
                 guard allowed else { self.clear(); fail("PERMISSION_DENIED", "Microphone permission was refused"); return }
                 do {
                     let session = AVAudioSession.sharedInstance()
