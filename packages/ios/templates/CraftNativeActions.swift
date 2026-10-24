@@ -95,6 +95,7 @@ enum CraftNativeActions {
         // which the native Video element plays in place of the address.
         values.append("media")
         if config.enableCamera { values.append("camera") }
+        if config.enableAudioRecording { values.append("audioRecording") }
         // craft.crashReporter: the app's crash and error reporter (bughq).
         if config.crashReporting?.key.isEmpty == false { values.append("crashReporter") }
         return values
@@ -554,6 +555,13 @@ enum CraftNativeActions {
             DispatchQueue.main.async {
                 CraftNativeShare.share(options) { complete(requestToken, $0, completion) }
             }
+            return
+        case ("AudioRecording", _):
+            guard config.enableAudioRecording else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Audio recording is disabled"), completion)
+                return
+            }
+            CraftVoiceRecording.shared.perform(method: method, args: args) { result in complete(requestToken, result, completion) }
             return
         case ("Speech", "speak"):
             // Settles when the words have been said (true) or were cut off

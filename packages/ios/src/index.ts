@@ -1515,6 +1515,7 @@ function writeShell(output: string, config: CraftConfig): void {
   cpSync(join(TEMPLATES_DIR, 'CraftNativeUI.swift'), join(output, 'Sources', 'CraftNativeUI.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeServices.swift'), join(output, 'Sources', 'CraftNativeServices.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeFiles.swift'), join(output, 'Sources', 'CraftNativeFiles.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftVoiceRecording.swift'), join(output, 'Sources', 'CraftVoiceRecording.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftWebAudio.swift'), join(output, 'Sources', 'CraftWebAudio.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftHybrid.swift'), join(output, 'Sources', 'CraftHybrid.swift'))
   // Always copied: without `crashReporting` in the config it installs nothing.
