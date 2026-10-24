@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.326...v0.0.327)
+
+## 🧪 Tests
+
+- **ios**: generate dense video fixtures with software encoding ([d8c13fd](https://github.com/craft-native/craft/commit/d8c13fd)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.325...v0.0.326)
 
 ## ⚡ Performance Improvements
