@@ -254,7 +254,7 @@ static AXError (*readOwner)(AXUIElementRef, pid_t *) = AXUIElementGetPid;
 // helper bundle), or suppress a system indicator. System preservation is an
 // explicit consumer policy; unselected application icons are always protected.
 static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, double boundary, BOOL rtl,
-    BOOL protectedOnly, pid_t agent, NSMutableDictionary *items, NSMutableDictionary *owners, NSMutableDictionary *systemSections, NSUInteger *remaining) {
+    BOOL protectedOnly, pid_t agent, CGRect display, NSMutableDictionary *items, NSMutableDictionary *owners, NSMutableDictionary *systemSections, NSUInteger *remaining) {
     if (!depth || !*remaining) return NO;
     (*remaining)--;
     AXUIElementSetMessagingTimeout(node, 0.1);
@@ -265,7 +265,7 @@ static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL roo
     if (!root && [role isEqual:(__bridge NSString *)kAXApplicationRole]) {
         id extras = readAttribute(node, CFSTR("AXExtrasMenuBar"));
         if (extras && CFGetTypeID((__bridge CFTypeRef)extras) == AXUIElementGetTypeID())
-            return collectSnapshotItems((__bridge AXUIElementRef)extras, depth - 1, NO, boundary, rtl, protectedOnly, agent, items, owners, systemSections, remaining);
+            return collectSnapshotItems((__bridge AXUIElementRef)extras, depth - 1, NO, boundary, rtl, protectedOnly, agent, display, items, owners, systemSections, remaining);
         // Keep an unreadable remote app protected by its native presence.
         // Its ordinary window controls cannot stand in for a status item.
         pid_t owner = 0;
@@ -292,6 +292,9 @@ static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL roo
             && AXValueGetValue((__bridge AXValueRef)size, kAXValueCGSizeType, &dimensions)
             && isfinite(point.x) && dimensions.width > 0 && dimensions.height > 0 && dimensions.height <= 64) {
             double middle = point.x + dimensions.width / 2;
+            // MenuBarAgent exposes controls from every connected display. A
+            // copy on another screen cannot override this arrow's selection.
+            if (!CGRectContainsPoint(display, CGPointMake(middle, point.y + dimensions.height / 2))) return YES;
             // The arrow changes its label after activation. Its own native
             // identity remains protected by the allow-list, not by text.
             pid_t owner = 0;
@@ -336,27 +339,27 @@ static BOOL collectSnapshotItems(AXUIElementRef node, NSUInteger depth, BOOL roo
     if ([children isKindOfClass:NSArray.class]) {
         for (id child in children) {
             if (CFGetTypeID((__bridge CFTypeRef)child) == AXUIElementGetTypeID()
-                && !collectSnapshotItems((__bridge AXUIElementRef)child, depth - 1, NO, boundary, rtl, protectedOnly, agent, items, owners, systemSections, remaining)) return NO;
+                && !collectSnapshotItems((__bridge AXUIElementRef)child, depth - 1, NO, boundary, rtl, protectedOnly, agent, display, items, owners, systemSections, remaining)) return NO;
         }
     }
     return YES;
 }
 
-static NSDictionary *barLayout(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly) {
+static NSDictionary *barLayout(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly, CGRect display) {
     if (!agent) return nil;
     AXUIElementRef element = AXUIElementCreateApplication(agent);
     NSMutableDictionary *items = [NSMutableDictionary dictionary], *owners = [NSMutableDictionary dictionary], *systemSections = [NSMutableDictionary dictionary];
     NSUInteger remaining = 256;
-    BOOL complete = collectSnapshotItems(element, 8, YES, boundary, rtl, protectedOnly, agent, items, owners, systemSections, &remaining);
+    BOOL complete = collectSnapshotItems(element, 8, YES, boundary, rtl, protectedOnly, agent, display, items, owners, systemSections, &remaining);
     CFRelease(element);
     return complete && items.count ? @{ @"items": [items copy], @"owners": [owners copy], @"system": [systemSections copy] } : nil;
 }
 
-static NSDictionary *barSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly) {
-    return barLayout(agent, boundary, rtl, protectedOnly)[@"items"];
+static NSDictionary *barSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly, CGRect display) {
+    return barLayout(agent, boundary, rtl, protectedOnly, display)[@"items"];
 }
 
-static NSDictionary *(*readBarSnapshot)(pid_t, double, BOOL, BOOL) = barSnapshot;
+static NSDictionary *(*readBarSnapshot)(pid_t, double, BOOL, BOOL, CGRect) = barSnapshot;
 
 static BOOL preservesItems(NSDictionary *expected, NSDictionary *actual) {
     if (!expected.count || !actual.count) return NO;
@@ -373,7 +376,7 @@ static BOOL preservesItems(NSDictionary *expected, NSDictionary *actual) {
 }
 
 static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, NSUInteger systemHidden, NSUInteger ticket,
-    pid_t agent, double boundary, BOOL rtl, NSDictionary *protectedItems) {
+    pid_t agent, double boundary, BOOL rtl, NSDictionary *protectedItems, CGRect display) {
     // Assessment mode can suppress system indicators even with all apps allowed.
     // Never activate a global restriction when there is no selected app to hide.
     if (!hidden && !systemHidden) return fail(@"emptyGroup");
@@ -393,7 +396,7 @@ static void activate(NSArray *systemItems, NSArray *allowed, NSUInteger hidden, 
                     return fail(@"activationFailed");
                 }
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC), dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-                    NSDictionary *actual = readBarSnapshot(agent, boundary, rtl, NO);
+                    NSDictionary *actual = readBarSnapshot(agent, boundary, rtl, NO, display);
                     dispatch_async(dispatch_get_main_queue(), ^{
                         if (ticket != generation) { invalidate(pending); return; }
                         if (!AXIsProcessTrusted()) return fail(@"permissionRequired");
@@ -426,6 +429,12 @@ static NSRect buttonScreenFrame(NSView *button) {
     return [button.window convertRectToScreen:[button convertRect:button.bounds toView:nil]];
 }
 
+// Accessibility coordinates start at the primary display's top-left;
+// AppKit screen coordinates start at its bottom-left, including other screens.
+static CGRect accessibilityScreenBounds(NSRect screen, NSRect primary) {
+    return CGRectMake(NSMinX(screen), NSMaxY(primary) - NSMaxY(screen), NSWidth(screen), NSHeight(screen));
+}
+
 void craft_menubar_visibility_collapse(void) {
     NSTimeInterval started = NSProcessInfo.processInfo.systemUptime;
     if (assertion || busy) return;
@@ -434,7 +443,10 @@ void craft_menubar_visibility_collapse(void) {
     NSString *ownBundle = NSBundle.mainBundle.bundleIdentifier;
     NSArray *ownBundles = ownIdentifiers();
     NSRect frame = buttonScreenFrame(marker.button);
-    if (!ownBundle.length || !marker.button.window || NSWidth(frame) <= 0) return fail(@"layoutUnavailable");
+    NSScreen *screen = marker.button.window.screen;
+    NSScreen *primary = NSScreen.screens.firstObject;
+    if (!ownBundle.length || !screen || !primary || NSWidth(frame) <= 0) return fail(@"layoutUnavailable");
+    const CGRect display = accessibilityScreenBounds(screen.frame, primary.frame);
     operationStarted = started;
     busy = YES;
     failure = nil;
@@ -453,7 +465,7 @@ void craft_menubar_visibility_collapse(void) {
     });
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         @autoreleasepool {
-            NSDictionary *layout = barLayout(agent, boundary, rtl, YES);
+            NSDictionary *layout = barLayout(agent, boundary, rtl, YES, display);
             NSDictionary *sections = inventory(apps, layout[@"owners"]);
             NSDictionary *identities = applicationIdentities(apps);
             NSDictionary *protectedItems = layout[@"items"];
@@ -466,7 +478,7 @@ void craft_menubar_visibility_collapse(void) {
                 NSArray *allowed = allowedBundles(bundles, sections, identities, ownBundles, &hidden);
                 NSUInteger systemHidden = 0;
                 NSArray *systemItems = allowedSystemItems(layout[@"system"], &systemHidden);
-                activate(systemItems, allowed, hidden, systemHidden, ticket, agent, boundary, rtl, protectedItems);
+                activate(systemItems, allowed, hidden, systemHidden, ticket, agent, boundary, rtl, protectedItems, display);
             });
         }
     });

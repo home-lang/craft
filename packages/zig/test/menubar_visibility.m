@@ -11,7 +11,7 @@ static Boolean testTrusted(void) { return trusted; }
 
 static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, double boundary, BOOL rtl,
     BOOL protectedOnly, NSMutableDictionary *items, NSUInteger *remaining) {
-    return collectSnapshotItems(node, depth, root, boundary, rtl, protectedOnly, 0, items, nil, nil, remaining);
+    return collectSnapshotItems(node, depth, root, boundary, rtl, protectedOnly, 0, CGRectInfinite, items, nil, nil, remaining);
 }
 
 @interface TestRunningApplication : NSObject
@@ -34,8 +34,8 @@ static BOOL snapshotItems(AXUIElementRef node, NSUInteger depth, BOOL root, doub
 static BOOL throwOnActivation;
 static NSMutableArray *created;
 static NSDictionary *snapshot = nil;
-static NSDictionary *testSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly) {
-    (void)agent; (void)boundary; (void)rtl; (void)protectedOnly;
+static NSDictionary *testSnapshot(pid_t agent, double boundary, BOOL rtl, BOOL protectedOnly, CGRect display) {
+    (void)agent; (void)boundary; (void)rtl; (void)protectedOnly; (void)display;
     return snapshot;
 }
 
@@ -55,6 +55,14 @@ static AXError testOwner(AXUIElementRef node, pid_t *pid) {
     *pid = owner.intValue;
     return kAXErrorSuccess;
 }
+static void verifyDisplayCoordinates(void) {
+    NSRect primary = NSMakeRect(0, 0, 1000, 800);
+    assert(CGRectEqualToRect(accessibilityScreenBounds(primary, primary), CGRectMake(0, 0, 1000, 800)));
+    assert(CGRectEqualToRect(accessibilityScreenBounds(NSMakeRect(1000, 0, 1200, 900), primary), CGRectMake(1000, -100, 1200, 900)));
+    assert(CGRectEqualToRect(accessibilityScreenBounds(NSMakeRect(0, 800, 1000, 800), primary), CGRectMake(0, -800, 1000, 800)));
+    assert(CGRectEqualToRect(accessibilityScreenBounds(NSMakeRect(-1000, -800, 1000, 800), primary), CGRectMake(-1000, 800, 1000, 800)));
+}
+
 static void verifySystemGrouping(void) {
     assert([systemItemIdentifier(@"com.apple.menuextra.battery") isEqual:@0]);
     assert([systemItemIdentifier(@"com.apple.menuextra.wifi") isEqual:@6]);
@@ -95,7 +103,7 @@ static void verifyRecreatedAnonymousItems(void) {
     readOwner = testOwner;
     NSMutableDictionary *overlappingItems = [NSMutableDictionary dictionary];
     NSUInteger overlapRemaining = 256;
-    assert(!collectSnapshotItems((__bridge AXUIElementRef)overlapping, 8, NO, 100, NO, YES, 0, overlappingItems, nil, nil, &overlapRemaining));
+    assert(!collectSnapshotItems((__bridge AXUIElementRef)overlapping, 8, NO, 100, NO, YES, 0, CGRectInfinite, overlappingItems, nil, nil, &overlapRemaining));
 
     NSMutableDictionary *systemAttributes = [attributes mutableCopy];
     systemAttributes[(__bridge NSString *)kAXIdentifierAttribute] = @"com.apple.menuextra.wifi";
@@ -108,21 +116,34 @@ static void verifyRecreatedAnonymousItems(void) {
         (__bridge NSString *)kAXIdentifierAttribute: @"com.apple.menuextra.wifi",
         (__bridge NSString *)kAXChildrenAttribute: @[wifi],
     });
-    assert(collectSnapshotItems((__bridge AXUIElementRef)systemHost, 8, NO, 400, NO, YES, 1234, overlappingItems, nil, systemSections, &wifiRemaining));
+    assert(collectSnapshotItems((__bridge AXUIElementRef)systemHost, 8, NO, 400, NO, YES, 1234, CGRectInfinite, overlappingItems, nil, systemSections, &wifiRemaining));
     assert(systemSections[@6] && ![systemSections[@6] boolValue]);
     wifiRemaining = 256;
-    assert(collectSnapshotItems((__bridge AXUIElementRef)wifi, 8, NO, 100, NO, YES, 1234, overlappingItems, nil, systemSections, &wifiRemaining));
+    assert(collectSnapshotItems((__bridge AXUIElementRef)wifi, 8, NO, 100, NO, YES, 1234, CGRectInfinite, overlappingItems, nil, systemSections, &wifiRemaining));
     assert([systemSections[@6] boolValue]);
+    // A mirrored control on another screen must not keep this screen's hidden
+    // item visible. Only the arrow's display determines group membership.
+    [systemSections removeAllObjects];
+    systemAttributes[(__bridge NSString *)kAXPositionAttribute] = CFBridgingRelease(AXValueCreate(kAXValueCGPointType, &(CGPoint){20, 0}));
+    id localWifi = testNode([systemAttributes copy]);
+    systemAttributes[(__bridge NSString *)kAXPositionAttribute] = CFBridgingRelease(AXValueCreate(kAXValueCGPointType, &(CGPoint){200, 0}));
+    id remoteWifi = testNode([systemAttributes copy]);
+    for (id item in @[localWifi, remoteWifi]) {
+        wifiRemaining = 256;
+        assert(collectSnapshotItems((__bridge AXUIElementRef)item, 8, NO, 100, NO, YES, 1234, CGRectMake(0, 0, 150, 100), overlappingItems, nil, systemSections, &wifiRemaining));
+    }
+    assert(systemSections[@6] && ![systemSections[@6] boolValue]);
+
     NSMutableDictionary *systemItems = [NSMutableDictionary dictionary];
     readAttribute = testAttribute;
     readOwner = testOwner;
     preserveSystemItems = NO;
     NSUInteger systemRemaining = 256;
-    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 1234, systemItems, nil, nil, &systemRemaining));
+    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 1234, CGRectInfinite, systemItems, nil, nil, &systemRemaining));
     assert(!systemItems.count);
     preserveSystemItems = YES;
     systemRemaining = 256;
-    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 1234, systemItems, nil, nil, &systemRemaining));
+    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 1234, CGRectInfinite, systemItems, nil, nil, &systemRemaining));
     assert(systemItems.count == 1);
 
     readAttribute = testAttribute;
@@ -137,7 +158,7 @@ static void verifyRecreatedAnonymousItems(void) {
     // icons. An app's separate, potentially stale AX geometry is never read.
     NSMutableDictionary *owners = [NSMutableDictionary dictionary];
     [expected removeAllObjects]; remaining = 256;
-    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 0, expected, owners, nil, &remaining));
+    assert(collectSnapshotItems((__bridge AXUIElementRef)before, 8, NO, 100, NO, YES, 0, CGRectInfinite, expected, owners, nil, &remaining));
     assert([owners[@1234] boolValue]);
     TestRunningApplication *visibleApp = [TestRunningApplication new];
     visibleApp.bundleIdentifier = @"visible.app"; visibleApp.processIdentifier = 1234;
@@ -146,7 +167,7 @@ static void verifyRecreatedAnonymousItems(void) {
     attributes[@"testOwner"] = @7890;
     id left = testNode([attributes copy]);
     remaining = 256;
-    assert(collectSnapshotItems((__bridge AXUIElementRef)left, 8, NO, 100, NO, YES, 0, expected, owners, nil, &remaining));
+    assert(collectSnapshotItems((__bridge AXUIElementRef)left, 8, NO, 100, NO, YES, 0, CGRectInfinite, expected, owners, nil, &remaining));
     assert(owners[@7890] && ![owners[@7890] boolValue]);
     TestRunningApplication *hiddenApp = [TestRunningApplication new];
     hiddenApp.bundleIdentifier = @"hidden.app"; hiddenApp.processIdentifier = 7890;
@@ -327,7 +348,7 @@ static void verifyStatusItemScope(void) {
 
 static TestAssertion *begin(void) {
     busy = YES;
-    activate(@[@0, @1], @[@"own.app"], 2, 0, ++generation, 1, 100, NO, @{@"right": @1});
+    activate(@[@0, @1], @[@"own.app"], 2, 0, ++generation, 1, 100, NO, @{@"right": @1}, CGRectInfinite);
     return created.lastObject;
 }
 static void drain(void) {
@@ -344,6 +365,7 @@ int main(int argc, char *argv[]) {
     }
     @autoreleasepool {
         verifyButtonBoundary();
+        verifyDisplayCoordinates();
         verifySystemGrouping();
         verifyRecreatedAnonymousItems();
         verifyStatusItemScope();
@@ -430,7 +452,7 @@ int main(int argc, char *argv[]) {
         assert(hidden == 2 && ![sharedHidden containsObject:@"shared.first"] && ![sharedHidden containsObject:@"shared.second"]);
 
         busy = YES;
-        activate(@[@0, @1], ownIdentifiers(), 0, 0, ++generation, 1, 100, NO, snapshot);
+        activate(@[@0, @1], ownIdentifiers(), 0, 0, ++generation, 1, 100, NO, snapshot, CGRectInfinite);
         assert(!busy && !assertion && created.count == 0 && [failure isEqual:@"emptyGroup"]);
 
         TestAssertion *first = begin();
@@ -440,6 +462,15 @@ int main(int argc, char *argv[]) {
         assert(CFGetTypeID((__bridge CFTypeRef)state()[@"collapsed"]) == CFBooleanGetTypeID());
         craft_menubar_visibility_expand();
         assert(first.invalidated && !assertion && !busy && hiddenAppCount == 0);
+
+        busy = YES;
+        activate(@[@1, @2], ownIdentifiers(), 0, 1, ++generation, 1, 100, NO, snapshot, CGRectInfinite);
+        TestAssertion *systemOnly = created.lastObject;
+        systemOnly.completion(nil); drain();
+        assert(assertion == systemOnly && !busy && hiddenAppCount == 0 && hiddenSystemItemCount == 1);
+        assert([state()[@"hiddenSystemItemCount"] unsignedIntegerValue] == 1);
+        craft_menubar_visibility_expand();
+        assert(systemOnly.invalidated && hiddenAppCount == 0 && hiddenSystemItemCount == 0);
 
         snapshot = @{@"unexpected": @1};
         TestAssertion *unsafe = begin();
